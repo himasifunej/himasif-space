@@ -34,8 +34,8 @@ for n,name,view,sidebar,extras,desc in SCREENS:
  html=f'''<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark light"><title>Space — Draft 02 · {name}</title><link rel="icon" href="{logo}"><style>{css}</style></head><body><div id="refined-app"></div><div id="refined-overlay"></div><div id="refined-toast" role="status" aria-live="polite"></div><script type="module">{script}</script></body></html>'''
  filename=f'Space-02-{n}-{name}.html'
  (ART/filename).write_text(html);(DOWNLOAD/filename).write_text(html)
- entries.append(dict(number=int(n),name=name,description=desc,query=params,html=filename,preview_url='http://localhost:5173/refined.html?'+urlencode(params),download_url='http://localhost:5173/downloads/refined-02/'+filename,canvas_url=f'canvas://{CANVAS}/design-{int(n)}'))
-manifest=dict(canvas_id=CANVAS,status='Disposable UI prototype; fixtures; edits reset on reload',gallery_url='http://localhost:5173/refined-gallery.html',screens=entries)
+ entries.append(dict(number=int(n),name=name,description=desc,query=params,html=filename,preview_url='http://localhost:5173/refined.html?'+urlencode(params),download_url='http://localhost:5173/downloads/refined-02/'+filename,**({'canvas_url' if '--canvas' in sys.argv else 'planned_canvas_url':f'canvas://{CANVAS}/design-{int(n)}'})))
+manifest=dict(canvas_id=CANVAS,canvas_status='published' if '--canvas' in sys.argv else 'pending_app_connection',status='Disposable UI prototype; fixtures; edits reset on reload',gallery_url='http://localhost:5173/refined-gallery.html',screens=entries)
 (ART/'manifest.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n')
 with zipfile.ZipFile(ROOT/'frontend/downloads/Space-Draft-02.zip','w',zipfile.ZIP_DEFLATED) as bundle:
  for e in entries:bundle.write(ART/e['html'],e['html'])

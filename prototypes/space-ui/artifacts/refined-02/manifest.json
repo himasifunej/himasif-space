@@ -16,7 +16,7 @@
       "html": "Space-02-01-Beranda.html",
       "preview_url": "http://localhost:5173/refined.html?view=home&sidebar=expanded&theme=dark&accent=sand",
       "download_url": "http://localhost:5173/downloads/refined-02/Space-02-01-Beranda.html",
-      "canvas_url": "canvas://4be5d5cd0e28/design-1"
+      "planned_canvas_url": "canvas://4be5d5cd0e28/design-1"
     },
     {
       "number": 2,
@@ -31,7 +31,7 @@
       "html": "Space-02-02-Board.html",
       "preview_url": "http://localhost:5173/refined.html?view=board&sidebar=expanded&theme=dark&accent=sand",
       "download_url": "http://localhost:5173/downloads/refined-02/Space-02-02-Board.html",
-      "canvas_url": "canvas://4be5d5cd0e28/design-2"
+      "planned_canvas_url": "canvas://4be5d5cd0e28/design-2"
     },
     {
       "number": 3,
@@ -47,7 +47,7 @@
       "html": "Space-02-03-Detail.html",
       "preview_url": "http://localhost:5173/refined.html?view=board&sidebar=collapsed&theme=dark&accent=sand&task=1",
       "download_url": "http://localhost:5173/downloads/refined-02/Space-02-03-Detail.html",
-      "canvas_url": "canvas://4be5d5cd0e28/design-3"
+      "planned_canvas_url": "canvas://4be5d5cd0e28/design-3"
     },
     {
       "number": 4,
@@ -62,7 +62,7 @@
       "html": "Space-02-04-Agenda.html",
       "preview_url": "http://localhost:5173/refined.html?view=calendar&sidebar=collapsed&theme=dark&accent=sand",
       "download_url": "http://localhost:5173/downloads/refined-02/Space-02-04-Agenda.html",
-      "canvas_url": "canvas://4be5d5cd0e28/design-4"
+      "planned_canvas_url": "canvas://4be5d5cd0e28/design-4"
     },
     {
       "number": 5,
@@ -78,7 +78,7 @@
       "html": "Space-02-05-Penampilan.html",
       "preview_url": "http://localhost:5173/refined.html?view=home&sidebar=collapsed&theme=dark&accent=sand&panel=appearance",
       "download_url": "http://localhost:5173/downloads/refined-02/Space-02-05-Penampilan.html",
-      "canvas_url": "canvas://4be5d5cd0e28/design-5"
+      "planned_canvas_url": "canvas://4be5d5cd0e28/design-5"
     },
     {
       "number": 6,
@@ -94,7 +94,8 @@
       "html": "Space-02-06-Terang.html",
       "preview_url": "http://localhost:5173/refined.html?view=board&sidebar=collapsed&theme=light&accent=blue&task=1",
       "download_url": "http://localhost:5173/downloads/refined-02/Space-02-06-Terang.html",
-      "canvas_url": "canvas://4be5d5cd0e28/design-6"
+      "planned_canvas_url": "canvas://4be5d5cd0e28/design-6"
     }
-  ]
+  ],
+  "canvas_status": "pending_app_connection"
 }
