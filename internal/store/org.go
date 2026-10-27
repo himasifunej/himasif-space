@@ -45,8 +45,13 @@ func (s *Store) Periods(ctx context.Context) ([]api.Period, error) {
 
 // PeriodByLabel returns the period with a label.
 func (s *Store) PeriodByLabel(ctx context.Context, label string) (api.Period, error) {
+	return s.PeriodByLabelQ(ctx, s.pool, label)
+}
+
+// PeriodByLabelQ returns the period with a label, in q.
+func (s *Store) PeriodByLabelQ(ctx context.Context, q Querier, label string) (api.Period, error) {
 	var p api.Period
-	err := s.pool.QueryRow(ctx, `select id, label, starts_on, ends_on, time_zone, status from periods where label = $1`, label).
+	err := q.QueryRow(ctx, `select id, label, starts_on, ends_on, time_zone, status from periods where label = $1`, label).
 		Scan(&p.ID, &p.Label, &p.StartsOn, &p.EndsOn, &p.TimeZone, &p.Status)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return p, ErrNotFound
@@ -64,6 +69,9 @@ func (s *Store) CreatePeriod(ctx context.Context, q Querier, p api.Period) (api.
 	}
 	_, err := q.Exec(ctx, `insert into periods (id, label, starts_on, ends_on, time_zone, status) values ($1, $2, $3, $4, $5, $6)`,
 		p.ID, p.Label, p.StartsOn, p.EndsOn, p.TimeZone, p.Status)
+	if isUniqueViolation(err) {
+		return p, ErrConflict
+	}
 	return p, err
 }
 

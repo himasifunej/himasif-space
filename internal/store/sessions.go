@@ -55,3 +55,11 @@ func (s *Store) RevokeSession(ctx context.Context, q Querier, sessionID id.ID, n
 	_, err := q.Exec(ctx, `update sessions set revoked_at = $2 where id = $1 and revoked_at is null`, sessionID, now)
 	return err
 }
+
+// SessionActive revalidates a session within an account transaction. Callers
+// hold the user row lock so credential rotation cannot interleave with it.
+func (s *Store) SessionActive(ctx context.Context, q Querier, sessionID, userID id.ID, now time.Time) (bool, error) {
+	var active bool
+	err := q.QueryRow(ctx, `select exists(select 1 from sessions where id=$1 and user_id=$2 and revoked_at is null and expires_at>$3)`, sessionID, userID, now).Scan(&active)
+	return active, err
+}

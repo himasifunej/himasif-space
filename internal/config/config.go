@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"net/mail"
 	"os"
 	"strconv"
 	"strings"
@@ -90,6 +91,13 @@ func Load() (Config, error) {
 	case "smtp":
 		if c.Mail.Host == "" {
 			errs = append(errs, errors.New("SPACE_SMTP_HOST is required with SPACE_MAIL_DRIVER=smtp"))
+		}
+		// The verified sending identity of HIMASIF (Amazon SES) is the
+		// domain himasif.id; production mail comes from it.
+		if !c.Development() {
+			if a, err := mail.ParseAddress(c.Mail.From); err != nil || !strings.HasSuffix(strings.ToLower(a.Address), "@himasif.id") {
+				errs = append(errs, fmt.Errorf("SPACE_MAIL_FROM must be an address @himasif.id in production, not %q", c.Mail.From))
+			}
 		}
 		switch c.Mail.TLS {
 		case "starttls", "tls":
