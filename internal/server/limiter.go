@@ -9,15 +9,16 @@ import (
 // memory. It protects login from guessing; one server process is enough
 // for Space's scale, and a restart forgiving the counts is acceptable.
 type limiter struct {
-	mu     sync.Mutex
-	max    int
-	window time.Duration
-	hits   map[string][]time.Time
-	sweep  time.Time
+	mu      sync.Mutex
+	max     int
+	window  time.Duration
+	maxKeys int
+	hits    map[string][]time.Time
+	sweep   time.Time
 }
 
 func newLimiter(max int, window time.Duration) *limiter {
-	return &limiter{max: max, window: window, hits: map[string][]time.Time{}}
+	return &limiter{max: max, window: window, maxKeys: 10_000, hits: map[string][]time.Time{}}
 }
 
 // allow records an event of key at now and reports whether it is within
@@ -34,7 +35,12 @@ func (l *limiter) allow(key string, now time.Time) bool {
 		}
 		l.sweep = now
 	}
-	ts := l.hits[key]
+	ts, exists := l.hits[key]
+	// Fail closed for unseen keys at capacity. Evicting live keys would let
+	// a caller cycle identities to reset existing limits.
+	if !exists && len(l.hits) >= l.maxKeys {
+		return false
+	}
 	i := 0
 	for i < len(ts) && !ts[i].After(cutoff) {
 		i++

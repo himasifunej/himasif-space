@@ -68,6 +68,10 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, api.CodeBadRequest, "Isi email dan kata sandi.")
 		return
 	}
+	if len(email) > 254 {
+		writeError(w, http.StatusBadRequest, api.CodeBadRequest, "Alamat email terlalu panjang.")
+		return
+	}
 	switch req.Client {
 	case "", "web", "desktop", "mobile":
 	default:
@@ -75,7 +79,8 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := s.now()
-	if !s.loginLimit.allow("email:"+email, now) || !s.loginLimit.allow("ip:"+clientIP(r), now) {
+	// Refuse a blocked address before retaining any additional email keys.
+	if !s.loginLimit.allow("ip:"+clientIP(r), now) || !s.loginLimit.allow("email:"+email, now) {
 		writeError(w, http.StatusTooManyRequests, api.CodeRateLimited, "Terlalu banyak percobaan masuk. Coba lagi beberapa menit lagi.")
 		return
 	}
