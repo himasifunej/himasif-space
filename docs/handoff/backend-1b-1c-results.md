@@ -44,7 +44,8 @@ Skenario penerimaan yang diuji otomatis: AC-01, AC-02, AC-03 (bagian akses/direk
 
 ## Belum / batas
 
-- Tidak ada email nyata yang dikirim melalui SES. Alur undangan/pemulihan diuji dengan Mailer penangkap; driver SMTP diuji ke Mailpit lokal (`mail-test`, From `HIMASIF Space <no-reply@himasif.id>` diterima utuh).
+- Alur undangan/pemulihan diuji dengan Mailer penangkap; driver SMTP diuji ke Mailpit lokal (`mail-test`, From `HIMASIF Space <no-reply@himasif.id>` diterima utuh).
+- 27 Okt 2026: satu email `mail-test` dikirim lewat SES (`SPACE_ENV=production`) ke alamat pengguna dan diterima di Kotak Masuk Gmail dengan From `HIMASIF Space <no-reply@himasif.id>`. Email undangan/pemulihan sendiri belum dikirim lewat SES.
 - Belum ada migrasi di database dev/produksi selain database test sementara; tidak ada deploy.
 - UI (sesi STB, `feat/native-ui`) belum memakai endpoint ini dan perlu halaman undangan/pemulihan/serah terima admin.
 - Penerusan tugas tersisa (PER-06/08), reminder privat (AC-09) dan perintah WA (AC-06 via WA) bergantung sesi berikutnya.
