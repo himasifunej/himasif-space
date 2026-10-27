@@ -1,21 +1,38 @@
-# Handoff sementara backend Sesi 1B–1C — belum diimplementasikan
+# Hasil backend Sesi 1B–1C
 
-Pekerjaan dihentikan atas permintaan pengguna untuk dialihkan ke Kiro. Jangan menganggap dokumen kontrak atau DTO sebagai endpoint yang sudah tersedia.
+Branch `feat/accounts-spaces-access`, dari `627298f`. Kontrak final: [backend-api-contract.md](backend-api-contract.md); DTO di `internal/api/access.go`.
 
-## Yang sudah tersedia
+## Yang dibuat
 
-- Branch `feat/accounts-spaces-access` dibuat dari `origin/main`, baseline `627298f334624cd5edf1d47bc13e4113815d3cf2`.
-- `docs/handoff/backend-api-contract.md`: draft awal endpoint, bentuk JSON dan aturan otorisasi untuk ditinjau/dilanjutkan Kiro.
-- `internal/api/access.go`: draft DTO tambahan, belum digunakan server. Kontrak admin handover masih perlu difinalisasi.
-- Dokumen PRD, register keputusan, rencana implementasi dan ADR 0001 sudah dibaca.
+- Migrasi `0002_accounts_spaces_access.sql` (baru; `0001` tidak diubah): divisi per periode, Space (divisi + Medhum), membership/role/pengelompokan, role kustom, 45, undangan, token email sekali pakai, grant arsip, catatan serah terima.
+- `internal/authz`: aturan kemampuan murni (PRD §4.2). Larangan administrasi 45 diterapkan setelah semua role digabung; role kustom hanya operasional; admin tidak mendapat `acting45.manage` maupun kemampuan kerja.
+- `internal/store`: query akses dan akun. `internal/server`: semua endpoint kontrak + `inspect` undangan, ganti kata sandi, `admin-email`, daftar/nonaktifkan akun.
+- Setiap perubahan dan audit-nya satu transaksi. Penolakan 403 pada request tulis dicatat `authz.denied` (AC-06).
+- Penulisan memuat periode `FOR SHARE`; penutupan periode `FOR UPDATE`, sehingga penulisan bersamaan tidak lolos setelah periode ditutup.
+- Seed memberi periode 2025/2026 struktur divisi + Space bila belum ada (database Sesi 1A tetap bisa di-seed ulang).
+- Config: produksi dengan SMTP wajib From `@himasif.id`.
 
-## Belum dikerjakan
+## Keputusan teknis baru
 
-Seluruh implementasi akun/undangan, periode/membership, Space, role/45, arsip, handover, otorisasi, audit tambahan dan migrasi baru. Belum ada perubahan mail/config/seed. Belum ada unit/integration test baru atau hasil integrasi PostgreSQL. Belum ada PR. Tidak ada migrasi dijalankan, database dev direset, email dikirim, atau deployment dilakukan.
+- Umur: undangan 7 hari dari setiap pengiriman; bukti email undangan, pemulihan dan email admin 1 jam. Resend merotasi token dan mematikan bukti lama.
+- Batas: email ke satu alamat 5/15 menit; endpoint auth publik 30/15 menit per IP; verifikasi kata sandi saat ini memakai limiter login.
+- Pemulihan menjawab 202 seketika dan mengirim di background, sehingga waktu respons tidak membocorkan keberadaan akun; `Server.Wait()` dipanggil saat shutdown.
+- Tautan email memakai fragment (`/#/undangan?token=…`, `/#/pemulihan?token=…`, `/#/organisasi/serah-terima-admin?verification=…`) agar token tidak masuk log server. **UI perlu menyediakan halaman ini.**
+- Pengiriman email adalah langkah terakhir transaksi; kegagalan → 503 dan rollback.
+- Penetapan kadiv baru menurunkan kadiv lama menjadi member pada periode itu (tidak menghapus keanggotaannya).
+- Grant arsip hanya berlaku selama penerima masih anggota aktif scope pemberi.
 
-## Lingkungan dan batas
+## Verifikasi yang dijalankan
 
-- Panduan SES tersedia di `/home/enowx/HIMASIF/himasif-space/SES-SENDER.md`; kredensial tetap di `/home/enowx/.config/himasif-space/secrets.env` (mode 600). Jangan menampilkan atau menyalinnya. From wajib `@himasif.id`; gunakan Mailpit/test Mailer untuk pengujian. Variabel SES dalam panduan belum diadaptasi ke konfigurasi SPACE_* oleh pekerjaan ini.
-- Docker tidak dapat diakses oleh user sesi ini; sudo noninteraktif juga tidak tersedia. Percobaan menyiapkan source PostgreSQL 17.6 dilakukan di `/tmp/space-pg-build`; belum ada database test yang dibuat/dijalankan. Periksa sendiri lingkungan test yang tersedia; tes skipped bukan bukti integrasi lulus.
-- UI dikerjakan sesi lain di STB, branch `feat/native-ui`, `/mnt/stb/projects/himasif-space-native-ui`. Handoff aslinya ada di `docs/handoff/backend-1b-1c.md` pada worktree STB tersebut. Kontrak awal telah disampaikan kepada pengguna, belum dikirim langsung ke sesi UI.
-- Pertahankan batas kepemilikan file dari prompt asli. Jangan mengubah file UI, migrasi lama atau `docs/implementation-plan.md`. Jangan menyentuh Reo, sheet produksi, DNS atau deploy live. Buat PR untuk review; jangan merge sendiri.
+`make fmt vet` (linux, windows, js/wasm) dan `make test-db` terhadap PostgreSQL dev Coolify (`SPACE_TEST_DATABASE_URL`, database sementara per test): seluruh 22 test server lulus, tidak ada yang skipped. Unit test `authz` dan `config` lulus.
+
+Skenario penerimaan yang diuji otomatis: AC-01, AC-02, AC-03 (bagian akses/direktori; tugas belum ada), AC-06 (API; WA belum ada), AC-07 (termasuk dua penunjukan 45 bersamaan → 201/409), AC-08, AC-10, AC-11 (checklist serah terima, tanpa auto-copy; penerusan tugas menunggu Sesi 2A). Juga pemulihan, serah terima admin (semua sesi berakhir), nonaktifkan akun.
+
+## Belum / batas
+
+- Tidak ada email nyata yang dikirim; test memakai Mailer penangkap. Mailpit/SES belum diuji dengan alur ini.
+- Belum ada migrasi di database dev/produksi selain database test sementara; tidak ada deploy.
+- UI (sesi STB, `feat/native-ui`) belum memakai endpoint ini dan perlu halaman undangan/pemulihan/serah terima admin.
+- Penerusan tugas tersisa (PER-06/08), reminder privat (AC-09) dan perintah WA (AC-06 via WA) bergantung sesi berikutnya.
+- Semua penulisan pada periode closed, termasuk penetapan kadiv dan undangan, ditolak `409 period_closed`.
+- Dokumen ini dan kontrak belum dikirim langsung ke sesi UI.

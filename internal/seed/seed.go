@@ -11,6 +11,7 @@ import (
 
 	"github.com/himasifunej/himasif-space/internal/api"
 	"github.com/himasifunej/himasif-space/internal/auth"
+	"github.com/himasifunej/himasif-space/internal/id"
 	"github.com/himasifunej/himasif-space/internal/store"
 	"github.com/himasifunej/himasif-space/internal/timeutil"
 )
@@ -46,6 +47,7 @@ type Options struct {
 type Report struct {
 	Period    bool
 	Divisions []string
+	Spaces    []string
 	Admin     bool
 }
 
@@ -71,7 +73,8 @@ func Run(ctx context.Context, st *store.Store, opt Options) (Report, error) {
 
 	err := st.Tx(ctx, func(q store.Querier) error {
 		system := store.AuditEvent{ActorKind: "system", Source: "cli"}
-		if _, err := st.PeriodByLabel(ctx, FirstPeriod.Label); errors.Is(err, store.ErrNotFound) {
+		var divisionIDs []id.ID
+		if _, err := st.PeriodByLabelQ(ctx, q, FirstPeriod.Label); errors.Is(err, store.ErrNotFound) {
 			p, err := st.CreatePeriod(ctx, q, FirstPeriod)
 			if err != nil {
 				return err
@@ -90,6 +93,7 @@ func Run(ctx context.Context, st *store.Store, opt Options) (Report, error) {
 			if err != nil {
 				return err
 			}
+			divisionIDs = append(divisionIDs, div.ID)
 			if added {
 				e := system
 				e.Action, e.TargetType, e.TargetID, e.After = "division.create", "division", &div.ID, div
@@ -97,6 +101,29 @@ func Run(ctx context.Context, st *store.Store, opt Options) (Report, error) {
 					return err
 				}
 				rep.Divisions = append(rep.Divisions, d.Slug)
+			}
+		}
+		// The first period gets the divisions and their spaces once: when it
+		// has none yet, as a database seeded before Sesi 1B.
+		first, err := st.PeriodByLabelQ(ctx, q, FirstPeriod.Label)
+		if err != nil {
+			return err
+		}
+		if divs, err := st.PeriodDivisions(ctx, q, first.ID); err != nil {
+			return err
+		} else if len(divs) == 0 {
+			spaces, err := st.EnsurePeriodStructure(ctx, q, first.ID, divisionIDs)
+			if err != nil {
+				return err
+			}
+			for _, sp := range spaces {
+				e := system
+				e.Action, e.PeriodID, e.TargetType, e.TargetID = "space.create", &first.ID, "space", &sp.ID
+				e.After = map[string]any{"code": sp.Code, "name": sp.Name, "kind": sp.Kind}
+				if err := st.Audit(ctx, q, e); err != nil {
+					return err
+				}
+				rep.Spaces = append(rep.Spaces, sp.Code)
 			}
 		}
 		if adminHash != "" {

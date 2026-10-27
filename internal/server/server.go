@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/himasifunej/himasif-space/internal/api"
@@ -41,6 +42,13 @@ type Server struct {
 	now    func() time.Time
 
 	loginLimit *limiter
+	// mailLimit bounds the emails sent to one address; publicLimit the
+	// requests of one client address to the public account endpoints.
+	mailLimit   *limiter
+	publicLimit *limiter
+
+	// bg tracks work that outlives its request: recovery emails.
+	bg sync.WaitGroup
 }
 
 // New returns a server.
@@ -52,9 +60,15 @@ func New(cfg config.Config, st *store.Store, mailer mail.Mailer, log *slog.Logge
 		log:    log,
 		now:    time.Now,
 		// Ten attempts per email and per address in a quarter of an hour.
-		loginLimit: newLimiter(10, 15*time.Minute),
+		loginLimit:  newLimiter(10, 15*time.Minute),
+		mailLimit:   newLimiter(5, 15*time.Minute),
+		publicLimit: newLimiter(30, 15*time.Minute),
 	}
 }
+
+// Wait waits for the work started by requests that outlives them, as
+// sending a recovery email, for a graceful shutdown.
+func (s *Server) Wait() { s.bg.Wait() }
 
 // Handler returns the server's routes, wrapped in its middleware.
 func (s *Server) Handler() http.Handler {
@@ -65,6 +79,49 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/me", s.authed(s.me))
 	mux.Handle("GET /api/periods", s.authed(s.periods))
 	mux.Handle("GET /api/divisions", s.authed(s.divisions))
+
+	// Accounts (Sesi 1B).
+	mux.Handle("POST /api/auth/invitations/inspect", s.handlePublic(s.inspectInvitation))
+	mux.Handle("POST /api/auth/invitations/verify", s.handlePublic(s.verifyInvitationEmail))
+	mux.Handle("POST /api/auth/invitations/accept", s.handlePublic(s.acceptInvitation))
+	mux.Handle("POST /api/auth/recovery", s.handlePublic(s.requestRecovery))
+	mux.Handle("POST /api/auth/recovery/reset", s.handlePublic(s.resetPassword))
+	mux.Handle("POST /api/auth/password", s.handle(s.changePassword))
+	mux.Handle("POST /api/auth/admin-email", s.handle(s.requestAdminEmail))
+	mux.Handle("POST /api/auth/admin-handover", s.handle(s.adminHandover))
+	mux.Handle("GET /api/users", s.handle(s.listPeople))
+	mux.Handle("POST /api/users/{userId}/disable", s.handle(s.disableUser))
+	mux.Handle("POST /api/users/{userId}/enable", s.handle(s.enableUser))
+
+	// Periods and handover.
+	mux.Handle("POST /api/periods", s.handle(s.createPeriod))
+	mux.Handle("POST /api/periods/{periodId}/activate", s.handle(s.activatePeriod))
+	mux.Handle("POST /api/periods/{periodId}/close", s.handle(s.closePeriod))
+	mux.Handle("GET /api/periods/{periodId}/handover", s.handle(s.getHandover))
+	mux.Handle("PUT /api/periods/{periodId}/handover", s.handle(s.putHandover))
+
+	// Spaces and the access of a division (Sesi 1C).
+	mux.Handle("GET /api/periods/{periodId}/spaces", s.handle(s.periodSpaces))
+	mux.Handle("GET /api/spaces/{spaceId}", s.handle(s.getSpace))
+	const div = "/api/periods/{periodId}/divisions/{divisionId}"
+	mux.Handle("GET "+div+"/access", s.handle(s.divisionAccess))
+	mux.Handle("GET "+div+"/members", s.handle(s.listMembers))
+	mux.Handle("PATCH "+div+"/members/{userId}", s.handle(s.updateMember))
+	mux.Handle("DELETE "+div+"/members/{userId}", s.handle(s.removeMember))
+	mux.Handle("PUT "+div+"/kadiv", s.handle(s.setKadiv))
+	mux.Handle("GET "+div+"/invitations", s.handle(s.listInvitations))
+	mux.Handle("POST "+div+"/invitations", s.handle(s.invite))
+	mux.Handle("POST "+div+"/invitations/{invitationId}/resend", s.handle(s.resendInvitation))
+	mux.Handle("DELETE "+div+"/invitations/{invitationId}", s.handle(s.revokeInvitation))
+	mux.Handle("GET "+div+"/roles", s.handle(s.listRoles))
+	mux.Handle("POST "+div+"/roles", s.handle(s.saveRole))
+	mux.Handle("PUT "+div+"/roles/{roleId}", s.handle(s.saveRole))
+	mux.Handle("DELETE "+div+"/roles/{roleId}", s.handle(s.deleteRole))
+	mux.Handle("PUT "+div+"/45", s.handle(s.appoint45))
+	mux.Handle("DELETE "+div+"/45", s.handle(s.remove45))
+	mux.Handle("GET "+div+"/archives", s.handle(s.listArchives))
+	mux.Handle("POST "+div+"/archives", s.handle(s.grantArchive))
+	mux.Handle("DELETE "+div+"/archives/{grantId}", s.handle(s.revokeArchive))
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, api.CodeNotFound, "Alamat API tidak dikenal.")
 	})

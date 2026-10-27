@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -69,10 +71,55 @@ func testDB(t *testing.T) *store.Store {
 }
 
 type env struct {
-	t   *testing.T
-	st  *store.Store
-	srv *Server
-	url string
+	t    *testing.T
+	st   *store.Store
+	srv  *Server
+	url  string
+	mail *captureMailer
+}
+
+// captureMailer keeps the emails the server sends, for tests to read the
+// links in them; with fail set it refuses to send.
+type captureMailer struct {
+	mu   sync.Mutex
+	msgs []mail.Message
+	fail bool
+}
+
+func (m *captureMailer) Send(_ context.Context, msg mail.Message) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.fail {
+		return errors.New("test mailer: refused")
+	}
+	m.msgs = append(m.msgs, msg)
+	return nil
+}
+
+// last returns the last email to an address.
+func (m *captureMailer) last(t *testing.T, to string) mail.Message {
+	t.Helper()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i := len(m.msgs) - 1; i >= 0; i-- {
+		if strings.EqualFold(m.msgs[i].To, to) {
+			return m.msgs[i]
+		}
+	}
+	t.Fatalf("no email to %s", to)
+	return mail.Message{}
+}
+
+func (m *captureMailer) count(to string) int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	n := 0
+	for _, msg := range m.msgs {
+		if strings.EqualFold(msg.To, to) {
+			n++
+		}
+	}
+	return n
 }
 
 func newEnv(t *testing.T, webDir string) *env {
@@ -85,12 +132,12 @@ func newEnv(t *testing.T, webDir string) *env {
 		logOut = os.Stderr
 	}
 	log := slog.New(slog.NewTextHandler(logOut, nil))
-	cfg := config.Config{Env: "development", SessionTTL: time.Hour, WebDir: webDir}
-	m, _ := mail.New(config.Mail{Driver: "log", From: "Space <noreply@himasif.id>"}, log)
+	cfg := config.Config{Env: "development", SessionTTL: time.Hour, WebDir: webDir, PublicURL: "http://space.test"}
+	m := &captureMailer{}
 	srv := New(cfg, st, m, log)
 	hs := httptest.NewServer(srv.Handler())
 	t.Cleanup(hs.Close)
-	return &env{t: t, st: st, srv: srv, url: hs.URL}
+	return &env{t: t, st: st, srv: srv, url: hs.URL, mail: m}
 }
 
 // call sends a request and decodes the JSON response into out, if not nil.
@@ -259,7 +306,7 @@ func TestSeedIsIdempotentAndAdminIsSingle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rep.Period || rep.Admin || len(rep.Divisions) != 0 {
+	if rep.Period || rep.Admin || len(rep.Divisions) != 0 || len(rep.Spaces) != 0 {
 		t.Fatalf("second seed added %+v", rep)
 	}
 	_, err = e.st.CreateUser(ctx, e.st.DB(), store.User{Kind: api.AccountOrganizationAdmin, Email: "admin2@himasif.test", DisplayName: "Admin 2"})

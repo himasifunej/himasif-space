@@ -1,6 +1,6 @@
 # Backend API — Sesi 1B–1C
 
-Status: kontrak awal 27 Oktober 2026; implementasi di branch `feat/accounts-spaces-access`, dari `627298f`. DTO tambahan berada di `internal/api/access.go`. UI tetap MyGo native (desktop/WASM).
+Status: **diimplementasikan** di branch `feat/accounts-spaces-access` (dari `627298f`) dan diuji terhadap PostgreSQL; lihat [hasil](backend-1b-1c-results.md). DTO di `internal/api/access.go`. UI tetap MyGo native (desktop/WASM).
 
 ## Kompatibilitas dan aturan umum
 
@@ -33,7 +33,8 @@ Kemampuan operasional: `space.read`, `members.read`, `tasks.own`, `comments.writ
 - `POST /api/periods/{p}/divisions/{d}/invitations` — kadiv asli/admin; body `{"email":"anggota@example.test"}`; 201 Invitation. Selalu anggota biasa; penetapan jabatan terpisah. Email dikirim melalui Mailer; token tidak dikembalikan di API/list/audit/log.
 - `POST .../invitations/{invitationId}/resend` — rotasi token dan masa berlaku 7 hari dari pengiriman ulang, membatalkan bukti verifikasi sebelumnya; 200 Invitation.
 - `DELETE .../invitations/{invitationId}` — pencabutan; 204.
-- `POST /api/auth/invitations/verify` — publik, `{"token":"<invitation-token>"}`; 202. Mengirim bukti email terpisah (1 jam) ke alamat undangan. Link undangan yang dibagikan WhatsApp saja tidak cukup untuk membuktikan email.
+- `POST /api/auth/invitations/inspect` — publik `{"token":"..."}`; 200 `{"email","periodId","periodLabel","divisionId","divisionName","expiresAt","accountExists"}`. `accountExists` memilih alur: masuk lalu terima, atau verifikasi email lalu buat akun.
+- `POST /api/auth/invitations/verify` — publik, `{"token":"<invitation-token>"}`; 202. Mengirim bukti email terpisah (1 jam) ke alamat undangan; tautannya `/#/undangan?token=…&verification=…`. 409 bila email sudah punya akun. Link undangan yang dibagikan WhatsApp saja tidak cukup untuk membuktikan email.
 - `POST /api/auth/invitations/accept` — baru: `{"token":"...","verificationToken":"...","displayName":"Nama","password":"minimal-10-karakter"}`; lama: bearer login dari akun personal dengan email undangan yang sudah terverifikasi, body `{"token":"..."}`. 200 `{"user":{...},"membership":{...}}`. Akun baru kemudian login memakai kontrak lama. Satu penerimaan, binding email/divisi/periode diperiksa kembali secara atomik. Akun admin organisasi tidak bisa menerima keanggotaan personal.
 - `POST /api/auth/recovery` — publik `{"email":"..."}`; 202 identik untuk alamat ada/tidak ada. Token sekali pakai 1 jam dikirim hanya lewat Mailer.
 - `POST /api/auth/recovery/reset` — `{"token":"...","password":"kata-sandi-baru"}`; 204, semua sesi dan token pemulihan sebelumnya dicabut. Tidak mengaktifkan akun disabled.
@@ -66,8 +67,19 @@ Member mencakup `id, userId, periodId, divisionId, displayName, role, roles, gro
 - `GET /api/periods/{p}/divisions/{d}/archives` — kadiv asli/admin periode pemberi; daftar grant yang diberikan dari scope itu.
 - `POST .../archives` — kadiv asli periode aktif terkait/admin; `{"userId":"<anggota-scope-aktif>","spaceId":"<space-periode-closed>"}`; 201 ArchiveGrant. Space asal harus memuat divisi yang dipimpin pemberi (Medhum bisa dari Humas atau Mediatek). Grant untuk satu Space saja. Tidak berlaku pada direktori divisi atau objek privat. Pengurus lama tetap read-only pada Space dari keanggotaan lamanya.
 - `DELETE .../archives/{grantId}` — pemberi scope sama, 204; pencabutan tidak menghapus hak anggota lama yang memang independen.
-- `GET /api/periods/{p}/handover` — admin; `PUT` body `{"successorPeriodId":"<uuid>","incomingLeadership":"...","adminCustodian":"...","botManagement":"...","archivePlan":"...","remainingWork":"..."}`; 200 Handover. Catatan/checklist serah terima, bukan auto-copy tugas. Boleh tanpa tugas tersisa dengan alasan. Hanya dapat diubah sebelum closed.
-- `POST /api/auth/admin-handover` — admin, kata sandi saat ini dan baru, email pemulihan baru dengan bukti verifikasi, catatan pengelola baru. Detail final didokumentasikan setelah implementasi; sesi lama wajib berakhir.
+- `GET /api/periods/{p}/handover` — admin; 200 Handover (`updatedAt:null` bila belum diisi). `PUT` body `{"successorPeriodId":"<uuid>|null","incomingLeadership":"...","adminCustodian":"...","botManagement":"...","archivePlan":"...","remainingWork":"..."}`; `remainingWork` wajib (pekerjaan tersisa atau alasan tidak ada); 200 Handover. Catatan/checklist, bukan auto-copy tugas. Hanya sebelum closed.
+- `POST /api/auth/admin-email` — admin, `{"currentPassword":"...","email":"baru@..."}`; 202, mengirim bukti 1 jam ke email baru (`/#/organisasi/serah-terima-admin?verification=…`).
+- `POST /api/auth/admin-handover` — admin, `{"currentPassword":"...","password":"baru","email":"baru@... (opsional)","verificationToken":"... (wajib bila email)","custodian":"nama pengelola baru"}`; 204. Semua sesi akun admin berakhir, termasuk sesi ini; token pemulihan lama dicabut. Audit `admin.handover` mencatat akun admin bersama dan pengelola baru.
+
+## Tambahan akun
+
+- `POST /api/auth/password` — sesi; `{"currentPassword","password"}`; 204, sesi lain berakhir.
+- `GET /api/users` — admin; akun pribadi (untuk memilih kadiv).
+- `POST /api/users/{userId}/disable` | `/enable` — admin; 200 User. Disable mengakhiri semua sesi; keanggotaan tetap. Pemulihan tidak mengirim email ke akun disabled.
+
+## Batas dan umur
+
+Undangan 7 hari dari tiap pengiriman; bukti email/pemulihan 1 jam; maksimal 5 email per alamat dan 30 request auth publik per IP per 15 menit. Tautan email memakai fragment URL sehingga token tidak masuk log server.
 
 ## Error
 
