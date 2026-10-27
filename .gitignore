@@ -1,0 +1,10 @@
+build/
+dist/
+.mygo/
+bin/
+# Windows resources mygo build writes beside the app's package while it builds
+mygo_windows_*.syso
+# Local configuration and secrets belong outside the repository
+.env
+*.env
+!.env.example
