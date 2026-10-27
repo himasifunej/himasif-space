@@ -18,6 +18,7 @@ import (
 	"github.com/himasifunej/himasif-space/internal/api"
 	"github.com/himasifunej/himasif-space/internal/client"
 	"github.com/himasifunej/himasif-space/internal/id"
+	"github.com/himasifunej/himasif-space/internal/workspaceui"
 )
 
 // API is what the interface needs of the server; *client.Client implements
@@ -91,6 +92,11 @@ type App struct {
 	Version string
 	// ClientName names the app to the server at login: "desktop" or "web".
 	ClientName string
+	// PreferencesStore persists appearance on this device, separately from tokens.
+	PreferencesStore  PreferencesStore
+	preferencesLoaded bool
+	chrome            chromeState
+	workspace         *workspaceui.State
 
 	api    API
 	tokens TokenStore
@@ -143,6 +149,8 @@ func New(api API, tokens TokenStore, update func(func())) *App {
 		tokens:     tokens,
 		update:     update,
 		router:     ui.NewRouter(PathJobdesk),
+		chrome:     chromeState{preferences: DefaultPreferences(), tab: "Beranda", settingsTab: "WhatsApp"},
+		workspace:  workspaceui.New(),
 	}
 }
 
@@ -164,6 +172,7 @@ func (a *App) async(work func() func()) {
 // Start shows the saved session, if there is one the server confirms, or
 // the login.
 func (a *App) Start() {
+	a.loadPreferences()
 	a.screen = screenStarting
 	a.startErr = ""
 	a.conn = connConnecting
@@ -245,6 +254,7 @@ func (a *App) login() {
 // enterShell shows the shell of the user's pages, at the page the router
 // shows.
 func (a *App) enterShell(u api.User) {
+	a.resetWorkspace()
 	a.user = u
 	a.screen = screenShell
 	a.conn = connOnline
@@ -280,6 +290,7 @@ func (a *App) expire() {
 
 // toLogin forgets the session and shows the login with a notice.
 func (a *App) toLogin(notice string) {
+	a.resetWorkspace()
 	a.gen++
 	a.api.SetToken("")
 	a.user = api.User{}

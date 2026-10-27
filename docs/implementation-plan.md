@@ -2,7 +2,7 @@
 
 Tanggal: 27 Oktober 2026, WIB. Acuan: [PRD](PRD.md), [Register keputusan](decision-register.md), [Riset Android](research/android-options.md).
 
-Dokumen ini menjabarkan urutan yang disepakati. Semua pekerjaan aplikasi di bawah masih **belum dimulai**. Tidak ada tanggal rilis atau estimasi durasi yang disepakati. Satu tahap dapat memakai beberapa sesi; jangan menganggap seluruh aplikasi selesai dalam enam percakapan.
+Dokumen ini menjabarkan urutan yang disepakati. **Sesi 1A selesai dan merged melalui PR #1** (`627298f`). Pengguna menyetujui prototype UI 03.1 dan memulai implementasi native pada branch `feat/native-ui`; backend 1B–1C dapat dikerjakan paralel dalam worktree terpisah. Status tiap tahap berikut tetap bergantung pada verifikasi fungsinya, bukan sekadar tersedianya tampilan. Tidak ada tanggal rilis atau estimasi durasi yang disepakati. Satu tahap dapat memakai beberapa sesi; jangan menganggap seluruh aplikasi selesai dalam enam percakapan.
 
 ## Prinsip handoff setiap sesi
 
@@ -21,15 +21,15 @@ Jangan menyalin secret akun/bot ke dokumen handoff. Jangan mengubah Reo, sheet p
 - [x] Menyusun PRD lengkap.
 - [x] Menelusuri keputusan Q1–Q74 dan koreksi terakhir.
 - [x] Menyusun roadmap sesi dan penerimaan.
-- [ ] Menyelesaikan rancangan teknis yang diperlukan oleh sesi pertama saat implementasi dimulai.
+- [x] Menyelesaikan rancangan teknis Sesi 1A; lihat [ADR 0001](adr/0001-fondasi-teknis.md).
 
-Keluaran: dokumen ini dan PRD; note HIMASIF diperbarui dengan PRD lengkap serta ringkasan navigasi. Logo/Ace masih kebutuhan desain, bukan aset yang sudah tersedia.
+Keluaran: dokumen ini dan PRD; note HIMASIF diperbarui dengan PRD lengkap serta ringkasan navigasi. Identitas visual Space dan logo divisi tersedia dari prototype 03.1; Ace masih kebutuhan desain. Aset UI belum menggantikan kebutuhan ikon paket aplikasi dan semua ukuran distribusi.
 
 ## Tahap 1 — Fondasi
 
 ### Sesi 1A: struktur aplikasi, model identitas dan branding awal
 
-Prasyarat: PRD tersedia; periksa lingkungan aktual. Saat PRD ditulis folder kerja belum menjadi Git repository dan baru berisi dokumen. Nama repo yang diinginkan `himasif-space`; pembuatan/publikasi repository bukan pekerjaan yang sudah selesai.
+Status: **selesai pada main**, PR #1. Repository `himasifunej/himasif-space` sudah tersedia, dengan kerangka MyGo native, API/auth, migrasi/seed PostgreSQL, email dan pengujian fondasi. Kontrak runtime dan keputusan arsitektur mengikuti ADR 0001.
 
 Pekerjaan:
 
@@ -40,6 +40,16 @@ Pekerjaan:
 - Siapkan konfigurasi pengembangan, penyimpanan secrets yang tepat dan backup dasar ketika mulai ada data nyata.
 
 Keluaran: aplikasi kerangka yang bisa dijalankan, keputusan teknis terdokumentasi, bukan seluruh integrasi aktif.
+
+### Implementasi UI native paralel
+
+Status: irisan UI awal pada branch `feat/native-ui`, terpisah dari backend 1B–1C. [Handoff UI](handoff/native-ui.md) menjelaskan kemampuan dan batasnya; [prompt sesi backend](handoff/backend-1b-1c.md) menetapkan kepemilikan berkas.
+
+- Shell native, sidebar tetap/collapse, header/search shortcut, dropdown notifikasi/profil, logout, status koneksi.
+- Halaman divisi/Medhum, beranda, board, agenda, notes/template dan pengaturan WhatsApp mengikuti prototype yang disetujui.
+- Tema dark/light/system, aksen preset/kustom dan density disimpan per perangkat.
+- Komponen board snapshot dengan drag/drop, reorder dan panel detail kanan diuji tersendiri; belum disambungkan ke layanan tugas.
+- Login, akun, periode dan direktori divisi memakai API 1A. Direktori divisi bukan bukti membership. Data tugas/notes/bot dan wewenang Space tetap menunggu backend; tampilan tidak mengesahkan akses atau mengklaim penyimpanan/koneksi berhasil.
 
 ### Sesi 1B: akun, undangan dan periode
 
@@ -93,7 +103,7 @@ Penerimaan: AC-25–29, AC-35. Kanal desktop/WA bisa memakai adapter uji sampai 
 
 ### Sesi 3A: MyGo, tray dan notifikasi Windows
 
-- MyGo menampilkan frontend web, lifecycle tutup-ke-tray dan keluar eksplisit.
+- MyGo memakai UI native Go yang sama pada desktop dan WASM sesuai ADR 0001; lifecycle tutup-ke-tray dan keluar eksplisit.
 - Opsi mulai saat login, toast Windows modern, klik membuka tugas/rapat.
 - Bel bawaan, suara/volume pengguna, impor audio dan satu bel per kejadian.
 - Verifikasi pada Windows nyata; host Linux saja tidak cukup membuktikan toast berfungsi.

@@ -42,12 +42,13 @@ func main() {
 		app.ServerURL = api.BaseURL
 		app.ClientName = clientName
 		app.Version = appVersion()
+		app.PreferencesStore = newPreferencesStore()
 		win = mygo.NewWindow(mygo.WindowOptions{
 			Title:     "Space — Ruang Kerja HIMASIF",
-			Width:     1100,
-			Height:    720,
-			MinWidth:  720,
-			MinHeight: 480,
+			Width:     1440,
+			Height:    900,
+			MinWidth:  880,
+			MinHeight: 640,
 			StateKey:  "main",
 			Content:   ui.View(app.View),
 		})
