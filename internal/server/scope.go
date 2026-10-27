@@ -138,6 +138,9 @@ func memberAPI(m store.Membership, roles map[id.ID]api.CustomRole, closed bool) 
 func (s *Server) spaceViews(ctx context.Context, q store.Querier, p *principal, period api.Period, spaces []store.Space) ([]api.Space, error) {
 	closed := period.Status == api.PeriodClosed
 	finish := func(sp store.Space, access string, roles []api.Access, caps []string) api.Space {
+		// The input may be a shared policy slice, such as authz.AdminCaps.
+		// Filtering a shared space must not rewrite policy for later requests.
+		caps = slices.Clone(caps)
 		if closed {
 			caps = authz.ReadOnly(caps)
 		}

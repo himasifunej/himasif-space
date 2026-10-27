@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/mail"
 	"strings"
@@ -122,7 +123,7 @@ func readJSON(r *http.Request, v any) error {
 		}
 		return badRequest("Isi permintaan tidak valid.")
 	}
-	if dec.More() {
+	if err := dec.Decode(new(any)); !errors.Is(err, io.EOF) {
 		return badRequest("Isi permintaan tidak valid.")
 	}
 	return nil

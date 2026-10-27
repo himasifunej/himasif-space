@@ -56,6 +56,14 @@ func (s *Server) sendRecovery(ctx context.Context, r *http.Request, email string
 	}
 	r = r.WithContext(ctx)
 	return s.store.Tx(ctx, func(q store.Querier) error {
+		current, err := s.store.UserForUpdate(ctx, q, u.ID)
+		if err != nil {
+			return err
+		}
+		if current.DisabledAt != nil || current.Email != email {
+			return nil
+		}
+		u = current
 		now := s.now()
 		token, hash, err := auth.NewToken()
 		if err != nil {
@@ -98,14 +106,19 @@ func (s *Server) resetPassword(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	err = s.store.Tx(r.Context(), func(q store.Querier) error {
-		ctx, now := r.Context(), s.now()
-		t, err := s.store.UsableAuthToken(ctx, q, th, store.TokenRecovery, now)
+		ctx := r.Context()
+		uid, err := s.store.AuthTokenUser(ctx, q, th, store.TokenRecovery)
 		if err != nil {
 			return notFound(err, errInvalidToken)
 		}
-		u, err := s.store.UserForUpdate(ctx, q, *t.UserID)
+		u, err := s.store.UserForUpdate(ctx, q, uid)
 		if err != nil {
 			return err
+		}
+		now := s.now()
+		t, err := s.store.UsableAuthToken(ctx, q, th, store.TokenRecovery, now)
+		if err != nil {
+			return notFound(err, errInvalidToken)
 		}
 		if u.Email != t.Email {
 			return errInvalidToken // the account's email changed since
@@ -148,6 +161,47 @@ func (s *Server) checkCurrentPassword(r *http.Request, p *principal, pw string) 
 	return nil
 }
 
+// lockedAccount revalidates the middleware's principal after acquiring the
+// account lock. A request queued before handover/reset must not act afterwards
+// with a session that the intervening transaction has already revoked.
+func (s *Server) lockedAccount(r *http.Request, q store.Querier, p *principal) (store.User, error) {
+	u, err := s.store.UserForUpdate(r.Context(), q, p.User.ID)
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		return u, err
+	}
+	denied := fail(http.StatusUnauthorized, api.CodeUnauthenticated, "Sesi berakhir. Silakan masuk lagi.")
+	if errors.Is(err, store.ErrNotFound) || u.DisabledAt != nil || u.Kind != p.User.Kind {
+		return store.User{}, denied
+	}
+	active, err := s.store.SessionActive(r.Context(), q, p.Session.ID, u.ID, s.now())
+	if err != nil {
+		return store.User{}, err
+	}
+	if !active {
+		return store.User{}, denied
+	}
+	return u, nil
+}
+
+// lockedPasswordAccount also rechecks a password proof if the credential
+// changed while this request waited. The attempt limiter is applied once by
+// checkCurrentPassword before taking the lock.
+func (s *Server) lockedPasswordAccount(r *http.Request, q store.Querier, p *principal, password string) (store.User, error) {
+	u, err := s.lockedAccount(r, q, p)
+	if err != nil {
+		return u, err
+	}
+	if u.PasswordHash != p.User.PasswordHash {
+		if err := auth.VerifyPassword(u.PasswordHash, password); err != nil {
+			if !errors.Is(err, auth.ErrMismatch) {
+				return store.User{}, err
+			}
+			return store.User{}, fail(http.StatusForbidden, api.CodeForbidden, "Kata sandi saat ini salah.")
+		}
+	}
+	return u, nil
+}
+
 // changePassword changes the caller's password and ends their other
 // sessions.
 func (s *Server) changePassword(w http.ResponseWriter, r *http.Request, p *principal) error {
@@ -166,6 +220,9 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request, p *princ
 		return err
 	}
 	err = s.store.Tx(r.Context(), func(q store.Querier) error {
+		if _, err := s.lockedPasswordAccount(r, q, p, req.CurrentPassword); err != nil {
+			return err
+		}
 		now := s.now()
 		if err := s.store.SetPassword(r.Context(), q, p.User.ID, hash, now); err != nil {
 			return err
@@ -205,6 +262,9 @@ func (s *Server) requestAdminEmail(w http.ResponseWriter, r *http.Request, p *pr
 		return badRequest("Email ini sudah menjadi email admin organisasi.")
 	}
 	err = s.store.Tx(r.Context(), func(q store.Querier) error {
+		if _, err := s.lockedPasswordAccount(r, q, p, req.CurrentPassword); err != nil {
+			return err
+		}
 		ctx, now := r.Context(), s.now()
 		if _, err := s.store.UserByEmailQ(ctx, q, email); err == nil {
 			return conflict("Email ini sudah dipakai akun lain.")
@@ -279,7 +339,7 @@ func (s *Server) adminHandover(w http.ResponseWriter, r *http.Request, p *princi
 	}
 	err = s.store.Tx(r.Context(), func(q store.Querier) error {
 		ctx, now := r.Context(), s.now()
-		u, err := s.store.UserForUpdate(ctx, q, p.User.ID)
+		u, err := s.lockedPasswordAccount(r, q, p, req.CurrentPassword)
 		if err != nil {
 			return err
 		}

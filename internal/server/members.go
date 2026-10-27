@@ -27,7 +27,9 @@ func (s *Server) read(r *http.Request, p *principal, c string, fn func(q store.Q
 // write runs fn in a transaction with the scope of r, loaded in it, when
 // the caller holds c there. lock is how the period is read: LockShare, or
 // LockUpdate for changes that must not interleave with any other write of
-// the period, such as who is kadiv.
+// the period, such as who is kadiv, membership removal, role changes and
+// 45 appointments. Authority changes use LockUpdate so another request cannot
+// validate access or membership and then commit after that authority is revoked.
 func (s *Server) write(r *http.Request, p *principal, c, lock string, fn func(q store.Querier, sc *scope) error) error {
 	return s.store.Tx(r.Context(), func(q store.Querier) error {
 		sc, err := s.loadScope(r.Context(), q, r, p, lock)
@@ -173,7 +175,7 @@ func (s *Server) updateMember(w http.ResponseWriter, r *http.Request, p *princip
 	slices.SortFunc(roleIDs, func(a, b id.ID) int { return slices.Compare(a[:], b[:]) })
 	roleIDs = slices.Compact(roleIDs)
 	var out api.Member
-	err = s.write(r, p, api.CapMembersManage, store.LockShare, func(q store.Querier, sc *scope) error {
+	err = s.write(r, p, api.CapMembersManage, store.LockUpdate, func(q store.Querier, sc *scope) error {
 		ctx := r.Context()
 		if len(groups) > 0 && sc.division.Slug != "mediatek" {
 			return badRequest("Pengelompokan tekno/desain/video hanya untuk Mediatek.")
@@ -222,7 +224,7 @@ func (s *Server) removeMember(w http.ResponseWriter, r *http.Request, p *princip
 	if err != nil {
 		return err
 	}
-	err = s.write(r, p, api.CapMembersManage, store.LockShare, func(q store.Querier, sc *scope) error {
+	err = s.write(r, p, api.CapMembersManage, store.LockUpdate, func(q store.Querier, sc *scope) error {
 		m, err := s.store.ActiveMembership(r.Context(), q, sc.period.ID, sc.division.ID, uid)
 		if err != nil {
 			return notFound(err, errNotFound)
@@ -288,7 +290,7 @@ func (s *Server) saveRole(w http.ResponseWriter, r *http.Request, p *principal) 
 		}
 	}
 	var out api.CustomRole
-	err = s.write(r, p, api.CapRolesManage, store.LockShare, func(q store.Querier, sc *scope) error {
+	err = s.write(r, p, api.CapRolesManage, store.LockUpdate, func(q store.Querier, sc *scope) error {
 		ctx := r.Context()
 		var before any
 		action := "role.create"
@@ -323,7 +325,7 @@ func (s *Server) deleteRole(w http.ResponseWriter, r *http.Request, p *principal
 	if err != nil {
 		return err
 	}
-	err = s.write(r, p, api.CapRolesManage, store.LockShare, func(q store.Querier, sc *scope) error {
+	err = s.write(r, p, api.CapRolesManage, store.LockUpdate, func(q store.Querier, sc *scope) error {
 		old, err := s.store.CustomRole(r.Context(), q, sc.period.ID, sc.division.ID, rid)
 		if err != nil {
 			return notFound(err, errNotFound)
@@ -362,7 +364,7 @@ func (s *Server) appoint45(w http.ResponseWriter, r *http.Request, p *principal)
 		caps = authz.Normalize(req.Capabilities)
 	}
 	var out api.Appointment45
-	err := s.write(r, p, api.Cap45Manage, store.LockShare, func(q store.Querier, sc *scope) error {
+	err := s.write(r, p, api.Cap45Manage, store.LockUpdate, func(q store.Querier, sc *scope) error {
 		m, err := s.store.ActiveMembership(r.Context(), q, sc.period.ID, sc.division.ID, req.UserID)
 		if err != nil {
 			return notFound(err, badRequest("Pilih anggota aktif divisi ini."))
@@ -390,7 +392,7 @@ func (s *Server) appoint45(w http.ResponseWriter, r *http.Request, p *principal)
 // remove45 ends the appointment; the membership and its other roles stay,
 // and the added capabilities are gone on the next request (AC-08).
 func (s *Server) remove45(w http.ResponseWriter, r *http.Request, p *principal) error {
-	err := s.write(r, p, api.Cap45Manage, store.LockShare, func(q store.Querier, sc *scope) error {
+	err := s.write(r, p, api.Cap45Manage, store.LockUpdate, func(q store.Querier, sc *scope) error {
 		a, err := s.store.Active45(r.Context(), q, sc.period.ID, sc.division.ID)
 		if err != nil {
 			return notFound(err, errNotFound)

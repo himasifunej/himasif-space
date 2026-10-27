@@ -333,7 +333,7 @@ func (s *Server) acceptInvitation(w http.ResponseWriter, r *http.Request) error 
 		}
 		var u store.User
 		if p != nil {
-			if u, err = s.store.UserForUpdate(ctx, q, p.User.ID); err != nil {
+			if u, err = s.lockedAccount(r, q, p); err != nil {
 				return err
 			}
 			if u.Email != inv.Email || u.EmailVerifiedAt == nil {

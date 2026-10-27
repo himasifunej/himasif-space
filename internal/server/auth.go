@@ -125,6 +125,19 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	}
 	expires := now.Add(s.cfg.SessionTTL).UTC()
 	err = s.store.Tx(r.Context(), func(q store.Querier) error {
+		// Serialize session creation with password reset, email handover and
+		// disable. Password verification above may have used an older row.
+		current, err := s.store.UserForUpdate(r.Context(), q, u.ID)
+		if err != nil {
+			return err
+		}
+		if current.Email != email || current.PasswordHash != u.PasswordHash {
+			return fail(http.StatusUnauthorized, api.CodeUnauthenticated, wrongCredentials)
+		}
+		if current.DisabledAt != nil {
+			return fail(http.StatusForbidden, api.CodeForbidden, "Akun ini dinonaktifkan. Hubungi admin organisasi.")
+		}
+		u = current
 		sess, err := s.store.CreateSession(r.Context(), q, u.ID, hash, req.Client, expires)
 		if err != nil {
 			return err
@@ -137,7 +150,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		})
 	})
 	if err != nil {
-		s.internal(w, r, err)
+		s.answerError(w, r, nil, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, api.LoginResponse{Token: token, ExpiresAt: expires, User: u.API()})

@@ -51,3 +51,9 @@ Skenario penerimaan yang diuji otomatis: AC-01, AC-02, AC-03 (bagian akses/direk
 - Penerusan tugas tersisa (PER-06/08), reminder privat (AC-09) dan perintah WA (AC-06 via WA) bergantung sesi berikutnya.
 - Semua penulisan pada periode closed, termasuk penetapan kadiv dan undangan, ditolak `409 period_closed`.
 - Dokumen ini dan kontrak belum dikirim langsung ke sesi UI.
+
+## Review sebelum merge PR #2
+
+Lihat [review PR #2](pr2-review.md). Review menemukan dan memperbaiki mutasi kebijakan admin saat membaca shared Space, race penghapusan anggota/penunjukan 45, login yang memakai credential lama saat rotasi, aksi kredensial memakai principal yang sudah dicabut, deadlock dua reset pemulihan, serta penerimaan trailing delimiter JSON.
+
+Perbaikan menjaga kontrak DTO/endpoint dan migrasi 0002. Pengujian ulang di PostgreSQL 17.11 terisolasi pada STB menghasilkan 79 hasil test lulus (28 test server tingkat atas), nol gagal dan nol skip; seluruh email ditangkap Mailer uji. Tidak ada perubahan database live.

@@ -151,6 +151,18 @@ func (s *Store) UsableAuthToken(ctx context.Context, q Querier, tokenHash []byte
 	return t, err
 }
 
+// AuthTokenUser returns an account hint without locking the token. This is
+// not authorization: callers must lock that account first, then validate and
+// lock the token with UsableAuthToken. All account/token writers use that order.
+func (s *Store) AuthTokenUser(ctx context.Context, q Querier, tokenHash []byte, purpose string) (id.ID, error) {
+	var uid id.ID
+	err := q.QueryRow(ctx, `select user_id from auth_tokens where token_hash=$1 and purpose=$2 and user_id is not null`, tokenHash, purpose).Scan(&uid)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return id.Nil, ErrNotFound
+	}
+	return uid, err
+}
+
 // UseInvitationTokens spends every unused email proof of an invitation.
 func (s *Store) UseInvitationTokens(ctx context.Context, q Querier, iid id.ID, now time.Time) error {
 	_, err := q.Exec(ctx, `update auth_tokens set used_at = $2 where invitation_id = $1 and used_at is null`, iid, now)

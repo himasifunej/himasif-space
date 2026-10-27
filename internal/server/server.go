@@ -254,19 +254,13 @@ func writeError(w http.ResponseWriter, status int, code, message string) {
 // decode reads a JSON body into v, rejecting unknown fields and trailing
 // data. It writes the error response itself and reports false on failure.
 func decode(w http.ResponseWriter, r *http.Request, v any) bool {
-	dec := json.NewDecoder(r.Body)
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(v); err != nil {
-		var tooBig *http.MaxBytesError
-		if errors.As(err, &tooBig) {
-			writeError(w, http.StatusRequestEntityTooLarge, api.CodeBadRequest, "Permintaan terlalu besar.")
+	if err := readJSON(r, v); err != nil {
+		var ae *apiError
+		if errors.As(err, &ae) {
+			writeError(w, ae.status, ae.code, ae.message)
 		} else {
 			writeError(w, http.StatusBadRequest, api.CodeBadRequest, "Isi permintaan tidak valid.")
 		}
-		return false
-	}
-	if dec.More() {
-		writeError(w, http.StatusBadRequest, api.CodeBadRequest, "Isi permintaan tidak valid.")
 		return false
 	}
 	return true
