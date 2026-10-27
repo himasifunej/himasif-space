@@ -1,0 +1,86 @@
+{
+  "docked_panel": {
+    "before": 1189,
+    "after": 769,
+    "panel": 409,
+    "modal": false,
+    "width": 1440,
+    "page": 1440
+  },
+  "drag_and_order": {
+    "status": "Dikerjakan",
+    "order": [
+      2,
+      1,
+      3
+    ],
+    "total": 6
+  },
+  "keyboard_search": {
+    "collapsed": true,
+    "searchFocused": true,
+    "results": 1,
+    "opened": 2
+  },
+  "appearance": {
+    "steps": [
+      [
+        "button[data-ui-theme=\"light\"]",
+        true
+      ],
+      [
+        "button[data-ui-accent=\"#a2bbd2\"]",
+        true
+      ],
+      [
+        "button[data-ui-density=\"compact\"]",
+        true
+      ]
+    ],
+    "panel": "appearance",
+    "theme": "light",
+    "accent": "#a2bbd2",
+    "density": "compact",
+    "rootTheme": "light",
+    "background": "rgb(247, 245, 239)",
+    "width": 1440,
+    "page": 1440
+  },
+  "custom_accent_and_offline": {
+    "accent": "#406090",
+    "online": false,
+    "offlineBanner": true,
+    "footer": "Tidak ada koneksi",
+    "pending": "Di perangkat · belum tersinkron"
+  },
+  "create_task_and_comment": {
+    "created": "QA delegation",
+    "total": 7,
+    "comment": "Siap, saya kerjakan",
+    "modal": false
+  },
+  "responsive_1440": {
+    "width": 1440,
+    "page": 1440,
+    "searchVisible": true,
+    "footerBottom": 1000
+  },
+  "responsive_1100": {
+    "width": 1100,
+    "page": 1100,
+    "searchVisible": true,
+    "footerBottom": 800
+  },
+  "responsive_780": {
+    "width": 780,
+    "page": 780,
+    "searchVisible": true,
+    "footerBottom": 900
+  },
+  "responsive_390": {
+    "width": 390,
+    "page": 390,
+    "searchVisible": true,
+    "footerBottom": 844
+  }
+}

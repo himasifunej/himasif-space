@@ -1,0 +1,100 @@
+{
+  "canvas_id": "4be5d5cd0e28",
+  "status": "Disposable UI prototype; fixtures; edits reset on reload",
+  "gallery_url": "http://localhost:5173/refined-gallery.html",
+  "screens": [
+    {
+      "number": 1,
+      "name": "Beranda",
+      "description": "Sidebar A dan ringkasan Space, dengan akses langsung ke board dan agenda.",
+      "query": {
+        "view": "home",
+        "sidebar": "expanded",
+        "theme": "dark",
+        "accent": "sand"
+      },
+      "html": "Space-02-01-Beranda.html",
+      "preview_url": "http://localhost:5173/refined.html?view=home&sidebar=expanded&theme=dark&accent=sand",
+      "download_url": "http://localhost:5173/downloads/refined-02/Space-02-01-Beranda.html",
+      "canvas_url": "canvas://4be5d5cd0e28/design-1"
+    },
+    {
+      "number": 2,
+      "name": "Board",
+      "description": "Board empat kolom, drag and drop, pengurutan, dan menu pindah tugas.",
+      "query": {
+        "view": "board",
+        "sidebar": "expanded",
+        "theme": "dark",
+        "accent": "sand"
+      },
+      "html": "Space-02-02-Board.html",
+      "preview_url": "http://localhost:5173/refined.html?view=board&sidebar=expanded&theme=dark&accent=sand",
+      "download_url": "http://localhost:5173/downloads/refined-02/Space-02-02-Board.html",
+      "canvas_url": "canvas://4be5d5cd0e28/design-2"
+    },
+    {
+      "number": 3,
+      "name": "Detail",
+      "description": "Detail melekat di kanan; board mengecil dan tetap dapat digunakan.",
+      "query": {
+        "view": "board",
+        "sidebar": "collapsed",
+        "theme": "dark",
+        "accent": "sand",
+        "task": "1"
+      },
+      "html": "Space-02-03-Detail.html",
+      "preview_url": "http://localhost:5173/refined.html?view=board&sidebar=collapsed&theme=dark&accent=sand&task=1",
+      "download_url": "http://localhost:5173/downloads/refined-02/Space-02-03-Detail.html",
+      "canvas_url": "canvas://4be5d5cd0e28/design-3"
+    },
+    {
+      "number": 4,
+      "name": "Agenda",
+      "description": "Kalender mingguan dengan deadline desain, jadwal posting, dan rapat.",
+      "query": {
+        "view": "calendar",
+        "sidebar": "collapsed",
+        "theme": "dark",
+        "accent": "sand"
+      },
+      "html": "Space-02-04-Agenda.html",
+      "preview_url": "http://localhost:5173/refined.html?view=calendar&sidebar=collapsed&theme=dark&accent=sand",
+      "download_url": "http://localhost:5173/downloads/refined-02/Space-02-04-Agenda.html",
+      "canvas_url": "canvas://4be5d5cd0e28/design-4"
+    },
+    {
+      "number": 5,
+      "name": "Penampilan",
+      "description": "Tema, aksen, kepadatan, sidebar, dan ukuran panel dapat disesuaikan.",
+      "query": {
+        "view": "home",
+        "sidebar": "collapsed",
+        "theme": "dark",
+        "accent": "sand",
+        "panel": "appearance"
+      },
+      "html": "Space-02-05-Penampilan.html",
+      "preview_url": "http://localhost:5173/refined.html?view=home&sidebar=collapsed&theme=dark&accent=sand&panel=appearance",
+      "download_url": "http://localhost:5173/downloads/refined-02/Space-02-05-Penampilan.html",
+      "canvas_url": "canvas://4be5d5cd0e28/design-5"
+    },
+    {
+      "number": 6,
+      "name": "Terang",
+      "description": "Alternatif terang, aksen biru, board dan detail berdampingan.",
+      "query": {
+        "view": "board",
+        "sidebar": "collapsed",
+        "theme": "light",
+        "accent": "blue",
+        "task": "1"
+      },
+      "html": "Space-02-06-Terang.html",
+      "preview_url": "http://localhost:5173/refined.html?view=board&sidebar=collapsed&theme=light&accent=blue&task=1",
+      "download_url": "http://localhost:5173/downloads/refined-02/Space-02-06-Terang.html",
+      "canvas_url": "canvas://4be5d5cd0e28/design-6"
+    }
+  ]
+}

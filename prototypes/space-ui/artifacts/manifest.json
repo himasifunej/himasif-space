@@ -1,0 +1,86 @@
+{
+  "canvas_id": "f82f4ea8b842",
+  "desktop_framework": "MyGo v0.7.1",
+  "gallery_url": "http://localhost:5173/gallery.html",
+  "status": "UI prototype; fixture data; no production mutations",
+  "artifacts": [
+    {
+      "key": "A",
+      "name": "Ruang",
+      "description": "Workspace akrab ala enowX, ringkasan divisi dan agenda",
+      "canvas_design": 1,
+      "canvas_url": "canvas://f82f4ea8b842/design-1",
+      "preview_url": "http://localhost:5173/?variant=A",
+      "download_url": "http://localhost:5173/downloads/Space-A-Ruang.html",
+      "html": "Space-A-Ruang.html",
+      "screenshot": "Space-A-Ruang.png",
+      "screenshot_pixels": [
+        2880,
+        2000
+      ]
+    },
+    {
+      "key": "B",
+      "name": "Orbit",
+      "description": "Navigasi ringkas dan board empat kolom untuk kerja bersama",
+      "canvas_design": 2,
+      "canvas_url": "canvas://f82f4ea8b842/design-2",
+      "preview_url": "http://localhost:5173/?variant=B",
+      "download_url": "http://localhost:5173/downloads/Space-B-Orbit.html",
+      "html": "Space-B-Orbit.html",
+      "screenshot": "Space-B-Orbit.png",
+      "screenshot_pixels": [
+        2880,
+        2000
+      ]
+    },
+    {
+      "key": "C",
+      "name": "Alur",
+      "description": "Daftar tugas dan detail berdampingan untuk koordinasi Medhum",
+      "canvas_design": 3,
+      "canvas_url": "canvas://f82f4ea8b842/design-3",
+      "preview_url": "http://localhost:5173/?variant=C",
+      "download_url": "http://localhost:5173/downloads/Space-C-Alur.html",
+      "html": "Space-C-Alur.html",
+      "screenshot": "Space-C-Alur.png",
+      "screenshot_pixels": [
+        2880,
+        2000
+      ]
+    },
+    {
+      "key": "D",
+      "name": "Fokus",
+      "description": "Prioritas harian, catatan cepat dan agenda yang tenang",
+      "canvas_design": 4,
+      "canvas_url": "canvas://f82f4ea8b842/design-4",
+      "preview_url": "http://localhost:5173/?variant=D",
+      "download_url": "http://localhost:5173/downloads/Space-D-Fokus.html",
+      "html": "Space-D-Fokus.html",
+      "screenshot": "Space-D-Fokus.png",
+      "screenshot_pixels": [
+        2880,
+        2000
+      ]
+    },
+    {
+      "key": "E",
+      "name": "Ritme",
+      "description": "Kalender mingguan dan agenda hari ini sebagai pusat kerja",
+      "canvas_design": 5,
+      "canvas_url": "canvas://f82f4ea8b842/design-5",
+      "preview_url": "http://localhost:5173/?variant=E",
+      "download_url": "http://localhost:5173/downloads/Space-E-Ritme.html",
+      "html": "Space-E-Ritme.html",
+      "screenshot": "Space-E-Ritme.png",
+      "screenshot_pixels": [
+        2880,
+        2000
+      ]
+    }
+  ],
+  "qa": "QA.md",
+  "windows_build": "space-ui-windows-amd64.exe",
+  "bundle_url": "http://localhost:5173/downloads/Space-ABCDE.zip"
+}
