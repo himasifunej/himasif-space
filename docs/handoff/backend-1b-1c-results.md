@@ -22,6 +22,20 @@ Branch `feat/accounts-spaces-access`, dari `627298f`. Kontrak final: [backend-ap
 - Penetapan kadiv baru menurunkan kadiv lama menjadi member pada periode itu (tidak menghapus keanggotaannya).
 - Grant arsip hanya berlaku selama penerima masih anggota aktif scope pemberi.
 
+## Email (SES)
+
+Panduan `~/HIMASIF/himasif-space/SES-SENDER.md` sudah dibaca. Server membaca `SPACE_*`, bukan `SES_*`; tidak ada kode SES khusus karena SES dipakai lewat SMTP biasa. Pemetaan untuk environment produksi (Coolify), nilainya diambil dari `secrets.env` dan tidak di-commit:
+
+| Space | SES |
+|---|---|
+| `SPACE_MAIL_DRIVER=smtp` | — |
+| `SPACE_SMTP_HOST` / `SPACE_SMTP_PORT` | `SES_SMTP_HOST` / `SES_SMTP_PORT` (587) |
+| `SPACE_SMTP_TLS=starttls` | — |
+| `SPACE_SMTP_USERNAME` / `SPACE_SMTP_PASSWORD` | `SES_SMTP_USER` / `SES_SMTP_PASS` |
+| `SPACE_MAIL_FROM="HIMASIF Space <no-reply@himasif.id>"` | `SES_FROM_NAME` + `SES_FROM_ADDRESS` |
+
+Dev tetap Mailpit (`SPACE_SMTP_TLS=none`, port 1025). Kuota SES dipakai bersama seluruh akun (50.000/hari, ≤14/detik). Email Space hanya dipicu tindakan manual satu per satu dan dibatasi 5 email per alamat per 15 menit, jadi belum ada pacing global; perlu ditambahkan bila nanti ada pengiriman massal. Penanganan bounce belum ada.
+
 ## Verifikasi yang dijalankan
 
 `make fmt vet` (linux, windows, js/wasm) dan `make test-db` terhadap PostgreSQL dev Coolify (`SPACE_TEST_DATABASE_URL`, database sementara per test): seluruh 22 test server lulus, tidak ada yang skipped. Unit test `authz` dan `config` lulus.
@@ -30,7 +44,7 @@ Skenario penerimaan yang diuji otomatis: AC-01, AC-02, AC-03 (bagian akses/direk
 
 ## Belum / batas
 
-- Tidak ada email nyata yang dikirim; test memakai Mailer penangkap. Mailpit/SES belum diuji dengan alur ini.
+- Tidak ada email nyata yang dikirim melalui SES. Alur undangan/pemulihan diuji dengan Mailer penangkap; driver SMTP diuji ke Mailpit lokal (`mail-test`, From `HIMASIF Space <no-reply@himasif.id>` diterima utuh).
 - Belum ada migrasi di database dev/produksi selain database test sementara; tidak ada deploy.
 - UI (sesi STB, `feat/native-ui`) belum memakai endpoint ini dan perlu halaman undangan/pemulihan/serah terima admin.
 - Penerusan tugas tersisa (PER-06/08), reminder privat (AC-09) dan perintah WA (AC-06 via WA) bergantung sesi berikutnya.
