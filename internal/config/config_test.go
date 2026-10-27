@@ -61,3 +61,29 @@ func TestEnvFilePreservesLiteralSecretCharacters(t *testing.T) {
 		t.Fatalf("literal secret changed: %q", got)
 	}
 }
+
+func TestProductionMailComesFromHimasif(t *testing.T) {
+	for _, tc := range []struct {
+		from string
+		ok   bool
+	}{
+		{"Space HIMASIF <noreply@himasif.id>", true},
+		{"noreply@HIMASIF.id", true},
+		{"Space <noreply@gmail.com>", false},
+		{"Space <noreply@himasif.id.evil.test>", false},
+		{"bukan alamat", false},
+	} {
+		t.Run(tc.from, func(t *testing.T) {
+			t.Setenv("SPACE_ENV", "production")
+			t.Setenv("SPACE_DATABASE_URL", "postgres://x@localhost/space")
+			t.Setenv("SPACE_MAIL_DRIVER", "smtp")
+			t.Setenv("SPACE_SMTP_HOST", "smtp.example.test")
+			t.Setenv("SPACE_SMTP_TLS", "starttls")
+			t.Setenv("SPACE_MAIL_FROM", tc.from)
+			_, err := Load()
+			if (err == nil) != tc.ok {
+				t.Fatalf("Load() = %v, want ok=%v", err, tc.ok)
+			}
+		})
+	}
+}

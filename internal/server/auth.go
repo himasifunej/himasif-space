@@ -27,22 +27,29 @@ func (p *principal) actor() (*id.ID, string) {
 // authed requires a valid session, and passes its principal to h.
 func (s *Server) authed(h func(http.ResponseWriter, *http.Request, *principal)) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		token, ok := bearer(r)
-		if !ok {
-			writeError(w, http.StatusUnauthorized, api.CodeUnauthenticated, "Silakan masuk terlebih dahulu.")
-			return
-		}
-		sess, u, err := s.store.SessionUser(r.Context(), auth.HashToken(token), s.now())
-		if errors.Is(err, store.ErrNotFound) {
-			writeError(w, http.StatusUnauthorized, api.CodeUnauthenticated, "Sesi berakhir. Silakan masuk lagi.")
-			return
-		}
+		p, err := s.principal(r)
 		if err != nil {
-			s.internal(w, r, err)
+			s.answerError(w, r, nil, err)
 			return
 		}
-		h(w, r, &principal{User: u, Session: sess})
+		h(w, r, p)
 	})
+}
+
+// principal returns who makes r, from its bearer session.
+func (s *Server) principal(r *http.Request) (*principal, error) {
+	token, ok := bearer(r)
+	if !ok {
+		return nil, fail(http.StatusUnauthorized, api.CodeUnauthenticated, "Silakan masuk terlebih dahulu.")
+	}
+	sess, u, err := s.store.SessionUser(r.Context(), auth.HashToken(token), s.now())
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, fail(http.StatusUnauthorized, api.CodeUnauthenticated, "Sesi berakhir. Silakan masuk lagi.")
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &principal{User: u, Session: sess}, nil
 }
 
 // bearer returns the token of the Authorization header.
@@ -118,6 +125,19 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	}
 	expires := now.Add(s.cfg.SessionTTL).UTC()
 	err = s.store.Tx(r.Context(), func(q store.Querier) error {
+		// Serialize session creation with password reset, email handover and
+		// disable. Password verification above may have used an older row.
+		current, err := s.store.UserForUpdate(r.Context(), q, u.ID)
+		if err != nil {
+			return err
+		}
+		if current.Email != email || current.PasswordHash != u.PasswordHash {
+			return fail(http.StatusUnauthorized, api.CodeUnauthenticated, wrongCredentials)
+		}
+		if current.DisabledAt != nil {
+			return fail(http.StatusForbidden, api.CodeForbidden, "Akun ini dinonaktifkan. Hubungi admin organisasi.")
+		}
+		u = current
 		sess, err := s.store.CreateSession(r.Context(), q, u.ID, hash, req.Client, expires)
 		if err != nil {
 			return err
@@ -130,7 +150,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		})
 	})
 	if err != nil {
-		s.internal(w, r, err)
+		s.answerError(w, r, nil, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, api.LoginResponse{Token: token, ExpiresAt: expires, User: u.API()})

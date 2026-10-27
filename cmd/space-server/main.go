@@ -83,7 +83,7 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		log.Info("seeded", "period_added", rep.Period, "divisions_added", rep.Divisions, "admin_added", rep.Admin)
+		log.Info("seeded", "period_added", rep.Period, "divisions_added", rep.Divisions, "spaces_added", rep.Spaces, "admin_added", rep.Admin)
 		return nil
 	case "serve":
 		if err := migrate(ctx, st, log); err != nil {
@@ -111,9 +111,10 @@ func serve(ctx context.Context, cfg config.Config, st *store.Store, log *slog.Lo
 	if err != nil {
 		return err
 	}
+	api := server.New(cfg, st, mailer, log)
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           server.New(cfg, st, mailer, log).Handler(),
+		Handler:           api.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      60 * time.Second,
@@ -135,6 +136,8 @@ func serve(ctx context.Context, cfg config.Config, st *store.Store, log *slog.Lo
 	if err := srv.Shutdown(sctx); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
+	// Recovery emails still being sent finish before the store closes.
+	api.Wait()
 	return nil
 }
 
