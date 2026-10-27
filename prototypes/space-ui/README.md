@@ -1,3 +1,10 @@
+# Revision 03.1
+
+Latest UI: `http://localhost:5173/refined.html?view=home&revision=03.1`.
+Notifications are an anchored dropdown; the profile ellipsis opens a menu with logout. Logout resets local preview data and shows an explicit sample-account sign-in gate, with URL state preserved on refresh. It does not revoke a real backend session. Settings/WhatsApp glyphs are refined using canonical SVG paths. The Canvas preserves draft 03, while live views and standalone HTML exports contain these refinements.
+
+---
+
 # Space — UI draft 03
 
 Latest gallery: `http://localhost:5173/refined-gallery.html?draft=03`.

@@ -25,3 +25,12 @@ The prototype remains isolated, uses in-memory fixture data, and does not connec
 - Delivery logs distinguish accepted, queued and unknown states; retry requires confirmation and represents one attempt for the same event.
 
 Raw observations: qa-observations.json. Screens are exported at 1440×1000 logical pixels, DPR 2. Initial verification used headless Chromium from the migrated HDD cache; the same frontend is served on port 5173 and embedded by the MyGo preview launcher. Windows runtime and the real Baileys/backend integration remain future implementation work.
+
+## Revision 03.1
+
+- Settings and WhatsApp glyphs use canonical Lucide/Tabler SVG paths with the existing shared stroke/size styling.
+- Header notifications open an anchored dropdown, without a modal, scrim or backdrop. Unread badges, mark-all-read, task links and agenda links work.
+- Profile dropdown opens from the footer/profile ellipsis and includes profile details, appearance and logout. Profile identity respects the current division and role.
+- Logout clears local preview edits and removes the workspace UI. The signed-out state survives refresh through the URL review state; the explicit preview sign-in action restores the sample account. Real backend session revocation is outside this prototype.
+- Dropdowns toggle, dismiss on outside click/Escape, and support keyboard navigation. The notification button and menu remain visible and inside the viewport at widths 298, 390 and 1100.
+- Notification/profile/logout screenshots and qa-menus-03.1.json capture the checks. The Canvas retains the earlier draft 03 snapshot; the live preview and HTML exports contain revision 03.1.

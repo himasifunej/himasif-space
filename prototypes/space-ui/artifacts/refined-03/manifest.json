@@ -1,6 +1,6 @@
 {
   "canvas_id": "a9bd699c07c9",
-  "canvas_status": "published",
+  "canvas_status": "draft_03_0_snapshot_preserved",
   "status": "Disposable UI prototype; fixtures; edits reset on reload",
   "gallery_url": "http://localhost:5173/refined-gallery.html",
   "screens": [
@@ -17,7 +17,7 @@
       "html": "Space-03-01-Beranda.html",
       "preview_url": "http://localhost:5173/refined.html?view=home&sidebar=expanded&theme=dark&accent=sand",
       "download_url": "http://localhost:5173/downloads/refined-03/Space-03-01-Beranda.html",
-      "canvas_url": "canvas://a9bd699c07c9/design-1"
+      "planned_canvas_url": "canvas://a9bd699c07c9/design-1"
     },
     {
       "number": 2,
@@ -34,7 +34,7 @@
       "html": "Space-03-02-Detail.html",
       "preview_url": "http://localhost:5173/refined.html?view=board&sidebar=collapsed&theme=dark&accent=sand&task=1&dialog=status",
       "download_url": "http://localhost:5173/downloads/refined-03/Space-03-02-Detail.html",
-      "canvas_url": "canvas://a9bd699c07c9/design-2"
+      "planned_canvas_url": "canvas://a9bd699c07c9/design-2"
     },
     {
       "number": 3,
@@ -50,7 +50,7 @@
       "html": "Space-03-03-WhatsApp.html",
       "preview_url": "http://localhost:5173/refined.html?view=settings&sidebar=expanded&theme=dark&accent=sand&settings=whatsapp",
       "download_url": "http://localhost:5173/downloads/refined-03/Space-03-03-WhatsApp.html",
-      "canvas_url": "canvas://a9bd699c07c9/design-3"
+      "planned_canvas_url": "canvas://a9bd699c07c9/design-3"
     },
     {
       "number": 4,
@@ -67,7 +67,7 @@
       "html": "Space-03-04-Hubungkan.html",
       "preview_url": "http://localhost:5173/refined.html?view=settings&sidebar=expanded&theme=dark&accent=sand&settings=whatsapp&dialog=qr",
       "download_url": "http://localhost:5173/downloads/refined-03/Space-03-04-Hubungkan.html",
-      "canvas_url": "canvas://a9bd699c07c9/design-4"
+      "planned_canvas_url": "canvas://a9bd699c07c9/design-4"
     },
     {
       "number": 5,
@@ -84,7 +84,7 @@
       "html": "Space-03-05-Perintah.html",
       "preview_url": "http://localhost:5173/refined.html?view=settings&sidebar=collapsed&theme=dark&accent=sand&settings=commands&dialog=command",
       "download_url": "http://localhost:5173/downloads/refined-03/Space-03-05-Perintah.html",
-      "canvas_url": "canvas://a9bd699c07c9/design-5"
+      "planned_canvas_url": "canvas://a9bd699c07c9/design-5"
     },
     {
       "number": 6,
@@ -100,7 +100,8 @@
       "html": "Space-03-06-Terang.html",
       "preview_url": "http://localhost:5173/refined.html?view=settings&sidebar=expanded&theme=light&accent=sage&settings=general",
       "download_url": "http://localhost:5173/downloads/refined-03/Space-03-06-Terang.html",
-      "canvas_url": "canvas://a9bd699c07c9/design-6"
+      "planned_canvas_url": "canvas://a9bd699c07c9/design-6"
     }
-  ]
+  ],
+  "revision": "03.1"
 }

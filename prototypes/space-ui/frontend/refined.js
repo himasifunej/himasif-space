@@ -12,7 +12,11 @@ const ui = {
   role: ['45','member'].includes(query.get('role'))?query.get('role'):'kadiv',
   settingsTab: ['general','whatsapp','reminders','commands','activity'].includes(query.get('settings'))?query.get('settings'):'whatsapp',
   logos: {Mediatek:'./assets/mediatek.png',Humas:'./assets/humas.png'},
-  botDirty:false,
+  botDirty:false,signedOut:query.get('auth')==='out',
+  notifications:[
+    {id:'submission',kind:'task',task:5,title:'Oktavia mengirim hasil desain',description:'Sempro — Nadya · Perlu pencocokan',time:'24 menit lalu',read:false},
+    {id:'meeting',kind:'meeting',title:'Rapat divisi malam ini',description:'Evaluasi Oktober · 19.00–20.30 WIB',time:'1 jam lalu',read:false},
+  ],
   space: query.get('space')==='Medhum'?'Medhum':query.get('division')==='Humas'?'Humas':'Mediatek', filter: 'Semua', search: '',
   selected: Number(query.get('task')) || null,
   panel: query.get('panel') === 'appearance' ? 'appearance' : query.has('task') ? 'task' : null,
@@ -26,9 +30,12 @@ const ui = {
 };
 function makeBot(scope){return {connected:true,name:'Ace · '+scope,accountLabel:'HIMASIF '+scope,accountType:'dedicated',style:'Santai',time:'06:00',groups:[scope+' 2025 / 2026',...(scope==='Humas'?['Medhum 2025 / 2026']:[])],h2:true,h1:true,h0:true,overdue:true,mention:true,digest:true,weekly:true,retried:false,commands:[{name:'!damn',description:'Stiker reaksi pilihan divisi',type:'Stiker',enabled:true},{name:'!semangat',description:'Semangat, teman-teman. Satu tugas lagi, kita bisa!',type:'Teks',enabled:true}]};}
 ui.bots={Mediatek:makeBot('Mediatek'),Humas:makeBot('Humas')};
+const initialPreviewState=structuredClone(ui);
 const $ = s => document.querySelector(s);
 const iPaths = {
-  whatsapp:'<path d="M21 11.5a9 9 0 0 1-13.4 7.9L3 21l1.6-4.6A9 9 0 1 1 21 11.5Z"/><path d="M8 7.5c.7 3.6 2.9 5.8 6.5 6.5l1-2-2-.9-.8 1c-1.4-.6-2.2-1.4-2.8-2.8l1-.8L10 6.5Z"/>',
+  settings:'<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/>',
+  user:'<circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/>',
+  whatsapp:'<path d="M3 21l1.65 -3.8a9 9 0 1 1 3.4 2.9l-5.05 .9"/><path d="M9 10a.5 .5 0 0 0 1 0v-1a.5 .5 0 0 0 -1 0v1a5 5 0 0 0 5 5h1a.5 .5 0 0 0 0 -1h-1a.5 .5 0 0 0 0 1"/>',
   info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v.1"/>',
   alert:'<path d="m10.3 4-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3l-8-14a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4m0 4v.1"/>',
   message:'<path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-2 2V11.5A8.5 8.5 0 0 1 10.5 3h2a8.5 8.5 0 0 1 8.5 8.5Z"/><path d="M7 9h10M7 13h6"/>',
@@ -61,6 +68,7 @@ const badge = t => pill(t.status, statusColor(t.status));
 function syncURL() {
   const url = new URL(location.href);
   url.searchParams.set('view', ui.view);
+  if(ui.signedOut)url.searchParams.set('auth','out');else url.searchParams.delete('auth');
   if(ui.division==='Humas')url.searchParams.set('division','Humas');
   if(ui.space==='Medhum')url.searchParams.set('space','Medhum');else url.searchParams.delete('space');
   if(ui.view==='settings')url.searchParams.set('settings',ui.settingsTab);else url.searchParams.delete('settings');
@@ -86,18 +94,18 @@ function applyAppearance() {
 }
 function sidebar() {
   const own=ui.division,who=currentUser();
-  return `<aside class="ui-sidebar ${ui.collapsed?'is-collapsed':''}"><div class="ui-brand-row"><button class="ui-brand" data-ui-view="home" aria-label="Space — beranda">${mark()}<span>space<span class="ui-brand-dot">.</span><small>RUANG KERJA HIMASIF</small></span></button></div><button class="ui-period" data-ui-action="period" aria-label="Pilih periode kepengurusan">${glyph('archive')}<span>2025 / 2026<small>Periode aktif</small></span>${glyph('down')}</button><div class="ui-sidebar-nav"><div class="ui-nav-label">PRIBADI</div><button class="ui-nav ${ui.view==='personal'?'active':''}" data-ui-view="personal" title="Jobdesk saya">${glyph('task')}<span>Jobdesk saya</span><b>${ui.tasks.filter(t=>t.pj===who).length}</b></button><button class="ui-nav ${ui.view==='reminders'?'active':''}" data-ui-view="reminders" title="Reminder pribadi">${glyph('bell')}<span>Reminder pribadi</span></button><div class="ui-nav-label ui-space-label">SPACE SAYA ${ib('plus','new-space','Tambah Space')}</div><button class="ui-space ${ui.space===own?'selected':''}" data-ui-space="${own}" title="Space ${own}">${spaceMark(own)}<span>${own}<small>${own==='Mediatek'?'Media dan Teknologi':'Hubungan Masyarakat'}</small></span><i class="live-dot"></i></button><div class="ui-space-links">${[['home','home','Beranda'],['board','board','Board tugas'],['calendar','calendar','Agenda'],['notes','note','Notes']].map(([v,s,l])=>`<button class="${ui.view===v&&ui.space===own?'active':''}" data-ui-view="${v}" data-ui-own-space="${own}" title="${l}">${glyph(s)}<span>${l}</span></button>`).join('')}</div><button class="ui-space ${ui.space==='Medhum'?'selected':''}" data-ui-space="Medhum" title="Space bersama Medhum">${spaceMark('Medhum')}<span>Medhum<small>Humas × Mediatek</small></span><b>3</b></button><button class="ui-nav ui-archive" data-ui-action="archive" title="Arsip periode">${glyph('archive')}<span>Arsip periode</span></button></div><div class="ui-sidebar-bottom">${canManage()?`<button class="ui-nav ${ui.view==='settings'?'active':''}" data-ui-view="settings" title="Pengaturan Space dan WhatsApp">${glyph('settings')}<span>Pengaturan Space</span></button>`:''}<button class="ui-nav ${ui.panel==='appearance'?'active':''}" data-ui-action="appearance" title="Penampilan · Ctrl ,">${glyph('palette')}<span>Penampilan</span><i class="ui-accent-dot"></i></button><button class="ui-nav ui-collapse-control" data-ui-action="sidebar" aria-expanded="${!ui.collapsed}" title="${ui.collapsed?'Buka':'Ciutkan'} sidebar · Ctrl B">${glyph('panel')}<span>${ui.collapsed?'Buka':'Ciutkan'} sidebar</span><kbd>Ctrl B</kbd></button><button class="ui-user" data-ui-action="profile" title="${people[who].name}">${avatar(who)}<span>${people[who].name}<small>${ui.role==='45'?'Role 45':ui.role==='member'?'Anggota':'Kadiv'} ${own}</small></span>${glyph('more')}</button></div></aside>`;
+  return `<aside class="ui-sidebar ${ui.collapsed?'is-collapsed':''}"><div class="ui-brand-row"><button class="ui-brand" data-ui-view="home" aria-label="Space — beranda">${mark()}<span>space<span class="ui-brand-dot">.</span><small>RUANG KERJA HIMASIF</small></span></button></div><button class="ui-period" data-ui-action="period" aria-label="Pilih periode kepengurusan">${glyph('archive')}<span>2025 / 2026<small>Periode aktif</small></span>${glyph('down')}</button><div class="ui-sidebar-nav"><div class="ui-nav-label">PRIBADI</div><button class="ui-nav ${ui.view==='personal'?'active':''}" data-ui-view="personal" title="Jobdesk saya">${glyph('task')}<span>Jobdesk saya</span><b>${ui.tasks.filter(t=>t.pj===who).length}</b></button><button class="ui-nav ${ui.view==='reminders'?'active':''}" data-ui-view="reminders" title="Reminder pribadi">${glyph('bell')}<span>Reminder pribadi</span></button><div class="ui-nav-label ui-space-label">SPACE SAYA ${ib('plus','new-space','Tambah Space')}</div><button class="ui-space ${ui.space===own?'selected':''}" data-ui-space="${own}" title="Space ${own}">${spaceMark(own)}<span>${own}<small>${own==='Mediatek'?'Media dan Teknologi':'Hubungan Masyarakat'}</small></span><i class="live-dot"></i></button><div class="ui-space-links">${[['home','home','Beranda'],['board','board','Board tugas'],['calendar','calendar','Agenda'],['notes','note','Notes']].map(([v,s,l])=>`<button class="${ui.view===v&&ui.space===own?'active':''}" data-ui-view="${v}" data-ui-own-space="${own}" title="${l}">${glyph(s)}<span>${l}</span></button>`).join('')}</div><button class="ui-space ${ui.space==='Medhum'?'selected':''}" data-ui-space="Medhum" title="Space bersama Medhum">${spaceMark('Medhum')}<span>Medhum<small>Humas × Mediatek</small></span><b>3</b></button><button class="ui-nav ui-archive" data-ui-action="archive" title="Arsip periode">${glyph('archive')}<span>Arsip periode</span></button></div><div class="ui-sidebar-bottom">${canManage()?`<button class="ui-nav ${ui.view==='settings'?'active':''}" data-ui-view="settings" title="Pengaturan Space dan WhatsApp">${glyph('settings')}<span>Pengaturan Space</span></button>`:''}<button class="ui-nav ${ui.panel==='appearance'?'active':''}" data-ui-action="appearance" title="Penampilan · Ctrl ,">${glyph('palette')}<span>Penampilan</span><i class="ui-accent-dot"></i></button><button class="ui-nav ui-collapse-control" data-ui-action="sidebar" aria-expanded="${!ui.collapsed}" title="${ui.collapsed?'Buka':'Ciutkan'} sidebar · Ctrl B">${glyph('panel')}<span>${ui.collapsed?'Buka':'Ciutkan'} sidebar</span><kbd>Ctrl B</kbd></button><button class="ui-user" data-ui-action="profile" aria-label="Menu profil ${people[who].name}" aria-haspopup="menu" aria-expanded="false" title="${people[who].name}">${avatar(who)}<span>${people[who].name}<small>${ui.role==='45'?'Role 45':ui.role==='member'?'Anggota':'Kadiv'} ${own}</small></span>${glyph('more')}</button></div></aside>`;
 }
 
 function header() {
-  return `<header class="ui-header"><div class="ui-header-identity"><div><button class="ui-space-title" data-ui-action="space-menu" aria-haspopup="menu">${ui.space}${glyph('down')}</button><span>HIMASIF <i>·</i> 2025 / 2026</span></div></div><div class="ui-header-spacer"></div><div class="ui-search-wrap"><label class="ui-search" for="ui-search">${glyph('search')}<input id="ui-search" aria-label="Cari tugas, notes, atau anggota" value="${esc(ui.search)}" placeholder="Cari tugas, notes, atau anggota…" autocomplete="off"><kbd>Ctrl K</kbd></label><div id="ui-search-results" class="ui-search-results" hidden></div></div><div class="ui-header-tools">${avatars(['AJ','ZM','OA'])}${ib('bell','notifications','Notifikasi')}${action('Buat tugas','new-task','primary','plus')}</div></header>`;
+  return `<header class="ui-header"><div class="ui-header-identity"><div><button class="ui-space-title" data-ui-action="space-menu" aria-haspopup="menu">${ui.space}${glyph('down')}</button><span>HIMASIF <i>·</i> 2025 / 2026</span></div></div><div class="ui-header-spacer"></div><div class="ui-search-wrap"><label class="ui-search" for="ui-search">${glyph('search')}<input id="ui-search" aria-label="Cari tugas, notes, atau anggota" value="${esc(ui.search)}" placeholder="Cari tugas, notes, atau anggota…" autocomplete="off"><kbd>Ctrl K</kbd></label><div id="ui-search-results" class="ui-search-results" hidden></div></div><div class="ui-header-tools">${avatars(['AJ','ZM','OA'])}${notificationTrigger()}${action('Buat tugas','new-task','primary','plus')}</div></header>`;
 }
 
 function tabs() {
   return `<nav class="ui-workspace-tabs" aria-label="Tampilan Space">${[['home','home','Beranda'],['board','board','Board tugas'],['calendar','calendar','Agenda'],['notes','note','Notes'],['members','users','Anggota'],...(canManage()?[['settings','settings','Pengaturan']]:[])].map(([v,s,l])=>`<button class="${ui.view===v?'active':''}" data-ui-view="${v}" ${ui.view===v?'aria-current="page"':''}>${glyph(s)}${l}${v==='board'?`<span>${list().length}</span>`:''}</button>`).join('')}<span class="grow"></span><span class="ui-view-hint">${ui.view==='board'?'Seret kartu untuk memindahkan tugas':ui.view==='calendar'?'Deadline desain dan posting terpisah':ui.view==='settings'?'Koneksi dan preferensi divisi':'Ruang kita, tetap terhubung'}</span></nav>`;
 }
 function statusbar() {
-  return `<footer class="ui-statusbar"><button class="ui-connection ${ui.online?'':'is-offline'}" data-ui-action="online" title="Klik untuk mencoba keadaan offline"><i></i>${ui.online?'Online':'Tidak ada koneksi'}</button><span class="ui-status-divider"></span><span class="ui-status-context">${glyph('grid')}${ui.space}<span>·</span>${list().length} tugas</span><span class="ui-status-divider ui-status-long"></span><span class="ui-status-sync">${glyph(ui.online?'check':'clock')}${ui.online?'Tersimpan di preview':'Di perangkat · belum tersinkron'}</span><span class="grow"></span><span class="ui-draft-label">Draft 03 · data contoh</span><button data-ui-action="focus-search" title="Fokus pencarian"><kbd>Ctrl K</kbd>Cari</button><button data-ui-action="sidebar" title="Buka/tutup sidebar"><kbd>Ctrl B</kbd>Sidebar</button><button class="ui-shortcut-help" data-ui-action="shortcuts" title="Semua shortcut">${glyph('keyboard')}</button><button class="ui-status-theme" data-ui-action="appearance" title="Penampilan">${glyph(ui.theme==='light'?'sun':ui.theme==='system'?'monitor':'moon')}</button></footer>`;
+  return `<footer class="ui-statusbar"><button class="ui-connection ${ui.online?'':'is-offline'}" data-ui-action="online" title="Klik untuk mencoba keadaan offline"><i></i>${ui.online?'Online':'Tidak ada koneksi'}</button><span class="ui-status-divider"></span><span class="ui-status-context">${glyph('grid')}${ui.space}<span>·</span>${list().length} tugas</span><span class="ui-status-divider ui-status-long"></span><span class="ui-status-sync">${glyph(ui.online?'check':'clock')}${ui.online?'Tersimpan di preview':'Di perangkat · belum tersinkron'}</span><span class="grow"></span><span class="ui-draft-label">Draft 03.1 · data contoh</span><button data-ui-action="focus-search" title="Fokus pencarian"><kbd>Ctrl K</kbd>Cari</button><button data-ui-action="sidebar" title="Buka/tutup sidebar"><kbd>Ctrl B</kbd>Sidebar</button><button class="ui-shortcut-help" data-ui-action="shortcuts" title="Semua shortcut">${glyph('keyboard')}</button><button class="ui-status-theme" data-ui-action="appearance" title="Penampilan">${glyph(ui.theme==='light'?'sun':ui.theme==='system'?'monitor':'moon')}</button></footer>`;
 }
 function taskRows(data=list()) {
   return `<div class="ui-task-list">${data.map(t=>`<button class="ui-task-row ${ui.selected===t.id&&ui.panel==='task'?'selected':''}" data-ui-task="${t.id}"><span class="ui-task-check ${t.status==='Selesai'?'checked':''}">${t.status==='Selesai'?glyph('check'):''}</span><span class="ui-task-row-main"><strong>${esc(t.title)}</strong><small>${pill(t.category,t.color)}${t.space==='Medhum'?'Medhum · ':''}${people[t.pj].short}</small></span>${badge(t)}<span class="ui-task-date">${glyph('calendar')}${t.date}</span>${avatar(t.pj,'small')}${glyph('chevron')}</button>`).join('')||'<p class="ui-empty">Belum ada tugas pada filter ini.</p>'}</div>`;
@@ -165,7 +173,8 @@ function render() {
   const oldMain=$('#ui-main-scroll'),oldBoard=$('.ui-kanban'),oldPanel=$('.ui-inspector');
   const scrollTop=oldMain?.scrollTop||0,scrollLeft=oldBoard?.scrollLeft||0,panelScroll=oldPanel?.scrollTop||0;
   applyAppearance();syncURL();
-  document.title=`Space · ${ui.view==='home'?'Beranda':ui.view==='board'?'Board tugas':ui.view==='calendar'?'Agenda':ui.view==='notes'?'Notes':ui.view==='settings'?'Pengaturan Space':'Ruang kerja'} — Draft 03`;
+  if(ui.signedOut){document.title='Space · Sudah keluar — Draft 03.1';$('#refined-app').innerHTML=signedOutView();window.__SPACE_REFINED_STATE__=structuredClone(ui);console.info('[Space refined]',window.__SPACE_REFINED_STATE__);return;}
+  document.title=`Space · ${ui.view==='home'?'Beranda':ui.view==='board'?'Board tugas':ui.view==='calendar'?'Agenda':ui.view==='notes'?'Notes':ui.view==='settings'?'Pengaturan Space':'Ruang kerja'} — Draft 03.1`;
   $('#refined-app').innerHTML=`<div class="ui-app ${ui.collapsed?'sidebar-collapsed':''}">${sidebar()}<div class="ui-workspace">${header()}${tabs()}<div class="ui-body ${ui.panel?'has-panel':''}" data-inspector="${ui.panel||'none'}"><main id="ui-main-scroll" class="ui-main-scroll">${!ui.online?'<div class="ui-offline-banner">Tidak ada koneksi · Tersimpan di perangkat, belum tersinkron ke cloud</div>':''}${workspace()}</main><aside class="ui-inspector ${ui.panel?'is-open':''}" aria-label="${ui.panel==='appearance'?'Pengaturan penampilan':'Detail tugas'}">${ui.panel?'<div class="ui-panel-resizer" title="Seret untuk mengubah lebar panel" aria-hidden="true"></div>':''}${ui.panel==='task'?detailPanel():ui.panel==='appearance'?appearancePanel():''}</aside></div></div></div>${statusbar()}`;
   if(ui.view==='settings'&&!canManageBot()){document.querySelectorAll('.wa-settings-content [data-ui-bot-toggle],.wa-settings-content [data-ui-group],.wa-settings-content [data-ui-command-toggle],.wa-settings-content [data-ui-combo^="wa-"],.wa-settings-content [data-ui-action^="wa-"]').forEach(e=>e.disabled=true);}
   $('#ui-main-scroll').scrollTop=scrollTop;
@@ -184,6 +193,7 @@ function toast(text,kind='success',undo=null) {
 
 function closeModal() {closePopover();$('#refined-overlay').innerHTML='';}
 function modal(title,body,footer='') {
+  closePopover();
   $('#refined-overlay').innerHTML=`<div class="ui-modal-backdrop" data-ui-action="close-modal"><section class="ui-modal" role="dialog" aria-modal="true" aria-label="${esc(title)}"><header><h2>${title}</h2>${ib('close','close-modal','Tutup dialog')}</header>${body}${footer?`<footer>${footer}</footer>`:''}</section></div>`;
   setTimeout(()=>$('.ui-modal input,.ui-modal textarea,.ui-modal button')?.focus(),10);
 }
@@ -227,11 +237,11 @@ function closePopover(restore=false) {
   if(popoverAnchor?.isConnected){popoverAnchor.setAttribute('aria-expanded','false');if(restore)popoverAnchor.focus();}
   popoverAnchor=null;
 }
-function showPopover(anchor,html,kind='menu',width=260) {
-  closePopover();popoverAnchor=anchor;anchor.setAttribute('aria-expanded','true');
-  const root=$('#refined-popovers');root.innerHTML=`<div class="ui-popover ui-popover-${kind}" style="width:${Math.min(width,innerWidth-24)}px">${html}</div>`;
+function showPopover(anchor,html,kind='menu',width=260,align='start') {
+  closePopover();popoverAnchor=anchor;anchor.setAttribute('aria-expanded','true');if(['profile','notifications'].includes(kind))anchor.setAttribute('aria-controls','space-popover');
+  const root=$('#refined-popovers');root.innerHTML=`<div id="space-popover" class="ui-popover ui-popover-${kind}" ${['profile','notifications'].includes(kind)?'role="menu"':''} style="width:${Math.min(width,innerWidth-24)}px">${html}</div>`;
   const el=root.firstElementChild,r=anchor.getBoundingClientRect();
-  const left=Math.max(12,Math.min(r.left,innerWidth-el.offsetWidth-12));
+  const left=Math.max(12,Math.min(align==='end'?r.right-el.offsetWidth:r.left,innerWidth-el.offsetWidth-12));
   const bottom=innerHeight-42,room=bottom-r.bottom-8;
   el.style.left=`${left}px`;el.style.maxHeight=`${Math.max(140,innerHeight-70)}px`;
   el.style.top=`${room>Math.min(el.scrollHeight,280)?r.bottom+8:Math.max(12,r.top-el.offsetHeight-8)}px`;
@@ -268,6 +278,31 @@ function confirmDialog(title,description,label,actionName,kind='warning') {
 function colorPopover(anchor) {
   showPopover(anchor,`<div class="ui-menu-caption">WARNA AKSEN SENDIRI</div><div class="ui-color-grid">${['#d7c3a0','#a8c2ac','#a2bbd2','#b6a8d0','#d2a499','#e1b86b','#7eaa9d','#7ea0c8','#a98fbf','#bb786a','#c8c4b6','#575e72'].map(c=>`<button style="--swatch:${c}" data-ui-color-swatch="${c}" aria-label="Pilih ${c}"></button>`).join('')}</div><label class="ui-color-entry"><span id="ui-color-sample" style="background:${ui.accent}"></span><input id="ui-accent-hex" value="${ui.accent}" aria-label="Warna aksen heksadesimal" maxlength="7" spellcheck="false"></label><p class="ui-picker-error" id="ui-color-error" hidden>Gunakan enam digit warna, misalnya #A8C2AC.</p><button class="ui-button primary" data-ui-action="apply-color">Gunakan warna</button>`,'color',260);
 }
+function notificationTrigger() {
+  const unread=ui.notifications.filter(n=>!n.read).length;
+  return `<button class="ui-icon-button ui-header-notifications" data-ui-action="notifications" aria-label="Notifikasi${unread?', '+unread+' belum dibaca':''}" aria-haspopup="menu" aria-expanded="false" title="Notifikasi">${glyph('bell')}${unread?`<span class="ui-notification-badge">${unread}</span>`:''}</button>`;
+}
+function notificationsMenu(anchor) {
+  if(popoverAnchor===anchor){closePopover();return;}
+  const unread=ui.notifications.filter(n=>!n.read).length;
+  showPopover(anchor,`<div class="ui-notifications-heading"><div><h2>Notifikasi</h2><span>${unread?unread+' belum dibaca':'Semua sudah dibaca'}</span></div>${unread?'<button data-ui-action="notifications-read-all" role="menuitem">Tandai semua dibaca</button>':''}</div><div class="ui-notifications-list">${ui.notifications.map(n=>`<button role="menuitem" class="ui-notification-row ${n.read?'is-read':'is-unread'}" data-ui-notification="${n.id}"><span class="ui-notification-symbol ${n.kind==='task'?'sage':'sand'}">${glyph(n.kind==='task'?'send':'calendar')}</span><span class="ui-notification-copy"><strong>${n.title}</strong><span>${n.description}</span><small>${n.time}</small></span>${!n.read?'<i class="ui-notification-unread"></i>':''}</button>`).join('')}</div><div class="ui-notifications-foot">Klik untuk membuka tugas atau agenda terkait.</div>`,'notifications',392,'end');
+}
+function userRoleLabel(){return (ui.role==='45'?'Role 45':ui.role==='member'?'Anggota':'Kadiv')+' '+ui.division;}
+function profileMenu(anchor) {
+  if(popoverAnchor===anchor){closePopover();return;}
+  const who=currentUser();
+  showPopover(anchor,`<div class="ui-profile-menu-identity">${avatar(who)}<div><strong>${people[who].name}</strong><span>${userRoleLabel()}</span><small>2025 / 2026</small></div></div><div class="ui-menu-separator"></div><button class="ui-menu-link" role="menuitem" data-ui-action="profile-details">${glyph('user')}Profil saya</button><button class="ui-menu-link" role="menuitem" data-ui-action="appearance">${glyph('palette')}Penampilan<span class="grow"></span><kbd>Ctrl ,</kbd></button><div class="ui-menu-separator"></div><button class="ui-menu-link ui-menu-logout" role="menuitem" data-ui-action="logout">${glyph('logout')}Keluar akun</button>`,'profile',280);
+}
+function signedOutView() {
+  return `<main class="ui-signed-out"><div class="ui-auth-brand">${mark()}<span>space<span>.</span><small>RUANG KERJA HIMASIF</small></span></div><section class="ui-signed-out-card"><span class="ui-signed-out-symbol">${glyph('logout')}</span><span class="ui-eyebrow">SAMPAI BERTEMU LAGI</span><h1>Kamu sudah keluar<span>.</span></h1><p>Masuk kembali untuk membuka jobdesk, catatan, dan ruang divisimu.</p>${action('Masuk ke preview','signin-preview','primary','arrow')}<small>Preview UI · membuka kembali akun contoh.</small></section><footer>HIMASIF <span>·</span> Space <span>·</span> Draft 03.1</footer></main>`;
+}
+function logoutPreview() {
+  const preferences={theme:ui.theme,accent:ui.accent,density:ui.density,collapsed:ui.collapsed,motion:ui.motion,panelWidth:ui.panelWidth};
+  closeModal();$('#refined-toast').classList.remove('visible');clearTimeout(toast.timer);toastAction=null;
+  Object.assign(ui,structuredClone(initialPreviewState),preferences,{signedOut:true,view:'home',panel:null,selected:null,comments:[],search:'',privateShare:false});
+  render();document.querySelector('[data-ui-action=signin-preview]').focus();
+}
+
 function spaceMenu(anchor) {
   if(popoverAnchor===anchor){closePopover();return;}
   showPopover(anchor,`<div class="ui-menu-caption">SPACE KAMU · 2025 / 2026</div>${[ui.division,'Medhum'].map(name=>`<button class="ui-space-menu-row" data-ui-space="${name}">${spaceMark(name)}<span><strong>${name}</strong><small>${name==='Medhum'?'Humas × Mediatek':'Space divisi'}</small></span>${ui.space===name?glyph('check'):''}</button>`).join('')}<div class="ui-menu-separator"></div><button class="ui-menu-link" data-ui-view="settings">${glyph('settings')}Pengaturan Space</button>`,'space',300);
@@ -344,7 +379,7 @@ const actions={
   sidebar:()=>{ui.collapsed=!ui.collapsed;render();},
   appearance:()=>{ui.panel=ui.panel==='appearance'?null:'appearance';render();},
   'close-panel':()=>{ui.panel=null;ui.selected=null;render();},
-  'focus-search':()=>{$('#ui-search').focus();$('#ui-search').select();searchResults();},
+  'focus-search':()=>{closePopover();$('#ui-search').focus();$('#ui-search').select();searchResults();},
   'view-board':()=>view('board'),'view-calendar':()=>view('calendar'),
   'new-task':()=>newTask(),'close-modal':closeModal,
   'save-task':()=>{const title=$('#ui-new-title').value.trim();if(!title){$('#ui-new-title').focus();return;}const category=$('#ui-new-category').value;const date=new Date($('#ui-new-date').value+'T12:00:00');ui.tasks.push({id:Math.max(...ui.tasks.map(t=>t.id))+1,title,desc:$('#ui-new-description').value||'Tugas baru dari Space divisi.',category,pj:$('#ui-new-pj').value,date:Number.isNaN(date.valueOf())?'30 Okt':date.toLocaleDateString('id-ID',{day:'numeric',month:'short'}),status:ui.newTaskStatus||'Belum mulai',color:{Desain:'sand',Tekno:'sage',Video:'rose'}[category],space:ui.space,progress:0,label:'Terjadwal'});closeModal();render();toast('Tugas ditambahkan ke board dan jobdesk PJ dalam preview.');},
@@ -360,14 +395,18 @@ const actions={
   'private-share':()=>{ui.privateShare=!ui.privateShare;render();},
   'period':el=>periodMenu(el),
   'space-menu':el=>spaceMenu(el),
-  'notifications':()=>modal('Notifikasi',`<div class="ui-move-options"><button data-ui-task="5">${glyph('send')}Oktavia mengirim hasil Sempro — Nadya${glyph('chevron')}</button><button data-ui-action="meeting">${glyph('calendar')}Rapat divisi malam ini, 19.00 WIB${glyph('chevron')}</button></div>`),
+  'notifications':el=>notificationsMenu(el),
+  'notifications-read-all':()=>{ui.notifications.forEach(n=>n.read=true);render();notificationsMenu(document.querySelector('[data-ui-action=notifications]'));},
   'meeting':()=>modal('Rapat divisi Mediatek',`<div class="ui-meeting-info">${pill('Malam ini','sage')}<h3>Evaluasi Oktober & rencana November</h3><p>${glyph('calendar')}Selasa, 27 Oktober 2026</p><p>${glyph('clock')}19.00 – 20.30 WIB</p><p>${glyph('globe')}Google Meet</p>${avatars()}<small>8 peserta · Reminder H-1, 1 jam, 15 menit</small></div>`,action('Buka notulensi','meeting-notes','outline','note')+action('Ping peserta','ping-meeting','primary','send')),
   'meeting-notes':()=>{closeModal();view('notes');},
   'shortcuts':()=>modal('Shortcut Space',`<div class="ui-shortcut-list">${[['Ctrl / ⌘ K','Fokus pencarian'],['Ctrl / ⌘ B','Buka / ciutkan sidebar'],['Ctrl / ⌘ ,','Pengaturan penampilan'],['Esc','Tutup detail atau dialog'],['Enter','Buka kartu yang difokuskan'],['Alt 1 / 2 / 3','Beranda / board / agenda']].map(([key,label])=>`<div><span>${label}</span><kbd>${key}</kbd></div>`).join('')}</div>`),
   'new-note':()=>{view('notes');toast('Pilih template dan edit judul/isi catatan pada preview.');},
   'personal-reminder':()=>modal('Reminder pribadi',`<label class="ui-field">Ingatkan tentang<input placeholder="Contoh: cek referensi desain"></label><div class="ui-field-grid"><label class="ui-field">Tanggal${dateControl('ui-personal-date','2026-10-27','Tanggal reminder')}</label><label class="ui-field">Jam${combo('ui-personal-time','20:30',['06:00','09:00','12:00','15:00','18:00','20:30','21:00'],'Jam reminder')}</label></div><p class="ui-modal-help">${glyph('lock')}Privat secara default.</p>`,action('Simpan reminder','save-reminder','primary','bell')),
   'save-reminder':()=>{closeModal();view('reminders');toast('Reminder disimpan selama preview.');},
-  'profile':()=>modal('Akun kamu',`<div class="ui-profile-detail">${avatar('AJ')}<div><strong>Ahimsa Jenar</strong><p>Kadiv Mediatek · 2025 / 2026</p></div></div><p class="ui-modal-help">Space yang dapat diakses: Mediatek dan Medhum.</p>`),
+  'profile':el=>profileMenu(el),
+  'profile-details':()=>modal('Akun kamu',`<div class="ui-profile-detail">${avatar(currentUser())}<div><strong>${people[currentUser()].name}</strong><p>${userRoleLabel()} · 2025 / 2026</p></div></div><p class="ui-modal-help">Space yang dapat diakses: ${ui.division} dan Medhum.</p>`),
+  logout:logoutPreview,
+  'signin-preview':()=>{ui.signedOut=false;render();toast('Akun contoh dibuka kembali.','info');},
   'archive':()=>toast('Arsip periode sebelumnya dibuka sesuai izin kadiv.'),
   'attachment':()=>toast('Tautan konsep dan hasil menggunakan data contoh.'),
   'new-space':()=>toast('Space dan keanggotaan dikelola melalui admin organisasi.'),
@@ -380,8 +419,9 @@ const actions={
 document.addEventListener('click',event=>{
   const el=event.target.closest('button,[data-ui-card],[data-ui-action]');
   if(!event.target.closest('.ui-search-wrap'))$('#ui-search-results')?.setAttribute('hidden','');
-  if(!event.target.closest('.ui-popover,[data-ui-combo],[data-ui-date],[data-ui-action=space-menu],[data-ui-action=period],[data-ui-action=custom-color]'))closePopover();
+  if(!event.target.closest('.ui-popover,[data-ui-combo],[data-ui-date],[data-ui-action=space-menu],[data-ui-action=period],[data-ui-action=custom-color],[data-ui-action=notifications],[data-ui-action=profile]'))closePopover();
   if(!el)return;
+  if(el.dataset.uiNotification){const n=ui.notifications.find(item=>item.id===el.dataset.uiNotification);if(!n)return;n.read=true;closePopover();if(n.kind==='task')openTask(n.task);else{view('calendar');document.querySelector('.ui-cal-event[data-ui-action=meeting]')?.focus();}return;}
   if(el.dataset.uiCombo){openCombo(el.dataset.uiCombo,el);return;}
   if(el.dataset.uiChoice){choose(el.dataset.uiChoice,el.dataset.uiValue);return;}
   if(el.dataset.uiDate){datePicker(el.dataset.uiDate,el);return;}
@@ -422,10 +462,12 @@ document.addEventListener('change',event=>{
   }
 if(event.target.id==='ui-task-status')moveTask(ui.selected,event.target.value);if(['ui-custom-accent','ui-panel-width'].includes(event.target.id))render();});
 document.addEventListener('keydown',event=>{
+  if(ui.signedOut)return;
   const editing=event.target.closest('input,textarea,select,[contenteditable="true"]');
   if((event.ctrlKey||event.metaKey)&&['k','b',','].includes(event.key.toLowerCase())){event.preventDefault();actions[event.key.toLowerCase()==='k'?'focus-search':event.key.toLowerCase()==='b'?'sidebar':'appearance']();return;}
   if(event.altKey&&['1','2','3'].includes(event.key)){event.preventDefault();view(['home','board','calendar'][Number(event.key)-1]);return;}
-  if($('.ui-popover')&&['ArrowDown','ArrowUp','Home','End'].includes(event.key)){const opts=[...$('.ui-popover').querySelectorAll('[role=option]')];if(opts.length){event.preventDefault();const index=opts.indexOf(document.activeElement),next=event.key==='Home'?0:event.key==='End'?opts.length-1:(index+(event.key==='ArrowDown'?1:-1)+opts.length)%opts.length;opts[next].focus();return;}}
+  if($('.ui-popover')&&['ArrowDown','ArrowUp','Home','End'].includes(event.key)){const opts=[...$('.ui-popover').querySelectorAll('[role=option],[role=menuitem]:not(:disabled)')];if(opts.length){event.preventDefault();const index=opts.indexOf(document.activeElement),next=event.key==='Home'?0:event.key==='End'?opts.length-1:(index<0?(event.key==='ArrowDown'?0:opts.length-1):(index+(event.key==='ArrowDown'?1:-1)+opts.length)%opts.length);opts[next].focus();return;}}
+  if(event.target.matches('[data-ui-action=notifications],[data-ui-action=profile]')&&['ArrowDown','ArrowUp'].includes(event.key)){event.preventDefault();actions[event.target.dataset.uiAction](event.target);$('.ui-popover [role=menuitem]')?.focus();return;}
   if(event.target.matches('[data-ui-combo]')&&['ArrowDown','ArrowUp'].includes(event.key)){event.preventDefault();openCombo(event.target.dataset.uiCombo,event.target);return;}
   if(event.key==='Escape'&&$('.ui-popover')){event.preventDefault();closePopover(true);return;}
   if(event.key==='Escape'){if($('.ui-modal'))closeModal();else if($('#ui-search-results')&&!$('#ui-search-results').hidden){$('#ui-search-results').hidden=true;$('#ui-search').blur();}else actions['close-panel']();return;}
@@ -451,12 +493,16 @@ document.addEventListener('dragover',event=>{
 document.addEventListener('drop',event=>{const zone=event.target.closest('[data-ui-drop]');if(!zone)return;event.preventDefault();const id=ui.dragging??Number(event.dataTransfer.getData('text/plain'));const before=ui.before;ui.dragging=null;ui.before=null;ui.suppressClickUntil=Date.now()+200;clearDrag();moveTask(id,zone.dataset.uiDrop,before);});
 document.addEventListener('dragend',()=>{ui.dragging=null;ui.before=null;ui.suppressClickUntil=Date.now()+200;clearDrag();});
 document.addEventListener('pointerdown',event=>{if(!event.target.closest('.ui-panel-resizer'))return;event.preventDefault();const right=$('.ui-body').getBoundingClientRect().right;document.body.classList.add('ui-resizing');const move=e=>{ui.panelWidth=Math.max(340,Math.min(560,right-e.clientX));applyAppearance();};const end=()=>{document.body.classList.remove('ui-resizing');document.removeEventListener('pointermove',move);document.removeEventListener('pointerup',end);};document.addEventListener('pointermove',move);document.addEventListener('pointerup',end);});
+window.addEventListener('resize',()=>{if(popoverAnchor)closePopover();});
 window.addEventListener('online',()=>{ui.online=true;render();});window.addEventListener('offline',()=>{ui.online=false;render();});
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{if(ui.theme==='system')applyAppearance();});
 window.SpaceRefined={state:ui,render,view,openTask,moveTask};
 render();
 
 // Shareable initial states for review artifacts.
-if(query.get('dialog')==='qr'){bot().connected=false;render();qrDialog();}
-if(query.get('dialog')==='command')commandDialog(0);
-if(query.get('dialog')==='status')document.querySelector('[data-ui-combo=ui-task-status]')?.click();
+if(!ui.signedOut&&query.get('dialog')==='qr'){bot().connected=false;render();qrDialog();}
+if(!ui.signedOut&&query.get('dialog')==='command')commandDialog(0);
+if(!ui.signedOut&&query.get('dialog')==='status')document.querySelector('[data-ui-combo=ui-task-status]')?.click();
+
+if(!ui.signedOut&&query.get('dialog')==='notifications')document.querySelector('[data-ui-action=notifications]')?.click();
+if(!ui.signedOut&&query.get('dialog')==='profile')document.querySelector('[data-ui-action=profile]')?.click();

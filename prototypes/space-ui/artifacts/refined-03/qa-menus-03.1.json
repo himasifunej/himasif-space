@@ -1,0 +1,92 @@
+{
+  "notification_dropdown": {
+    "dropdown": true,
+    "modal": false,
+    "role": "menu",
+    "count": 2,
+    "inViewport": true,
+    "anchorExpanded": "true"
+  },
+  "notification_task": {
+    "task": 5,
+    "panel": "task",
+    "modal": false,
+    "menu": false,
+    "unread": 1
+  },
+  "notification_meeting": {
+    "view": "calendar",
+    "modal": false,
+    "unread": 0,
+    "badge": false
+  },
+  "toggle_and_outside": {
+    "open": true,
+    "closed": true,
+    "outsideClosed": true
+  },
+  "profile_menu": {
+    "menu": true,
+    "logout": true,
+    "modal": false,
+    "aboveProfile": true,
+    "inViewport": true
+  },
+  "logout": {
+    "signedOut": true,
+    "auth": "Kamu sudah keluar.",
+    "shell": false,
+    "taskCards": 0,
+    "comments": 0,
+    "menu": false,
+    "url": "?view=home&sidebar=expanded&theme=dark&accent=sand&auth=out"
+  },
+  "logout_reload_and_signin": {
+    "remainedSignedOut": true,
+    "signedIn": true,
+    "hasShell": true,
+    "comments": 0,
+    "authParam": null,
+    "errors": []
+  },
+  "mark_all_read": {
+    "unread": 0,
+    "badge": false,
+    "stillDropdown": true,
+    "modal": false
+  },
+  "profile_context": {
+    "name": "NY\nNaura Yesha\nRole 45 Humas\n2025 / 2026",
+    "details": "NY\nNaura Yesha\n\nRole 45 Humas · 2025 / 2026",
+    "menuClosed": true,
+    "settingsPaths": "<rect x=\"3\" y=\"3\" width=\"7\" height=\"7\" rx=\"2\"></rect><rect x=\"14\" y=\"3\" width=\"7\" height=\"7\" rx=\"2\"></rect><rect x=\"3\" y=\"14\" width=\"7\" height=\"7\" rx=\"2\"></rect><rect x=\"14\" y=\"14\" width=\"7\" height=\"7\" rx=\"2\"></rect>",
+    "whatsappPaths": "<path d=\"M3 21l1.65 -3.8a9 9 0 1 1 3.4 2.9l-5.05 .9\"></path><path d=\"M9 10a.5 .5 0 0 0 1 0v-1a.5 .5 0 0 0 -1 0v1a5 5 0 0 0 5 5h1a.5 .5 0 0 0 0 -1h-1a.5 .5 0 0 0 0 1\"></path>"
+  },
+  "small_1100": {
+    "width": 1100,
+    "notificationButtonVisible": true,
+    "menuLeft": 566.1875,
+    "menuRight": 958.1875,
+    "menuBottom": 365.390625,
+    "viewportHeight": 662,
+    "sidebarScroll": 0
+  },
+  "small_390": {
+    "width": 390,
+    "notificationButtonVisible": true,
+    "menuLeft": 12,
+    "menuRight": 378,
+    "menuBottom": 352.640625,
+    "viewportHeight": 662,
+    "sidebarScroll": 0
+  },
+  "small_298": {
+    "width": 298,
+    "notificationButtonVisible": true,
+    "menuLeft": 12,
+    "menuRight": 286,
+    "menuBottom": 356.390625,
+    "viewportHeight": 662,
+    "sidebarScroll": 0
+  }
+}

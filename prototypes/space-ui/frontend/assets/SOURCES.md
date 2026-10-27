@@ -7,3 +7,7 @@ Fetched from the image URLs used by the HIMASIF profile page on 27 October 2026:
 - Humas: https://v2.himasif.id/storage/24/4.-HUMAS.png
 
 Assets are display copies sized for the prototype. Original identity artwork is unchanged. The shared Medhum mark combines the two division logos; it is an exploration, not a claim of official Medhum branding. A custom logo can be selected in Space settings; it remains in memory for the preview.
+
+Interface icon refinements (local SVG paths, no runtime CDN):
+- Settings: https://github.com/lucide-icons/lucide/blob/main/icons/settings.svg
+- WhatsApp: https://github.com/tabler/tabler-icons/blob/main/icons/outline/brand-whatsapp.svg
