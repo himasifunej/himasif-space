@@ -1,3 +1,21 @@
+# Space — UI draft 03
+
+Latest gallery: `http://localhost:5173/refined-gallery.html?draft=03`.
+WhatsApp settings: `http://localhost:5173/refined.html?view=settings&settings=whatsapp`.
+The MyGo preview remains available through `bash run.sh desktop refined`.
+
+The sidebar stays fixed with responsive spacing, its collapse control is below Appearance, and the two duplicate header controls are removed. Scrolling content uses matching custom scrollbars. All select/date/time/color menus, alert confirmations and snackbars are now Space components.
+
+Division logos are fetched from the HIMASIF profile assets (see `frontend/assets/SOURCES.md`). General settings supports an in-memory custom logo. Medhum starts with a paired Humas/Mediatek mark; that combination is an exploration rather than an official new logo.
+
+WhatsApp settings cover connection/QR, account type, message label/style, groups, reminder/SOP rules, custom commands with stickers and delivery history. Humas serves Humas + Medhum; Mediatek serves its own group. Role 45 management and member/read-only states can be reviewed via `role=45` and `role=member`; `division=Humas` shows the Humas sample. These are UI simulations, not server authorization.
+
+Six new self-contained artifacts, screenshots and QA observations are in `artifacts/refined-03`; all six HTML files are downloadable as `frontend/downloads/Space-Draft-03.zip`. Original A–E and draft 02 exports are preserved. The Canvas ID is `a9bd699c07c9`.
+
+The production repository continues to use native MyGo Go components. This isolated HTML/MyGo wrapper is a visual reference. Real Baileys login, group sync, scheduling, backend persistence and delivery are not implemented here. All data edits reset on reload.
+
+---
+
 # Space — Combined UI draft 02
 
 The latest draft combines the user’s choices from A/B/C/E. Open `http://localhost:5173/refined-gallery.html`, or run `bash run.sh desktop refined` for the MyGo launcher. The original A–E remain available below.

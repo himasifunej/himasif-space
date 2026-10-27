@@ -1,0 +1,136 @@
+{
+  "navigation": {
+    "headerCollapse": false,
+    "headerAppearance": false,
+    "collapseBelowAppearance": true,
+    "sidebarScroll": 0,
+    "logos": true,
+    "nativeSelects": 0
+  },
+  "custom_status_and_undo": {
+    "options": 4,
+    "moved": "Perlu tinjauan",
+    "undone": "Dikerjakan",
+    "panel": true,
+    "dialog": false,
+    "snackbar": true
+  },
+  "custom_task_form": {
+    "title": "QA custom controls",
+    "pj": "ZM",
+    "category": "Video",
+    "date": "31 Okt",
+    "nativeControls": 0
+  },
+  "whatsapp_dialogs": {
+    "customAlert": true,
+    "disconnected": true,
+    "qr": true,
+    "qrCaption": "QR ilustrasi · tidak dapat digunakan untuk menghubungkan akun",
+    "reconnected": true,
+    "otherBotUnaffected": true
+  },
+  "whatsapp_customization": {
+    "name": "Bot Mediatek",
+    "style": "Formal",
+    "preview": "Bot Mediatek\n\nSelamat pagi. Berikut pengingat tugas divisi.\n\nLesson Learned — Oktober\nDeadline desain: 28 Oktober\n@Ahimsa, jangan lupa ya.\n\n06.00",
+    "dirty": false,
+    "groups": [
+      "Mediatek 2025 / 2026"
+    ]
+  },
+  "commands_and_core_protection": {
+    "protectedMessage": "Perintah inti dilindungi. Pilih nama perintah lain.",
+    "added": "!ngopi"
+  },
+  "reminders": {
+    "time": "07:00",
+    "h2": true,
+    "h1": true,
+    "h0": true,
+    "protectedSop": "ALUR BERSAMA MEDHUM\nAturan SOP tetap terjaga.\nH-4\nFollow-up Medhum\n\nBot Humas membantu PJ mengingatkan desain, mengacu jadwal posting.\n\nH-2\nDeadline desain\n\nDiturunkan dari jadwal posting sekali, sesuai alur yang disepakati.\n\nPengecualian dan temuan tetap melalui tinjauan. Pesan terkirim bukan bukti seluruh SOP telah terpenuhi."
+  },
+  "delivery_retry": {
+    "customConfirm": true,
+    "queuedOnce": true
+  },
+  "shared_bot_permissions": {
+    "scope": "WhatsApp Humas",
+    "readonly": true,
+    "styleDisabled": true,
+    "disconnectDisabled": true,
+    "groups": [
+      "Humas 2025 / 2026",
+      "Medhum 2025 / 2026"
+    ]
+  },
+  "humas_and_role45": {
+    "role": "45",
+    "scope": "WhatsApp Humas",
+    "groups": [
+      "Humas 2025 / 2026",
+      "Medhum 2025 / 2026"
+    ],
+    "canChangeConnection": true,
+    "mediatekUnaffected": true,
+    "roleNotice": "Akses operasional role 45\n\nKamu dapat mengelola WhatsApp dan operasional divisi. Pengaturan role dan akses tetap dikelola kadiv asli."
+  },
+  "member": {
+    "hasSettingsEntry": false,
+    "hasBotControls": false,
+    "notice": "Dikelola kadiv dan role 45\n\nPengaturan koneksi WhatsApp dan identitas Space memerlukan wewenang pengelola. Kamu tetap dapat membuka jobdesk dan catatan divisi."
+  },
+  "custom_color": {
+    "accent": "#7eaa9d",
+    "nativeColor": false
+  },
+  "geometry_1440": {
+    "width": 1440,
+    "page": 1440,
+    "sidebarClient": 971,
+    "sidebarScroll": 971,
+    "userBottom": 959,
+    "sidebarBottom": 971
+  },
+  "geometry_1280": {
+    "width": 1280,
+    "page": 1280,
+    "sidebarClient": 691,
+    "sidebarScroll": 691,
+    "userBottom": 681,
+    "sidebarBottom": 691
+  },
+  "geometry_1100": {
+    "width": 1100,
+    "page": 1100,
+    "sidebarClient": 633,
+    "sidebarScroll": 633,
+    "userBottom": 626,
+    "sidebarBottom": 633
+  },
+  "geometry_1000": {
+    "width": 1000,
+    "page": 1000,
+    "sidebarClient": 611,
+    "sidebarScroll": 611,
+    "userBottom": 604,
+    "sidebarBottom": 611
+  },
+  "geometry_780": {
+    "width": 780,
+    "page": 780,
+    "sidebarClient": 611,
+    "sidebarScroll": 611,
+    "userBottom": 604,
+    "sidebarBottom": 611
+  },
+  "geometry_390": {
+    "width": 390,
+    "page": 390,
+    "sidebarClient": 633,
+    "sidebarScroll": 633,
+    "userBottom": 626,
+    "sidebarBottom": 633
+  },
+  "runtime_errors": []
+}

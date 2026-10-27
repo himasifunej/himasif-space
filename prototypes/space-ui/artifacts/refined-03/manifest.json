@@ -1,0 +1,106 @@
+{
+  "canvas_id": "a9bd699c07c9",
+  "canvas_status": "published",
+  "status": "Disposable UI prototype; fixtures; edits reset on reload",
+  "gallery_url": "http://localhost:5173/refined-gallery.html",
+  "screens": [
+    {
+      "number": 1,
+      "name": "Beranda",
+      "description": "Navigasi tetap, logo divisi, dan akses ringkas ke pekerjaan bersama.",
+      "query": {
+        "view": "home",
+        "sidebar": "expanded",
+        "theme": "dark",
+        "accent": "sand"
+      },
+      "html": "Space-03-01-Beranda.html",
+      "preview_url": "http://localhost:5173/refined.html?view=home&sidebar=expanded&theme=dark&accent=sand",
+      "download_url": "http://localhost:5173/downloads/refined-03/Space-03-01-Beranda.html",
+      "canvas_url": "canvas://a9bd699c07c9/design-1"
+    },
+    {
+      "number": 2,
+      "name": "Detail",
+      "description": "Panel kanan, dropdown status buatan Space, serta board yang tetap aktif.",
+      "query": {
+        "view": "board",
+        "sidebar": "collapsed",
+        "theme": "dark",
+        "accent": "sand",
+        "task": "1",
+        "dialog": "status"
+      },
+      "html": "Space-03-02-Detail.html",
+      "preview_url": "http://localhost:5173/refined.html?view=board&sidebar=collapsed&theme=dark&accent=sand&task=1&dialog=status",
+      "download_url": "http://localhost:5173/downloads/refined-03/Space-03-02-Detail.html",
+      "canvas_url": "canvas://a9bd699c07c9/design-2"
+    },
+    {
+      "number": 3,
+      "name": "WhatsApp",
+      "description": "Koneksi, identitas pesan, dan grup tujuan bot divisi.",
+      "query": {
+        "view": "settings",
+        "sidebar": "expanded",
+        "theme": "dark",
+        "accent": "sand",
+        "settings": "whatsapp"
+      },
+      "html": "Space-03-03-WhatsApp.html",
+      "preview_url": "http://localhost:5173/refined.html?view=settings&sidebar=expanded&theme=dark&accent=sand&settings=whatsapp",
+      "download_url": "http://localhost:5173/downloads/refined-03/Space-03-03-WhatsApp.html",
+      "canvas_url": "canvas://a9bd699c07c9/design-3"
+    },
+    {
+      "number": 4,
+      "name": "Hubungkan",
+      "description": "Alur menghubungkan akun melalui QR dan perangkat tertaut.",
+      "query": {
+        "view": "settings",
+        "sidebar": "expanded",
+        "theme": "dark",
+        "accent": "sand",
+        "settings": "whatsapp",
+        "dialog": "qr"
+      },
+      "html": "Space-03-04-Hubungkan.html",
+      "preview_url": "http://localhost:5173/refined.html?view=settings&sidebar=expanded&theme=dark&accent=sand&settings=whatsapp&dialog=qr",
+      "download_url": "http://localhost:5173/downloads/refined-03/Space-03-04-Hubungkan.html",
+      "canvas_url": "canvas://a9bd699c07c9/design-4"
+    },
+    {
+      "number": 5,
+      "name": "Perintah",
+      "description": "Perintah kustom dan pilihan stiker, dengan perlindungan perintah inti.",
+      "query": {
+        "view": "settings",
+        "sidebar": "collapsed",
+        "theme": "dark",
+        "accent": "sand",
+        "settings": "commands",
+        "dialog": "command"
+      },
+      "html": "Space-03-05-Perintah.html",
+      "preview_url": "http://localhost:5173/refined.html?view=settings&sidebar=collapsed&theme=dark&accent=sand&settings=commands&dialog=command",
+      "download_url": "http://localhost:5173/downloads/refined-03/Space-03-05-Perintah.html",
+      "canvas_url": "canvas://a9bd699c07c9/design-5"
+    },
+    {
+      "number": 6,
+      "name": "Terang",
+      "description": "Logo divisi dapat disesuaikan; seluruh kontrol mengikuti tema terang.",
+      "query": {
+        "view": "settings",
+        "sidebar": "expanded",
+        "theme": "light",
+        "accent": "sage",
+        "settings": "general"
+      },
+      "html": "Space-03-06-Terang.html",
+      "preview_url": "http://localhost:5173/refined.html?view=settings&sidebar=expanded&theme=light&accent=sage&settings=general",
+      "download_url": "http://localhost:5173/downloads/refined-03/Space-03-06-Terang.html",
+      "canvas_url": "canvas://a9bd699c07c9/design-6"
+    }
+  ]
+}
