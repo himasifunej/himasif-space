@@ -121,12 +121,18 @@ func (a *App) changePeriod(p id.ID) {
 		return
 	}
 	a.periodID = p
+	tab := a.organization.tab
+	a.resetOrganization()
+	if tab != "" {
+		a.organization.tab = tab
+	}
 	a.resetAccess()
 	a.workspace = workspaceui.New()
 	a.tasksContextChanged()
 	a.loadSpaces()
 }
 func (a *App) resetAccess() {
+	a.resetArchiveAdmin()
 	seq := a.access.seq + 1
 	memberSeq := a.access.members.seq + 1
 	a.access = workspaceAccessState{seq: seq, members: memberManagementState{seq: memberSeq}}
