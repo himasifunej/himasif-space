@@ -99,6 +99,7 @@ type App struct {
 	workspace         *workspaceui.State
 	access            workspaceAccessState
 	tasks             tasksUIState
+	reminders         remindersUIState
 	account           accountFlowState
 
 	api    API

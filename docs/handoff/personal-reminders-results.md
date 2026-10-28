@@ -35,7 +35,7 @@ Branch `feat/personal-reminders`, dari `origin/main` (`d92a372`). Kontrak: [pers
 ## Belum / batas
 
 - **Pengiriman reminder** ke perangkat, toast Windows dan WhatsApp **tidak termasuk** sesi ini (Sesi 2C/3A). PRI-06 (tidak ke grup WA) ditegakkan nanti di lapisan pengiriman; backend ini tidak mengirim apa pun.
-- **UI** (`app/`, `internal/appui`, `internal/client`) belum memakai endpoint ini; perlu halaman daftar reminder, form buat/ubah, toggle berbagi + pemilih penerima (dari daftar akun yang boleh dilihat UI), dan tampilan riwayat. Tidak diubah pada sesi ini.
+- **UI pada sesi backend ini** belum memakai endpoint reminder. Penyambungan berikutnya sudah menyediakan daftar, form, berbagi per akun, pencabutan akses dan riwayat; lihat [integrasi UI](personal-reminders-ui.md).
 - **Tidak ada** migrasi DB dev/produksi, email, atau deploy. Migrasi 0004 baru diterapkan pada database test sementara.
 - Backend tugas (`0003_tasks.sql`, jobdesk, delegasi) milik sesi Codex; tidak disentuh. `docs/implementation-plan.md` tidak diubah.
 

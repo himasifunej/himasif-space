@@ -450,7 +450,7 @@ func TestPages(t *testing.T) {
 		item, want string
 		profile    bool
 	}{
-		{"Reminder pribadi", "Reminder belum tersedia", false},
+		{"Reminder pribadi", "Reminder belum dapat dimuat", false},
 		{"Evaluasi SOP", "Temuan perlu ditinjau", true},
 		{"Arsip periode", "Informasi periode", false},
 		{"Space saya", "Layanan akses Space belum tersedia.", false},

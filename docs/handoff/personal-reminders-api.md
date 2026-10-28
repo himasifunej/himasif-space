@@ -1,6 +1,6 @@
 # Backend API — Reminder pribadi (Sesi 2A)
 
-Status: **diimplementasikan** di branch `feat/personal-reminders` (dari `origin/main`, `d92a372`) dan diuji terhadap PostgreSQL; lihat [hasil](personal-reminders-results.md). DTO di `internal/api/reminders.go`. UI tetap MyGo native (desktop/WASM) dan belum memakai endpoint ini.
+Status: **backend sudah merged**, termasuk perbaikan review PR #3, dan UI MyGo native (desktop/WASM) kini memakai endpoint ini. Lihat [hasil backend](personal-reminders-results.md) dan [integrasi UI](personal-reminders-ui.md). DTO di `internal/api/reminders.go`.
 
 Memenuhi PRD §8 (PRI-01–08) dan AC-09. Melengkapi [kontrak akun/Space 1B–1C](backend-api-contract.md); aturan umum di sana tetap berlaku (sesi Bearer sama, ID UUID, waktu RFC3339 UTC, tanggal YYYY-MM-DD, body JSON ketat, field tak dikenal ditolak, bentuk error sama).
 
