@@ -43,6 +43,7 @@ func main() {
 		app.ClientName = clientName
 		app.Version = appVersion()
 		app.PreferencesStore = newPreferencesStore()
+		app.NoteDrafts = newNoteDraftStore()
 		win = mygo.NewWindow(mygo.WindowOptions{
 			Title:     "Space — Ruang Kerja HIMASIF",
 			Width:     1440,
@@ -51,6 +52,12 @@ func main() {
 			MinHeight: 640,
 			StateKey:  "main",
 			Content:   ui.View(app.View),
+		})
+		win.OnClose(func(event *mygo.CloseEvent) {
+			if err := app.FlushNoteDraft(); err != nil {
+				event.PreventDefault()
+				win.Update(func() {})
+			}
 		})
 		app.Start()
 		if link := startupAccountLink(); link != "" {

@@ -79,6 +79,7 @@ func (a *App) selectSpace(sid id.ID) {
 	if !valid {
 		return
 	}
+	a.resetNotes()
 	a.access.selected = sid
 	a.access.notice = ""
 	a.access.members = memberManagementState{seq: a.access.members.seq + 1}
@@ -132,6 +133,7 @@ func (a *App) changePeriod(p id.ID) {
 	a.loadSpaces()
 }
 func (a *App) resetAccess() {
+	a.resetNotes()
 	a.resetArchiveAdmin()
 	seq := a.access.seq + 1
 	memberSeq := a.access.members.seq + 1
@@ -159,6 +161,7 @@ func (a *App) loadSpaces() {
 			}
 			a.access.loading = false
 			if err != nil {
+				a.resetNotes()
 				a.access.spaces = nil
 				a.access.selected = id.Nil
 				a.access.members = memberManagementState{seq: a.access.members.seq + 1}
@@ -174,6 +177,7 @@ func (a *App) loadSpaces() {
 				a.access.members = memberManagementState{seq: a.access.members.seq + 1}
 			}
 			if a.selectedSpace() == nil {
+				a.resetNotes()
 				if previousSelection != id.Nil {
 					a.access.notice = "Akses ruang yang dipilih telah berubah. Pilih kembali ruang yang tersedia."
 				}

@@ -49,7 +49,7 @@ Status: UI native dan backend sudah digabung ke main melalui PR #3/#4, kemudian 
 - Halaman divisi/Medhum, beranda, board, agenda, notes/template dan pengaturan WhatsApp mengikuti prototype yang disetujui.
 - Tema dark/light/system, aksen preset/kustom dan density disimpan per perangkat.
 - Board drag/drop, reorder dan panel detail kanan sudah terhubung ke layanan tugas dengan identitas tugas yang sama pada proyeksi pribadi/divisi/bersama.
-- Login, alur akun, daftar Space berizin, anggota, role dan inti tugas/reminder memakai API. Hak akses tetap diputuskan server. Notes, rapat, bot dan pengiriman notifikasi masih mengikuti tahap berikutnya; tampilannya tidak mengklaim penyimpanan atau koneksi yang belum tersedia.
+- Login, alur akun, daftar Space berizin, anggota, role dan inti tugas/reminder memakai API. Hak akses tetap diputuskan server. Notes sudah memakai backend Sesi 2B beserta UI editor native; rapat, bot dan pengiriman notifikasi masih mengikuti tahap berikutnya; tampilannya tidak mengklaim penyimpanan atau koneksi yang belum tersedia.
 
 ### Sesi 1B: akun, undangan dan periode
 
@@ -88,6 +88,8 @@ Status: inti tugas/jobdesk tersimpan, kanban/reorder, delegasi, bantuan, bukti/t
 Penerimaan: AC-03–05, AC-09; server menjadi sumber hak akses di semua tampilan.
 
 ### Sesi 2B: notes dan template
+
+Status: backend Notes PR #6 sudah merged; UI native menyediakan dokumen blok, template, komentar, kunci editor per sesi, pemulihan draf dan konversi tugas/reminder. Lampiran masih metadata; unggah berkas biner dan hubungan ke objek rapat mengikuti tahap berikutnya. Lihat [handoff Notes UI](handoff/notes-ui.md). Pengujian tambahan dilewati sesuai permintaan pengguna.
 
 - Rich notes, template rapat/jadwal/catatan bebas, penyimpanan template lain.
 - Tabel jadwal, lampiran, komentar dan satu editor aktif.
