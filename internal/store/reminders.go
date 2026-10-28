@@ -70,36 +70,23 @@ func collectReminders(rows pgx.Rows, err error) ([]Reminder, error) {
 	defer rows.Close()
 	var out []Reminder
 	for rows.Next() {
-		var r Reminder
-		var due timeutil.Date
-		var hasDue bool
-		if err := rows.Scan(&r.ID, &r.OwnerID, &r.Title, &r.Notes, &r.DueKind, &nullDate{&due, &hasDue}, &r.DueAt,
-			&r.TimeZone, &r.Shared, &r.CompletedAt, &r.CreatedAt, &r.UpdatedAt); err != nil {
+		r, err := scanReminder(rows)
+		if err != nil {
 			return nil, err
-		}
-		if hasDue {
-			d := due
-			r.DueOn = &d
 		}
 		out = append(out, r)
 	}
 	return out, rows.Err()
 }
 
-// OwnedReminders returns a user's own reminders, the soonest due first,
-// not-done before done.
-func (s *Store) OwnedReminders(ctx context.Context, q Querier, owner id.ID) ([]Reminder, error) {
-	return collectReminders(q.Query(ctx, `select `+reminderColumns+` from reminders where owner_id = $1
-		order by completed_at is not null, coalesce(due_at, (due_on::timestamptz)), created_at, id`, owner))
-}
-
-// SharedWithReminders returns the reminders shared with a user, by another
-// account, that are currently shared. It never returns the user's own.
-func (s *Store) SharedWithReminders(ctx context.Context, q Querier, recipient id.ID) ([]Reminder, error) {
+// VisibleReminders orders all owned and explicitly received reminders together.
+// Date-only remains a date in the returned object; the ordering cast never
+// adds a persisted or displayed time. The database connection uses UTC.
+func (s *Store) VisibleReminders(ctx context.Context, q Querier, user id.ID) ([]Reminder, error) {
 	return collectReminders(q.Query(ctx, `select `+columnsPrefixed("r")+` from reminders r
-		join reminder_shares sh on sh.reminder_id = r.id
-		where sh.recipient_id = $1 and r.shared and r.owner_id <> $1
-		order by r.completed_at is not null, coalesce(r.due_at, (r.due_on::timestamptz)), r.created_at, r.id`, recipient))
+ where r.owner_id=$1 or (r.shared and exists (
+  select 1 from reminder_shares sh where sh.reminder_id=r.id and sh.recipient_id=$1))
+ order by r.completed_at is not null, coalesce(r.due_at,r.due_on::timestamptz),r.created_at,r.id`, user))
 }
 
 func columnsPrefixed(alias string) string {

@@ -1,9 +1,11 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/himasifunej/himasif-space/internal/api"
@@ -129,26 +131,20 @@ func (s *Server) listReminders(w http.ResponseWriter, r *http.Request, p *princi
 		return err
 	}
 	ctx, q := r.Context(), s.store.DB()
-	owned, err := s.store.OwnedReminders(ctx, q, p.User.ID)
-	if err != nil {
-		return err
-	}
-	shared, err := s.store.SharedWithReminders(ctx, q, p.User.ID)
+	visible, err := s.store.VisibleReminders(ctx, q, p.User.ID)
 	if err != nil {
 		return err
 	}
 	out := []api.Reminder{}
-	for _, rm := range owned {
-		recipients := []api.ReminderShare{}
-		if rm.Shared {
-			if recipients, err = s.store.ReminderRecipients(ctx, q, rm.ID); err != nil {
+	for _, rm := range visible {
+		var recipients []api.ReminderShare
+		if rm.OwnerID == p.User.ID && rm.Shared {
+			recipients, err = s.store.ReminderRecipients(ctx, q, rm.ID)
+			if err != nil {
 				return err
 			}
 		}
 		out = append(out, reminderAPI(rm, p.User.ID, recipients))
-	}
-	for _, rm := range shared {
-		out = append(out, reminderAPI(rm, p.User.ID, nil))
 	}
 	writeJSON(w, http.StatusOK, api.List[api.Reminder]{Items: out})
 	return nil
@@ -196,7 +192,7 @@ func (s *Server) createReminder(w http.ResponseWriter, r *http.Request, p *princ
 		return err
 	}
 	var out api.Reminder
-	err = s.store.Tx(r.Context(), func(q store.Querier) error {
+	err = s.reminderWrite(r, p, id.Nil, func(q store.Querier) error {
 		ctx, now := r.Context(), s.now()
 		def, err := s.store.ReminderDefaultShare(ctx, q, p.User.ID)
 		if err != nil {
@@ -242,7 +238,7 @@ func (s *Server) updateReminder(w http.ResponseWriter, r *http.Request, p *princ
 		return err
 	}
 	var out api.Reminder
-	err = s.store.Tx(r.Context(), func(q store.Querier) error {
+	err = s.reminderWrite(r, p, id.Nil, func(q store.Querier) error {
 		ctx, now := r.Context(), s.now()
 		rm, err := s.ownedReminder(ctx, q, rid, p)
 		if err != nil {
@@ -287,7 +283,7 @@ func (s *Server) completeReminder(w http.ResponseWriter, r *http.Request, p *pri
 		return err
 	}
 	var out api.Reminder
-	err = s.store.Tx(r.Context(), func(q store.Querier) error {
+	err = s.reminderWrite(r, p, id.Nil, func(q store.Querier) error {
 		ctx, now := r.Context(), s.now()
 		rm, err := s.ownedReminder(ctx, q, rid, p)
 		if err != nil {
@@ -342,7 +338,7 @@ func (s *Server) deleteReminder(w http.ResponseWriter, r *http.Request, p *princ
 	if err != nil {
 		return err
 	}
-	err = s.store.Tx(r.Context(), func(q store.Querier) error {
+	err = s.reminderWrite(r, p, id.Nil, func(q store.Querier) error {
 		ctx := r.Context()
 		rm, err := s.ownedReminder(ctx, q, rid, p)
 		if err != nil {
@@ -375,7 +371,7 @@ func (s *Server) setReminderSharing(w http.ResponseWriter, r *http.Request, p *p
 		return err
 	}
 	var out api.Reminder
-	err = s.store.Tx(r.Context(), func(q store.Querier) error {
+	err = s.reminderWrite(r, p, id.Nil, func(q store.Querier) error {
 		ctx, now := r.Context(), s.now()
 		rm, err := s.ownedReminder(ctx, q, rid, p)
 		if err != nil {
@@ -450,7 +446,7 @@ func (s *Server) shareReminder(w http.ResponseWriter, r *http.Request, p *princi
 		return badRequest("Reminder tidak dapat dibagikan kepada diri sendiri.")
 	}
 	var out api.Reminder
-	err = s.store.Tx(r.Context(), func(q store.Querier) error {
+	err = s.reminderWrite(r, p, req.RecipientID, func(q store.Querier) error {
 		ctx, now := r.Context(), s.now()
 		rm, err := s.ownedReminder(ctx, q, rid, p)
 		if err != nil {
@@ -503,7 +499,7 @@ func (s *Server) unshareReminder(w http.ResponseWriter, r *http.Request, p *prin
 	if err != nil {
 		return err
 	}
-	err = s.store.Tx(r.Context(), func(q store.Querier) error {
+	err = s.reminderWrite(r, p, id.Nil, func(q store.Querier) error {
 		ctx, now := r.Context(), s.now()
 		if _, err := s.ownedReminder(ctx, q, rid, p); err != nil {
 			return err
@@ -573,7 +569,7 @@ func (s *Server) putReminderPreferences(w http.ResponseWriter, r *http.Request, 
 	if err := readJSON(r, &req); err != nil {
 		return err
 	}
-	err := s.store.Tx(r.Context(), func(q store.Querier) error {
+	err := s.reminderWrite(r, p, id.Nil, func(q store.Querier) error {
 		ctx, now := r.Context(), s.now()
 		before, err := s.store.ReminderDefaultShare(ctx, q, p.User.ID)
 		if err != nil {
@@ -593,6 +589,32 @@ func (s *Server) putReminderPreferences(w http.ResponseWriter, r *http.Request, 
 	}
 	writeJSON(w, http.StatusOK, api.ReminderPreferences{DefaultShare: req.DefaultShare})
 	return nil
+}
+
+// reminderWrite binds a queued mutation to its original live session. Account
+// locks are globally ordered before reminder rows: reciprocal sharing must not
+// acquire the peer first and then deadlock on the owner's foreign-key lock.
+func (s *Server) reminderWrite(r *http.Request, p *principal, recipient id.ID, fn func(store.Querier) error) error {
+	return s.store.Tx(r.Context(), func(q store.Querier) error {
+		accounts := []id.ID{p.User.ID}
+		if recipient != id.Nil && recipient != p.User.ID {
+			accounts = append(accounts, recipient)
+		}
+		slices.SortFunc(accounts, func(a, b id.ID) int { return bytes.Compare(a[:], b[:]) })
+		for _, account := range accounts {
+			if account == p.User.ID {
+				if _, err := s.lockedAccount(r, q, p); err != nil {
+					return err
+				}
+			} else if _, err := s.store.UserForUpdate(r.Context(), q, account); err != nil {
+				if errors.Is(err, store.ErrNotFound) {
+					return badRequest("Penerima harus akun pengurus yang aktif.")
+				}
+				return err
+			}
+		}
+		return fn(q)
+	})
 }
 
 // ownedReminder loads a reminder locked for update and fails unless the

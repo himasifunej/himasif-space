@@ -15,6 +15,7 @@ Reminder pribadi **dimiliki satu akun** dan **privat secara bawaan** (PRI-01, PR
 - **Penerima hanya baca (PRI-07):** semua endpoint tulis pada reminder milik orang lain menjawab 403, termasuk ubah, selesai, pindah berbagi, dan tambah penerima. Reminder tidak pernah menjadi tugas divisi — tidak ada endpoint untuk itu.
 - **Tidak bocor lewat Space (PRI-08):** endpoint Space/arsip/direktori tidak membaca tabel reminder. Reminder yang tidak boleh dilihat pemanggil menjawab 404, tidak dapat dibedakan dari yang tidak ada.
 - **Waktu (MED-04, MED-05, NFR-10):** `dueKind` membedakan tanggal tanpa jam (`"date"`, memakai `dueOn`) dari instan (`"instant"`, memakai `dueAt` UTC). Tanggal tidak pernah diberi jam karangan. `timeZone` (default `Asia/Jakarta`) adalah zona yang dipilih pemilik, untuk menampilkan.
+- **Sesi mutasi:** akun/sesi diperiksa ulang di dalam transaksi setelah akun terkait dikunci dalam urutan UUID, sebelum baris reminder. Request yang sudah dicabut tidak dapat melanjutkan penulisan.
 - **Riwayat (AC-09):** setiap perubahan dicatat di `audit_events` dalam transaksi yang sama (`target_type = 'reminder'`), dibaca pemilik lewat `GET .../history`.
 - **Akun admin organisasi** tidak memiliki reminder pribadi: semua endpoint menjawab 403 untuknya.
 
