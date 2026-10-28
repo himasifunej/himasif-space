@@ -12,7 +12,7 @@ import (
 // Operational are the capabilities of work in a division.
 var Operational = []string{
 	api.CapSpaceRead, api.CapMembersRead, api.CapTasksOwn, api.CapCommentsWrite, api.CapHelpRequest,
-	api.CapNotesRead, api.CapTasksManage, api.CapResultsReview, api.CapPingSend, api.CapWhatsAppManage,
+	api.CapNotesRead, api.CapNotesManage, api.CapTasksManage, api.CapResultsReview, api.CapPingSend, api.CapWhatsAppManage,
 }
 
 // Administrative are the capabilities of managing roles and access.
@@ -24,7 +24,7 @@ var Administrative = []string{
 // reading are the capabilities still effective in a closed period.
 var reading = []string{api.CapSpaceRead, api.CapMembersRead, api.CapNotesRead}
 
-var memberCaps = []string{api.CapSpaceRead, api.CapMembersRead, api.CapTasksOwn, api.CapCommentsWrite, api.CapHelpRequest, api.CapNotesRead}
+var memberCaps = []string{api.CapSpaceRead, api.CapMembersRead, api.CapTasksOwn, api.CapCommentsWrite, api.CapHelpRequest, api.CapNotesRead, api.CapNotesManage}
 
 // Default45 are the capabilities a 45 gets beyond a member's when the
 // kadiv narrows nothing: the operational ones of a kadiv.
