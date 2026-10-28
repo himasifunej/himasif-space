@@ -1,5 +1,7 @@
 # Handoff UI native — irisan awal
 
+> Catatan historis irisan awal. Integrasi backend 1B–1C dan inti tugas berikutnya dijelaskan di [handoff integrasi](native-integration-tasks.md); batas “belum tersedia” di bawah hanya berlaku pada commit UI awal.
+
 Tanggal: 27 Oktober 2026. Branch `feat/native-ui`, basis main `627298f` (PR #1).
 
 ## Hasil

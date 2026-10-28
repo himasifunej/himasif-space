@@ -9,7 +9,6 @@ import (
 
 	"github.com/himasifunej/himasif-space/internal/api"
 	"github.com/himasifunej/himasif-space/internal/id"
-	"github.com/himasifunej/himasif-space/internal/workspaceui"
 )
 
 // Side navigation stays fixed and every session control remains reachable at
@@ -19,7 +18,7 @@ func TestShellFitsMinimumWindow(t *testing.T) {
 	h.app.Start()
 	h.settle()
 	h.login(h.api.user.Email, h.api.password)
-	h.app.chrome.divisionID = h.api.divisions[0].ID
+	testAuthorizedSpace(h.app, h.api.divisions[0])
 	h.app.router.Push(PathSpaces)
 	for _, size := range [][2]int{{1440, 900}, {1100, 720}, {880, 640}} {
 		h.tt.SetSize(size[0], size[1])
@@ -66,7 +65,7 @@ func TestNativeCapture(t *testing.T) {
 	h.tt.SetSize(1440, 900)
 	capture("login")
 	h.login(h.api.user.Email, h.api.password)
-	h.app.chrome.divisionID = h.api.divisions[0].ID
+	testAuthorizedSpace(h.app, h.api.divisions[0])
 	h.app.router.Push(PathSpaces)
 	capture("overview-dark")
 	h.click("Notifikasi")
@@ -79,12 +78,11 @@ func TestNativeCapture(t *testing.T) {
 	h.click("Tutup penampilan")
 	h.app.chrome.tab = "Board tugas"
 	taskID := id.New()
-	if err := h.app.workspace.SetTasks([]workspaceui.Task{
-		{ID: taskID, Title: "Desain Lesson Learned", Description: "Sesuaikan desain dengan konsep Humas.", Category: "Desain", Assignee: "Ani Wulandari", Deadline: "23 Oktober 2026", Posting: "25 Oktober 2026", Space: "Medhum", ExpectedOutput: "Link Drive berisi desain siap posting.", Lane: workspaceui.Doing},
-		{ID: id.New(), Title: "Konsep Mingper 11", Category: "Konten", Assignee: "PJ Humas", Deadline: "24 Oktober 2026", Lane: workspaceui.Todo},
-	}); err != nil {
-		t.Fatal(err)
-	}
+	h.app.tasks = tasksUIState{scope: h.app.selectedSpaceID(), loaded: true, items: []api.Task{
+		{ID: taskID, Title: "Desain Lesson Learned", Description: "Sesuaikan desain dengan konsep Humas.", Category: "Desain", Assignee: api.PersonRef{DisplayName: "Ani Wulandari"}, ExpectedOutput: "Link Drive berisi desain siap posting.", Progress: api.TaskDoing},
+		{ID: id.New(), Title: "Konsep Mingper 11", Category: "Konten", Assignee: api.PersonRef{DisplayName: "PJ Humas"}, Progress: api.TaskTodo},
+	}}
+
 	capture("board")
 	h.click("Tugas Desain Lesson Learned")
 	capture("board-inspector")
@@ -100,13 +98,12 @@ func TestNativeCapture(t *testing.T) {
 func TestInspectorsShareRightSideAtMinimumWidth(t *testing.T) {
 	h := newChromeHarness(t, nil)
 	h.tt.SetSize(880, 640)
-	h.app.chrome.divisionID = h.api.divisions[0].ID
+	testAuthorizedSpace(h.app, h.api.divisions[0])
 	h.app.chrome.tab = "Board tugas"
 	h.app.router.Push(PathSpaces)
-	task := workspaceui.Task{ID: id.New(), Title: "Tugas untuk uji panel", Lane: workspaceui.Todo}
-	if err := h.app.workspace.SetTasks([]workspaceui.Task{task}); err != nil {
-		t.Fatal(err)
-	}
+	task := api.Task{ID: id.New(), Title: "Tugas untuk uji panel", Progress: api.TaskTodo}
+	h.app.tasks = tasksUIState{scope: h.app.selectedSpaceID(), loaded: true, items: []api.Task{task}}
+
 	h.tt.Advance(400 * time.Millisecond)
 	h.click("Tugas " + task.Title)
 	h.want("Detail tugas")

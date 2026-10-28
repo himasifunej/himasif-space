@@ -21,6 +21,8 @@ func (a *App) resetWorkspace() {
 	p, err := a.chrome.preferences, a.chrome.preferencesErr
 	a.chrome = chromeState{preferences: p, preferencesErr: err, tab: "Beranda", settingsTab: "WhatsApp"}
 	a.workspace = workspaceui.New()
+	a.resetAccess()
+	a.tasksContextChanged()
 }
 
 func (a *App) loadPreferences() {
@@ -51,27 +53,16 @@ func (a *App) savePreferences(c *ui.Context) {
 }
 
 func (a *App) selectedDivision() *api.Division {
-	for i := range a.divisions {
-		if a.divisions[i].ID == a.chrome.divisionID {
-			return &a.divisions[i]
-		}
+	if s := a.selectedSpace(); s != nil && s.Kind == api.SpaceDivision && len(s.Divisions) == 1 {
+		return &s.Divisions[0]
 	}
 	return nil
 }
 func (a *App) spaceTitle() string {
-	if a.router.Path() == PathMedhum {
-		return "Medhum"
+	if s := a.selectedSpace(); s != nil {
+		return s.Name
 	}
-	if d := a.selectedDivision(); d != nil {
-		switch strings.ToLower(d.Slug) {
-		case "mediatek":
-			return "Mediatek"
-		case "humas":
-			return "Humas"
-		}
-		return d.Name
-	}
-	return "Divisi HIMASIF"
+	return "Space saya"
 }
 
 func spaceButton(c *ui.Context, label, icon string, active bool) ui.Element {
@@ -197,27 +188,35 @@ func (a *App) sidebar(c *ui.Context) {
 		if !collapsed {
 			muted(c, "SPACE").FontSize(10).Padding(10, 8, 2, 8)
 		}
-		a.navButton(c, PathSpaces, "Divisi HIMASIF", "grid", collapsed)
-		if d := a.selectedDivision(); d != nil && a.router.Path() == PathSpaces {
-			if !collapsed && !compact {
-				ui.Row(c).Padding(6, 10).Gap(8).AlignItems(ui.Center).Children(func() {
-					if logo := divisionLogo(d.Slug); logo != nil {
-						ui.Image(c, logo).Size(26, 26).Fit(ui.Contain)
-					} else {
-						ui.Icon(c, spaceIcon("grid")).Size(24, 24)
-					}
-					ui.Text(c, a.spaceTitle()).Bold().MaxLines(1)
-				})
+		a.navButton(c, PathSpaces, "Space saya", "grid", collapsed)
+		limit := int((h - 780) / 40)
+		if compact {
+			limit = int((h - 600) / 40)
+		}
+		limit = max(0, min(limit, 5))
+		for i, s := range a.access.spaces {
+			if i >= limit {
+				break
 			}
-			if !compact {
-				for _, tab := range []struct{ label, icon string }{{"Beranda", "home"}, {"Board tugas", "board"}, {"Agenda", "calendar"}, {"Notes", "note"}} {
-					if a.sideButton(c, tab.label, tab.icon, a.chrome.tab == tab.label, collapsed).Clicked() {
-						a.chrome.tab = tab.label
-					}
+			icon := "grid"
+			if s.Kind == api.SpaceShared {
+				icon = "link"
+			}
+			active := a.selectedSpaceID() == s.ID && a.router.Path() == PathSpaces
+			if a.sidebarSpaceButton(c.Key(s.ID), s, icon, active, collapsed).Clicked() {
+				a.selectSpace(s.ID)
+				a.navigate(PathSpaces)
+			}
+		}
+
+		if !compact && a.selectedSpace() != nil && a.router.Path() == PathSpaces {
+			for _, tab := range []struct{ label, icon string }{{"Beranda", "home"}, {"Board tugas", "board"}, {"Agenda", "calendar"}, {"Notes", "note"}} {
+				if a.sideButton(c, tab.label, tab.icon, a.chrome.tab == tab.label, collapsed).Clicked() {
+					a.chrome.tab = tab.label
 				}
 			}
 		}
-		a.navButton(c, PathMedhum, "Medhum", "link", collapsed)
+
 		ui.Box(c).Grow(1).MinHeight(0)
 		a.navButton(c, PathArsip, "Arsip periode", "archive", collapsed)
 		if a.sideButton(c, "Penampilan", "palette", a.chrome.appearance, collapsed).Clicked() {
@@ -237,6 +236,27 @@ func (a *App) sidebar(c *ui.Context) {
 		a.profile(c, collapsed)
 	})
 }
+func (a *App) sidebarSpaceButton(c *ui.Context, s api.Space, icon string, active, collapsed bool) ui.Element {
+	t := c.Theme()
+	b := ui.ButtonBase(c).Label(s.Name).Tooltip(s.Name).FillWidth().Row().AlignItems(ui.Center).Padding(8, 10).Gap(9).MinHeight(36).Radius(8).TextColor(t.TextMuted)
+	if active {
+		b.Background(t.SurfaceHover).Border(1, t.Border).TextColor(t.Text)
+	} else if b.Hovered() {
+		b.Background(t.SurfaceHover).TextColor(t.Text)
+	}
+	b.FocusRing(b.FocusVisible())
+	b.Children(func() {
+		if s.Kind == api.SpaceDivision && len(s.Divisions) == 1 && divisionLogo(s.Divisions[0].Slug) != nil {
+			ui.Image(c, divisionLogo(s.Divisions[0].Slug)).Size(22, 22).Shrink(0).Fit(ui.Contain)
+		} else {
+			ui.Icon(c, spaceIcon(icon)).Size(20, 20).Shrink(0)
+		}
+		if !collapsed {
+			ui.Text(c, s.Name).MinWidth(0).MaxLines(1)
+		}
+	})
+	return b
+}
 func (a *App) sideButton(c *ui.Context, label, icon string, active, collapsed bool) ui.Element {
 	if collapsed {
 		b := spaceIconButton(c, label, icon).FillWidth()
@@ -250,7 +270,7 @@ func (a *App) sideButton(c *ui.Context, label, icon string, active, collapsed bo
 func (a *App) navButton(c *ui.Context, path, label, icon string, collapsed bool) {
 	if a.sideButton(c, label, icon, a.router.Path() == path, collapsed).Clicked() {
 		if path == PathSpaces {
-			a.chrome.divisionID = id.ID{}
+			a.selectSpace(id.Nil)
 		}
 		a.navigate(path)
 	}
@@ -304,9 +324,8 @@ func (a *App) periodPicker(c *ui.Context, collapsed bool) {
 				ui.Column(c).FillWidth().Gap(4).Children(func() {
 					for _, p := range a.periods {
 						if spaceButton(c.Key(p.ID), periodLabel(p), "calendar", a.periodID == p.ID).FillWidth().Clicked() {
-							a.periodID = p.ID
+							a.changePeriod(p.ID)
 							a.chrome.periodOpen = false
-							a.workspace = workspaceui.New()
 						}
 					}
 				})
@@ -405,32 +424,41 @@ func (a *App) header(c *ui.Context) {
 		popover(c, b, &a.chrome.notificationsOpen, 310, func() {
 			ui.Text(c, "Notifikasi").FontSize(17).Bold()
 			muted(c, "Pembaruan yang memerlukan perhatianmu.")
-			ui.Column(c).Padding(16, 6).Gap(8).Children(func() {
-				ui.Icon(c, spaceIcon("bell")).Size(26, 26).TextColor(t.TextMuted)
-				ui.Text(c, "Notifikasi belum tersedia").Bold()
-				muted(c, "Layanan notifikasi belum terhubung. Pengingat tugas belum dapat dimuat.")
-			})
+			a.taskNotifications(c)
 		})
-		spaceButton(c, "Buat tugas", "plus", true).Disabled(true).Tooltip("Pembuatan tugas belum tersedia")
+		a.taskHeaderAction(c)
 	})
 }
 func (a *App) searchResults(c *ui.Context) {
 	ui.Text(c, "Navigasi cepat").Bold().Padding(6)
 	q := strings.ToLower(strings.TrimSpace(a.chrome.search))
 	matches := 0
-	items := []struct{ label, path, icon string }{{"Jobdesk saya", PathJobdesk, "task"}, {"Reminder pribadi", PathReminder, "bell"}, {"Divisi HIMASIF", PathSpaces, "grid"}, {"Medhum", PathMedhum, "link"}, {"Arsip periode", PathArsip, "archive"}, {"Pengaturan", PathPengaturan, "settings"}}
+	items := []struct{ label, path, icon string }{{"Jobdesk saya", PathJobdesk, "task"}, {"Reminder pribadi", PathReminder, "bell"}, {"Space saya", PathSpaces, "grid"}, {"Arsip periode", PathArsip, "archive"}, {"Pengaturan", PathPengaturan, "settings"}}
 	for _, item := range items {
 		if q == "" || strings.Contains(strings.ToLower(item.label), q) {
 			matches++
 			if spaceButton(c, item.label, item.icon, false).FillWidth().Clicked() {
+				if item.path == PathSpaces {
+					a.selectSpace(id.Nil)
+				}
 				a.navigate(item.path)
 			}
 		}
 	}
+	for _, s := range a.access.spaces {
+		if q == "" || strings.Contains(strings.ToLower(s.Name), q) {
+			matches++
+			if spaceButton(c.Key(s.ID), s.Name, "grid", false).FillWidth().Clicked() {
+				a.selectSpace(s.ID)
+				a.navigate(PathSpaces)
+			}
+		}
+	}
+	matches += a.taskSearchResults(c, q)
 	if matches == 0 {
 		muted(c, "Tidak ada halaman yang cocok.")
 	}
-	muted(c, "Pencarian isi tugas, notes, dan anggota belum tersedia.").Padding(6)
+	muted(c, "Tugas pada tampilan aktif; pencarian notes dan anggota belum tersedia.").Padding(6)
 }
 func (a *App) statusbar(c *ui.Context) {
 	t := c.Theme()

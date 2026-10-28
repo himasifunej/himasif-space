@@ -64,7 +64,7 @@ func TestChromeSearchShortcutAndEscape(t *testing.T) {
 		t.Fatalf("Ctrl K did not open and focus search: %+v", h.app.chrome)
 	}
 	h.want("Navigasi cepat")
-	h.want("Pencarian isi tugas, notes, dan anggota belum tersedia.")
+	h.want("Tugas pada tampilan aktif; pencarian notes dan anggota belum tersedia.")
 	h.tt.Type("halaman-yang-tidak-ada")
 	h.want("Tidak ada halaman yang cocok.")
 	if h.app.chrome.search != "halaman-yang-tidak-ada" {
@@ -83,18 +83,18 @@ func TestChromeNotificationDropdownDismissal(t *testing.T) {
 	if !h.app.chrome.notificationsOpen {
 		t.Fatal("notification dropdown did not open")
 	}
-	h.want("Notifikasi belum tersedia")
+	h.want("Layanan notifikasi belum tersedia.")
 	h.click("Space · 0.1.0-test") // outside the anchored panel
 	if h.app.chrome.notificationsOpen {
 		t.Fatal("outside click did not close notifications")
 	}
-	h.dontWant("Notifikasi belum tersedia")
+	h.dontWant("Layanan notifikasi belum tersedia.")
 	h.click("Notifikasi")
 	h.tt.Key(0, ui.KeyEscape)
 	if h.app.chrome.notificationsOpen {
 		t.Fatal("Escape did not close notifications")
 	}
-	h.dontWant("Notifikasi belum tersedia")
+	h.dontWant("Layanan notifikasi belum tersedia.")
 
 	h.tt.Key(ui.Ctrl, ui.KeyK)
 	h.click("Notifikasi")
@@ -248,87 +248,63 @@ func TestChromeSessionStateCleared(t *testing.T) {
 
 func TestChromeBoardRouteDistinguishesUnloadedAndConfirmedSnapshots(t *testing.T) {
 	h := newChromeHarness(t, nil)
-	h.click("Medhum")
-	h.click("Board tugas")
-	for _, state := range []*workspaceui.State{nil, workspaceui.New()} {
-		h.app.workspace = state
-		h.tt.Frame()
-		h.want("Daftar tugas belum dapat dimuat")
-		h.dontWant("Belum ada tugas")
-		h.want("Keanggotaan dan akses pekerjaan space ini belum dapat dikonfirmasi.")
-		if _, ok := h.tt.Find("Kolom board"); ok {
-			t.Fatal("unconfirmed task data was rendered as a loaded board")
-		}
-	}
-	h.app.workspace = workspaceui.New()
-	if err := h.app.workspace.SetTasks(nil); err != nil {
-		t.Fatal(err)
-	}
+	testAuthorizedSpace(h.app, h.api.divisions[0])
+	h.app.router.Push(PathSpaces)
+	h.app.chrome.tab = "Board tugas"
 	h.tt.Frame()
-	h.want("Belum ada tugas")
+	h.want("Layanan tugas belum tersedia.")
+	h.dontWant("Board kosong")
+	h.app.tasks = tasksUIState{scope: h.app.selectedSpaceID(), loaded: true, items: []api.Task{}}
+	h.tt.Frame()
 	h.want("Board kosong")
 	h.want("0 tugas")
-	h.dontWant("Daftar tugas belum dapat dimuat")
-	h.want("Keanggotaan dan akses pekerjaan space ini belum dapat dikonfirmasi.")
-
-	task := workspaceui.Task{
-		ID: id.New(), Title: "Desain dari snapshot terkonfirmasi", Lane: workspaceui.Todo,
-		Assignee: "Ani Wulandari", Evidence: "Tautan hasil masih memerlukan tinjauan.",
-	}
-	if err := h.app.workspace.SetTasks([]workspaceui.Task{task}); err != nil {
-		t.Fatal(err)
-	}
+	h.dontWant("Tugas belum dapat dimuat")
+	task := api.Task{ID: id.New(), Title: "Desain dari snapshot terkonfirmasi", Progress: api.TaskTodo, Assignee: api.PersonRef{DisplayName: "Ani Wulandari"}, Description: "Tautan hasil masih memerlukan tinjauan."}
+	h.app.tasks.items = []api.Task{task}
 	h.tt.Frame()
 	h.want(task.Title)
 	h.want("1 tugas")
 	h.dontWant("Board kosong")
-	h.dontWant("Daftar tugas belum dapat dimuat")
 	before := chromeRect(t, h.tt, "Kolom board")
 	h.click("Tugas " + task.Title)
 	if h.app.workspace.SelectedID() != task.ID {
-		t.Fatal("clicking the task in the app route did not open its inspector")
+		t.Fatal("task did not open its inspector")
 	}
-	h.want(task.Evidence)
+	h.want(task.Description)
 	panel := chromeRect(t, h.tt, "Detail tugas")
 	after := chromeRect(t, h.tt, "Kolom board")
 	if !(after.W < before.W && after.X+after.W <= panel.X+1 && panel.X > after.X) {
-		t.Fatalf("route inspector did not shrink the board to its left: before=%+v after=%+v inspector=%+v", before, after, panel)
+		t.Fatalf("inspector did not shrink board: before=%+v after=%+v inspector=%+v", before, after, panel)
 	}
-	h.want("Keanggotaan dan akses pekerjaan space ini belum dapat dikonfirmasi.")
 }
 
 func TestChromePeriodChangeClearsBoardSnapshotAndAuthority(t *testing.T) {
 	h := newChromeHarness(t, nil)
-	h.click("Medhum")
-	h.click("Board tugas")
-	task := workspaceui.Task{ID: id.New(), Title: "Tugas privat periode sebelumnya", Lane: workspaceui.Todo}
-	if err := h.app.workspace.SetTasks([]workspaceui.Task{task}); err != nil {
-		t.Fatal(err)
-	}
-	h.app.workspace.OnMove = func(workspaceui.MoveRequest) {
-		t.Error("previous period's move callback was invoked")
-	}
+	testAuthorizedSpace(h.app, h.api.divisions[0])
+	h.app.router.Push(PathSpaces)
+	h.app.chrome.tab = "Board tugas"
+	task := api.Task{ID: id.New(), Title: "Tugas privat periode sebelumnya", Progress: api.TaskTodo}
+	h.app.tasks = tasksUIState{scope: h.app.selectedSpaceID(), loaded: true, items: []api.Task{task}}
 	h.tt.Frame()
 	h.click("Tugas " + task.Title)
-	if h.app.workspace.SelectedID() != task.ID {
-		t.Fatal("precondition: task inspector did not open")
-	}
 	previous := h.app.workspace
 	h.click("2025/2026 (aktif)")
 	h.click("2024/2025 (ditutup)")
 	h.settle()
 	if period := h.app.period(); period == nil || period.ID != h.api.periods[0].ID {
-		t.Fatalf("period dropdown did not select the previous period: %+v", period)
+		t.Fatalf("period selection failed: %+v", period)
 	}
 	current := h.app.workspace
 	if current == nil || current == previous || current.HasSnapshot() || current.SelectedID() != id.Nil || current.OnMove != nil {
-		t.Fatal("changing period retained a task snapshot, inspector or move authority")
+		t.Fatal("period retained task snapshot, inspector or authority")
+	}
+	if h.app.selectedSpace() != nil || len(h.app.access.spaces) != 0 || len(h.app.tasks.items) != 0 {
+		t.Fatal("period retained old Space or canonical tasks")
 	}
 	h.dontWant(task.Title)
 	h.dontWant("Detail tugas")
-	h.dontWant("Belum ada tugas")
-	h.want("Daftar tugas belum dapat dimuat")
-	h.want("Keanggotaan dan akses pekerjaan space ini belum dapat dikonfirmasi.")
+	h.dontWant("Board kosong")
+	h.want("Layanan akses Space belum tersedia.")
 }
 
 func TestChromeSystemThemeAndExplicitOverrides(t *testing.T) {

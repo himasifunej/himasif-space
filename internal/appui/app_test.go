@@ -228,7 +228,7 @@ func TestLoginSuccess(t *testing.T) {
 	h.want("Jobdesk saya")
 	h.want("Ani Wulandari")
 	h.want("Tersambung")
-	h.want("Jobdesk belum tersedia")
+	h.want("Layanan tugas belum tersedia.")
 	if len(f.logins) != 1 || f.logins[0].Client != "desktop" {
 		t.Errorf("logins %+v", f.logins)
 	}
@@ -395,7 +395,7 @@ func TestAdminSeesOrganization(t *testing.T) {
 			if tc.sees {
 				h.click("Pengaturan organisasi")
 				h.settle()
-				h.want("Informasi organisasi")
+				h.want("Pengaturan organisasi")
 			} else {
 				// Nor does the path open it.
 				h.app.router.Push(PathOrganisasi)
@@ -451,10 +451,9 @@ func TestPages(t *testing.T) {
 		profile    bool
 	}{
 		{"Reminder pribadi", "Reminder belum tersedia", false},
-		{"Medhum", "Ruang Medhum kita.", false},
 		{"Evaluasi SOP", "Temuan perlu ditinjau", true},
 		{"Arsip periode", "Informasi periode", false},
-		{"Divisi HIMASIF", "Media dan Teknologi", false},
+		{"Space saya", "Layanan akses Space belum tersedia.", false},
 	} {
 		if tc.profile {
 			h.click("Menu profil")
@@ -464,8 +463,8 @@ func TestPages(t *testing.T) {
 		h.want(tc.want)
 		h.dontWant("Dibangun di")
 	}
-	h.want("mediatek")
-	h.want("Keanggotaan dan akses pekerjaanmu belum dapat dikonfirmasi.")
+	h.dontWant("Media dan Teknologi")
+	h.dontWant("Medhum")
 	h.click("Menu profil")
 	h.click("Pengaturan")
 	h.settle()
@@ -538,7 +537,7 @@ func TestSessionExpiresInShell(t *testing.T) {
 	h.app.Start()
 	h.settle()
 	delete(f.valid, "tok")
-	h.click("Divisi HIMASIF")
+	h.click("Space saya")
 	h.app.loadDivisions()
 	h.settle()
 	if h.app.screen != screenLogin || h.tokens.get() != "" {

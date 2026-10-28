@@ -2,7 +2,7 @@
 
 Tanggal: 27 Oktober 2026, WIB. Acuan: [PRD](PRD.md), [Register keputusan](decision-register.md), [Riset Android](research/android-options.md).
 
-Dokumen ini menjabarkan urutan yang disepakati. **Sesi 1A selesai dan merged melalui PR #1** (`627298f`). Pengguna menyetujui prototype UI 03.1 dan memulai implementasi native pada branch `feat/native-ui`; backend 1B–1C dapat dikerjakan paralel dalam worktree terpisah. Status tiap tahap berikut tetap bergantung pada verifikasi fungsinya, bukan sekadar tersedianya tampilan. Tidak ada tanggal rilis atau estimasi durasi yang disepakati. Satu tahap dapat memakai beberapa sesi; jangan menganggap seluruh aplikasi selesai dalam enam percakapan.
+Dokumen ini menjabarkan urutan yang disepakati. **Sesi 1A merged melalui PR #1** (`627298f`), **backend 1B–1C merged melalui PR #2** (`d92a372`). Integrasi UI native dan inti tugas 2A ada pada branch `feat/native-ui`; lihat [handoff integrasi](handoff/native-integration-tasks.md). Pengguna menyetujui prototype UI 03.1 dan memulai implementasi native pada branch `feat/native-ui`; backend 1B–1C dapat dikerjakan paralel dalam worktree terpisah. Status tiap tahap berikut tetap bergantung pada verifikasi fungsinya, bukan sekadar tersedianya tampilan. Tidak ada tanggal rilis atau estimasi durasi yang disepakati. Satu tahap dapat memakai beberapa sesi; jangan menganggap seluruh aplikasi selesai dalam enam percakapan.
 
 ## Prinsip handoff setiap sesi
 
@@ -53,6 +53,8 @@ Status: irisan UI awal pada branch `feat/native-ui`, terpisah dari backend 1B–
 
 ### Sesi 1B: akun, undangan dan periode
 
+Status: backend selesai di main (PR #2); UI undangan, pemulihan, perubahan kredensial dan keanggotaan terhubung di branch UI. Form administrasi periode/kadiv/checklist/izin arsip lengkap masih perlu disambungkan.
+
 - Akun baru/lama, verifikasi email, aktivasi undangan, pencabutan dan pemulihan akun.
 - Satu akun admin organisasi, terpisah dari akun pribadi; pengelolaan periode/kadiv.
 - Keanggotaan/role per periode, akses pengurus lama dan izin arsip pengurus baru.
@@ -61,6 +63,8 @@ Status: irisan UI awal pada branch `feat/native-ui`, terpisah dari backend 1B–
 Penerimaan: AC-01, AC-02, AC-10, AC-11; batas email/provider/umur undangan ditetapkan eksplisit.
 
 ### Sesi 1C: Space dan role
+
+Status: backend selesai di main (PR #2); UI daftar Space berizin, anggota, kelompok, role kustom dan 45 terhubung di branch UI.
 
 - Space divisi, Medhum, pengelompokan Tekno/Desain/Video dan role kustom.
 - Anggota melihat ruang divisi; pemisahan kerja internal/bersama.
@@ -72,6 +76,8 @@ Penerimaan: AC-03, AC-06–08; belum boleh ada privilege yang hanya dibatasi lew
 ## Tahap 2 — Pekerjaan, dokumentasi dan rapat
 
 ### Sesi 2A: tugas dan jobdesk
+
+Status: inti tugas/jobdesk tersimpan, kanban/reorder, delegasi, bantuan, bukti/tinjauan, komentar, riwayat dan pembaruan in-app dibuat di branch UI. **Reminder pribadi/toggle share belum selesai**, sehingga seluruh Sesi 2A belum dinyatakan selesai.
 
 - Tugas dengan hasil, PJ utama, deadline, pelaksana tambahan, progres dan komentar.
 - Jobdesk pribadi/divisi/ruang bersama dari satu objek tugas.

@@ -33,10 +33,13 @@ func (s *State) View(c *ui.Context) ui.Element {
 				})
 				return
 			}
-			scroll := ui.ScrollHorizontal(c.Key("board-scroll")).Fill().TrackScroll(&s.boardScroll).Label("Kolom board")
+			scroll := ui.ScrollHorizontal(c.Key("board-scroll")).Grow(1).MinHeight(0).FillWidth().TrackScroll(&s.boardScroll).Label("Kolom board")
 			scroll.Children(func() {
 				ui.Row(c).FillHeight().Gap(14).Padding(0, 0, 10, 0).Children(func() {
-					for lane := Todo; lane <= Done; lane++ {
+					for lane := Todo; lane <= Cancelled; lane++ {
+						if lane == Cancelled && !s.hasLane(Cancelled) {
+							continue
+						}
 						s.lane(c.Key(lane), lane, &dragging)
 					}
 				})
@@ -93,7 +96,7 @@ func (s *State) lane(c *ui.Context, lane Lane, dragging *bool) {
 			ui.Text(c, lane.String()).FontSize(13).Bold().Grow(1)
 			ui.Text(c, fmt.Sprint(count)).FontSize(11).TextColor(t.TextMuted).Padding(3, 7).Background(t.Surface).Radius(5)
 		})
-		ui.Scroll(c).Fill().TrackScroll(&s.lanes[lane]).Children(func() {
+		ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().TrackScroll(&s.lanes[lane]).Children(func() {
 			ui.Column(c).FillWidth().Gap(10).Padding(1).Children(func() {
 				for _, task := range s.tasks {
 					if task.Lane == lane {
@@ -134,7 +137,7 @@ func (s *State) card(c *ui.Context, task Task, dragging *bool) {
 	if s.selected == task.ID {
 		card.BorderColor(t.Accent)
 	}
-	if s.OnMove != nil {
+	if s.OnMove != nil && !task.ReadOnly {
 		card.Drag(taskDrag{task.ID})
 	}
 	if card.Dragging() {
@@ -148,7 +151,7 @@ func (s *State) card(c *ui.Context, task Task, dragging *bool) {
 					ui.Text(c, task.Category).FontSize(10).TextColor(categoryInk).Padding(3, 7).Radius(5).Background(t.Background)
 				}
 				ui.Box(c).Grow(1)
-				if s.OnMove != nil {
+				if s.OnMove != nil && !task.ReadOnly {
 					more := ui.ButtonBase(c.Key("move-menu")).Label("Pindahkan "+task.Title).Size(28, 24).Radius(5)
 					more.FocusRing(more.FocusVisible())
 					if more.Hovered() {
@@ -288,8 +291,12 @@ func (s *State) inspector(c *ui.Context, task Task) {
 				s.Close()
 			}
 		})
-		ui.Scroll(c).Fill().TrackScroll(&s.inspectorScroll).Children(func() {
+		ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().TrackScroll(&s.inspectorScroll).Children(func() {
 			ui.Column(c).FillWidth().Padding(22).Gap(22).Children(func() {
+				if s.Details != nil {
+					s.Details(c, task.ID)
+					return
+				}
 				if task.Category != "" {
 					ui.Text(c, task.Category).FontSize(11).TextColor(categoryInk)
 				}
@@ -346,4 +353,13 @@ func initials(name string) string {
 		}
 	}
 	return strings.ToUpper(result)
+}
+
+func (s *State) hasLane(l Lane) bool {
+	for _, t := range s.tasks {
+		if t.Lane == l {
+			return true
+		}
+	}
+	return false
 }

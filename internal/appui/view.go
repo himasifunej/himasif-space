@@ -19,6 +19,9 @@ func (a *App) View(c *ui.Context) {
 	c.SetTheme(spaceTheme(dark, a.chrome.preferences.Accent, a.chrome.preferences.Compact))
 	t := c.Theme()
 	ui.Column(c).Fill().Background(t.Background).TextColor(t.Text).Children(func() {
+		if a.accountFlowView(c) {
+			return
+		}
 		switch a.screen {
 		case screenStarting:
 			a.starting(c)
@@ -107,6 +110,12 @@ func (a *App) loginView(c *ui.Context) {
 		}
 		if submit {
 			a.login()
+		}
+		if spaceButton(c, "Lupa kata sandi", "lock", false).Disabled(a.busy).Clicked() {
+			a.openRecovery()
+		}
+		if spaceButton(c, "Buka tautan undangan", "users", false).Disabled(a.busy).Clicked() {
+			a.openAccountLink()
 		}
 		ui.Column(c).Gap(4).Children(func() {
 			muted(c, "Akun dibuat lewat undangan dari kadiv.")

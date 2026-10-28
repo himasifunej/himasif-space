@@ -97,6 +97,9 @@ type App struct {
 	preferencesLoaded bool
 	chrome            chromeState
 	workspace         *workspaceui.State
+	access            workspaceAccessState
+	tasks             tasksUIState
+	account           accountFlowState
 
 	api    API
 	tokens TokenStore
@@ -264,6 +267,7 @@ func (a *App) enterShell(u api.User) {
 	a.divisions, a.divisionsErr = nil, ""
 	a.loadPeriods()
 	a.loadDivisions()
+	a.resumeAccountFlow()
 }
 
 // failed handles an error of a call of the shell's: a rejected session
@@ -290,6 +294,7 @@ func (a *App) expire() {
 
 // toLogin forgets the session and shows the login with a notice.
 func (a *App) toLogin(notice string) {
+	a.accountSessionEnded()
 	a.resetWorkspace()
 	a.gen++
 	a.api.SetToken("")
@@ -323,6 +328,8 @@ func (a *App) loadPeriods() {
 			if a.period() == nil {
 				a.periodID = defaultPeriod(ps)
 			}
+			a.loadSpaces()
+			a.tasksContextChanged()
 		}
 	})
 }
@@ -375,6 +382,9 @@ func (a *App) ping(now time.Time) {
 			if a.divisionsErr != "" && !a.divisionsLoading {
 				a.loadDivisions()
 			}
+			if a.access.err != "" && !a.access.loading {
+				a.loadSpaces()
+			}
 		}
 	})
 }
@@ -386,6 +396,7 @@ func (a *App) logout() {
 		return
 	}
 	a.loggingOut = true
+	a.clearAccountFlow()
 	gen := a.gen
 	write := a.tokenWrite()
 	a.async(func() func() {

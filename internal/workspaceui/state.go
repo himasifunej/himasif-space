@@ -18,6 +18,7 @@ const (
 	Doing
 	Review
 	Done
+	Cancelled
 )
 
 func (l Lane) String() string {
@@ -30,6 +31,8 @@ func (l Lane) String() string {
 		return "Perlu tinjauan"
 	case Done:
 		return "Selesai"
+	case Cancelled:
+		return "Dibatalkan"
 	default:
 		return "Tidak diketahui"
 	}
@@ -44,6 +47,7 @@ type Task struct {
 	Deadline, Posting, Space               string
 	ExpectedOutput, Evidence               string
 	Lane                                   Lane
+	ReadOnly                               bool
 }
 
 // MoveRequest asks the caller to move a task before BeforeID in Destination.
@@ -59,14 +63,16 @@ type taskDrag struct{ ID id.ID }
 // State owns local presentation state only. A nil OnMove makes the board
 // read-only. The caller persists moves and supplies a new snapshot on success.
 type State struct {
-	OnMove          func(MoveRequest)
+	OnMove func(MoveRequest)
+	// Details supplies a caller-owned inspector body, inside the right panel.
+	Details         func(*ui.Context, id.ID)
 	tasks           []Task
 	hasSnapshot     bool
 	selected        id.ID
 	menuID          id.ID
 	menuOpen        bool
 	boardScroll     ui.ScrollState
-	lanes           [4]ui.ScrollState
+	lanes           [5]ui.ScrollState
 	inspectorScroll ui.ScrollState
 }
 
@@ -87,7 +93,7 @@ func (s *State) SetTasks(tasks []Task) error {
 		if seen[task.ID] {
 			return fmt.Errorf("workspaceui: duplicate task %s", task.ID)
 		}
-		if task.Lane > Done {
+		if task.Lane > Cancelled {
 			return fmt.Errorf("workspaceui: invalid lane %d", task.Lane)
 		}
 		seen[task.ID] = true
@@ -123,11 +129,11 @@ func (s *State) task(taskID id.ID) (Task, bool) {
 }
 
 func (s *State) requestMove(taskID id.ID, lane Lane, before id.ID) {
-	if s.OnMove == nil || lane > Done || taskID == before {
+	if s.OnMove == nil || lane > Cancelled || taskID == before {
 		return
 	}
 	from, ok := s.task(taskID)
-	if !ok {
+	if !ok || from.ReadOnly {
 		return
 	}
 	if before != id.Nil {

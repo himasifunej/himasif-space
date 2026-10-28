@@ -53,6 +53,12 @@ func main() {
 			Content:   ui.View(app.View),
 		})
 		app.Start()
+		if link := startupAccountLink(); link != "" {
+			_ = app.HandleAccountLink(link)
+		}
+		watchAccountLinks(func(raw string) {
+			win.Update(func() { _ = app.HandleAccountLink(raw) })
+		})
 	})
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)

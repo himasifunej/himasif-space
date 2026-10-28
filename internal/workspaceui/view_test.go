@@ -284,3 +284,28 @@ func TestNativeBoardCapture(t *testing.T) {
 		}
 	}
 }
+
+func TestMixedTaskPermissionsAndCancelledInspector(t *testing.T) {
+	tasks := fixtureTasks()
+	tasks[0].ReadOnly = true
+	tasks = append(tasks, Task{ID: id.New(), Title: "Tugas dibatalkan", Lane: Cancelled})
+	s := New()
+	if err := s.SetTasks(tasks); err != nil {
+		t.Fatal(err)
+	}
+	moves := 0
+	s.OnMove = func(MoveRequest) { moves++ }
+	s.requestMove(tasks[0].ID, Doing, id.Nil)
+	if moves != 0 {
+		t.Fatal("read-only card emitted move in a mixed board")
+	}
+	s.requestMove(tasks[1].ID, Doing, id.Nil)
+	if moves != 1 {
+		t.Fatal("own card cannot move in a mixed board")
+	}
+	s.Open(tasks[3].ID)
+	tt := boardTester(t, s, 1440)
+	if !tt.HasText("Dibatalkan") || !tt.HasText("Tugas dibatalkan") {
+		t.Fatal("cancelled task cannot be inspected")
+	}
+}

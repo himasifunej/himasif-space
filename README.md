@@ -2,7 +2,7 @@
 
 **Space — Ruang Kerja HIMASIF.** Aplikasi kerja pengurus HIMASIF: Space per divisi, jobdesk, reminder, rapat, Medhum dan bot WhatsApp. Kebutuhan produk ada di [docs/PRD.md](docs/PRD.md); keputusan teknis di [docs/adr](docs/adr).
 
-Status: Tahap 1 (fondasi), Sesi 1A — kerangka server, login, dan shell navigasi. Lihat [rencana implementasi](docs/implementation-plan.md).
+Status: fondasi backend 1A–1C terintegrasi dengan UI native pada branch ini; inti jobdesk/tugas sudah memakai PostgreSQL. Lihat [handoff integrasi](docs/handoff/native-integration-tasks.md) dan [rencana implementasi](docs/implementation-plan.md) untuk kemampuan yang sudah dibuat dan tahap berikutnya.
 
 ## Struktur
 

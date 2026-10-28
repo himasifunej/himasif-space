@@ -7,7 +7,6 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/himasifunej/himasif-space/internal/api"
-	"github.com/himasifunej/himasif-space/internal/id"
 	"github.com/himasifunej/himasif-space/internal/workspaceui"
 )
 
@@ -17,14 +16,7 @@ func (a *App) page(c *ui.Context, r *ui.Route) {
 	switch {
 	case r.Match(PathJobdesk):
 		r.Title("Jobdesk saya")
-		pageBody(c, "Jobdesk saya", func() {
-			a.periodLine(c)
-			muted(c, "Pekerjaan yang menjadi tanggung jawabmu, dari semua space yang dapat kamu akses.")
-			pageUnavailable(c, "task", "Jobdesk belum tersedia", "Daftar tugas belum dapat dimuat. Tugas yang dibagikan kepadamu akan tampil di sini.")
-			if spaceButton(c, "Lihat divisi", "grid", false).Clicked() {
-				a.router.Push(PathSpaces)
-			}
-		})
+		a.personalTasksView(c)
 	case r.Match(PathReminder):
 		r.Title("Reminder pribadi")
 		pageBody(c, "Reminder pribadi", func() {
@@ -36,7 +28,7 @@ func (a *App) page(c *ui.Context, r *ui.Route) {
 	case r.Match(PathSpaces):
 		a.spaces(c, r)
 	case r.Match(PathMedhum):
-		a.spacePage(c, r, true)
+		a.spaces(c, r)
 	case r.Match(PathEvaluasi):
 		r.Title("Evaluasi SOP")
 		pageBody(c, "Evaluasi SOP", func() {
@@ -78,16 +70,47 @@ func (a *App) periodLine(c *ui.Context) {
 }
 
 func (a *App) spaces(c *ui.Context, r *ui.Route) {
-	if a.selectedDivision() != nil {
-		a.spacePage(c, r, false)
+	if s := a.selectedSpace(); s != nil {
+		a.spacePage(c, r, s.Kind == api.SpaceShared)
 		return
 	}
-	r.Title("Divisi HIMASIF")
-	pageBody(c, "Divisi HIMASIF", func() {
+	r.Title("Space saya")
+	pageBody(c, "Space saya", func() {
 		a.periodLine(c)
-		muted(c, "Kenali ruang kerja setiap divisi, dan temukan tempat untuk berkolaborasi.")
-		pageNotice(c, "info", "Direktori organisasi", "Daftar ini menampilkan informasi divisi. Keanggotaan dan akses pekerjaanmu belum dapat dikonfirmasi.")
-		a.divisionCatalog(c)
+		muted(c, "Ruang yang dapat kamu akses pada kepengurusan ini.")
+		if a.access.notice != "" {
+			pageNotice(c, "lock", "Akses diperbarui", a.access.notice)
+		}
+		if a.access.loading {
+			pageUnavailable(c, "refresh", "Memuat Space…", "Memeriksa akses dari server.")
+			return
+		}
+		if a.access.err != "" {
+			pageNotice(c, "alert", "Space belum dapat dimuat", a.access.err)
+		}
+		if spaceButton(c, "Muat ulang Space", "refresh", false).Disabled(a.access.loading).Clicked() {
+			a.loadSpaces()
+		}
+		if len(a.access.spaces) == 0 && a.access.err == "" {
+			pageEmpty(c, "lock", "Belum ada Space", "Gunakan undangan dari kadiv atau hubungi pengelola untuk mendapatkan akses.")
+		}
+		for _, s := range a.access.spaces {
+			desc := "Ruang divisi"
+			if s.Kind == api.SpaceShared {
+				desc = "Kolaborasi lintas divisi"
+			}
+			if s.ReadOnly {
+				desc += " · Hanya baca"
+			}
+			pageSection(c.Key(s.ID), s.Name, desc, func() {
+				for _, d := range s.Divisions {
+					pageDivisionMark(c, d)
+				}
+				if spaceButton(c, "Buka "+s.Name, "arrow", false).Clicked() {
+					a.selectSpace(s.ID)
+				}
+			})
+		}
 	})
 }
 
@@ -125,11 +148,7 @@ func (a *App) divisionCatalog(c *ui.Context) {
 							muted(c, division.Slug)
 						})
 					})
-					if spaceButton(c, "Lihat divisi", "arrow", false).Clicked() {
-						a.chrome.divisionID = division.ID
-						a.chrome.tab = "Beranda"
-						a.router.Push(PathSpaces)
-					}
+					muted(c, "Identitas organisasi")
 				})
 			}
 		})
@@ -152,21 +171,15 @@ func (a *App) spacePage(c *ui.Context, r *ui.Route, shared bool) {
 				}
 			})
 		})
-		ui.Row(c.Key("membership-notice")).FillWidth().MinWidth(0).Padding(10, 22).Gap(9).AlignItems(ui.Start).Children(func() {
-			ui.Icon(c, spaceIcon("lock")).Size(14, 14).Shrink(0).TextColor(c.Theme().TextMuted)
-			ui.Text(c, "Keanggotaan dan akses pekerjaan space ini belum dapat dikonfirmasi.").Grow(1).MinWidth(0).FontSize(11).TextColor(c.Theme().TextMuted)
-		})
+		if s := a.selectedSpace(); s != nil && s.ReadOnly {
+			pageNotice(c, "lock", "Hanya baca", "Periode atau akses arsip ini tidak mengizinkan perubahan.")
+		}
+
 		switch a.chrome.tab {
 		case "Board tugas":
-			// A new presenter has no confirmed task data. The caller supplies an
-			// authorized snapshot before this route may show tasks or true empty.
-			if a.workspace.HasSnapshot() {
-				a.workspace.View(c)
-			} else {
-				a.unavailableBoard(c)
-			}
+			a.spaceTasksView(c)
 		case "Agenda":
-			a.agendaPage(c)
+			a.taskAgenda(c)
 		case "Notes":
 			a.notesPage(c)
 		case "Anggota":
@@ -212,35 +225,13 @@ func (a *App) overviewPage(c *ui.Context, title string, shared bool) {
 					}
 				})
 			})
-			ui.ScrollHorizontal(c).FillWidth().Height(112).Shrink(0).Children(func() {
-				ui.Row(c).FillHeight().Gap(12).Children(func() {
-					for _, stat := range []struct{ title, icon string }{{"Tugas aktif", "task"}, {"Dikerjakan", "clock"}, {"Perlu tinjauan", "send"}, {"Selesai", "check"}} {
-						ui.Column(c.Key(stat.title)).Width(200).Shrink(0).Padding(16).Gap(10).Radius(10).Background(t.Surface).Border(1, t.Border).Children(func() {
-							ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() { ui.Icon(c, spaceIcon(stat.icon)).Size(15, 15).TextColor(t.TextMuted); muted(c, stat.title) })
-							ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-								ui.Text(c, "—").FontSize(24).Bold()
-								ui.Text(c, "Belum tersedia").FontSize(10).TextColor(t.TextMuted)
-							})
-						})
-					}
-				})
-			})
+			a.tasksOverview(c)
 			if shared {
-				pageNotice(c, "link", "Humas × Mediatek", "Pekerjaan bersama terhubung di Medhum. Pekerjaan internal setiap divisi tetap memiliki ruangnya sendiri.")
-			} else {
-				pageNotice(c, "info", "Informasi divisi", "Keanggotaan dan akses pekerjaan space ini belum dapat dikonfirmasi.")
-				if spaceButton(c, "Lihat semua divisi", "grid", false).Clicked() {
-					a.chrome.divisionID = id.Nil
-					a.chrome.tab = "Beranda"
-				}
+				pageNotice(c, "link", "Ruang kolaborasi", "Akses ruang bersama tidak membuka pekerjaan internal divisi lain.")
 			}
+
 			ui.Column(c).FillWidth().Gap(16).Children(func() {
-				pageSection(c, "Jobdesk divisi", "Rencana yang jelas, pembagian yang terasa bersama.", func() {
-					pageEmpty(c, "task", "Jobdesk belum dapat dimuat", "Belum ada data tugas yang dapat ditampilkan.")
-					if spaceButton(c, "Lihat board tugas", "arrow", false).Clicked() {
-						a.chrome.tab = "Board tugas"
-					}
-				})
+
 				sections := ui.Column(c).FillWidth().MinWidth(0).Gap(16)
 				if wide {
 					sections.Row().AlignItems(ui.Stretch)
@@ -331,15 +322,6 @@ func (a *App) notesPage(c *ui.Context) {
 	})
 }
 
-func (a *App) membersPage(c *ui.Context) {
-	pageBody(c, "Anggota space", func() {
-		a.periodLine(c)
-		muted(c, "Orang-orang yang berbagi pekerjaan dan menjaga ruang ini berjalan.")
-		pageUnavailable(c, "users", "Keanggotaan belum dapat dikonfirmasi", "Daftar anggota, role, dan subdivisi belum tersedia. Akun yang sedang masuk tidak otomatis menjadi anggota divisi ini.")
-		spaceButton(c, "Undang anggota", "plus", false).Disabled(true)
-	})
-}
-
 func (a *App) archivePage(c *ui.Context, r *ui.Route) {
 	r.Title("Arsip periode")
 	pageBody(c, "Arsip periode", func() {
@@ -357,6 +339,10 @@ func (a *App) archivePage(c *ui.Context, r *ui.Route) {
 			if period.Status == api.PeriodClosed {
 				closed++
 				pagePeriodCard(c, period)
+				if spaceButton(c, "Lihat ruang "+period.Label, "archive", false).Clicked() {
+					a.changePeriod(period.ID)
+					a.navigate(PathSpaces)
+				}
 			}
 		}
 		if closed == 0 {
@@ -373,7 +359,7 @@ func (a *App) organizationPage(c *ui.Context, r *ui.Route) {
 	r.Title("Pengaturan organisasi")
 	pageBody(c, "Pengaturan organisasi", func() {
 		muted(c, "Identitas divisi dan kepengurusan HIMASIF.")
-		pageNotice(c, "shield", "Informasi organisasi", "Data periode dan divisi dapat dibaca. Perubahan organisasi, undangan, role, dan serah terima belum tersedia.")
+		pageNotice(c, "shield", "Pengaturan organisasi", "Akses anggota, undangan, dan role dikelola dari tab Anggota pada Space divisi yang berwenang.")
 		ui.Text(c, "Periode kepengurusan").FontSize(16).Bold()
 		if a.periodsErr != "" {
 			pageNotice(c, "alert", "Periode belum dapat dimuat", a.periodsErr)
@@ -420,7 +406,12 @@ func (a *App) spaceSettings(c *ui.Context, shared bool) {
 		if shared {
 			pageNotice(c, "whatsapp", "Medhum dilayani bot Humas", "Bot Humas ditujukan untuk grup Humas dan Medhum. Bot Mediatek berada di grup divisinya sendiri.")
 		}
-		pageUnavailable(c, "settings", "Pengaturan belum tersedia", "Konfigurasi space dan kewenangan pengelola belum dapat dimuat. Tidak ada perubahan yang dapat disimpan saat ini.")
+		if s := a.selectedSpace(); s != nil {
+			info(c, [][2]string{{"Space", s.Name}, {"Jenis", s.Kind}, {"Akses", s.Access}})
+		}
+		if spaceButton(c, "Kelola anggota dan akses", "users", false).Clicked() {
+			a.chrome.tab = "Anggota"
+		}
 		if spaceButton(c, "Lihat pengaturan WhatsApp", "whatsapp", false).Clicked() {
 			a.chrome.settingsTab = "WhatsApp"
 			a.router.Push(PathPengaturan)
@@ -490,6 +481,7 @@ func (a *App) accountPage(c *ui.Context) {
 		pageSection(c, "Akunmu", "Identitas akun yang sedang masuk.", func() {
 			info(c, [][2]string{{"Nama", a.user.DisplayName}, {"Email", a.user.Email}, {"Jenis akun", kind}, {"Verifikasi email", verified}})
 		})
+		a.accountCredentialsView(c)
 		pageSection(c, "Aplikasi", "Informasi koneksi Space pada perangkat ini.", func() { info(c, [][2]string{{"Server", a.ServerURL}, {"Versi", a.Version}}) })
 		if spaceButton(c, "Penampilan", "palette", false).Clicked() {
 			a.chrome.appearance = true
