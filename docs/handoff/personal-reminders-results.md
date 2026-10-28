@@ -45,3 +45,15 @@ Branch `feat/personal-reminders`, dari `origin/main` (`d92a372`). Kontrak: [pers
 2. Buat/ubah: kirim `dueKind` + salah satu `dueOn`/`dueAt` + `timeZone`. Untuk input tanggal-saja jangan kirim jam.
 3. Berbagi: tambah penerima lewat `recipientId` (gunakan daftar akun yang sudah boleh dilihat pengguna), lalu nyalakan toggle `PUT /sharing`. Tampilkan `recipients` hanya untuk pemilik.
 4. Riwayat: `GET /history` untuk menampilkan perubahan; `before`/`after` adalah objek bebas.
+
+## Perbaikan saat review sebelum merge — 28 Oktober 2026
+
+Review gabungan dengan UI/tugas menemukan tiga masalah yang dibuktikan oleh tes regresi sebelum diperbaiki:
+
+- Semua mutasi sekarang memeriksa ulang akun/sesi di dalam transaksi. Request dengan principal lama ditolak setelah logout atau akun dinonaktifkan; delapan jalur tulis diuji tanpa perubahan data/audit.
+- Akun pemilik dan penerima dikunci dalam urutan UUID sebelum baris reminder. Dua permintaan berbagi silang yang sebelumnya menghasilkan deadlock/500 sekarang sama-sama menghasilkan 201 dan dua grant tersimpan.
+- Daftar milik sendiri dan yang diterima memakai satu query visibilitas/urutan, sehingga reminder terdekat berada di depan dan seluruh yang selesai berada di belakang. Representasi date-only dan instant tetap terpisah.
+
+Dekode row list/detail juga disatukan melalui `scanReminder` untuk menghindari dua salinan pemetaan kolom. Tidak ada perubahan pada migrasi 0004 atau schema/API publik.
+
+`go test -count=1 -v ./internal/server -run TestReminder` dengan PostgreSQL nyata lulus (10 tes utama termasuk tiga regresi baru). Pemeriksaan gabungan akhir, lintas platform dan urutan migrasi dicatat di handoff review PR #3/#4 pada branch integrasi.
