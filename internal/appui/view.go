@@ -6,31 +6,22 @@ import (
 	"github.com/himasifunej/himasif-space/internal/api"
 )
 
-// navItem is a page of the sidebar.
-type navItem struct {
-	path, label string
-	adminOnly   bool
-}
-
-// nav lists the shell's pages, as PRD §19.1 orders them.
-var nav = []navItem{
-	{PathJobdesk, "Jobdesk saya", false},
-	{PathReminder, "Reminder pribadi", false},
-	{PathSpaces, "Space divisi", false},
-	{PathMedhum, "Medhum", false},
-	{PathEvaluasi, "Evaluasi SOP", false},
-	{PathArsip, "Arsip", false},
-	{PathPengaturan, "Pengaturan", false},
-	{PathOrganisasi, "Pengaturan organisasi", true},
-}
-
 // isAdmin reports whether the user is the organization's admin account.
 func (a *App) isAdmin() bool { return a.user.Kind == api.AccountOrganizationAdmin }
 
 // View builds the window's interface.
 func (a *App) View(c *ui.Context) {
+	a.loadPreferences()
+	dark := a.chrome.preferences.Theme == "dark"
+	if a.chrome.preferences.Theme == "system" {
+		dark = c.Theme().Dark
+	}
+	c.SetTheme(spaceTheme(dark, a.chrome.preferences.Accent, a.chrome.preferences.Compact))
 	t := c.Theme()
 	ui.Column(c).Fill().Background(t.Background).TextColor(t.Text).Children(func() {
+		if a.accountFlowView(c) {
+			return
+		}
 		switch a.screen {
 		case screenStarting:
 			a.starting(c)
@@ -49,13 +40,15 @@ func muted(c *ui.Context, s string) ui.Element {
 	return ui.Text(c, s).FontSize(12).TextColor(c.Theme().TextMuted)
 }
 
-// brand builds the name of the app, text only until the logo is designed
-// (PRD OPEN-01).
+// brand draws the approved Space identity.
 func brand(c *ui.Context) {
 	t := c.Theme()
-	ui.Column(c).Gap(2).Children(func() {
-		ui.Text(c, "Space").FontSize(28).Bold()
-		ui.Text(c, "Ruang Kerja HIMASIF").TextColor(t.TextMuted)
+	ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
+		ui.Image(c, spaceBrand()).Size(40, 40).Fit(ui.Contain)
+		ui.Column(c).Gap(2).Children(func() {
+			ui.Text(c, "Space").FontSize(28).Bold()
+			ui.Text(c, "Ruang Kerja HIMASIF").TextColor(t.TextMuted)
+		})
 	})
 }
 
@@ -118,100 +111,15 @@ func (a *App) loginView(c *ui.Context) {
 		if submit {
 			a.login()
 		}
+		if spaceButton(c, "Lupa kata sandi", "lock", false).Disabled(a.busy).Clicked() {
+			a.openRecovery()
+		}
+		if spaceButton(c, "Buka tautan undangan", "users", false).Disabled(a.busy).Clicked() {
+			a.openAccountLink()
+		}
 		ui.Column(c).Gap(4).Children(func() {
 			muted(c, "Akun dibuat lewat undangan dari kadiv.")
 			muted(c, "Server: "+a.ServerURL)
-		})
-	})
-}
-
-func (a *App) shell(c *ui.Context) {
-	t := c.Theme()
-	if a.lastPing.IsZero() {
-		a.lastPing = c.Now()
-	}
-	if next := a.lastPing.Add(pingEvery); !c.Now().Before(next) {
-		a.ping(c.Now())
-	} else {
-		c.After(next.Sub(c.Now()))
-	}
-	ui.Row(c).Fill().AlignItems(ui.Stretch).Children(func() {
-		ui.Column(c).Width(248).Shrink(0).PaddingY(12).Gap(8).Background(t.Surface).
-			BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
-			a.periodPicker(c)
-			page := a.router.Path()
-			ui.Sidebar(c, &page, func() {
-				for _, it := range nav {
-					if it.adminOnly && !a.isAdmin() {
-						continue
-					}
-					ui.SidebarItem(c.Key(it.path), it.path, nil, it.label)
-				}
-			}).Grow(1).Label("Navigasi").OnChange(func() {
-				a.router.Push(page)
-			})
-			a.account(c)
-		})
-		a.router.View(c, func(r *ui.Route) {
-			a.page(c, r)
-		}).Grow(1).MinWidth(0)
-	})
-}
-
-func (a *App) periodPicker(c *ui.Context) {
-	t := c.Theme()
-	ui.Column(c).PaddingX(12).Gap(4).Children(func() {
-		muted(c, "Periode")
-		switch {
-		case len(a.periods) > 0:
-			labels := make([]string, len(a.periods))
-			chosen := ""
-			for i, p := range a.periods {
-				labels[i] = periodLabel(p)
-				if p.ID == a.periodID {
-					chosen = labels[i]
-				}
-			}
-			if ui.Select(c.Key("period"), &chosen, labels).FillWidth().Label("Periode").Changed() {
-				for i, l := range labels {
-					if l == chosen {
-						a.periodID = a.periods[i].ID
-					}
-				}
-			}
-		case a.periodsLoading:
-			muted(c, "Memuat periode…")
-		case a.periodsErr != "":
-			ui.Text(c, a.periodsErr).FontSize(12).TextColor(t.Danger)
-			if ui.Button(c, "Muat ulang").Clicked() {
-				a.loadPeriods()
-			}
-		default:
-			muted(c, "Belum ada periode.")
-		}
-	})
-}
-
-// account builds the user and the connection, at the bottom of the
-// sidebar.
-func (a *App) account(c *ui.Context) {
-	t := c.Theme()
-	ui.Column(c).Padding(12, 12, 0, 12).Gap(2).BorderWidth(1, 0, 0, 0).BorderColor(t.Border).Children(func() {
-		ui.Text(c, a.user.DisplayName).Bold().MaxLines(1)
-		muted(c, a.user.Email).MaxLines(1)
-		color, text := t.Success, "Tersambung"
-		switch a.conn {
-		case connOffline:
-			color, text = t.Danger, "Tidak ada koneksi"
-		case connConnecting:
-			color, text = t.Warning, "Menyambungkan…"
-		}
-		ui.Row(c).Gap(6).PaddingY(6).Children(func() {
-			ui.Box(c).Size(8, 8).Radius(4).Background(color)
-			muted(c, text).Grow(1)
-			if a.conn == connOffline && ui.Button(c, "Coba lagi").Clicked() {
-				a.ping(c.Now())
-			}
 		})
 	})
 }

@@ -122,6 +122,21 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET "+div+"/archives", s.handle(s.listArchives))
 	mux.Handle("POST "+div+"/archives", s.handle(s.grantArchive))
 	mux.Handle("DELETE "+div+"/archives/{grantId}", s.handle(s.revokeArchive))
+	// Canonical tasks and in-app delivery (Sesi 2A).
+	mux.Handle("GET /api/spaces/{spaceId}/tasks", s.handle(s.listSpaceTasks))
+	mux.Handle("POST /api/spaces/{spaceId}/tasks", s.handle(s.createTask))
+	mux.Handle("GET /api/periods/{periodId}/tasks/mine", s.handle(s.listMyTasks))
+	mux.Handle("GET /api/tasks/{taskId}", s.handle(s.getTask))
+	mux.Handle("PATCH /api/tasks/{taskId}", s.handle(s.updateTask))
+	mux.Handle("POST /api/tasks/{taskId}/move", s.handle(s.moveTask))
+	mux.Handle("POST /api/tasks/{taskId}/comments", s.handle(s.addTaskComment))
+	mux.Handle("POST /api/tasks/{taskId}/help", s.handle(s.offerTaskHelp))
+	mux.Handle("POST /api/tasks/{taskId}/help/{helpId}/decide", s.handle(s.decideTaskHelp))
+	mux.Handle("POST /api/tasks/{taskId}/evidence", s.handle(s.submitTaskEvidence))
+	mux.Handle("POST /api/tasks/{taskId}/evidence/{evidenceId}/review", s.handle(s.reviewTaskEvidence))
+	mux.Handle("GET /api/tasks/{taskId}/history", s.handle(s.taskHistory))
+	mux.Handle("GET /api/notifications", s.handle(s.listTaskNotifications))
+	mux.Handle("POST /api/notifications/{notificationId}/read", s.handle(s.readTaskNotification))
 
 	// Personal reminders (Sesi 2A, PRD §8). Owned by the account, private by
 	// default; recipients read only. No division scope: ownership decides.

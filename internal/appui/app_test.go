@@ -228,7 +228,7 @@ func TestLoginSuccess(t *testing.T) {
 	h.want("Jobdesk saya")
 	h.want("Ani Wulandari")
 	h.want("Tersambung")
-	h.want("Dibangun di Sesi 2A.")
+	h.want("Layanan tugas belum tersedia.")
 	if len(f.logins) != 1 || f.logins[0].Client != "desktop" {
 		t.Errorf("logins %+v", f.logins)
 	}
@@ -387,6 +387,7 @@ func TestAdminSeesOrganization(t *testing.T) {
 			h := newHarness(t, f, "tok")
 			h.app.Start()
 			h.settle()
+			h.click("Menu profil")
 			h.want("Pengaturan")
 			if got := h.tt.HasText("Pengaturan organisasi"); got != tc.sees {
 				t.Errorf("%s sees Pengaturan organisasi: %v, want %v", tc.kind, got, tc.sees)
@@ -394,7 +395,7 @@ func TestAdminSeesOrganization(t *testing.T) {
 			if tc.sees {
 				h.click("Pengaturan organisasi")
 				h.settle()
-				h.want("Dibangun di Sesi 1B.")
+				h.want("Pengaturan organisasi")
 			} else {
 				// Nor does the path open it.
 				h.app.router.Push(PathOrganisasi)
@@ -415,11 +416,17 @@ func TestPeriodPicker(t *testing.T) {
 		t.Fatalf("period %+v, want 2025/2026", p)
 	}
 	h.want("2025/2026 (aktif)")
-	h.click("2025/2026 (aktif)") // opens the select
+	h.click("2025/2026 (aktif)") // opens the custom period dropdown
+	if !h.app.chrome.periodOpen {
+		t.Fatal("period dropdown did not open")
+	}
 	h.click("2024/2025 (ditutup)")
 	h.settle()
 	if p := h.app.period(); p == nil || p.Label != "2024/2025" {
 		t.Errorf("period %+v after choosing 2024/2025", p)
+	}
+	if h.app.chrome.periodOpen {
+		t.Error("period dropdown stayed open after choosing a period")
 	}
 }
 
@@ -439,21 +446,29 @@ func TestPages(t *testing.T) {
 	h := newHarness(t, f, "tok")
 	h.app.Start()
 	h.settle()
-	for _, tc := range []struct{ item, want string }{
-		{"Reminder pribadi", "Dibangun di Sesi 2A."},
-		{"Medhum", "Dibangun di Tahap 4."},
-		{"Evaluasi SOP", "Dibangun di Tahap 4."},
-		{"Arsip", "Dibangun di Sesi 1B."},
-		{"Space divisi", "Media dan Teknologi"},
+	for _, tc := range []struct {
+		item, want string
+		profile    bool
+	}{
+		{"Reminder pribadi", "Reminder belum tersedia", false},
+		{"Evaluasi SOP", "Temuan perlu ditinjau", true},
+		{"Arsip periode", "Informasi periode", false},
+		{"Space saya", "Layanan akses Space belum tersedia.", false},
 	} {
+		if tc.profile {
+			h.click("Menu profil")
+		}
 		h.click(tc.item)
 		h.settle()
 		h.want(tc.want)
+		h.dontWant("Dibangun di")
 	}
-	h.want("mediatek")
-	h.want("Keanggotaan dan role menyusul di Sesi 1C.")
+	h.dontWant("Media dan Teknologi")
+	h.dontWant("Medhum")
+	h.click("Menu profil")
 	h.click("Pengaturan")
 	h.settle()
+	h.click("Akun")
 	for _, s := range []string{"ani@himasif.id", "Pribadi", "Terverifikasi", "https://api.contoh.test", "0.1.0-test", "Keluar"} {
 		h.want(s)
 	}
@@ -466,9 +481,8 @@ func TestLogout(t *testing.T) {
 	h.settle()
 	h.login("ani@himasif.id", "rahasia")
 	tok := h.tokens.get()
-	h.click("Pengaturan")
-	h.settle()
-	h.click("Keluar")
+	h.click("Menu profil")
+	h.click("Keluar akun")
 	h.settle()
 	if h.app.screen != screenLogin {
 		t.Fatalf("screen %d, texts %q", h.app.screen, h.tt.Texts())
@@ -508,9 +522,8 @@ func TestLogoutOffline(t *testing.T) {
 	f.mu.Lock()
 	f.unreachable = true
 	f.mu.Unlock()
-	h.click("Pengaturan")
-	h.settle()
-	h.click("Keluar")
+	h.click("Menu profil")
+	h.click("Keluar akun")
 	h.settle()
 	if h.app.screen != screenLogin || h.tokens.get() != "" {
 		t.Errorf("offline Keluar: screen %d, token %q", h.app.screen, h.tokens.get())
@@ -524,7 +537,7 @@ func TestSessionExpiresInShell(t *testing.T) {
 	h.app.Start()
 	h.settle()
 	delete(f.valid, "tok")
-	h.click("Space divisi")
+	h.click("Space saya")
 	h.app.loadDivisions()
 	h.settle()
 	if h.app.screen != screenLogin || h.tokens.get() != "" {

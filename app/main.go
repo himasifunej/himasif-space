@@ -42,16 +42,23 @@ func main() {
 		app.ServerURL = api.BaseURL
 		app.ClientName = clientName
 		app.Version = appVersion()
+		app.PreferencesStore = newPreferencesStore()
 		win = mygo.NewWindow(mygo.WindowOptions{
 			Title:     "Space — Ruang Kerja HIMASIF",
-			Width:     1100,
-			Height:    720,
-			MinWidth:  720,
-			MinHeight: 480,
+			Width:     1440,
+			Height:    900,
+			MinWidth:  880,
+			MinHeight: 640,
 			StateKey:  "main",
 			Content:   ui.View(app.View),
 		})
 		app.Start()
+		if link := startupAccountLink(); link != "" {
+			_ = app.HandleAccountLink(link)
+		}
+		watchAccountLinks(func(raw string) {
+			win.Update(func() { _ = app.HandleAccountLink(raw) })
+		})
 	})
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)
