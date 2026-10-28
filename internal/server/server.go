@@ -122,6 +122,22 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET "+div+"/archives", s.handle(s.listArchives))
 	mux.Handle("POST "+div+"/archives", s.handle(s.grantArchive))
 	mux.Handle("DELETE "+div+"/archives/{grantId}", s.handle(s.revokeArchive))
+
+	// Personal reminders (Sesi 2A, PRD §8). Owned by the account, private by
+	// default; recipients read only. No division scope: ownership decides.
+	mux.Handle("GET /api/reminders", s.handle(s.listReminders))
+	mux.Handle("POST /api/reminders", s.handle(s.createReminder))
+	mux.Handle("GET /api/reminders/preferences", s.handle(s.getReminderPreferences))
+	mux.Handle("PUT /api/reminders/preferences", s.handle(s.putReminderPreferences))
+	mux.Handle("GET /api/reminders/{reminderId}", s.handle(s.getReminder))
+	mux.Handle("PUT /api/reminders/{reminderId}", s.handle(s.updateReminder))
+	mux.Handle("DELETE /api/reminders/{reminderId}", s.handle(s.deleteReminder))
+	mux.Handle("POST /api/reminders/{reminderId}/complete", s.handle(s.completeReminder))
+	mux.Handle("PUT /api/reminders/{reminderId}/sharing", s.handle(s.setReminderSharing))
+	mux.Handle("GET /api/reminders/{reminderId}/recipients", s.handle(s.listReminderRecipients))
+	mux.Handle("POST /api/reminders/{reminderId}/recipients", s.handle(s.shareReminder))
+	mux.Handle("DELETE /api/reminders/{reminderId}/recipients/{recipientId}", s.handle(s.unshareReminder))
+	mux.Handle("GET /api/reminders/{reminderId}/history", s.handle(s.reminderHistory))
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, api.CodeNotFound, "Alamat API tidak dikenal.")
 	})
