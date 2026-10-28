@@ -57,7 +57,7 @@ func TestNoteCreateAndRead(t *testing.T) {
 	if c := o.call("GET", "/api/notes/"+note.ID.String(), mTok, nil, &got); c != 200 || len(got.Content) != 4 {
 		t.Fatalf("read = %d %+v", c, got)
 	}
-	if c, code := o.errCode("GET", "/api/notes/"+note.ID.String(), hTok, nil); c != 403 || code != api.CodeForbidden {
+	if c, code := o.errCode("GET", "/api/notes/"+note.ID.String(), hTok, nil); c != 404 || code != api.CodeNotFound {
 		t.Fatalf("humas reads mediatek note = %d %s", c, code)
 	}
 	// A list of the space shows it; humas listing its own space shows nothing of it.

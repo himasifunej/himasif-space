@@ -49,20 +49,21 @@ func (s *Server) noteAccess(ctx context.Context, q store.Querier, p *principal, 
 	open := period.Status != api.PeriodClosed
 	manage := open && slices.Contains(sc.caps, api.CapNotesManage)
 
-	lock, held, err := s.store.NoteLock(ctx, q, n.ID)
+	lease, held, err := s.store.NoteLock(ctx, q, n.ID)
 	if err != nil {
 		return err
 	}
 	now := s.now()
 	if held {
-		lock.HeldByCaller = lock.Editor.ID == p.User.ID
+		lock := lease.Lock
+		lock.HeldByCaller = lock.Editor.ID == p.User.ID && lease.SessionID == p.Session.ID
 		n.Lock = &lock
 	} else {
 		n.Lock = nil
 	}
 	// canEdit: may manage, and no live lock held by someone else.
 	canEdit := manage
-	if held && lock.Editor.ID != p.User.ID && now.Before(lock.ExpiresAt) {
+	if held && !n.Lock.HeldByCaller && now.Before(n.Lock.ExpiresAt) {
 		canEdit = false
 	}
 	n.Permissions = api.NotePermissions{Manage: manage, Comment: open && comment, CanEdit: canEdit}
@@ -105,6 +106,9 @@ func (s *Server) withNote(r *http.Request, p *principal, write bool, fn func(sto
 			}
 		}
 		if err := s.noteAccess(ctx, q, p, period, &n); err != nil {
+			if !write && errors.Is(err, errForbidden) {
+				return errNotFound
+			}
 			return err
 		}
 		if write && period.Status == api.PeriodClosed {
@@ -348,7 +352,7 @@ func (s *Server) updateNote(w http.ResponseWriter, r *http.Request, p *principal
 			return conflict("Note telah berubah. Muat ulang sebelum menyimpan.")
 		}
 		// The caller must hold a live editor lock.
-		if n.Lock == nil || n.Lock.Editor.ID != p.User.ID || !now.Before(n.Lock.ExpiresAt) {
+		if n.Lock == nil || !n.Lock.HeldByCaller || !now.Before(n.Lock.ExpiresAt) {
 			return conflict("Anda belum memegang kunci editor note ini, atau kunci sudah kedaluwarsa. Ambil kunci lalu coba lagi.")
 		}
 		before := n.Note
@@ -362,7 +366,7 @@ func (s *Server) updateNote(w http.ResponseWriter, r *http.Request, p *principal
 			return err
 		}
 		// The caller's own draft is superseded by the save.
-		if _, err := s.store.DeleteNoteDraft(ctx, q, n.ID, p.User.ID); err != nil {
+		if _, err := s.store.DeleteNoteDraft(ctx, q, n.ID, p.User.ID, p.Session.ID); err != nil {
 			return err
 		}
 		out = n.Note
@@ -381,7 +385,7 @@ func (s *Server) deleteNote(w http.ResponseWriter, r *http.Request, p *principal
 			return errForbidden
 		}
 		before := n.Note
-		if err := s.store.DeleteNote(r.Context(), q, n.ID); err != nil {
+		if err := s.store.DeleteNote(r.Context(), q, n.ID, s.now().UTC().Truncate(time.Microsecond)); err != nil {
 			return err
 		}
 		return s.noteEvent(r, q, p, n, "note.delete", "", before, nil)
@@ -400,8 +404,26 @@ func (s *Server) noteHistory(w http.ResponseWriter, r *http.Request, p *principa
 			return errForbidden
 		}
 		h, err := s.store.NoteHistory(r.Context(), q, n.ID)
-		out = h
-		return err
+		if err != nil {
+			return err
+		}
+		for _, event := range h {
+			if event.Action == "note.link.add" || event.Action == "note.link.remove" {
+				link, ok := noteEventLink(event)
+				if !ok {
+					continue
+				}
+				visible, err := s.noteLinkVisible(r.Context(), q, p, link.TargetType, link.TargetID)
+				if err != nil {
+					return err
+				}
+				if !visible {
+					continue
+				}
+			}
+			out = append(out, event)
+		}
+		return nil
 	})
 	if err != nil {
 		return err

@@ -40,6 +40,7 @@ const (
 type Error struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
+	Data    any    `json:"data,omitempty"`
 }
 
 // ErrorResponse wraps Error, as {"error": {...}}.

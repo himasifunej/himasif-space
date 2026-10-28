@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
@@ -25,15 +26,15 @@ func (s *Server) acquireNoteLock(w http.ResponseWriter, r *http.Request, p *prin
 			return errForbidden
 		}
 		now := s.now().UTC().Truncate(time.Microsecond)
-		if n.Lock != nil && n.Lock.Editor.ID != p.User.ID && now.Before(n.Lock.ExpiresAt) {
+		if n.Lock != nil && !n.Lock.HeldByCaller && now.Before(n.Lock.ExpiresAt) {
 			return lockConflict(*n.Lock)
 		}
 		acquired := now
-		if n.Lock != nil && n.Lock.Editor.ID == p.User.ID {
+		if n.Lock != nil && n.Lock.HeldByCaller && now.Before(n.Lock.ExpiresAt) {
 			acquired = n.Lock.AcquiredAt
 		}
 		expires := now.Add(noteLockTTL)
-		if err := s.store.SetNoteLock(r.Context(), q, n.ID, p.User.ID, acquired, expires); err != nil {
+		if err := s.store.SetNoteLock(r.Context(), q, n.ID, p.User.ID, p.Session.ID, acquired, expires); err != nil {
 			return err
 		}
 		out = api.NoteLock{Editor: taskPerson(p), AcquiredAt: acquired, ExpiresAt: expires, HeldByCaller: true}
@@ -60,7 +61,7 @@ func (s *Server) takeoverNoteLock(w http.ResponseWriter, r *http.Request, p *pri
 			return errForbidden
 		}
 		now := s.now().UTC().Truncate(time.Microsecond)
-		if n.Lock != nil && n.Lock.Editor.ID != p.User.ID && now.Before(n.Lock.ExpiresAt) && !req.Force {
+		if n.Lock != nil && !n.Lock.HeldByCaller && now.Before(n.Lock.ExpiresAt) && !req.Force {
 			return lockConflict(*n.Lock)
 		}
 		before := map[string]any{"editor": nil}
@@ -68,7 +69,7 @@ func (s *Server) takeoverNoteLock(w http.ResponseWriter, r *http.Request, p *pri
 			before["editor"] = n.Lock.Editor.ID
 		}
 		expires := now.Add(noteLockTTL)
-		if err := s.store.SetNoteLock(r.Context(), q, n.ID, p.User.ID, now, expires); err != nil {
+		if err := s.store.SetNoteLock(r.Context(), q, n.ID, p.User.ID, p.Session.ID, now, expires); err != nil {
 			return err
 		}
 		out = api.NoteLock{Editor: taskPerson(p), AcquiredAt: now, ExpiresAt: expires, HeldByCaller: true}
@@ -83,7 +84,7 @@ func (s *Server) takeoverNoteLock(w http.ResponseWriter, r *http.Request, p *pri
 
 func (s *Server) releaseNoteLock(w http.ResponseWriter, r *http.Request, p *principal) error {
 	err := s.withNote(r, p, true, func(q store.Querier, _ api.Period, n *store.NoteRow) error {
-		if _, err := s.store.ReleaseNoteLock(r.Context(), q, n.ID, p.User.ID); err != nil {
+		if _, err := s.store.ReleaseNoteLock(r.Context(), q, n.ID, p.User.ID, p.Session.ID); err != nil {
 			return err
 		}
 		return nil
@@ -98,7 +99,7 @@ func (s *Server) releaseNoteLock(w http.ResponseWriter, r *http.Request, p *prin
 // lockConflict returns a 409 whose error carries the current holder.
 func lockConflict(l api.NoteLock) error {
 	return &apiError{status: http.StatusConflict, code: api.CodeConflict,
-		message: "Note ini sedang diedit oleh " + l.Editor.DisplayName + "."}
+		message: "Note ini sedang diedit oleh " + l.Editor.DisplayName + ".", data: l}
 }
 
 // --- drafts (NTE-08) ---
@@ -119,9 +120,13 @@ func (s *Server) saveNoteDraft(w http.ResponseWriter, r *http.Request, p *princi
 		if !n.Permissions.Manage {
 			return errForbidden
 		}
+		if req.BaseVersion < 1 || req.BaseVersion > n.Version {
+			return badRequest("Versi dasar draf harus versi note yang sudah ada.")
+		}
 		now := s.now().UTC().Truncate(time.Microsecond)
 		d := api.NoteDraft{Title: req.Title, Content: req.Content, BaseVersion: req.BaseVersion, SavedAt: now}
-		if err := s.store.SaveNoteDraft(r.Context(), q, n.ID, p.User.ID, d); err != nil {
+		d, err := s.store.SaveNoteDraft(r.Context(), q, n.ID, p.User.ID, p.Session.ID, d)
+		if err != nil {
 			return err
 		}
 		d.Stale = req.BaseVersion < n.Version
@@ -139,10 +144,7 @@ func (s *Server) getNoteDraft(w http.ResponseWriter, r *http.Request, p *princip
 	var out api.NoteDraft
 	var found bool
 	err := s.withNote(r, p, false, func(q store.Querier, _ api.Period, n *store.NoteRow) error {
-		if !n.Permissions.Manage {
-			return errForbidden
-		}
-		d, err := s.store.NoteDraft(r.Context(), q, n.ID, p.User.ID)
+		d, err := s.store.NoteDraft(r.Context(), q, n.ID, p.User.ID, p.Session.ID)
 		if errors.Is(err, store.ErrNotFound) {
 			return nil
 		}
@@ -165,8 +167,53 @@ func (s *Server) getNoteDraft(w http.ResponseWriter, r *http.Request, p *princip
 
 func (s *Server) deleteNoteDraft(w http.ResponseWriter, r *http.Request, p *principal) error {
 	err := s.withNote(r, p, true, func(q store.Querier, _ api.Period, n *store.NoteRow) error {
-		_, err := s.store.DeleteNoteDraft(r.Context(), q, n.ID, p.User.ID)
+		_, err := s.store.DeleteNoteDraft(r.Context(), q, n.ID, p.User.ID, p.Session.ID)
 		return err
+	})
+	if err != nil {
+		return err
+	}
+	w.WriteHeader(http.StatusNoContent)
+	return nil
+}
+
+// listNoteDrafts lets a read-authorized caller recover their own copies after
+// a reconnect, another device's save, or closing the period. No session IDs or
+// other accounts' drafts are returned.
+func (s *Server) listNoteDrafts(w http.ResponseWriter, r *http.Request, p *principal) error {
+	var out []api.NoteDraft
+	err := s.withNote(r, p, false, func(q store.Querier, _ api.Period, n *store.NoteRow) error {
+		drafts, err := s.store.NoteDrafts(r.Context(), q, n.ID, p.User.ID, p.Session.ID)
+		if err != nil {
+			return err
+		}
+		for i := range drafts {
+			drafts[i].Stale = drafts[i].BaseVersion < n.Version
+		}
+		out = drafts
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	writeJSON(w, http.StatusOK, api.List[api.NoteDraft]{Items: nonNil(out)})
+	return nil
+}
+
+func (s *Server) deleteNoteRecoveryDraft(w http.ResponseWriter, r *http.Request, p *principal) error {
+	draftID, err := pathID(r, "draftId")
+	if err != nil {
+		return err
+	}
+	err = s.withNote(r, p, true, func(q store.Querier, _ api.Period, n *store.NoteRow) error {
+		removed, err := s.store.DeleteNoteDraftByID(r.Context(), q, n.ID, p.User.ID, draftID)
+		if err != nil {
+			return err
+		}
+		if !removed {
+			return errNotFound
+		}
+		return nil
 	})
 	if err != nil {
 		return err
@@ -280,8 +327,19 @@ func (s *Server) listNoteLinks(w http.ResponseWriter, r *http.Request, p *princi
 	var out []api.NoteLink
 	err := s.withNote(r, p, false, func(q store.Querier, _ api.Period, n *store.NoteRow) error {
 		links, err := s.store.NoteLinks(r.Context(), q, n.ID)
-		out = links
-		return err
+		if err != nil {
+			return err
+		}
+		for _, link := range links {
+			visible, err := s.noteLinkVisible(r.Context(), q, p, link.TargetType, link.TargetID)
+			if err != nil {
+				return err
+			}
+			if visible {
+				out = append(out, link)
+			}
+		}
+		return nil
 	})
 	if err != nil {
 		return err
@@ -312,12 +370,12 @@ func (s *Server) addNoteLink(w http.ResponseWriter, r *http.Request, p *principa
 		ctx := r.Context()
 		switch req.TargetType {
 		case api.NoteLinkTask:
-			ok, err := s.store.TaskExists(ctx, q, req.TargetID)
+			ok, err := s.noteLinkVisible(ctx, q, p, req.TargetType, req.TargetID)
 			if err != nil {
 				return err
 			}
 			if !ok {
-				return badRequest("Tugas tujuan tidak ditemukan.")
+				return errNotFound
 			}
 		case api.NoteLinkReminder:
 			// A personal reminder links only from its owner, so a note never
@@ -355,6 +413,20 @@ func (s *Server) deleteNoteLink(w http.ResponseWriter, r *http.Request, p *princ
 		if !n.Permissions.Manage {
 			return errForbidden
 		}
+		links, err := s.store.NoteLinks(r.Context(), q, n.ID)
+		if err != nil {
+			return err
+		}
+		var before *api.NoteLink
+		for i := range links {
+			if links[i].ID == lid {
+				before = &links[i]
+				break
+			}
+		}
+		if before == nil {
+			return errNotFound
+		}
 		removed, err := s.store.DeleteNoteLink(r.Context(), q, n.ID, lid)
 		if err != nil {
 			return err
@@ -362,13 +434,68 @@ func (s *Server) deleteNoteLink(w http.ResponseWriter, r *http.Request, p *princ
 		if !removed {
 			return errNotFound
 		}
-		return s.noteEvent(r, q, p, n, "note.link.remove", "", map[string]any{"linkId": lid}, nil)
+		return s.noteEvent(r, q, p, n, "note.link.remove", "", before, nil)
 	})
 	if err != nil {
 		return err
 	}
 	w.WriteHeader(http.StatusNoContent)
 	return nil
+}
+
+// A source note does not authorize its linked objects. Recompute visibility on
+// every read so revoked reminder shares or task/Space access also hide links
+// and their history. Target reads need no extra period locks: they do not
+// mutate the target, and cross-period links must not reverse lock ordering.
+func (s *Server) noteLinkVisible(ctx context.Context, q store.Querier, p *principal, kind string, target id.ID) (bool, error) {
+	switch kind {
+	case api.NoteLinkReminder:
+		if p.admin() {
+			return false, nil
+		}
+		_, err := s.store.ReminderVisibleTo(ctx, q, target, p.User.ID)
+		if errors.Is(err, store.ErrNotFound) {
+			return false, nil
+		}
+		return err == nil, err
+	case api.NoteLinkTask:
+		task, err := s.store.Task(ctx, q, target, store.LockNone)
+		if errors.Is(err, store.ErrNotFound) {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		period, err := s.store.Period(ctx, q, task.PeriodID, store.LockNone)
+		if err != nil {
+			return false, err
+		}
+		err = s.taskAccess(ctx, q, p, period, &task)
+		if errors.Is(err, errForbidden) || errors.Is(err, store.ErrNotFound) {
+			return false, nil
+		}
+		return err == nil, err
+	default:
+		return false, nil
+	}
+}
+
+// Older removal events only stored linkId and cannot prove what they refer to.
+// Hide those events rather than expose an unclassified private relationship.
+func noteEventLink(event api.NoteEvent) (api.NoteLink, bool) {
+	value := event.After
+	if event.Action == "note.link.remove" {
+		value = event.Before
+	}
+	raw, err := json.Marshal(value)
+	if err != nil {
+		return api.NoteLink{}, false
+	}
+	var link api.NoteLink
+	if err := json.Unmarshal(raw, &link); err != nil {
+		return link, false
+	}
+	return link, link.TargetID != id.Nil && (link.TargetType == api.NoteLinkTask || link.TargetType == api.NoteLinkReminder)
 }
 
 // --- templates (NTE-02, NTE-09) ---
@@ -433,6 +560,9 @@ func (s *Server) createNoteTemplate(w http.ResponseWriter, r *http.Request, p *p
 		if err != nil {
 			return err
 		}
+		if _, err := s.lockedAccount(r, q, p); err != nil {
+			return err
+		}
 		if period.Status == api.PeriodClosed {
 			return errPeriodClosed
 		}
@@ -485,6 +615,9 @@ func (s *Server) updateNoteTemplate(w http.ResponseWriter, r *http.Request, p *p
 		if err != nil {
 			return err
 		}
+		if _, err := s.lockedAccount(r, q, p); err != nil {
+			return err
+		}
 		if period.Status == api.PeriodClosed {
 			return errPeriodClosed
 		}
@@ -523,6 +656,9 @@ func (s *Server) deleteNoteTemplate(w http.ResponseWriter, r *http.Request, p *p
 		}
 		period, err := s.store.Period(ctx, q, pid, store.LockShare)
 		if err != nil {
+			return err
+		}
+		if _, err := s.lockedAccount(r, q, p); err != nil {
 			return err
 		}
 		if period.Status == api.PeriodClosed {

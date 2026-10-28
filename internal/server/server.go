@@ -173,6 +173,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/notes/{noteId}/draft", s.handle(s.getNoteDraft))
 	mux.Handle("PUT /api/notes/{noteId}/draft", s.handle(s.saveNoteDraft))
 	mux.Handle("DELETE /api/notes/{noteId}/draft", s.handle(s.deleteNoteDraft))
+	mux.Handle("GET /api/notes/{noteId}/drafts", s.handle(s.listNoteDrafts))
+	mux.Handle("DELETE /api/notes/{noteId}/drafts/{draftId}", s.handle(s.deleteNoteRecoveryDraft))
 	mux.Handle("POST /api/notes/{noteId}/comments", s.handle(s.addNoteComment))
 	mux.Handle("POST /api/notes/{noteId}/attachments", s.handle(s.addNoteAttachment))
 	mux.Handle("DELETE /api/notes/{noteId}/attachments/{attachmentId}", s.handle(s.deleteNoteAttachment))

@@ -21,6 +21,7 @@ type apiError struct {
 	status  int
 	code    string
 	message string
+	data    any
 }
 
 func (e *apiError) Error() string { return e.code + ": " + e.message }
@@ -68,7 +69,7 @@ func (s *Server) answerError(w http.ResponseWriter, r *http.Request, p *principa
 		if ae.status == http.StatusForbidden && p != nil && r.Method != http.MethodGet {
 			s.auditDenied(r, p)
 		}
-		writeError(w, ae.status, ae.code, ae.message)
+		writeJSON(w, ae.status, api.ErrorResponse{Error: api.Error{Code: ae.code, Message: ae.message, Data: ae.data}})
 	case errors.Is(err, store.ErrNotFound):
 		writeError(w, http.StatusNotFound, api.CodeNotFound, "Data tidak ditemukan.")
 	default:

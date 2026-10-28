@@ -38,7 +38,7 @@ func unmarshalBlocks(b []byte) ([]api.NoteBlock, error) {
 // period before Note.
 func (s *Store) NotePeriod(ctx context.Context, q Querier, nid id.ID) (id.ID, error) {
 	var pid id.ID
-	err := q.QueryRow(ctx, `select period_id from notes where id = $1`, nid).Scan(&pid)
+	err := q.QueryRow(ctx, `select period_id from notes where id = $1 and deleted_at is null`, nid).Scan(&pid)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return pid, ErrNotFound
 	}
@@ -64,7 +64,7 @@ func scanNote(row pgx.Row) (NoteRow, error) {
 
 // Note loads a note, locked as lock says (on the note row only).
 func (s *Store) Note(ctx context.Context, q Querier, nid id.ID, lock string) (NoteRow, error) {
-	return scanNote(q.QueryRow(ctx, `select `+noteColumns+` from notes n join users u on u.id = n.created_by where n.id = $1`+noteLock(lock), nid))
+	return scanNote(q.QueryRow(ctx, `select `+noteColumns+` from notes n join users u on u.id = n.created_by where n.id = $1 and n.deleted_at is null`+noteLock(lock), nid))
 }
 
 func noteLock(lock string) string {
@@ -80,7 +80,7 @@ func noteLock(lock string) string {
 // SpaceNoteIDs returns the IDs of a space's notes, most recently updated
 // first.
 func (s *Store) SpaceNoteIDs(ctx context.Context, q Querier, sid id.ID) ([]id.ID, error) {
-	rows, err := q.Query(ctx, `select id from notes where space_id = $1 order by updated_at desc, id`, sid)
+	rows, err := q.Query(ctx, `select id from notes where space_id = $1 and deleted_at is null order by updated_at desc, id`, sid)
 	if err != nil {
 		return nil, err
 	}
@@ -112,20 +112,24 @@ func (s *Store) SaveNote(ctx context.Context, q Querier, n NoteRow) error {
 	return err
 }
 
-// DeleteNote removes a note and its children (they cascade), and the
-// append-only events, which have no cascade, are left for history.
-func (s *Store) DeleteNote(ctx context.Context, q Querier, nid id.ID) error {
-	// Children with ON DELETE CASCADE: locks, drafts, comments, attachments,
-	// links. note_events has no cascade and keeps the history.
-	_, err := q.Exec(ctx, `delete from notes where id = $1`, nid)
+// DeleteNote hides a note while retaining its append-only events and recovery
+// data. All public lookups filter tombstones, including child endpoints.
+func (s *Store) DeleteNote(ctx context.Context, q Querier, nid id.ID, now time.Time) error {
+	_, err := q.Exec(ctx, `update notes set deleted_at = $2 where id = $1 and deleted_at is null`, nid, now)
 	return err
 }
 
 // --- editor lock (NTE-06, NTE-08) ---
 
-func scanLock(row pgx.Row) (api.NoteLock, bool, error) {
-	var l api.NoteLock
-	err := row.Scan(&l.Editor.ID, &l.Editor.DisplayName, &l.AcquiredAt, &l.ExpiresAt)
+// NoteLease adds server-only ownership to the public editor metadata.
+type NoteLease struct {
+	Lock      api.NoteLock
+	SessionID id.ID
+}
+
+func scanLock(row pgx.Row) (NoteLease, bool, error) {
+	var l NoteLease
+	err := row.Scan(&l.Lock.Editor.ID, &l.Lock.Editor.DisplayName, &l.Lock.AcquiredAt, &l.Lock.ExpiresAt, &l.SessionID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return l, false, nil
 	}
@@ -133,34 +137,32 @@ func scanLock(row pgx.Row) (api.NoteLock, bool, error) {
 }
 
 // NoteLock returns the current lock of a note, if any.
-func (s *Store) NoteLock(ctx context.Context, q Querier, nid id.ID) (api.NoteLock, bool, error) {
-	return scanLock(q.QueryRow(ctx, `select l.editor_id, u.display_name, l.acquired_at, l.expires_at
+func (s *Store) NoteLock(ctx context.Context, q Querier, nid id.ID) (NoteLease, bool, error) {
+	return scanLock(q.QueryRow(ctx, `select l.editor_id, u.display_name, l.acquired_at, l.expires_at, coalesce(l.session_id, '00000000-0000-0000-0000-000000000000'::uuid)
 		from note_locks l join users u on u.id = l.editor_id where l.note_id = $1`, nid))
 }
 
 // SetNoteLock inserts or replaces a note's lock.
-func (s *Store) SetNoteLock(ctx context.Context, q Querier, nid, editor id.ID, acquiredAt, expiresAt time.Time) error {
-	_, err := q.Exec(ctx, `insert into note_locks (note_id, editor_id, acquired_at, expires_at) values ($1, $2, $3, $4)
-		on conflict (note_id) do update set editor_id = excluded.editor_id, acquired_at = excluded.acquired_at, expires_at = excluded.expires_at`,
-		nid, editor, acquiredAt, expiresAt)
+func (s *Store) SetNoteLock(ctx context.Context, q Querier, nid, editor, sessionID id.ID, acquiredAt, expiresAt time.Time) error {
+	_, err := q.Exec(ctx, `insert into note_locks (note_id, editor_id, session_id, acquired_at, expires_at) values ($1, $2, $3, $4, $5)
+		on conflict (note_id) do update set editor_id = excluded.editor_id, session_id = excluded.session_id, acquired_at = excluded.acquired_at, expires_at = excluded.expires_at`,
+		nid, editor, sessionID, acquiredAt, expiresAt)
 	return err
 }
 
 // ReleaseNoteLock removes a note's lock when held by editor; reports whether
 // a row was removed.
-func (s *Store) ReleaseNoteLock(ctx context.Context, q Querier, nid, editor id.ID) (bool, error) {
-	tag, err := q.Exec(ctx, `delete from note_locks where note_id = $1 and editor_id = $2`, nid, editor)
+func (s *Store) ReleaseNoteLock(ctx context.Context, q Querier, nid, editor, sessionID id.ID) (bool, error) {
+	tag, err := q.Exec(ctx, `delete from note_locks where note_id = $1 and editor_id = $2 and session_id = $3`, nid, editor, sessionID)
 	return tag.RowsAffected() > 0, err
 }
 
 // --- drafts (NTE-08) ---
 
-// NoteDraft returns the caller's draft of a note; ErrNotFound when none.
-func (s *Store) NoteDraft(ctx context.Context, q Querier, nid, uid id.ID) (api.NoteDraft, error) {
+func scanNoteDraft(row pgx.Row) (api.NoteDraft, error) {
 	var d api.NoteDraft
 	var content []byte
-	err := q.QueryRow(ctx, `select title, content, base_version, saved_at from note_drafts where note_id = $1 and user_id = $2`, nid, uid).
-		Scan(&d.Title, &content, &d.BaseVersion, &d.SavedAt)
+	err := row.Scan(&d.ID, &d.Title, &content, &d.BaseVersion, &d.SavedAt, &d.CurrentSession)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return d, ErrNotFound
 	}
@@ -171,23 +173,52 @@ func (s *Store) NoteDraft(ctx context.Context, q Querier, nid, uid id.ID) (api.N
 	return d, err
 }
 
-// SaveNoteDraft inserts or replaces the caller's draft.
-func (s *Store) SaveNoteDraft(ctx context.Context, q Querier, nid, uid id.ID, d api.NoteDraft) error {
+// NoteDraft prefers this session's copy, then the latest own recoverable copy.
+func (s *Store) NoteDraft(ctx context.Context, q Querier, nid, uid, sessionID id.ID) (api.NoteDraft, error) {
+	return scanNoteDraft(q.QueryRow(ctx, `select id, title, content, base_version, saved_at,
+		coalesce(session_id = $3, false) as current_session from note_drafts
+		where note_id = $1 and user_id = $2
+		order by current_session desc, saved_at desc, id limit 1`, nid, uid, sessionID))
+}
+
+// NoteDrafts exposes only the caller's recovery copies, never session IDs.
+func (s *Store) NoteDrafts(ctx context.Context, q Querier, nid, uid, sessionID id.ID) ([]api.NoteDraft, error) {
+	rows, err := q.Query(ctx, `select id, title, content, base_version, saved_at,
+		coalesce(session_id = $3, false) as current_session from note_drafts
+		where note_id = $1 and user_id = $2 order by current_session desc, saved_at desc, id`, nid, uid, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (api.NoteDraft, error) { return scanNoteDraft(row) })
+}
+
+// SaveNoteDraft replaces only this session's working copy. Legacy copies and
+// other devices' drafts survive both this write and a later official save.
+func (s *Store) SaveNoteDraft(ctx context.Context, q Querier, nid, uid, sessionID id.ID, d api.NoteDraft) (api.NoteDraft, error) {
 	content, err := marshalBlocks(d.Content)
 	if err != nil {
-		return err
+		return d, err
 	}
-	_, err = q.Exec(ctx, `insert into note_drafts (note_id, user_id, title, content, base_version, saved_at)
-		values ($1, $2, $3, $4, $5, $6)
-		on conflict (note_id, user_id) do update set title = excluded.title, content = excluded.content,
-			base_version = excluded.base_version, saved_at = excluded.saved_at`,
-		nid, uid, d.Title, content, d.BaseVersion, d.SavedAt)
-	return err
+	err = q.QueryRow(ctx, `insert into note_drafts (id, note_id, user_id, session_id, title, content, base_version, saved_at)
+		values ($1, $2, $3, $4, $5, $6, $7, $8)
+		on conflict (note_id, user_id, session_id) where session_id is not null
+		do update set title = excluded.title, content = excluded.content,
+			base_version = excluded.base_version, saved_at = excluded.saved_at returning id`,
+		id.New(), nid, uid, sessionID, d.Title, content, d.BaseVersion, d.SavedAt).Scan(&d.ID)
+	d.CurrentSession = true
+	return d, err
 }
 
 // DeleteNoteDraft removes the caller's draft; reports whether one existed.
-func (s *Store) DeleteNoteDraft(ctx context.Context, q Querier, nid, uid id.ID) (bool, error) {
-	tag, err := q.Exec(ctx, `delete from note_drafts where note_id = $1 and user_id = $2`, nid, uid)
+func (s *Store) DeleteNoteDraft(ctx context.Context, q Querier, nid, uid, sessionID id.ID) (bool, error) {
+	tag, err := q.Exec(ctx, `delete from note_drafts where note_id = $1 and user_id = $2 and session_id = $3`, nid, uid, sessionID)
+	return tag.RowsAffected() > 0, err
+}
+
+// DeleteNoteDraftByID discards one explicitly chosen recovery copy of this
+// account. Knowing a draft ID is insufficient to discard someone else's copy.
+func (s *Store) DeleteNoteDraftByID(ctx context.Context, q Querier, nid, uid, draftID id.ID) (bool, error) {
+	tag, err := q.Exec(ctx, `delete from note_drafts where note_id = $1 and user_id = $2 and id = $3`, nid, uid, draftID)
 	return tag.RowsAffected() > 0, err
 }
 

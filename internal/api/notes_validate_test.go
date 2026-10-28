@@ -53,3 +53,27 @@ func TestValidateNoteContent(t *testing.T) {
 		t.Error("oversized block accepted")
 	}
 }
+
+func TestValidateNoteContentSerializedSize(t *testing.T) {
+	for _, tc := range []struct {
+		name, text string
+		blocks     int
+		valid      bool
+	}{
+		{"ordinary document", "x", 40, true},
+		{"ASCII exceeds total cap", "x", 60, false},
+		{"UTF8 bytes exceed character count", "界", 20, false},
+		{"JSON escaping counts towards cap", "<", 10, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			blocks := make([]NoteBlock, tc.blocks)
+			for i := range blocks {
+				blocks[i] = NoteBlock{Type: BlockParagraph, Spans: []Span{{Text: strings.Repeat(tc.text, NoteMaxBlockText)}}}
+			}
+			err := ValidateNoteContent(blocks)
+			if (err == nil) != tc.valid {
+				t.Fatalf("serialized size accepted=%v, want%v, err=%v", err == nil, tc.valid, err)
+			}
+		})
+	}
+}

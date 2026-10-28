@@ -124,14 +124,17 @@ type NoteLockRequest struct {
 	Force bool `json:"force,omitempty"`
 }
 
-// NoteDraft is a per-(note, user) working draft for recovery (NTE-08).
+// NoteDraft is one account-owned recovery copy. ID identifies the copy without
+// exposing its authentication session. Other devices' copies survive a save.
 // Stale is true when the note has advanced past BaseVersion.
 type NoteDraft struct {
-	Title       string      `json:"title"`
-	Content     []NoteBlock `json:"content"`
-	BaseVersion int64       `json:"baseVersion"`
-	SavedAt     time.Time   `json:"savedAt"`
-	Stale       bool        `json:"stale"`
+	ID             id.ID       `json:"id"`
+	CurrentSession bool        `json:"currentSession"`
+	Title          string      `json:"title"`
+	Content        []NoteBlock `json:"content"`
+	BaseVersion    int64       `json:"baseVersion"`
+	SavedAt        time.Time   `json:"savedAt"`
+	Stale          bool        `json:"stale"`
 }
 
 // NoteDraftRequest saves the caller's draft of a note.

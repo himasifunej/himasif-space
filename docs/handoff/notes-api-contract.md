@@ -33,7 +33,7 @@ Isi note adalah **dokumen blok** terstruktur (`content`), bukan HTML bebas. Seti
 
 `spans` adalah array `{ "text": "...", "bold": true|false, "link": "https://..."|null }` (teks tebal dan tautan — NTE-01). `title` note adalah field tersendiri (`title`), bukan blok.
 
-Batas: `title` 1–200 karakter; total `content` ≤ 200 KB saat diserialisasi; ≤ 500 blok; `spans` tiap blok ≤ 4000 karakter teks gabungan; `table` ≤ 50 kolom × 500 baris. Blok/field tak dikenal ditolak `400`.
+Batas: `title` 1–200 karakter; total `content` ≤ 200 KiB (204.800 byte) setelah serialisasi JSON kanonis server, termasuk UTF-8 dan escape JSON; ≤ 500 blok; `spans` tiap blok ≤ 4000 karakter teks gabungan; `table` ≤ 50 kolom × 500 baris. Batas ukuran berlaku pada note, draf dan template. Blok/field tak dikenal ditolak `400`.
 
 Contoh `content`:
 
@@ -85,7 +85,7 @@ Contoh `content`:
 - `POST /api/spaces/{spaceId}/notes` — buat note; body `NoteCreateRequest`; 201 Note. Butuh `notes.manage` pada divisi pemilik.
 - `GET /api/notes/{noteId}` — satu note lengkap (isi, lampiran, komentar, kunci). 404 bila tak boleh dibaca.
 - `PUT /api/notes/{noteId}` — ganti judul + isi; body `NoteWriteRequest` dengan `expectedVersion`; 200 Note. Butuh kunci editor milik pemanggil (lihat §5) dan `notes.manage`. Konflik versi → `409 conflict`.
-- `DELETE /api/notes/{noteId}` — hapus note dan anaknya; 204. Butuh `notes.manage`.
+- `DELETE /api/notes/{noteId}` — sembunyikan note melalui tombstone; 204. Butuh `notes.manage`. Note tidak muncul lagi pada daftar/GET dan tidak dapat diubah. Isi dan riwayat tetap tersimpan untuk audit; penghapusan tidak menghapus paksa event append-only atau draf pemulihan.
 - `GET /api/notes/{noteId}/history` — riwayat perubahan (AC-33/34); `{"items":[NoteEvent]}`. Butuh `notes.manage` atau pembuat.
 
 Catatan daftar: ringkasan note pada list memuat `id, spaceId, title, templateKind, version, createdBy, updatedAt, lock, permissions`, tanpa `content` besar. `GET /api/notes/{noteId}` memuat semuanya.
@@ -106,11 +106,11 @@ Satu dari `templateId` atau `content` dipakai: `templateId` menyalin isi templat
 
 ## 5. Kunci editor tunggal (NTE-06, NTE-08, AC-34)
 
-Satu editor per note pada satu waktu; pembaca/komentar tetap jalan. Kunci punya masa berlaku (TTL, bawaan 5 menit) sehingga editor terputus tidak mengunci selamanya.
+Satu sesi editor per note pada satu waktu; pembaca/komentar tetap jalan. Kepemilikan kunci terikat pada sesi autentikasi yang mengambilnya, bukan seluruh perangkat akun tersebut. Dua sesi login dari akun yang sama tetap saling berebut kunci. ID sesi dan bearer tidak dikembalikan dalam DTO atau error. Kunci punya masa berlaku (TTL, bawaan 5 menit) sehingga editor terputus tidak mengunci selamanya. Kunci lama dari skema 0005 kedaluwarsa saat migrasi 0006 dan perlu diambil ulang.
 
-- `POST /api/notes/{noteId}/lock` — ambil atau perpanjang kunci; 200 `NoteLock`. Bila kunci kosong, kedaluwarsa, atau sudah milik pemanggil → diberikan/diperpanjang. Bila dipegang orang lain yang masih berlaku → `409 conflict` dengan `NoteLock` pemegang saat ini di body error data.
+- `POST /api/notes/{noteId}/lock` — ambil atau perpanjang kunci; 200 `NoteLock`. Bila kunci kosong, kedaluwarsa, atau sudah milik sesi pemanggil → diberikan/diperpanjang. Bila dipegang sesi lain yang masih berlaku, termasuk sesi lain akun yang sama → `409 conflict` dengan `NoteLock` pemegang saat ini di `error.data`.
 - `POST /api/notes/{noteId}/lock/takeover` — ambil alih kunci yang dipegang orang lain; 200 `NoteLock`. Diizinkan hanya bila kunci **kedaluwarsa** (editor terputus), atau pemanggil punya `notes.manage` dan menegaskan pengambilalihan (`{"force": true}`). Pengambilalihan **tidak membuang draf** pemegang lama: draf server tetap tersimpan dan dapat dipulihkan (§8).
-- `DELETE /api/notes/{noteId}/lock` — lepas kunci milik pemanggil; 204.
+- `DELETE /api/notes/{noteId}/lock` — lepas kunci milik sesi pemanggil; 204 idempoten. Tidak melepaskan kunci perangkat/sesi lain meskipun akun sama.
 
 `NoteLock`:
 
@@ -118,7 +118,7 @@ Satu editor per note pada satu waktu; pembaca/komentar tetap jalan. Kunci punya 
 {"editor":{"id":"019a...","displayName":"Ahimsa"},"acquiredAt":"...","expiresAt":"...","heldByCaller":true}
 ```
 
-`PUT /api/notes/{noteId}` menolak `409 conflict` dengan pesan jelas bila pemanggil tidak memegang kunci yang berlaku. UI: ambil kunci sebelum mengedit, perpanjang berkala (mis. tiap 60–120 dtk), lepas saat selesai.
+`heldByCaller` berarti sesi ini memegang kunci, bukan sekadar akun editor sama. `PUT /api/notes/{noteId}` menolak `409 conflict` dengan pesan jelas bila sesi pemanggil tidak memegang kunci yang berlaku. UI: ambil kunci sebelum mengedit, perpanjang berkala (mis. tiap 60–120 dtk), lepas saat selesai. Error konflik kunci mempertahankan `error.code`/`error.message` biasa dan menambahkan `error.data` berupa `NoteLock`, tanpa data autentikasi.
 
 ## 6. Lampiran (NTE-01, NTE-09)
 
@@ -142,13 +142,15 @@ Lampiran dicatat sebagai metadata; unggah biner berkas sendiri di luar cakupan s
 
 ## 8. Draf dan pemulihan (NTE-08, AC-34)
 
-Draf server adalah salinan kerja per `(note, user)` untuk pemulihan setelah terputus. Ia tidak menimpa isi resmi sampai `PUT` yang sah.
+Draf server adalah salinan kerja per `(note, user, sesi)` untuk pemulihan setelah terputus. Setiap salinan memiliki ID draf opak, bukan ID sesi autentikasi. Sesi login baru dapat memulihkan salinan lama milik akun yang sama. Draf tidak menimpa isi resmi sampai `PUT` yang sah.
 
-- `PUT /api/notes/{noteId}/draft` — simpan draf pemanggil; body `{"title":"...","content":[...],"baseVersion":3}`; 200 `NoteDraft`. Idempoten; menimpa draf pemanggil sebelumnya.
-- `GET /api/notes/{noteId}/draft` — draf pemanggil bila ada; 200 `NoteDraft` atau 404.
-- `DELETE /api/notes/{noteId}/draft` — buang draf pemanggil; 204.
+- `PUT /api/notes/{noteId}/draft` — simpan draf sesi ini; body `{"title":"...","content":[...],"baseVersion":3}`; 200 `NoteDraft`. Idempoten dalam sesi yang sama, tidak menimpa salinan sesi lain. `baseVersion` harus positif dan tidak melebihi versi resmi saat ini.
+- `GET /api/notes/{noteId}/draft` — utamakan draf sesi ini; jika belum ada, kembalikan salinan pemulihan terbaru milik akun ini. 200 `NoteDraft` atau 404. Tetap dapat dibaca pada periode tertutup selama akun boleh membaca note.
+- `GET /api/notes/{noteId}/drafts` — semua salinan pemulihan milik akun ini, `{"items":[NoteDraft]}`, termasuk draf sesi lama dan draf legacy 0005. Tidak mengembalikan draf akun lain.
+- `DELETE /api/notes/{noteId}/draft` — buang draf sesi ini saja; 204 idempoten. Walaupun GET memakai fallback sesi lain, DELETE ini tidak menghapus fallback tersebut.
+- `DELETE /api/notes/{noteId}/drafts/{draftId}` — buang satu salinan pemulihan yang dipilih secara eksplisit; 204, atau 404 jika bukan milik akun/note ini. Seluruh operasi tulis draf tetap ditolak pada periode tertutup.
 
-`NoteDraft`: `{"title","content":[...],"baseVersion":3,"savedAt":"...","stale": true|false}`. `stale` benar bila `baseVersion` draf lebih lama dari `version` note saat ini (isi resmi sudah maju; UI tawarkan penggabungan/konflik, bukan timpa diam-diam — OFF-05 semangatnya). Pengambilalihan kunci (§5) tidak menghapus draf; editor lama dapat `GET` drafnya saat tersambung lagi.
+`NoteDraft`: `{"id":"<opaque-draft-uuid>","currentSession":true|false,"title":"...","content":[...],"baseVersion":3,"savedAt":"...","stale":true|false}`. `stale` benar bila `baseVersion` draf lebih lama dari `version` note saat ini (isi resmi sudah maju; UI tawarkan penggabungan/konflik, bukan timpa diam-diam — OFF-05 semangatnya). `currentSession` membantu membedakan salinan aktif dan salinan pemulihan; ID sesi tidak pernah diserialisasi. Pengambilalihan kunci (§5) tidak menghapus draf. Menyimpan isi resmi hanya menghapus draf sesi penyimpan; salinan perangkat lain dan salinan legacy tetap dapat dipulihkan. Pencabutan/pembersihan sesi login tidak menghapus salinan pemulihan.
 
 ## 9. Template (NTE-02, NTE-03, NTE-04, NTE-09)
 
@@ -180,8 +182,10 @@ Alur yang disepakati:
 1. UI memilih teks/baris/tindak lanjut, lalu membuka form “Jadikan tugas”/“Jadikan reminder” yang **diisi manusia** (hasil diminta, PJ, tenggat untuk tugas; judul/waktu untuk reminder). Backend tidak mengekstrak otomatis.
 2. UI memanggil endpoint yang sudah ada: `POST /api/spaces/{spaceId}/tasks` (tugas) atau `POST /api/reminders` (reminder pribadi). Kontrak keduanya tidak berubah.
 3. Agar asal terlacak tanpa membagikan seluruh note, UI lalu mencatat tautan melalui:
-   `POST /api/notes/{noteId}/links` — body `{"targetType":"task|reminder","targetId":"019a..."}`; 201 `NoteLink`. Butuh `notes.manage` pada note **dan** pemanggil adalah pembuat/berwenang objek tujuan. Tautan hanyalah rujukan; membuat tugas dari note **tidak** membuka atau membagikan isi note (NTE-07).
-4. `GET /api/notes/{noteId}/links` — daftar tautan note (butuh `notes.read` pada note). `DELETE /api/notes/{noteId}/links/{linkId}` — 204 (butuh `notes.manage`).
+   `POST /api/notes/{noteId}/links` — body `{"targetType":"task|reminder","targetId":"019a..."}`; 201 `NoteLink`. Butuh `notes.manage` pada note **dan** kewenangan tujuan: tugas harus dapat dibaca melalui akses Space terkini, reminder harus milik pemanggil. ID tugas yang tidak ada dan tidak boleh dibaca sama-sama menjawab 404. Tautan hanyalah rujukan; membuat tugas dari note **tidak** membuka atau membagikan isi note (NTE-07).
+4. `GET /api/notes/{noteId}/links` — daftar tautan yang **tujuannya juga boleh dibaca pemanggil**, selain membutuhkan `notes.read` pada note. Reminder privat tidak muncul hanya karena sumber note dapat dibaca; berbagi ke akun harus aktif dan eksplisit. Pencabutan share, perubahan akses/proyeksi tugas, atau penghapusan tujuan menyembunyikan rujukannya pada pembacaan berikutnya. `DELETE /api/notes/{noteId}/links/{linkId}` — 204 (butuh `notes.manage`).
+
+Riwayat `note.link.add`/`note.link.remove` mengikuti pemeriksaan visibilitas tujuan yang sama. Event tersembunyi tidak membocorkan ID, jenis, pembuat atau waktu tautannya melalui payload riwayat. Event penghapusan lama yang hanya menyimpan `linkId` tanpa konteks tujuan tidak ditampilkan karena tidak dapat diklasifikasikan dengan aman. Data audit asli tetap tersimpan. Endpoint GET note dan subresource yang tidak dapat dibaca menjawab 404 yang sama seperti ID tidak ada, bukan 403 yang mengungkap keberadaannya.
 
 `NoteLink`: `{"id":"019a...","targetType":"task|reminder","targetId":"019a...","createdBy":{...},"createdAt":"..."}`.
 
