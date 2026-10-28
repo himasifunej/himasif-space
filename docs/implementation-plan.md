@@ -77,7 +77,7 @@ Penerimaan: AC-03, AC-06–08; belum boleh ada privilege yang hanya dibatasi lew
 
 ### Sesi 2A: tugas dan jobdesk
 
-Status: inti tugas/jobdesk tersimpan, kanban/reorder, delegasi, bantuan, bukti/tinjauan, komentar, riwayat dan pembaruan in-app dibuat di branch UI. **Reminder pribadi/toggle share belum selesai**, sehingga seluruh Sesi 2A belum dinyatakan selesai.
+Status: inti tugas/jobdesk tersimpan, kanban/reorder, delegasi, bantuan, bukti/tinjauan, komentar, riwayat dan pembaruan in-app dibuat di branch UI. **Backend reminder pribadi/toggle share tersedia melalui PR #3; UI-nya belum disambungkan**, sehingga seluruh Sesi 2A belum dinyatakan selesai. Lihat [review gabungan](handoff/pr3-pr4-review.md).
 
 - Tugas dengan hasil, PJ utama, deadline, pelaksana tambahan, progres dan komentar.
 - Jobdesk pribadi/divisi/ruang bersama dari satu objek tugas.
