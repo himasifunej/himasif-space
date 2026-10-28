@@ -54,14 +54,15 @@ const (
 
 // Paths of the shell's pages.
 const (
-	PathJobdesk    = "/jobdesk"
-	PathReminder   = "/reminder"
-	PathSpaces     = "/spaces"
-	PathMedhum     = "/medhum"
-	PathEvaluasi   = "/evaluasi"
-	PathArsip      = "/arsip"
-	PathPengaturan = "/pengaturan"
-	PathOrganisasi = "/organisasi"
+	PathJobdesk       = "/jobdesk"
+	PathReminder      = "/reminder"
+	PathSpaces        = "/spaces"
+	PathMedhum        = "/medhum"
+	PathEvaluasi      = "/evaluasi"
+	PathArsip         = "/arsip"
+	PathPengaturan    = "/pengaturan"
+	PathOrganisasi    = "/organisasi"
+	PathArchiveAccess = "/arsip/akses"
 )
 
 // screen is what the window shows.
@@ -100,6 +101,8 @@ type App struct {
 	access            workspaceAccessState
 	tasks             tasksUIState
 	reminders         remindersUIState
+	organization      organizationUIState
+	archives          archiveAdminUIState
 	account           accountFlowState
 
 	api    API

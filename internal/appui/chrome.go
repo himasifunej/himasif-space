@@ -24,6 +24,7 @@ func (a *App) resetWorkspace() {
 	a.resetAccess()
 	a.tasksContextChanged()
 	a.resetReminders()
+	a.resetOrganization()
 }
 
 func (a *App) loadPreferences() {
@@ -381,7 +382,7 @@ func (a *App) profile(c *ui.Context, collapsed bool) {
 func (a *App) header(c *ui.Context) {
 	t := c.Theme()
 	w, _ := c.Size()
-	title := map[string]string{PathJobdesk: "Jobdesk saya", PathReminder: "Reminder pribadi", PathArsip: "Arsip periode", PathPengaturan: "Pengaturan", PathOrganisasi: "Organisasi", PathEvaluasi: "Evaluasi SOP"}[a.router.Path()]
+	title := map[string]string{PathJobdesk: "Jobdesk saya", PathReminder: "Reminder pribadi", PathArsip: "Arsip periode", PathArchiveAccess: "Izin arsip", PathPengaturan: "Pengaturan", PathOrganisasi: "Organisasi", PathEvaluasi: "Evaluasi SOP"}[a.router.Path()]
 	if title == "" {
 		title = a.spaceTitle()
 	}

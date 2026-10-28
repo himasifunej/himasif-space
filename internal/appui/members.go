@@ -143,6 +143,12 @@ func (a *App) membersPage(c *ui.Context) {
 				}
 			}
 		})
+		if a.archiveDivisionAllowed(d) {
+			if spaceButton(c, "Kelola izin arsip", "archive", false).Clicked() {
+				a.selectArchiveDivision(d)
+				a.navigate(PathArchiveAccess)
+			}
+		}
 		m := &a.access.members
 		if m.loading {
 			muted(c, "Memuat anggota dan kewenangan…")

@@ -53,7 +53,7 @@ Status: UI native dan backend sudah digabung ke main melalui PR #3/#4, kemudian 
 
 ### Sesi 1B: akun, undangan dan periode
 
-Status: backend selesai di main (PR #2); UI undangan, pemulihan, perubahan kredensial dan keanggotaan sudah terhubung melalui PR #4. Form administrasi periode/kadiv/checklist/izin arsip lengkap masih perlu disambungkan.
+Status: backend selesai di main (PR #2); UI undangan, pemulihan, perubahan kredensial dan keanggotaan terhubung melalui PR #4. Form administrasi periode, penetapan kadiv, checklist serah terima dan pemberian/pencabutan izin arsip kini juga terhubung; lihat [handoff administrasi](handoff/admin-ui.md). Pemilih target arsip memakai endpoint metadata khusus tanpa otomatis membuka isi Space lama.
 
 - Akun baru/lama, verifikasi email, aktivasi undangan, pencabutan dan pemulihan akun.
 - Satu akun admin organisasi, terpisah dari akun pribadi; pengelolaan periode/kadiv.

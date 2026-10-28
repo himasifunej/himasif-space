@@ -33,7 +33,7 @@ func TestReminderInspectorKeepsSaveAndFooterReachable(t *testing.T) {
 		if !ok || r.H <= 0 || r.Y < 85 || r.Y+r.H > float32(size[1]-28) {
 			t.Fatalf("%dx%d: last owner action unreachable after scrolling: %+v exists=%v", size[0], size[1], r, ok)
 		}
-		captureReminder(t, h, "reminder-owner-"+map[int]string{1440: "large", 880: "minimum"}[size[0]])
+		captureNativeUI(t, h, "reminder-owner-"+map[int]string{1440: "large", 880: "minimum"}[size[0]])
 	}
 }
 
@@ -56,7 +56,7 @@ func TestReminderNativeFormAndReadOnlyRecipient(t *testing.T) {
 		t.Fatal("native form did not create one canonical date-only reminder")
 	}
 	h.want("Perubahan reminder tersimpan di server.")
-	captureReminder(t, h, "reminder-created")
+	captureNativeUI(t, h, "reminder-created")
 	h.app.closeReminder()
 	f.items[0].OwnerID, f.items[0].Relation = id.New(), api.ReminderRecipient
 	h.app.loadReminders()
@@ -70,10 +70,10 @@ func TestReminderNativeFormAndReadOnlyRecipient(t *testing.T) {
 			t.Errorf("recipient received owner control %q", label)
 		}
 	}
-	captureReminder(t, h, "reminder-recipient")
+	captureNativeUI(t, h, "reminder-recipient")
 }
 
-func captureReminder(t *testing.T, h *harness, name string) {
+func captureNativeUI(t *testing.T, h *harness, name string) {
 	t.Helper()
 	dir := os.Getenv("SPACE_UI_CAPTURE_DIR")
 	if dir == "" {
