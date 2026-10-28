@@ -306,18 +306,7 @@ func (a *App) agendaPage(c *ui.Context) {
 }
 
 func (a *App) notesPage(c *ui.Context) {
-	pageBody(c, "Catatan bersama", func() {
-		muted(c, "Dari obrolan menjadi arah yang bisa kita buka lagi.")
-		pageUnavailable(c, "note", "Notes belum tersedia", "Catatan belum dapat dimuat atau disimpan. Pilihan template akan tersedia ketika penyimpanan notes dapat digunakan.")
-		ui.Text(c, "Template catatan").FontSize(15).Bold()
-		for _, template := range []struct{ title, icon, description string }{
-			{"Notulensi rapat", "users", "Agenda, peserta, hasil diskusi, keputusan, dan tindak lanjut."},
-			{"Tabel jadwal", "calendar", "Tanggal, kegiatan, penanggung jawab, dan keterangan."},
-			{"Catatan bebas", "note", "Tempat untuk ide, referensi, dan hal-hal yang belum ingin dilupakan."},
-		} {
-			pageSection(c, template.title, template.description, func() { spaceButton(c, "Gunakan template", "plus", false).Disabled(true) })
-		}
-	})
+	a.notesView(c)
 }
 
 func (a *App) archivePage(c *ui.Context, r *ui.Route) {

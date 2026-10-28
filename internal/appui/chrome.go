@@ -2,6 +2,7 @@ package appui
 
 import (
 	"strings"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/himasifunej/himasif-space/internal/api"
@@ -107,6 +108,10 @@ func (a *App) navigate(path string) {
 }
 
 func (a *App) shell(c *ui.Context) {
+	a.tickNotes(c.Now())
+	if a.notes.editor != nil && (a.notes.editing || a.notes.dirty) {
+		c.After(500 * time.Millisecond)
+	}
 	if a.lastPing.IsZero() {
 		a.lastPing = c.Now()
 	}

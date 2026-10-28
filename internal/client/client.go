@@ -50,6 +50,7 @@ type Error struct {
 	Status  int
 	Code    string
 	Message string
+	Data    any
 }
 
 func (e *Error) Error() string {
@@ -192,7 +193,7 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 func responseError(status int, data []byte) error {
 	var er api.ErrorResponse
 	if json.Unmarshal(data, &er) == nil && er.Error.Code != "" {
-		return &Error{Status: status, Code: er.Error.Code, Message: er.Error.Message}
+		return &Error{Status: status, Code: er.Error.Code, Message: er.Error.Message, Data: er.Error.Data}
 	}
 	switch status {
 	case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:

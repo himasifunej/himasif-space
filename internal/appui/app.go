@@ -94,13 +94,16 @@ type App struct {
 	// ClientName names the app to the server at login: "desktop" or "web".
 	ClientName string
 	// PreferencesStore persists appearance on this device, separately from tokens.
-	PreferencesStore  PreferencesStore
+	PreferencesStore PreferencesStore
+	// NoteDrafts keeps account-scoped recovery copies on this device.
+	NoteDrafts        NoteDraftStore
 	preferencesLoaded bool
 	chrome            chromeState
 	workspace         *workspaceui.State
 	access            workspaceAccessState
 	tasks             tasksUIState
 	reminders         remindersUIState
+	notes             notesUIState
 	organization      organizationUIState
 	archives          archiveAdminUIState
 	account           accountFlowState
