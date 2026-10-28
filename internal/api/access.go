@@ -39,6 +39,7 @@ const (
 	CapCommentsWrite  = "comments.write"
 	CapHelpRequest    = "help.request"
 	CapNotesRead      = "notes.read"
+	CapNotesManage    = "notes.manage"
 	CapTasksManage    = "tasks.manage"
 	CapResultsReview  = "results.review"
 	CapPingSend       = "ping.send"
