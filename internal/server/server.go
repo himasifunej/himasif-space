@@ -120,6 +120,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PUT "+div+"/45", s.handle(s.appoint45))
 	mux.Handle("DELETE "+div+"/45", s.handle(s.remove45))
 	mux.Handle("GET "+div+"/archives", s.handle(s.listArchives))
+	mux.Handle("GET "+div+"/archives/targets", s.handle(s.listArchiveTargets))
 	mux.Handle("POST "+div+"/archives", s.handle(s.grantArchive))
 	mux.Handle("DELETE "+div+"/archives/{grantId}", s.handle(s.revokeArchive))
 	// Canonical tasks and in-app delivery (Sesi 2A).
