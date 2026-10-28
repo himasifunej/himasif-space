@@ -25,7 +25,7 @@ Branch `feat/notes-backend`, dari `origin/main` (baseline integrasi `0e21591`). 
 
 ## Koordinasi dengan backend tugas/reminder
 
-Tidak ada perubahan pada kontrak/skema tugas maupun reminder. Tautan note memakai pembacaan non-invasif: `TaskExists` (tugas ada) dan `ReminderOwnedBy` (reminder milik pemanggil) di `internal/store/notes.go`. Tabel `note_links.target_id` sengaja bukan foreign key karena menunjuk salah satu dari dua tabel; keberadaan/izin diperiksa di server.
+Tidak ada perubahan pada kontrak/skema tugas maupun reminder. Penautan tugas membaca target dan memeriksa kebijakan akses tugas/Space yang sudah ada; penautan reminder mensyaratkan pemilik. Daftar tautan dan riwayat memeriksa kembali visibilitas target, termasuk share reminder yang berubah. Tabel `note_links.target_id` sengaja bukan foreign key karena menunjuk salah satu dari dua tabel; keberadaan/izin diperiksa di server.
 
 ## Verifikasi yang dijalankan
 
@@ -33,7 +33,7 @@ Tidak ada perubahan pada kontrak/skema tugas maupun reminder. Tautan note memaka
 
 Test baru:
 - `internal/server/notes_test.go` (7 test, PostgreSQL nyata):
-  - `TestNoteCreateAndRead` — NTE-01/06/07: blok kaya, scope ruang, divisi lain 403, blok tak dikenal 400, admin 403.
+  - `TestNoteCreateAndRead` — NTE-01/06/07: blok kaya, scope ruang, divisi lain 404 tanpa mengungkap keberadaan note, blok tak dikenal 400, admin menulis 403.
   - `TestNoteSingleEditorAndVersionConflict` — AC-34: satu editor, pembaca/komentar jalan, konflik versi eksplisit.
   - `TestNoteLockExpiryAndTakeover` — NTE-08: kunci kedaluwarsa → takeover; live → butuh force; draf selamat.
   - `TestNoteTemplatesCopyOnCreate` — AC-33/NTE-09: bawaan tersedia, note dari template tidak berubah saat template diubah.
@@ -50,6 +50,23 @@ Test baru:
 - **UI** (`app/`, `internal/appui`, `internal/client`) belum memakai endpoint ini; perlu editor Notes native + pemilih template + indikator kunci/konflik + alur Jadikan tugas/reminder (sesi UI).
 - **Tidak ada** migrasi DB dev/produksi, email, deploy, WhatsApp, Reo, atau spreadsheet.
 - Offline sync perangkat (OFF-xx) adalah pekerjaan klien; server menyediakan versi + draf + konflik eksplisit sebagai fondasinya.
+
+## Perbaikan state saat review PR #6
+
+- Migrasi tambahan `0006_notes_review.sql` mempertahankan migrasi 0001–0005. Note dihapus dengan tombstone `deleted_at`, sehingga FK dan trigger riwayat append-only tetap utuh. Semua lookup/list publik mengecualikan note yang telah dihapus beserta endpoint anaknya.
+- Kunci editor diikat ke sesi autentikasi. Dua sesi akun sama tidak otomatis berbagi kunci; sesi lain harus menunggu kedaluwarsa atau mengambil alih secara eksplisit. Melepas kunci dan menyimpan isi hanya berlaku untuk pemegang sesi yang tepat. Konflik kunci menyertakan `NoteLock` di `error.data`, tanpa ID sesi atau bearer.
+- Draf baru terpisah per note/akun/sesi, dengan ID draf opak dan penanda `currentSession`. Simpan isi resmi hanya menghapus draf sesi itu. `GET /drafts` menampilkan salinan pemulihan akun sendiri; `GET /draft` mengutamakan salinan sesi ini lalu fallback salinan lama. Pencabutan sesi tidak menghapus draf. Draf legacy skema 0005 dipertahankan dan tetap dapat dipulihkan.
+- Pembacaan draf sendiri tetap tersedia pada periode tertutup selama note boleh dibaca. Penulisan/penghapusan draf tetap ditolak sebagai perubahan pada periode tertutup. Penghapusan salinan lama harus eksplisit melalui ID draf akun sendiri.
+- Regresi baru pada `notes_review_state_test.go` mencakup hapus/read-404/riwayat utuh, dua sesi akun sama, konflik kunci terstruktur, pemulihan lintas sesi dan batas akun, simpan tanpa menghapus draf perangkat lain, pembacaan periode tertutup, serta upgrade/idempotensi 0006 dengan data legacy.
+
+## Penguatan privasi, otorisasi dan ukuran saat review
+
+- Penautan tugas memeriksa akses baca target melalui kebijakan tugas/Space yang sama dengan endpoint tugas, bukan sekadar keberadaan UUID. Target tidak ada dan target tanpa akses sama-sama 404.
+- Pembacaan tautan dan event riwayat tautan mengikuti hak target saat ini. Reminder privat hanya tampak bagi pemilik atau penerima eksplisit ketika berbagi aktif; pencabutan share dan perubahan proyeksi tugas langsung mengubah hasil berikutnya. Penghapusan tautan mencatat konteks target untuk penyaringan historis tanpa mengubah audit asli. Event lama tanpa konteks target disembunyikan.
+- GET note internal dan subresource tanpa izin disamakan menjadi 404, sehingga tidak menjadi pemeriksaan keberadaan note lintas divisi.
+- Ketiga mutasi template memeriksa ulang akun/sesi di transaksi sesudah lock periode dan sebelum perubahan. Urutan ini mengikuti penulisan note/tugas yang sudah ada; permintaan yang menunggu tidak dapat menulis setelah logout/disable.
+- Validator bersama menerapkan batas JSON kanonis 200 KiB pada seluruh note/draf/template, termasuk byte UTF-8 dan escape JSON.
+- Regresi baru di `notes_review_privacy_test.go` memeriksa filter target/link/history, share nonaktif dan dicabut, perubahan proyeksi tugas, 404 seragam, batas ukuran seluruh jalur tulis, serta penulisan template yang menunggu lock ketika akun/sesi dicabut. Pemeriksaan ukuran ASCII, UTF-8 dan escape ditambahkan pada validator. Tes belum dijalankan oleh agen perbaikan; hasil akhir dicatat setelah pemeriksaan gabungan oleh sesi utama.
 
 ## Catatan push
 

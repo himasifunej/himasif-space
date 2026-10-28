@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -9,12 +10,13 @@ import (
 
 // Limits of a note document (see the Notes API contract §2).
 const (
-	NoteMaxBlocks      = 500
-	NoteMaxBlockText   = 4000
-	NoteMaxTableCols   = 50
-	NoteMaxTableRows   = 500
-	NoteMaxHeadingText = 500
-	NoteMaxLinkLen     = 2000
+	NoteMaxBlocks       = 500
+	NoteMaxBlockText    = 4000
+	NoteMaxTableCols    = 50
+	NoteMaxTableRows    = 500
+	NoteMaxHeadingText  = 500
+	NoteMaxLinkLen      = 2000
+	NoteMaxContentBytes = 200 * 1024
 )
 
 // ValidateNoteContent checks a note document's shape and size, rejecting
@@ -29,6 +31,13 @@ func ValidateNoteContent(blocks []NoteBlock) error {
 		if err := validateBlock(b); err != nil {
 			return fmt.Errorf("blok %d: %w", i+1, err)
 		}
+	}
+	raw, err := json.Marshal(blocks)
+	if err != nil {
+		return errors.New("isi note tidak dapat diserialisasi")
+	}
+	if len(raw) > NoteMaxContentBytes {
+		return fmt.Errorf("isi note terlalu besar: maksimal %d KB", NoteMaxContentBytes/1024)
 	}
 	return nil
 }
