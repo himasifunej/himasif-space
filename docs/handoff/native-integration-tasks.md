@@ -26,9 +26,9 @@ Perubahan tidak dipresentasikan sebagai berhasil sebelum server mengonfirmasi. K
 
 ## Batas tahap ini
 
-Ini menyelesaikan integrasi akun/Space dan **inti** Sesi 2A. Backend reminder pribadi beserta toggle share tersedia melalui PR #3; UI reminder belum disambungkan. Rich notes/template tersimpan, rapat, scheduler H-2/H-1/H-0, ping, integrasi Sheets/Trello/WA, aturan deadline Medhum otomatis, temuan SOP, tray/toast/suara Windows, Ace, cache/antrean offline dan Flutter tetap tahap berikutnya. Notifikasi saat ini adalah pembaruan in-app yang dimuat saat membuka dropdown atau memperbarui; belum push terjadwal.
+Irisan ini menyelesaikan integrasi akun/Space dan **inti** Sesi 2A pada PR #4. UI reminder kemudian tersambung melalui PR #5; lihat [handoff reminder](personal-reminders-ui.md). Rich notes/template tersimpan, rapat, scheduler H-2/H-1/H-0, ping, integrasi Sheets/Trello/WA, aturan deadline Medhum otomatis, temuan SOP, tray/toast/suara Windows, Ace, cache/antrean offline dan Flutter tetap tahap berikutnya. Notifikasi saat ini adalah pembaruan in-app yang dimuat saat membuka dropdown atau memperbarui; belum push terjadwal.
 
-API pengelolaan periode/kadiv/checklist serah terima/izin arsip sudah ada di backend PR #2, tetapi form administrasi organisasi lengkap belum tersambung di irisan UI ini. Metadata periode dan Space arsip yang diizinkan sudah dapat dibaca. Produksi tidak diubah; runtime Xpra menggunakan database preview terpisah.
+API pengelolaan periode/kadiv/checklist serah terima/izin arsip berasal dari backend PR #2. Form yang belum tersambung pada PR #4 kini dilengkapi dalam [integrasi administrasi](admin-ui.md). Metadata periode dan Space arsip yang diizinkan dapat dibaca. Produksi tidak diubah; runtime Xpra menggunakan database preview terpisah.
 
 ## Verifikasi
 

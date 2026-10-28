@@ -1,6 +1,6 @@
 # Backend API — Sesi 1B–1C
 
-Status: **diimplementasikan** di branch `feat/accounts-spaces-access` (dari `627298f`) dan diuji terhadap PostgreSQL; lihat [hasil](backend-1b-1c-results.md). DTO di `internal/api/access.go`. UI tetap MyGo native (desktop/WASM).
+Status: **backend sudah merged melalui PR #2**, dengan integrasi akun/Space pada PR #4. Form administrasi periode, kadiv, checklist serah terima dan izin arsip kini memakai kontrak ini; lihat [handoff UI administrasi](admin-ui.md). DTO di `internal/api/access.go`; metadata pilihan arsip di `internal/api/archive_targets.go`. UI tetap MyGo native (desktop/WASM).
 
 ## Kompatibilitas dan aturan umum
 
@@ -65,6 +65,7 @@ Member mencakup `id, userId, periodId, divisionId, displayName, role, roles, gro
 ## Arsip dan serah terima
 
 - `GET /api/periods/{p}/divisions/{d}/archives` — kadiv asli/admin periode pemberi; daftar grant yang diberikan dari scope itu.
+- `GET .../archives/targets` — kewenangan `archives.manage` pada scope pemberi yang masih terbuka, sama seperti daftar grant. Mengembalikan metadata Space dari periode closed yang memuat divisi tersebut, termasuk saat kadiv baru belum punya akses baca periode lama: `{"items":[{"spaceId":"<uuid>","periodId":"<uuid>","periodLabel":"2025/2026","spaceName":"Mediatek","spaceKind":"division"}]}`. Tidak mengembalikan isi, binding/kemampuan, anggota atau objek privat; tidak memberikan akses baca atau membuat grant. Member, pendamping, 45 dan pengelola divisi lain ditolak. Scope pemberi closed menjawab `409 period_closed`.
 - `POST .../archives` — kadiv asli periode aktif terkait/admin; `{"userId":"<anggota-scope-aktif>","spaceId":"<space-periode-closed>"}`; 201 ArchiveGrant. Space asal harus memuat divisi yang dipimpin pemberi (Medhum bisa dari Humas atau Mediatek). Grant untuk satu Space saja. Tidak berlaku pada direktori divisi atau objek privat. Pengurus lama tetap read-only pada Space dari keanggotaan lamanya.
 - `DELETE .../archives/{grantId}` — pemberi scope sama, 204; pencabutan tidak menghapus hak anggota lama yang memang independen.
 - `GET /api/periods/{p}/handover` — admin; 200 Handover (`updatedAt:null` bila belum diisi). `PUT` body `{"successorPeriodId":"<uuid>|null","incomingLeadership":"...","adminCustodian":"...","botManagement":"...","archivePlan":"...","remainingWork":"..."}`; `remainingWork` wajib (pekerjaan tersisa atau alasan tidak ada); 200 Handover. Catatan/checklist, bukan auto-copy tugas. Hanya sebelum closed.

@@ -32,6 +32,9 @@ func (a *App) page(c *ui.Context, r *ui.Route) {
 			pageNotice(c, "shield", "Temuan perlu ditinjau", "Waktu penyerahan dan kecocokan bukti menjadi dasar evaluasi. Dugaan belum menjadi pelanggaran yang disahkan.")
 			pageUnavailable(c, "archive", "Laporan belum tersedia", "Data penyerahan dan evaluasi belum dapat dimuat. Tidak ada kesimpulan SOP yang ditampilkan.")
 		})
+	case r.Match(PathArchiveAccess):
+		r.Title("Izin arsip")
+		a.archiveManagementView(c)
 	case r.Match(PathArsip):
 		a.archivePage(c, r)
 	case r.Match(PathPengaturan):
@@ -321,6 +324,11 @@ func (a *App) archivePage(c *ui.Context, r *ui.Route) {
 	r.Title("Arsip periode")
 	pageBody(c, "Arsip periode", func() {
 		muted(c, "Ruang untuk melihat perjalanan kepengurusan sebelumnya.")
+		if len(a.archiveManagedDivisions()) > 0 {
+			if spaceButton(c, "Kelola izin arsip", "shield", false).Clicked() {
+				a.navigate(PathArchiveAccess)
+			}
+		}
 		pageNotice(c, "lock", "Informasi periode", "Daftar di bawah hanya berisi metadata periode yang telah ditutup. Akses arsip pekerjaan tetap memerlukan izin.")
 		if a.periodsErr != "" {
 			pageNotice(c, "alert", "Periode belum dapat dimuat", a.periodsErr)
@@ -352,19 +360,7 @@ func (a *App) archivePage(c *ui.Context, r *ui.Route) {
 
 func (a *App) organizationPage(c *ui.Context, r *ui.Route) {
 	r.Title("Pengaturan organisasi")
-	pageBody(c, "Pengaturan organisasi", func() {
-		muted(c, "Identitas divisi dan kepengurusan HIMASIF.")
-		pageNotice(c, "shield", "Pengaturan organisasi", "Akses anggota, undangan, dan role dikelola dari tab Anggota pada Space divisi yang berwenang.")
-		ui.Text(c, "Periode kepengurusan").FontSize(16).Bold()
-		if a.periodsErr != "" {
-			pageNotice(c, "alert", "Periode belum dapat dimuat", a.periodsErr)
-		}
-		for _, period := range a.periods {
-			pagePeriodCard(c, period)
-		}
-		ui.Text(c, "Direktori divisi").FontSize(16).Bold()
-		a.divisionCatalog(c)
-	})
+	a.organizationAdminView(c)
 }
 
 func (a *App) settings(c *ui.Context, r *ui.Route) {
