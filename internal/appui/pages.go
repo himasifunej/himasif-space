@@ -19,12 +19,7 @@ func (a *App) page(c *ui.Context, r *ui.Route) {
 		a.personalTasksView(c)
 	case r.Match(PathReminder):
 		r.Title("Reminder pribadi")
-		pageBody(c, "Reminder pribadi", func() {
-			muted(c, "Ruang kecil untuk hal-hal yang ingin kamu ingat sendiri.")
-			pageNotice(c, "lock", "Privat secara default", "Reminder pribadi hanya dibagikan jika kamu memilih untuk memberikan akses.")
-			pageUnavailable(c, "bell", "Reminder belum tersedia", "Pengingat pribadi belum dapat dimuat atau disimpan. Tidak ada pengingat baru yang dijadwalkan dari halaman ini.")
-			spaceButton(c, "Buat reminder", "plus", false).Disabled(true)
-		})
+		a.remindersView(c)
 	case r.Match(PathSpaces):
 		a.spaces(c, r)
 	case r.Match(PathMedhum):

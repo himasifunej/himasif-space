@@ -2,7 +2,7 @@
 
 Tanggal: 27 Oktober 2026, WIB. Acuan: [PRD](PRD.md), [Register keputusan](decision-register.md), [Riset Android](research/android-options.md).
 
-Dokumen ini menjabarkan urutan yang disepakati. **Sesi 1A merged melalui PR #1** (`627298f`), **backend 1B–1C merged melalui PR #2** (`d92a372`). Integrasi UI native dan inti tugas 2A ada pada branch `feat/native-ui`; lihat [handoff integrasi](handoff/native-integration-tasks.md). Pengguna menyetujui prototype UI 03.1 dan memulai implementasi native pada branch `feat/native-ui`; backend 1B–1C dapat dikerjakan paralel dalam worktree terpisah. Status tiap tahap berikut tetap bergantung pada verifikasi fungsinya, bukan sekadar tersedianya tampilan. Tidak ada tanggal rilis atau estimasi durasi yang disepakati. Satu tahap dapat memakai beberapa sesi; jangan menganggap seluruh aplikasi selesai dalam enam percakapan.
+Dokumen ini menjabarkan urutan yang disepakati. **Sesi 1A merged melalui PR #1** (`627298f`), **backend 1B–1C melalui PR #2** (`d92a372`), **backend reminder melalui PR #3**, dan **UI native beserta inti tugas melalui PR #4** (`8608fc4`). Penyambungan UI reminder pribadi melengkapi hasil gabungan tersebut; lihat [handoff integrasi tugas](handoff/native-integration-tasks.md) dan [handoff UI reminder](handoff/personal-reminders-ui.md). Pengguna menyetujui prototype UI 03.1. Status tiap tahap tetap bergantung pada verifikasi fungsinya, bukan sekadar tersedianya tampilan. Tidak ada tanggal rilis atau estimasi durasi yang disepakati. Satu tahap dapat memakai beberapa sesi; jangan menganggap seluruh aplikasi selesai dalam enam percakapan.
 
 ## Prinsip handoff setiap sesi
 
@@ -43,17 +43,17 @@ Keluaran: aplikasi kerangka yang bisa dijalankan, keputusan teknis terdokumentas
 
 ### Implementasi UI native paralel
 
-Status: irisan UI awal pada branch `feat/native-ui`, terpisah dari backend 1B–1C. [Handoff UI](handoff/native-ui.md) menjelaskan kemampuan dan batasnya; [prompt sesi backend](handoff/backend-1b-1c.md) menetapkan kepemilikan berkas.
+Status: UI native dan backend sudah digabung ke main melalui PR #3/#4, kemudian dilengkapi UI reminder. [Handoff UI awal](handoff/native-ui.md) mencatat tahap sebelum integrasi; [integrasi tugas](handoff/native-integration-tasks.md) dan [integrasi reminder](handoff/personal-reminders-ui.md) mencatat perilaku berikutnya.
 
 - Shell native, sidebar tetap/collapse, header/search shortcut, dropdown notifikasi/profil, logout, status koneksi.
 - Halaman divisi/Medhum, beranda, board, agenda, notes/template dan pengaturan WhatsApp mengikuti prototype yang disetujui.
 - Tema dark/light/system, aksen preset/kustom dan density disimpan per perangkat.
-- Komponen board snapshot dengan drag/drop, reorder dan panel detail kanan diuji tersendiri; belum disambungkan ke layanan tugas.
-- Login, akun, periode dan direktori divisi memakai API 1A. Direktori divisi bukan bukti membership. Data tugas/notes/bot dan wewenang Space tetap menunggu backend; tampilan tidak mengesahkan akses atau mengklaim penyimpanan/koneksi berhasil.
+- Board drag/drop, reorder dan panel detail kanan sudah terhubung ke layanan tugas dengan identitas tugas yang sama pada proyeksi pribadi/divisi/bersama.
+- Login, alur akun, daftar Space berizin, anggota, role dan inti tugas/reminder memakai API. Hak akses tetap diputuskan server. Notes, rapat, bot dan pengiriman notifikasi masih mengikuti tahap berikutnya; tampilannya tidak mengklaim penyimpanan atau koneksi yang belum tersedia.
 
 ### Sesi 1B: akun, undangan dan periode
 
-Status: backend selesai di main (PR #2); UI undangan, pemulihan, perubahan kredensial dan keanggotaan terhubung di branch UI. Form administrasi periode/kadiv/checklist/izin arsip lengkap masih perlu disambungkan.
+Status: backend selesai di main (PR #2); UI undangan, pemulihan, perubahan kredensial dan keanggotaan sudah terhubung melalui PR #4. Form administrasi periode/kadiv/checklist/izin arsip lengkap masih perlu disambungkan.
 
 - Akun baru/lama, verifikasi email, aktivasi undangan, pencabutan dan pemulihan akun.
 - Satu akun admin organisasi, terpisah dari akun pribadi; pengelolaan periode/kadiv.
@@ -64,7 +64,7 @@ Penerimaan: AC-01, AC-02, AC-10, AC-11; batas email/provider/umur undangan ditet
 
 ### Sesi 1C: Space dan role
 
-Status: backend selesai di main (PR #2); UI daftar Space berizin, anggota, kelompok, role kustom dan 45 terhubung di branch UI.
+Status: backend selesai di main (PR #2); UI daftar Space berizin, anggota, kelompok, role kustom dan 45 terhubung melalui PR #4.
 
 - Space divisi, Medhum, pengelompokan Tekno/Desain/Video dan role kustom.
 - Anggota melihat ruang divisi; pemisahan kerja internal/bersama.
@@ -77,7 +77,7 @@ Penerimaan: AC-03, AC-06–08; belum boleh ada privilege yang hanya dibatasi lew
 
 ### Sesi 2A: tugas dan jobdesk
 
-Status: inti tugas/jobdesk tersimpan, kanban/reorder, delegasi, bantuan, bukti/tinjauan, komentar, riwayat dan pembaruan in-app dibuat di branch UI. **Backend reminder pribadi/toggle share tersedia melalui PR #3; UI-nya belum disambungkan**, sehingga seluruh Sesi 2A belum dinyatakan selesai. Lihat [review gabungan](handoff/pr3-pr4-review.md).
+Status: inti tugas/jobdesk tersimpan, kanban/reorder, delegasi, bantuan, bukti/tinjauan, komentar, riwayat dan pembaruan in-app sudah merged melalui PR #4. Backend reminder pribadi PR #3 kini tersambung ke UI native: buat/ubah/selesai, preferensi default, berbagi per akun, pencabutan dan riwayat. Lihat [review gabungan](handoff/pr3-pr4-review.md) dan [integrasi UI reminder](handoff/personal-reminders-ui.md). Pengiriman reminder terjadwal/toast OS tetap Sesi 2C/3A, bukan bagian penyimpanan reminder di 2A.
 
 - Tugas dengan hasil, PJ utama, deadline, pelaksana tambahan, progres dan komentar.
 - Jobdesk pribadi/divisi/ruang bersama dari satu objek tugas.

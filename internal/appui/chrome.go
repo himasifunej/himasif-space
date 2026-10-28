@@ -23,6 +23,7 @@ func (a *App) resetWorkspace() {
 	a.workspace = workspaceui.New()
 	a.resetAccess()
 	a.tasksContextChanged()
+	a.resetReminders()
 }
 
 func (a *App) loadPreferences() {
