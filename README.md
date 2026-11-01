@@ -2,13 +2,17 @@
 
 **Space — Ruang Kerja HIMASIF.** Aplikasi kerja pengurus HIMASIF: Space per divisi, jobdesk, reminder, rapat, Medhum dan bot WhatsApp. Kebutuhan produk ada di [docs/PRD.md](docs/PRD.md); keputusan teknis di [docs/adr](docs/adr).
 
-Status: fondasi backend 1A–1C terintegrasi dengan UI native pada branch ini; inti jobdesk/tugas sudah memakai PostgreSQL. Lihat [handoff integrasi](docs/handoff/native-integration-tasks.md) dan [rencana implementasi](docs/implementation-plan.md) untuk kemampuan yang sudah dibuat dan tahap berikutnya.
+Status worktree 29 Oktober 2026: fondasi/akun/akses/tugas/Notes telah digabung sampai PR #8. Perubahan lokal berikutnya memuat rapat/scheduler, desktop/Ace/offline, kalender/konektor Medhum, bridge/command/parser WA, UI dan alur SOP, lampiran biner/pending, backup/restore/karantina, CSV darurat/rekonsiliasi, bahasa bot dan pemantauan operasional. Kandidat aplikasi sekarang `0.3.0-pilot.1`. **Verifikasi akhir sedang berlangsung pada database terisolasi; belum diaktifkan pada produksi.**
+
+Instruksi aktif: selesaikan tahap nonmobile, build dan test di akhir, lalu sediakan paket unduhan. Android/iOS ditunda. Builder distribusi/checksum dan pembanding legacy read-only tersedia pada source. Bukti pemeriksaan dan artefak setiap kandidat dicatat dalam `verification.json`; kode/prosedur bukan bukti cutover produksi selesai. Rincian kebutuhan, pekerjaan tersisa dan batas pembuktian ada di [worklog](docs/handoff/remaining-stages-worklog.md).
+
+Lihat [rencana implementasi](docs/implementation-plan.md), [backup/restore](docs/operations/recovery.md), [CSV darurat](docs/operations/emergency-spreadsheet.md), [distribusi](docs/operations/distribution.md) dan [persiapan pilot/cutover](docs/operations/pilot-cutover.md). Aktivasi restore/cutoff dijelaskan di [panduan aktivasi](docs/operations/restore-activation.md).
 
 ## Struktur
 
 | Path | Isi |
 |---|---|
-| `cmd/space-server` | Server API (Go): `serve`, `migrate`, `seed`, `mail-test` |
+| `cmd/space-server` | Server API (Go): `version`, `serve`, `migrate`, `seed`, `quarantine-restore`, `activate-restore`, `mail-test` |
 | `app/` | Aplikasi MyGo native UI: desktop Windows, dan web (WebAssembly) |
 | `internal/api` | Pesan JSON antara server dan klien |
 | `internal/server` | Handler HTTP, autentikasi, middleware, penyajian web |

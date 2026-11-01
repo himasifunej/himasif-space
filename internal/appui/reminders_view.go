@@ -31,7 +31,7 @@ func (a *App) remindersView(c *ui.Context) {
 			ui.Scroll(c).Grow(1).MinWidth(0).MinHeight(0).Label("Daftar reminder pribadi").Children(func() {
 				ui.Column(c).FillWidth().MinWidth(0).Padding(22).Gap(18).Children(func() {
 					a.reminderPrivacyPreference(c)
-					muted(c, "Reminder disimpan ke akunmu. Pengiriman notifikasi terjadwal belum tersedia.")
+					muted(c, "Reminder pribadi hanya dikirim ke perangkat pemilik, tanpa grup WhatsApp. Tanggal tanpa jam memakai pukul 06.00 pada zona reminder; slot yang sudah lewat sebelum dibuat tidak dikirim ulang.")
 					ui.TextInput(c.Key("reminder-filter"), &a.reminders.filter).FillWidth().Label("Cari reminder").Placeholder("Cari judul atau catatan…")
 					a.reminderList(c)
 				})

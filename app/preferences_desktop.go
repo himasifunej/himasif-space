@@ -36,6 +36,9 @@ func (s *desktopPreferences) Load() (appui.Preferences, error) {
 	}
 	data, err := os.ReadFile(s.path)
 	if errors.Is(err, os.ErrNotExist) {
+		if err := validateMissingStoragePath(s.path); err != nil {
+			return defaults, fmt.Errorf("read appearance directory: %w", err)
+		}
 		return defaults, nil
 	}
 	if err != nil {

@@ -175,9 +175,11 @@ func (h *harness) settle() {
 
 func (h *harness) click(s string) {
 	h.t.Helper()
+	h.tt.Advance(300 * time.Millisecond)
 	if err := h.tt.Click(s); err != nil {
 		h.t.Fatalf("%v; texts %q", err, h.tt.Texts())
 	}
+	h.tt.Advance(300 * time.Millisecond)
 }
 
 func (h *harness) want(s string) {
@@ -451,7 +453,7 @@ func TestPages(t *testing.T) {
 		profile    bool
 	}{
 		{"Reminder pribadi", "Reminder belum dapat dimuat", false},
-		{"Evaluasi SOP", "Temuan perlu ditinjau", true},
+		{"Evaluasi SOP", "Layanan evaluasi SOP belum tersedia.", true},
 		{"Arsip periode", "Informasi periode", false},
 		{"Space saya", "Layanan akses Space belum tersedia.", false},
 	} {

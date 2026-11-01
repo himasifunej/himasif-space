@@ -18,7 +18,7 @@ const clientName = "desktop"
 // names another. Builds may set it:
 //
 //	-ldflags "-X main.defaultAPIURL=https://staging.himasif.id"
-var defaultAPIURL = "https://app.himasif.id"
+var defaultAPIURL = "https://db.tiyoouw.app"
 
 // secretKey is the key of the session token in the credential store.
 const secretKey = "session-token"

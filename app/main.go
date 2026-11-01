@@ -1,5 +1,5 @@
 // Space is the app of Space — Ruang Kerja HIMASIF: the Windows desktop
-// app and, compiled to js/wasm, the web app at app.himasif.id. Both draw
+// app and, compiled to js/wasm, the web app at db.tiyoouw.app. Both draw
 // the same native UI (package appui) and talk to the API server.
 //
 // From the root of the module:
@@ -22,7 +22,7 @@ import (
 
 // version is the app's version where the build does not stamp one, as in
 // a browser or under go run; keep it as mygo.json's.
-var version = "0.1.0"
+var version = "0.3.0-pilot.5"
 
 // appVersion returns the version of the app.
 func appVersion() string {
@@ -33,7 +33,12 @@ func appVersion() string {
 }
 
 func main() {
+	if !mygo.App.RequestSingleInstanceLock() {
+		return
+	}
+	registerDeviceScheme()
 	api := client.New(apiURL())
+	configureOffline(api)
 	mygo.App.WhenReady(func() {
 		// The window's Update applies the results of network calls on the
 		// main thread; Start runs after win is set.
@@ -44,6 +49,7 @@ func main() {
 		app.Version = appVersion()
 		app.PreferencesStore = newPreferencesStore()
 		app.NoteDrafts = newNoteDraftStore()
+		app.PendingFiles = newPendingFileStore()
 		win = mygo.NewWindow(mygo.WindowOptions{
 			Title:     "Space — Ruang Kerja HIMASIF",
 			Width:     1440,
@@ -53,12 +59,17 @@ func main() {
 			StateKey:  "main",
 			Content:   ui.View(app.View),
 		})
+		app.PickFile = func(maxBytes int64, done func(appui.SelectedFile, error)) { pickFile(win, maxBytes, done) }
+		app.ExportFile = func(name, mediaType string, data []byte) (string, error) {
+			return exportFile(win, name, mediaType, data)
+		}
 		win.OnClose(func(event *mygo.CloseEvent) {
 			if err := app.FlushNoteDraft(); err != nil {
 				event.PreventDefault()
 				win.Update(func() {})
 			}
 		})
+		attachDevice(win, app)
 		app.Start()
 		if link := startupAccountLink(); link != "" {
 			_ = app.HandleAccountLink(link)

@@ -44,6 +44,8 @@ const (
 	CapResultsReview  = "results.review"
 	CapPingSend       = "ping.send"
 	CapWhatsAppManage = "whatsapp.manage"
+	CapSOPRead        = "sop.read"
+	CapSOPReview      = "sop.review"
 )
 
 // Administrative capabilities, never held by a 45 nor given by a custom

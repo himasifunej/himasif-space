@@ -71,6 +71,9 @@ type noteDiskOrder struct {
 }
 
 type notesUIState struct {
+	pendingFileErr                                                                       string
+	fileUpload                                                                           *noteFileUpload
+	fileDownload                                                                         *noteFileDownload
 	seq                                                                                  uint64
 	space                                                                                id.ID
 	items                                                                                []api.Note
@@ -105,6 +108,9 @@ type notesUIState struct {
 	pendingLinks                                                                         []api.NoteLinkRequest
 	revision, localRevision, serverRevision                                              uint64
 	baseVersion                                                                          int64
+	baselineTitle                                                                        string
+	baselineContent                                                                      []api.NoteBlock
+	baselineKnown                                                                        bool
 	conflict                                                                             bool
 	changedAt, lastTick, renewedAt                                                       time.Time
 	draftBusy, leaseBusy, editing                                                        bool
@@ -201,6 +207,10 @@ func (a *App) notesCanCreate() bool {
 
 func (a *App) notesCanEdit() bool {
 	n := a.notes.note
+	if a.canEditOfflineNote() && a.notes.editing {
+		return true
+	}
+
 	return !a.notesWriteBlocked() && !a.notes.conflict && a.notes.editing && n != nil && n.Permissions.Manage && n.Lock != nil && n.Lock.HeldByCaller && a.noteNow().Before(n.Lock.ExpiresAt)
 }
 
@@ -215,6 +225,7 @@ func (a *App) noteFailure(err error) {
 		a.releaseEditingNote()
 		a.notes.detailSeq++
 		a.notes.selected, a.notes.note, a.notes.editor = id.Nil, nil, nil
+		a.notes.fileDownload = nil
 		a.notes.localRecovery, a.notes.compare, a.notes.conversion = nil, nil, nil
 		a.notes.history, a.notes.links, a.notes.recovery = nil, nil, nil
 		a.notes.items, a.notes.templates, a.notes.pendingLinks = nil, nil, nil
@@ -272,6 +283,8 @@ func (a *App) closeNote() {
 	a.notes.recovery, a.notes.links, a.notes.history, a.notes.pendingLinks = nil, nil, nil, nil
 	a.notes.detailLoading, a.notes.dirty, a.notes.draftBusy = false, false, false
 	a.notes.leaseBusy = false
+	a.notes.fileUpload, a.notes.fileDownload = nil, nil
+	a.notes.pendingFileErr = ""
 	a.notes.comment, a.notes.attachmentName, a.notes.attachmentURL, a.notes.attachmentType, a.notes.attachmentSize, a.notes.templateName = "", "", "", "", "", ""
 	a.notes.historyErr, a.notes.linksErr = "", ""
 	a.notes.baseVersion, a.notes.conflict = 0, false
@@ -290,7 +303,10 @@ func (a *App) loadNoteDetail(preserve bool) {
 	detail := a.notes.detailSeq
 	a.notes.detailLoading, a.notes.detailErr = true, ""
 	store := a.NoteDrafts
+	pendingStore, pendingServer := a.PendingFiles, a.ServerURL
 	a.async(func() func() {
+		var pending *PendingNoteFile
+		var pendingErr error
 		n, err := service.GetNote(context.Background(), nid)
 		var history []api.NoteEvent
 		var links []api.NoteLink
@@ -307,6 +323,9 @@ func (a *App) loadNoteDetail(preserve bool) {
 			}
 			if store != nil {
 				local, localErr = store.Load(user, nid)
+			}
+			if pendingStore != nil && !admin {
+				pending, pendingErr = pendingStore.Load(pendingServer, user, nid)
 			}
 		}
 		return func() {
@@ -331,6 +350,14 @@ func (a *App) loadNoteDetail(preserve bool) {
 			a.conn = connOnline
 			canonical := cloneNote(n)
 			a.notes.note = &canonical
+			a.notes.pendingFileErr = ""
+			if pendingErr != nil {
+				a.notes.pendingFileErr = "Salinan berkas pending belum dapat dibaca: " + pendingErr.Error()
+			}
+			if pending != nil && pending.NoteID == nid && pending.SpaceID == space && a.notes.fileUpload == nil {
+				a.notes.fileUpload = &noteFileUpload{PendingNoteFile: *pending, Saved: true}
+			}
+
 			a.replaceNote(n)
 			a.notes.history, a.notes.links, a.notes.recovery = history, links, drafts
 			a.notes.historyErr, a.notes.linksErr, a.notes.draftErr = "", "", ""
@@ -357,6 +384,9 @@ func (a *App) loadNoteDetail(preserve bool) {
 				a.notes.title = n.Title
 				a.notes.editor = newNoteDocumentEditor(n.Content)
 				a.notes.baseVersion, a.notes.conflict = n.Version, false
+				a.notes.baselineTitle = n.Title
+				a.notes.baselineContent = cloneNoteDocument(n.Content)
+				a.notes.baselineKnown = true
 			}
 			if n.Lock != nil && n.Lock.HeldByCaller {
 				a.notes.editing, a.notes.leaseService, a.notes.renewedAt = true, service, a.noteNow()
@@ -453,6 +483,10 @@ func (a *App) writeNote(work func(NotesAPI) (func(), error), abandoned ...func(N
 }
 
 func (a *App) saveNote() {
+	if a.offlineMode() {
+		a.queueNote()
+		return
+	}
 	if !a.notesCanEdit() || a.notes.editor == nil {
 		return
 	}
@@ -477,6 +511,9 @@ func (a *App) saveNote() {
 			if revision == a.notes.revision {
 				a.notes.title, a.notes.editor, a.notes.dirty = n.Title, newNoteDocumentEditor(n.Content), false
 				a.notes.baseVersion, a.notes.conflict = n.Version, false
+				a.notes.baselineTitle = n.Title
+				a.notes.baselineContent = cloneNoteDocument(n.Content)
+				a.notes.baselineKnown = true
 				a.notes.editor.SetEditable(a.notesCanEdit())
 				a.notes.recovery = slices.DeleteFunc(a.notes.recovery, func(d api.NoteDraft) bool { return d.CurrentSession })
 				if len(a.notes.pendingLinks) == 0 {
@@ -490,7 +527,16 @@ func (a *App) saveNote() {
 	})
 }
 
-func (a *App) beginNoteEditing() { a.acquireEditingNote(false) }
+func (a *App) beginNoteEditing() {
+	if a.canEditOfflineNote() {
+		a.notes.editing = true
+		if a.notes.editor != nil {
+			a.notes.editor.SetEditable(true)
+		}
+		return
+	}
+	a.acquireEditingNote(false)
+}
 func (a *App) takeoverNoteEditing() {
 	if !a.notes.takeoverConfirm {
 		return
@@ -647,6 +693,7 @@ func copyLocalNoteDraft(d *LocalNoteDraft) *LocalNoteDraft {
 	}
 	copy := *d
 	copy.Content = cloneNoteDocument(d.Content)
+	copy.BaselineContent = cloneNoteDocument(d.BaselineContent)
 	copy.PendingLinks = slices.Clone(d.PendingLinks)
 	return &copy
 }
@@ -655,7 +702,7 @@ func (a *App) noteLocalSnapshot() *LocalNoteDraft {
 	if a.notes.note == nil || a.notes.editor == nil || a.notes.selected == id.Nil {
 		return nil
 	}
-	return &LocalNoteDraft{SpaceID: a.notes.space, NoteID: a.notes.selected, Title: a.notes.title, Content: a.notes.editor.Content(), BaseVersion: a.notes.baseVersion, SavedAt: a.noteNow().UTC(), PendingLinks: slices.Clone(a.notes.pendingLinks)}
+	return &LocalNoteDraft{SpaceID: a.notes.space, NoteID: a.notes.selected, Title: a.notes.title, Content: a.notes.editor.Content(), BaseVersion: a.notes.baseVersion, BaselineTitle: a.notes.baselineTitle, BaselineContent: cloneNoteDocument(a.notes.baselineContent), BaselineKnown: a.notes.baselineKnown, SavedAt: a.noteNow().UTC(), PendingLinks: slices.Clone(a.notes.pendingLinks)}
 }
 
 func (a *App) queueNoteDisk(remove bool, draft *LocalNoteDraft, after func(bool)) {
@@ -853,12 +900,18 @@ func (a *App) useComparedNoteDraft() {
 	// applied to the fresh official version. It still needs a valid lease to save.
 	a.notes.title, a.notes.editor = d.Title, newNoteDocumentEditor(d.Content)
 	a.notes.baseVersion, a.notes.conflict = a.notes.note.Version, false
+	a.notes.baselineTitle = a.notes.note.Title
+	a.notes.baselineContent = cloneNoteDocument(a.notes.note.Content)
+	a.notes.baselineKnown = true
 	for _, link := range d.PendingLinks {
 		if !slices.Contains(a.notes.pendingLinks, link) {
 			a.notes.pendingLinks = append(a.notes.pendingLinks, link)
 		}
 	}
 	a.notes.compare = nil
+	if a.canEditOfflineNote() {
+		a.notes.editing = true
+	}
 	a.markNoteChanged()
 	a.persistNoteLocal(nil)
 	a.notes.editor.SetEditable(a.notesCanEdit())

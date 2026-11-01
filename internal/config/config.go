@@ -9,8 +9,11 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"net"
 	"net/mail"
+	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -18,11 +21,16 @@ import (
 
 // Config is the server's configuration.
 type Config struct {
-	Env         string // "development" or "production"
-	HTTPAddr    string
-	PublicURL   string // where people open Space, for links in emails
-	DatabaseURL string
-	WebDir      string // the built web app to serve at /, "" for none
+	RunMode            string
+	AttachmentDir      string
+	AttachmentMaxBytes int64
+	WABridgeURL        string
+	WABridgeToken      string
+	Env                string // "development" or "production"
+	HTTPAddr           string
+	PublicURL          string // where people open Space, for links in emails
+	DatabaseURL        string
+	WebDir             string // the built web app to serve at /, "" for none
 
 	SessionTTL time.Duration
 
@@ -53,6 +61,10 @@ func (c Config) Development() bool { return c.Env == "development" }
 // Load reads the configuration from the environment.
 func Load() (Config, error) {
 	c := Config{
+		RunMode:       get("SPACE_RUN_MODE", RunLive),
+		AttachmentDir: get("SPACE_ATTACHMENT_DIR", "space-data/attachments"),
+		WABridgeURL:   os.Getenv("SPACE_WA_BRIDGE_URL"),
+		WABridgeToken: os.Getenv("SPACE_WA_BRIDGE_TOKEN"),
 		Env:           get("SPACE_ENV", "development"),
 		HTTPAddr:      get("SPACE_HTTP_ADDR", "127.0.0.1:8787"),
 		PublicURL:     strings.TrimRight(get("SPACE_PUBLIC_URL", "http://localhost:8787"), "/"),
@@ -70,6 +82,46 @@ func Load() (Config, error) {
 		},
 	}
 	var errs []error
+	switch c.RunMode {
+	case RunLive:
+	case RunIsolatedRestore, RunMaintenance:
+		c.Mail.Driver = "disabled"
+		c.WABridgeURL = ""
+		c.WABridgeToken = ""
+	default:
+		errs = append(errs, errors.New("SPACE_RUN_MODE must be live, isolated_restore or maintenance"))
+	}
+	if c.RunMode == RunIsolatedRestore {
+		public, err := url.Parse(c.PublicURL)
+		if err != nil || !runtimeLoopback(public.Hostname()) {
+			errs = append(errs, errors.New("isolated restore requires a loopback SPACE_PUBLIC_URL; use localhost forwarding for previews"))
+		}
+		host, _, err := net.SplitHostPort(c.HTTPAddr)
+		if err != nil || !runtimeLoopback(host) {
+			errs = append(errs, errors.New("isolated restore must bind SPACE_HTTP_ADDR to loopback"))
+		}
+	}
+
+	maxAttachment, parseAttachmentErr := strconv.ParseInt(get("SPACE_ATTACHMENT_MAX_BYTES", "20971520"), 10, 64)
+	if parseAttachmentErr != nil || maxAttachment < 1 || maxAttachment > 100<<20 {
+		errs = append(errs, errors.New("SPACE_ATTACHMENT_MAX_BYTES must be between 1 and 104857600"))
+	}
+	c.AttachmentMaxBytes = maxAttachment
+	attachmentRoot, attachmentErr := filepath.Abs(c.AttachmentDir)
+	if attachmentErr != nil {
+		errs = append(errs, attachmentErr)
+	} else {
+		c.AttachmentDir = attachmentRoot
+	}
+	if c.WebDir != "" && attachmentErr == nil {
+		webRoot, err := filepath.Abs(c.WebDir)
+		if err != nil {
+			errs = append(errs, err)
+		} else if rel, err := filepath.Rel(webRoot, attachmentRoot); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+			errs = append(errs, errors.New("SPACE_ATTACHMENT_DIR must be outside SPACE_WEB_DIR"))
+		}
+	}
+
 	if c.Env != "development" && c.Env != "production" {
 		errs = append(errs, fmt.Errorf("SPACE_ENV must be development or production, not %q", c.Env))
 	}
@@ -87,7 +139,7 @@ func Load() (Config, error) {
 	}
 	c.Mail.Port = port
 	switch c.Mail.Driver {
-	case "log":
+	case "log", "disabled":
 	case "smtp":
 		if c.Mail.Host == "" {
 			errs = append(errs, errors.New("SPACE_SMTP_HOST is required with SPACE_MAIL_DRIVER=smtp"))
@@ -153,4 +205,12 @@ func LoadEnvFile(path string) error {
 		}
 	}
 	return s.Err()
+}
+
+func runtimeLoopback(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }

@@ -16,7 +16,7 @@ func (a *App) View(c *ui.Context) {
 	if a.chrome.preferences.Theme == "system" {
 		dark = c.Theme().Dark
 	}
-	c.SetTheme(spaceTheme(dark, a.chrome.preferences.Accent, a.chrome.preferences.Compact))
+	c.SetTheme(paletteTheme(dark, a.chrome.preferences))
 	t := c.Theme()
 	ui.Column(c).Fill().Background(t.Background).TextColor(t.Text).Children(func() {
 		if a.accountFlowView(c) {

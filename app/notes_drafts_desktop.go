@@ -44,6 +44,9 @@ func (s *desktopNoteDrafts) accountRoot(userID id.ID, create bool) (*os.Root, er
 	}
 	info, err := os.Lstat(s.root)
 	if errors.Is(err, os.ErrNotExist) && !create {
+		if err := validateMissingStoragePath(s.root); err != nil {
+			return nil, fmt.Errorf("baca induk direktori draf perangkat: %w", err)
+		}
 		return nil, nil
 	}
 	if err != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/egoist/mygo/ui"
 	"net/http"
 	"strings"
 	"time"
@@ -36,10 +37,10 @@ type TasksAPI interface {
 var _ TasksAPI = (*client.Client)(nil)
 
 type taskDraft struct {
-	taskID, owner, assignee                                                                    id.ID
-	version                                                                                    int64
-	title, description, output, category, deadline, deadlineTime, posting, postingTime, reason string
-	shared                                                                                     map[id.ID]bool
+	taskID, owner, assignee                                                                                                    id.ID
+	version                                                                                                                    int64
+	title, description, output, category, plannedStart, plannedStartTime, deadline, deadlineTime, posting, postingTime, reason string
+	shared                                                                                                                     map[id.ID]bool
 }
 type tasksUIState struct {
 	seq                                                      uint64
@@ -121,7 +122,7 @@ func (a *App) loadTasks() {
 				return
 			}
 			a.conn = connOnline
-			a.tasks.items = tasks
+			a.tasks.items = a.overlayPendingTasks(tasks)
 			a.tasks.loaded = true
 			a.projectTasks()
 			if a.tasks.pendingOpen != id.Nil {
@@ -222,12 +223,23 @@ func (a *App) projectTasks() {
 		if q != "" && !strings.Contains(strings.ToLower(t.Title+" "+t.Category+" "+t.Assignee.DisplayName), q) {
 			continue
 		}
-		tasks = append(tasks, workspaceui.Task{ID: t.ID, Title: t.Title, Description: t.Description, ExpectedOutput: t.ExpectedOutput, Category: t.Category, Assignee: t.Assignee.DisplayName, Deadline: taskDate(t.DeadlineDate, t.DeadlineAt, t.TimeZone), Posting: taskDate(t.PostingDate, t.PostingAt, t.TimeZone), Space: a.taskSpaceNames(t), Lane: taskLane(t), ReadOnly: !t.Permissions.Manage && (!t.Permissions.Progress || t.Progress == api.TaskDone || t.Progress == api.TaskCancelled)})
+		title := t.Title
+		if t.LocalPending {
+			title += " · perangkat, belum cloud"
+		}
+		tasks = append(tasks, workspaceui.Task{ID: t.ID, Title: title, Description: t.Description, ExpectedOutput: t.ExpectedOutput, Category: t.Category, Color: a.taskCardColor(t.Category), Assignee: t.Assignee.DisplayName, Deadline: taskDate(t.DeadlineDate, t.DeadlineAt, t.TimeZone), Posting: taskDate(t.PostingDate, t.PostingAt, t.TimeZone), Space: a.taskSpaceNames(t), Lane: taskLane(t), ReadOnly: !t.Permissions.Manage && (!t.Permissions.Progress || t.Progress == api.TaskDone || t.Progress == api.TaskCancelled)})
+	}
+	for i, color := range a.chrome.preferences.LaneColors {
+		if color != "" {
+			a.workspace.LaneColors[i] = spaceAccent(color)
+		} else {
+			a.workspace.LaneColors[i] = ui.Color{}
+		}
 	}
 	_ = a.workspace.SetTasks(tasks)
 	a.workspace.OnMove = a.moveTask
 	a.workspace.Details = a.taskDetails
-	if a.tasks.busy || a.tasks.loading || a.conn == connOffline {
+	if a.tasks.busy || a.tasks.loading || (a.conn == connOffline && !a.offlineAvailable()) {
 		a.workspace.OnMove = nil
 	}
 }
@@ -292,6 +304,10 @@ func (a *App) moveTask(m workspaceui.MoveRequest) {
 		a.tasks.notice = "Tulis alasan pada panel kanan sebelum membuka kembali tugas."
 		return
 	}
+	if a.offlineMode() {
+		a.queueProgress(*t, laneProgress(m.Destination))
+		return
+	}
 	req := api.TaskMoveRequest{Progress: laneProgress(m.Destination), BeforeID: m.BeforeID, ExpectedVersion: t.Version, Reason: reason}
 	tid := t.ID
 	a.mutateTask("Perpindahan tugas", func(s TasksAPI) error { _, err := s.MoveTask(context.Background(), tid, req); return err }, nil)
@@ -310,6 +326,7 @@ func (a *App) manageableDivisions() []api.Division {
 	return ds
 }
 func (a *App) beginTask() {
+	a.chrome.datePickers = nil
 	ds := a.manageableDivisions()
 	if len(ds) == 0 {
 		return
@@ -326,10 +343,12 @@ func (a *App) beginTask() {
 	a.loadTaskMembers(ds[0].ID)
 }
 func (a *App) editTask(t api.Task) {
+	a.chrome.datePickers = nil
 	d := &taskDraft{taskID: t.ID, owner: t.OwnerDivisionID, assignee: t.Assignee.ID, version: t.Version, title: t.Title, description: t.Description, output: t.ExpectedOutput, category: t.Category, shared: map[id.ID]bool{}}
 	for _, sid := range t.SpaceIDs {
 		d.shared[sid] = true
 	}
+	d.plannedStart, d.plannedStartTime = draftDate(t.PlannedStartDate, t.PlannedStartAt, t.TimeZone)
 	d.deadline, d.deadlineTime = draftDate(t.DeadlineDate, t.DeadlineAt, t.TimeZone)
 	d.posting, d.postingTime = draftDate(t.PostingDate, t.PostingAt, t.TimeZone)
 	a.tasks.draft = d
@@ -388,6 +407,11 @@ func (a *App) saveTask() {
 		a.tasks.err = "Tenggat: " + err.Error()
 		return
 	}
+	sd, st, err := parseTaskDate(d.plannedStart, d.plannedStartTime, zone, false)
+	if err != nil {
+		a.tasks.err = "Mulai: " + err.Error()
+		return
+	}
 	pd, pt, err := parseTaskDate(d.posting, d.postingTime, zone, false)
 	if err != nil {
 		a.tasks.err = "Posting: " + err.Error()
@@ -397,7 +421,7 @@ func (a *App) saveTask() {
 		a.tasks.err = "Isi judul, hasil yang diharapkan, dan penanggung jawab utama."
 		return
 	}
-	req := api.TaskWriteRequest{OwnerDivisionID: d.owner, Title: d.title, Description: d.description, ExpectedOutput: d.output, Category: d.category, AssigneeID: d.assignee, DeadlineDate: dd, DeadlineAt: dt, PostingDate: pd, PostingAt: pt, Reason: d.reason, ExpectedVersion: d.version}
+	req := api.TaskWriteRequest{OwnerDivisionID: d.owner, Title: d.title, Description: d.description, ExpectedOutput: d.output, Category: d.category, AssigneeID: d.assignee, PlannedStartDate: sd, PlannedStartAt: st, DeadlineDate: dd, DeadlineAt: dt, PostingDate: pd, PostingAt: pt, Reason: d.reason, ExpectedVersion: d.version}
 	for sid, on := range d.shared {
 		if on {
 			req.SpaceIDs = append(req.SpaceIDs, sid)

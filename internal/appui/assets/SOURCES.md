@@ -11,10 +11,19 @@ prototype, revision 03.1, on 27 October 2026:
   <https://v2.himasif.id/storage/25/5.-MEDIATEK.png>.
 - `humas.png`: the Humas division logo displayed by the same profile, originally
   fetched from <https://v2.himasif.id/storage/24/4.-HUMAS.png>.
+- `psdm.png`: PSDM division logo from <https://v2.himasif.id/storage/20/1.-PSDM.png>.
+- `kaderisasi.png`: Kaderisasi division logo from
+  <https://v2.himasif.id/storage/22/2.-KADERISASI.png>.
+- `litbang.png`: Litbang division logo from
+  <https://v2.himasif.id/storage/23/3.-LITBANG.png>.
 
-The PNGs are the display-sized copies already used by the prototype; their
-artwork and colors are preserved. Unknown division slugs deliberately return no
-logo. A shared space such as Medhum does not inherit either division's identity.
+Division assets are embedded for offline display; their artwork and colors are
+preserved. Files are fetched from the profile above at full size and scaled down
+by `ui.Image`. Lookups use the slugs written by `internal/seed` (`humas`,
+`kader`, `litbang`, `mediatek`, `psdm`); `kaderisasi` is accepted as an alias.
+BPH has no published emblem and keeps the neutral mark. Unknown division slugs
+deliberately return no logo, and a shared space such as Medhum does not inherit
+either division's identity.
 
 `../icons.go` contains the prototype's local interface SVG paths from `app.js`
 and `refined.js`. Settings and WhatsApp use the refined paths approved after the

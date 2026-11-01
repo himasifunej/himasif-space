@@ -312,6 +312,9 @@ func (s *Server) deleteNoteAttachment(w http.ResponseWriter, r *http.Request, p 
 		if !removed {
 			return errNotFound
 		}
+		if _, err = q.Exec(r.Context(), `update attachment_upload_receipts set removed_at=$3 where id=$1 and note_id=$2 and removed_at is null`, aid, n.ID, s.now()); err != nil {
+			return err
+		}
 		return s.noteEvent(r, q, p, n, "note.attachment.remove", "", map[string]any{"attachmentId": aid}, nil)
 	})
 	if err != nil {

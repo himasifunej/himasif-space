@@ -32,19 +32,26 @@ func (s *Store) TaskPeriod(ctx context.Context, q Querier, tid id.ID) (id.ID, er
 // Task loads the canonical record and its children inside the caller's snapshot.
 func (s *Store) Task(ctx context.Context, q Querier, tid id.ID, lock string) (TaskRow, error) {
 	var t TaskRow
-	var deadline, posting *string
+	var deadline, posting, planned *string
 	err := q.QueryRow(ctx, `select t.id,t.period_id,t.owner_division_id,t.title,t.description,t.expected_output,t.category,
  t.assignee_id,a.display_name,t.deadline_date::text,t.deadline_at,t.posting_date::text,t.posting_at,p.time_zone,
- t.progress,t.match_status,t.version,t.created_by,c.display_name,t.created_at,t.updated_at,t.rank,t.resume_progress
+ t.progress,t.match_status,t.version,t.created_by,c.display_name,t.created_at,t.updated_at,t.rank,t.resume_progress,t.planned_start_date::text,t.planned_start_at
  from tasks t join users a on a.id=t.assignee_id join users c on c.id=t.created_by join periods p on p.id=t.period_id
  where t.id=$1`+taskLock(lock), tid).Scan(&t.ID, &t.PeriodID, &t.OwnerDivisionID, &t.Title, &t.Description, &t.ExpectedOutput, &t.Category,
 		&t.Assignee.ID, &t.Assignee.DisplayName, &deadline, &t.DeadlineAt, &posting, &t.PostingAt, &t.TimeZone,
-		&t.Progress, &t.MatchStatus, &t.Version, &t.CreatedBy.ID, &t.CreatedBy.DisplayName, &t.CreatedAt, &t.UpdatedAt, &t.Rank, &t.ResumeProgress)
+		&t.Progress, &t.MatchStatus, &t.Version, &t.CreatedBy.ID, &t.CreatedBy.DisplayName, &t.CreatedAt, &t.UpdatedAt, &t.Rank, &t.ResumeProgress, &planned, &t.PlannedStartAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return t, ErrNotFound
 	}
 	if err != nil {
 		return t, err
+	}
+	if planned != nil {
+		d, e := timeutil.ParseDate(*planned)
+		if e != nil {
+			return t, e
+		}
+		t.PlannedStartDate = &d
 	}
 	if deadline != nil {
 		d, e := timeutil.ParseDate(*deadline)
@@ -100,8 +107,8 @@ func (s *Store) Task(ctx context.Context, q Querier, tid id.ID, lock string) (Ta
 	if err != nil {
 		return t, err
 	}
-	rows, err = q.Query(ctx, `select e.id,u.id,u.display_name,e.url,e.note,e.match_status,e.submitted_at,e.reviewed_at,r.id,r.display_name,e.review_reason
- from task_evidence e join users u on u.id=e.submitted_by left join users r on r.id=e.reviewed_by where e.task_id=$1 order by e.submitted_at,e.id`, tid)
+	rows, err = q.Query(ctx, `select e.id,u.id,u.display_name,e.url,e.note,e.match_status,e.submitted_at,e.recorded_at,e.reviewed_at,r.id,r.display_name,e.review_reason
+ from task_evidence e join users u on u.id=e.submitted_by left join users r on r.id=e.reviewed_by where e.task_id=$1 order by e.recorded_at,e.id`, tid)
 	if err != nil {
 		return t, err
 	}
@@ -126,7 +133,7 @@ func scanTaskEvidence(r pgx.CollectableRow) (api.TaskEvidence, error) {
 	var e api.TaskEvidence
 	var uid *id.ID
 	var name *string
-	err := r.Scan(&e.ID, &e.SubmittedBy.ID, &e.SubmittedBy.DisplayName, &e.URL, &e.Note, &e.MatchStatus, &e.SubmittedAt, &e.ReviewedAt, &uid, &name, &e.ReviewReason)
+	err := r.Scan(&e.ID, &e.SubmittedBy.ID, &e.SubmittedBy.DisplayName, &e.URL, &e.Note, &e.MatchStatus, &e.SubmittedAt, &e.RecordedAt, &e.ReviewedAt, &uid, &name, &e.ReviewReason)
 	if uid != nil {
 		e.ReviewedBy = &api.PersonRef{ID: *uid, DisplayName: *name}
 	}
@@ -143,8 +150,8 @@ func (s *Store) TaskIDs(ctx context.Context, q Querier, pid id.ID) ([]id.ID, err
 }
 
 func (s *Store) InsertTask(ctx context.Context, q Querier, t TaskRow) error {
-	_, err := q.Exec(ctx, `insert into tasks(id,period_id,owner_division_id,title,description,expected_output,category,assignee_id,deadline_date,deadline_at,posting_date,posting_at,progress,match_status,rank,created_by,created_at,updated_at)
- values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`, t.ID, t.PeriodID, t.OwnerDivisionID, t.Title, t.Description, t.ExpectedOutput, t.Category, t.Assignee.ID, t.DeadlineDate, t.DeadlineAt, t.PostingDate, t.PostingAt, t.Progress, t.MatchStatus, t.Rank, t.CreatedBy.ID, t.CreatedAt, t.UpdatedAt)
+	_, err := q.Exec(ctx, `insert into tasks(id,period_id,owner_division_id,title,description,expected_output,category,assignee_id,deadline_date,deadline_at,posting_date,posting_at,progress,match_status,rank,created_by,created_at,updated_at,planned_start_date,planned_start_at)
+ values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`, t.ID, t.PeriodID, t.OwnerDivisionID, t.Title, t.Description, t.ExpectedOutput, t.Category, t.Assignee.ID, t.DeadlineDate, t.DeadlineAt, t.PostingDate, t.PostingAt, t.Progress, t.MatchStatus, t.Rank, t.CreatedBy.ID, t.CreatedAt, t.UpdatedAt, t.PlannedStartDate, t.PlannedStartAt)
 	if err != nil {
 		return err
 	}
@@ -166,8 +173,8 @@ func (s *Store) TaskSpaces(ctx context.Context, q Querier, t TaskRow) error {
 // concurrency is checked before any child mutation; only this task is bumped.
 func (s *Store) SaveTask(ctx context.Context, q Querier, t TaskRow) error {
 	_, e := q.Exec(ctx, `update tasks set title=$2,description=$3,expected_output=$4,category=$5,assignee_id=$6,deadline_date=$7,deadline_at=$8,
- posting_date=$9,posting_at=$10,progress=$11,match_status=$12,resume_progress=$13,rank=$14,version=$15,updated_at=$16 where id=$1`,
-		t.ID, t.Title, t.Description, t.ExpectedOutput, t.Category, t.Assignee.ID, t.DeadlineDate, t.DeadlineAt, t.PostingDate, t.PostingAt, t.Progress, t.MatchStatus, t.ResumeProgress, t.Rank, t.Version, t.UpdatedAt)
+ posting_date=$9,posting_at=$10,progress=$11,match_status=$12,resume_progress=$13,rank=$14,version=$15,updated_at=$16,planned_start_date=$17,planned_start_at=$18 where id=$1`,
+		t.ID, t.Title, t.Description, t.ExpectedOutput, t.Category, t.Assignee.ID, t.DeadlineDate, t.DeadlineAt, t.PostingDate, t.PostingAt, t.Progress, t.MatchStatus, t.ResumeProgress, t.Rank, t.Version, t.UpdatedAt, t.PlannedStartDate, t.PlannedStartAt)
 	return e
 }
 
@@ -230,7 +237,10 @@ func (s *Store) DecideTaskHelp(ctx context.Context, q Querier, tid id.ID, h api.
 	return e
 }
 func (s *Store) AddTaskEvidence(ctx context.Context, q Querier, tid id.ID, e api.TaskEvidence) error {
-	_, err := q.Exec(ctx, `insert into task_evidence(id,task_id,submitted_by,url,note,match_status,submitted_at) values($1,$2,$3,$4,$5,$6,$7)`, e.ID, tid, e.SubmittedBy.ID, e.URL, e.Note, e.MatchStatus, e.SubmittedAt)
+	if e.RecordedAt.IsZero() {
+		e.RecordedAt = e.SubmittedAt
+	}
+	_, err := q.Exec(ctx, `insert into task_evidence(id,task_id,submitted_by,url,note,match_status,submitted_at,recorded_at) values($1,$2,$3,$4,$5,$6,$7,$8)`, e.ID, tid, e.SubmittedBy.ID, e.URL, e.Note, e.MatchStatus, e.SubmittedAt, e.RecordedAt)
 	if isUniqueViolation(err) {
 		return ErrConflict
 	}

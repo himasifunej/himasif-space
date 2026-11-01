@@ -16,6 +16,10 @@ Sebelum mengubah kode, baca PRD, koreksi keputusan, keadaan proyek dan instruksi
 
 Jangan menyalin secret akun/bot ke dokumen handoff. Jangan mengubah Reo, sheet produksi, DNS atau deployment live sebagai efek samping membuat prototype lokal.
 
+## Status implementasi 28 Oktober 2026
+
+Implementasi lokal Sesi 2C dan seluruh Tahap 3A–3C ditulis sesuai permintaan pengguna, dengan aplikasi versi 0.2.0. Pengguna meminta **tanpa verifikasi/pengujian** dan akan mengujinya sendiri. Tidak menjalankan build, tes, vet, inspeksi runtime/Windows, pengukuran performa atau migrasi database. Perubahan sesi ini berada pada worktree; belum diklaim terbit/merged di GitHub atau siap produksi. Lihat [handoff](handoff/session-2c-stage-3.md) dan [panduan uji mandiri](handoff/session-2c-stage-3-manual.md).
+
 ## Tahap 0 — Dokumentasi sebelum implementasi
 
 - [x] Menyusun PRD lengkap.
@@ -100,6 +104,8 @@ Penerimaan: AC-33–34; dasar versi/draf disiapkan untuk offline.
 
 ### Sesi 2C: rapat dan penjadwal pengingat
 
+Status: **implementasi lokal ditulis, menunggu pengujian pengguna**. Rapat, peserta/kehadiran, notulensi, scheduler/outbox, kebijakan divisi/tugas, ping, inbox, sudah lihat dan snooze tersedia pada sumber. Adapter WA mencatat belum terhubung; tidak mengklaim pengiriman WA nyata. Lihat handoff 2C/3.
+
 - Jadwal, peserta, lokasi/link, note, kehadiran/waktu datang oleh penyelenggara.
 - H-2/H-1/H-0 06.00 WIB untuk tugas; rapat H-1/1 jam/15 menit; overdue harian.
 - Ping default/kustom, umum/tugas/rapat, pilihan kanal, sudah lihat dan snooze.
@@ -111,6 +117,8 @@ Penerimaan: AC-25–29, AC-35. Kanal desktop/WA bisa memakai adapter uji sampai 
 
 ### Sesi 3A: MyGo, tray dan notifikasi Windows
 
+Status: **implementasi lokal ditulis, belum dibangun/diuji**. Tray/keluar, autostart, helper WinRT toast modern dengan AUMID/protokol, pembukaan objek, bel bawaan/WAV dan volume perangkat. Pengujian Windows nyata, pengaturan sistem/suara dan distribusi tetap menunggu pengguna.
+
 - MyGo memakai UI native Go yang sama pada desktop dan WASM sesuai ADR 0001; lifecycle tutup-ke-tray dan keluar eksplisit.
 - Opsi mulai saat login, toast Windows modern, klik membuka tugas/rapat.
 - Bel bawaan, suara/volume pengguna, impor audio dan satu bel per kejadian.
@@ -119,6 +127,8 @@ Penerimaan: AC-25–29, AC-35. Kanal desktop/WA bisa memakai adapter uji sampai 
 Penerimaan: AC-39–40. Periksa kemampuan versi MyGo saat implementasi; kebutuhan toast tidak diganti menjadi balloon hanya karena API bawaan lebih mudah.
 
 ### Sesi 3B: Ace dan personalisasi
+
+Status: **implementasi lokal ditulis, belum diuji/diukur**. Ace SVG bawaan, mode floating/edge/hidden, drag/posisi/pemulihan monitor, dialog dan impor PNG/GIF; preferensi perangkat tersimpan. Pengukuran idle/animasi dan perilaku monitor menunggu pengguna.
 
 - Aset Ace default dan identitas logo tetap melalui proses desain.
 - Mengambang, tepi/hover seperti screenshot, disembunyikan, pemulihan dari tray.
@@ -130,6 +140,8 @@ Penerimaan: AC-41–42; notifikasi tetap hidup saat Ace disembunyikan.
 
 ### Sesi 3C: cache, antrean dan konflik offline
 
+Status: **implementasi lokal ditulis, belum diuji**. Cache akun untuk data yang diunduh, antrean progres/Notes/respons pengingat, simpan atomik, receipt server, penggabungan bidang berbeda, konflik eksplisit, penolakan izin dan status sinkronisasi. Lampiran pending tidak diklaim sebagai file cloud; unggah biner tidak ditambahkan. Skenario restart/retry/pergantian akun menunggu pengguna.
+
 - Cache tugas/jadwal/notes, draf lokal dan antrean perubahan.
 - Indikator offline/lokal/belum cloud/menyinkronkan/tersinkron.
 - Penggabungan bidang berbeda dan resolusi konflik bidang sama dengan kedua versi terjaga.
@@ -139,6 +151,8 @@ Penerimaan: AC-41–42; notifikasi tetap hidup saat Ace disembunyikan.
 Penerimaan: AC-36–38, termasuk restart perangkat sebelum sinkronisasi dan izin yang berubah.
 
 ## Tahap 4 — Medhum dan bot
+
+Checkpoint lokal terbaru: 4A dan sebagian besar alur 4B sudah ditulis pada worktree, termasuk worker bridge/inbox/outbox, identitas/command dan UI pengelolaan WhatsApp. Belum build/test/migrasi atau pairing nyata. Inti parser/bukti dan UI tinjauan 4C juga sudah ditulis; belum dicocokkan dengan contoh broadcast asli atau diuji. Transport telah dipisahkan dari transaksi panjang dan fondasi evaluator/API konfigurasi/konteks/izin SOP 4D ditulis. Backend worker temuan, keputusan/riwayat, follow-up H-4 serta rekap/quarter/CSV 4D juga ditulis. UI Evaluasi, ralat lintas divisi/paginasi, bahasa respons inti, acceptance 4B/4C/4D dan tahap 5–6 masih tersisa. Instruksi kelanjutan adalah menyelesaikan semua tahapan lalu build/test di akhir. Lihat [worklog aktif](handoff/remaining-stages-worklog.md).
 
 ### Sesi 4A: kalender, konektor dan kepemilikan bidang
 
@@ -230,3 +244,7 @@ Status: kemungkinan pengembangan berikutnya, belum jadwal rilis.
 - AI/agent, editor animasi penuh dan kolaborasi notes simultan bila benar-benar diperlukan.
 
 Setiap backlog lanjutan memerlukan rincian kebutuhan tersendiri. Roadmap ini mempertahankan tujuan awal tanpa menganggap semua TBC telah selesai hanya karena PRD pilot lengkap.
+
+## Koreksi scope dan checkpoint 29 Oktober
+
+Pengguna meminta kelanjutan **tanpa mobile**, hasil akhir bisa diunduh, build/test tetap di akhir. Tahap 6A/6B pada roadmap historis di atas ditunda dan tidak menjadi pekerjaan aktif. Tahap 2C–5B beserta sisa integrasi, operasional/pilot dan verifikasi lengkap tetap dilanjutkan. UI Evaluasi, ralat lintas divisi, riwayat/prasyarat pengiriman dan ekspor CSV sudah ditulis; lampiran biner Notes mulai dilengkapi. Semua perubahan terbaru belum dibuild/diuji/dimigrasikan. Lihat [checkpoint](handoff/sop-ui-files.md) dan [worklog](handoff/remaining-stages-worklog.md). Paket rilis unduhan belum tersedia.

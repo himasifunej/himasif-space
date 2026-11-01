@@ -99,6 +99,11 @@ func (s *Server) auditDenied(r *http.Request, p *principal) {
 
 // record appends an audit event of p's action in the request r.
 func (s *Server) record(r *http.Request, q store.Querier, p *principal, e store.AuditEvent) error {
+	if _, ok := r.Context().Value(backgroundAuditKey{}).(id.ID); ok {
+		e.ActorKind = "system"
+		e.ActorUserID = nil
+		e.Source = "import"
+	}
 	if p != nil && e.ActorKind == "" {
 		e.ActorUserID, e.ActorKind = p.actor()
 	}
@@ -106,6 +111,10 @@ func (s *Server) record(r *http.Request, q store.Querier, p *principal, e store.
 		e.Source = "api"
 	}
 	e.RequestID = requestID(r.Context())
+	if inboundID, ok := r.Context().Value(waAuditKey{}).(id.ID); ok {
+		e.Source = "whatsapp"
+		e.RequestID = "wa:" + inboundID.String()
+	}
 	if e.OccurredAt.IsZero() {
 		e.OccurredAt = s.now()
 	}

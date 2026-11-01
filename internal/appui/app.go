@@ -88,7 +88,12 @@ const (
 // call Start once the window exists.
 type App struct {
 	// ServerURL is shown on the login and settings pages.
-	ServerURL string
+	ServerURL      string
+	PickFile       func(maxBytes int64, done func(SelectedFile, error))
+	ExportFile     func(name, mediaType string, data []byte) (string, error)
+	Notifications  NotificationSink
+	DeviceSettings func(*ui.Context)
+	SessionChanged func(id.ID)
 	// Version is the app's version, shown in the settings.
 	Version string
 	// ClientName names the app to the server at login: "desktop" or "web".
@@ -96,17 +101,26 @@ type App struct {
 	// PreferencesStore persists appearance on this device, separately from tokens.
 	PreferencesStore PreferencesStore
 	// NoteDrafts keeps account-scoped recovery copies on this device.
-	NoteDrafts        NoteDraftStore
-	preferencesLoaded bool
-	chrome            chromeState
-	workspace         *workspaceui.State
-	access            workspaceAccessState
-	tasks             tasksUIState
-	reminders         remindersUIState
-	notes             notesUIState
-	organization      organizationUIState
-	archives          archiveAdminUIState
-	account           accountFlowState
+	PendingFiles              PendingFileStore
+	NoteDrafts                NoteDraftStore
+	preferencesLoaded         bool
+	chrome                    chromeState
+	realtime                  realtimeUIState
+	workspace                 *workspaceui.State
+	access                    workspaceAccessState
+	tasks                     tasksUIState
+	reminders                 remindersUIState
+	notes                     notesUIState
+	meetings                  meetingsState
+	deliveries                deliveriesState
+	operations                operationsUIState
+	emergency                 emergencyUIState
+	offlineSync               offlineUIState
+	notificationSettingsState notificationSettingsState
+	taskNotification          taskNotificationState
+	organization              organizationUIState
+	archives                  archiveAdminUIState
+	account                   accountFlowState
 
 	api    API
 	tokens TokenStore
@@ -147,7 +161,12 @@ type App struct {
 	divisionsLoading bool
 	divisionsErr     string
 
-	router *ui.Router
+	router     *ui.Router
+	medhum     medhumState
+	connectors connectorUIState
+	whatsapp   whatsappUIState
+	waContent  waContentUIState
+	evaluation sopUIState
 }
 
 // New returns the app's state. update runs a function on the view's thread
@@ -267,6 +286,9 @@ func (a *App) enterShell(u api.User) {
 	a.resetWorkspace()
 	a.user = u
 	a.screen = screenShell
+	if a.SessionChanged != nil {
+		a.SessionChanged(u.ID)
+	}
 	a.conn = connOnline
 	a.notice, a.startErr, a.loginErr = "", "", ""
 	a.lastPing = time.Time{}
@@ -301,6 +323,9 @@ func (a *App) expire() {
 
 // toLogin forgets the session and shows the login with a notice.
 func (a *App) toLogin(notice string) {
+	if a.SessionChanged != nil {
+		a.SessionChanged(id.Nil)
+	}
 	a.accountSessionEnded()
 	a.resetWorkspace()
 	a.gen++

@@ -18,7 +18,7 @@ func (s *State) View(c *ui.Context) ui.Element {
 	dragging := false
 	root := ui.Row(c).Fill().MinWidth(0).Gap(0)
 	root.Children(func() {
-		ui.Column(c.Key("board-area")).Grow(1).MinWidth(0).FillHeight().Gap(16).Padding(22).Children(func() {
+		ui.Column(c.Key("board-area")).Transition(ui.ElementTransition{Duration: 260 * time.Millisecond, Size: true, Position: true}).Grow(1).MinWidth(0).FillHeight().Gap(16).Padding(22).Children(func() {
 			ui.Row(c).FillWidth().AlignItems(ui.Center).Children(func() {
 				ui.Column(c).Grow(1).Gap(4).Children(func() {
 					ui.Text(c, "Board tugas").FontSize(22).Bold()
@@ -26,13 +26,7 @@ func (s *State) View(c *ui.Context) ui.Element {
 				})
 				ui.Text(c, fmt.Sprintf("%d tugas", len(s.tasks))).FontSize(12).TextColor(t.TextMuted)
 			})
-			if len(s.tasks) == 0 {
-				ui.Column(c).Fill().AlignItems(ui.Center).Justify(ui.Center).Gap(10).Label("Board kosong").Children(func() {
-					ui.Text(c, "Belum ada tugas").FontSize(19).Bold()
-					ui.Text(c, "Tugas yang dibagikan ke space ini akan tampil di sini.").FontSize(13).TextColor(t.TextMuted)
-				})
-				return
-			}
+
 			scroll := ui.ScrollHorizontal(c.Key("board-scroll")).Grow(1).MinHeight(0).FillWidth().TrackScroll(&s.boardScroll).Label("Kolom board")
 			scroll.Children(func() {
 				ui.Row(c).FillHeight().Gap(14).Padding(0, 0, 10, 0).Children(func() {
@@ -80,7 +74,7 @@ func (s *State) lane(c *ui.Context, lane Lane, dragging *bool) {
 			count++
 		}
 	}
-	column := ui.Column(c).Width(268).Shrink(0).FillHeight().MinHeight(0).Gap(12).Label("Kolom " + lane.String())
+	column := ui.Column(c).Width(268).Shrink(0).FillHeight().MinHeight(0).Gap(12).Padding(8).Radius(10).Background(t.SurfacePressed).Border(1, t.Border).Label("Kolom " + lane.String())
 	column.Children(func() {
 		ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Padding(2).Children(func() {
 			color := t.TextMuted
@@ -91,6 +85,9 @@ func (s *State) lane(c *ui.Context, lane Lane, dragging *bool) {
 				color = t.Warning
 			case Done:
 				color = t.Success
+			}
+			if s.LaneColors[lane].A != 0 {
+				color = s.LaneColors[lane]
 			}
 			ui.Box(c).Size(7, 7).Radius(4).Background(color)
 			ui.Text(c, lane.String()).FontSize(13).Bold().Grow(1)
@@ -104,9 +101,15 @@ func (s *State) lane(c *ui.Context, lane Lane, dragging *bool) {
 					}
 				}
 				end := ui.Column(c.Key("lane-end")).FillWidth().MinHeight(82).Padding(18).Radius(10).Label("Akhir " + lane.String())
+				if count == 0 {
+					end.MinHeight(240).Border(1, t.Border).Background(t.Background).Justify(ui.Center).AlignItems(ui.Center)
+				}
 				end.Children(func() {
 					if count == 0 {
 						ui.Text(c, "Belum ada tugas").FontSize(12).TextColor(t.TextMuted)
+						if s.OnMove != nil {
+							ui.Text(c, "Tarik tugas ke lajur ini").FontSize(11).TextColor(t.TextMuted)
+						}
 					}
 				})
 				if s.OnMove != nil {
@@ -130,6 +133,10 @@ func (s *State) card(c *ui.Context, task Task, dragging *bool) {
 		categoryInk = t.TextMuted
 	}
 	card := ui.ButtonBase(c).Label("Tugas "+task.Title).FillWidth().MinWidth(0).Padding(15).Radius(11).Background(t.Surface).Border(1, t.Border)
+	if task.Color.A != 0 {
+		card.BorderWidth(1, 1, 1, 3).BorderColor(task.Color)
+		categoryInk = task.Color
+	}
 	card.FocusRing(card.FocusVisible())
 	if card.Hovered() {
 		card.Background(t.SurfaceHover)
@@ -278,7 +285,7 @@ func (s *State) inspector(c *ui.Context, task Task) {
 	if !t.Dark {
 		categoryInk = t.TextMuted
 	}
-	ui.Column(c).Width(340).Shrink(0).FillHeight().MinWidth(0).Background(t.Surface).BorderWidth(0, 0, 0, 1).BorderColor(t.Border).Label("Detail tugas").Children(func() {
+	Drawer(c, &s.InspectorWidth, func() {
 		ui.Row(c).FillWidth().Padding(18).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, "Detail tugas").FontSize(12).TextColor(t.TextMuted).Grow(1)
 			close := ui.ButtonBase(c.Key("close-inspector")).Label("Tutup detail tugas").Size(28, 28).Radius(6)

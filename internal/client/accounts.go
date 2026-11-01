@@ -11,7 +11,7 @@ import (
 // work begins. Switching accounts cannot redirect a queued credential operation
 // onto the next account's session. The HTTP transport remains shared.
 func (c *Client) AccountSession() *Client {
-	return &Client{BaseURL: c.BaseURL, HTTP: c.HTTP, Token: c.token()}
+	return &Client{BaseURL: c.BaseURL, HTTP: c.HTTP, Token: c.token(), Offline: c.Offline}
 }
 
 // InspectInvitation selects the new-account or existing-account invitation flow.

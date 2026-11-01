@@ -12,19 +12,37 @@ import (
 
 type chromeState struct {
 	preferences                                                        Preferences
+	datePickers                                                        map[string]*datePickerState
+	drawerWidth                                                        float32
+	membersOpen                                                        bool
 	tab, settingsTab                                                   string
 	divisionID                                                         id.ID
 	appearance, periodOpen, profileOpen, notificationsOpen, searchOpen bool
 	search, customAccent, preferencesErr                               string
+	members                                                            headerMembersState
+	syncOpen                                                           bool
 }
 
 func (a *App) resetWorkspace() {
+	a.stopRealtime()
+	a.operations = operationsUIState{seq: a.operations.seq + 1}
+	a.emergency = emergencyUIState{seq: a.emergency.seq + 1}
+	a.evaluation = sopUIState{seq: a.evaluation.seq + 1}
+	a.waContent = waContentUIState{seq: a.waContent.seq + 1}
+	a.whatsapp = whatsappUIState{seq: a.whatsapp.seq + 1}
+	a.connectors = connectorUIState{seq: a.connectors.seq + 1}
+	a.medhum = medhumState{seq: a.medhum.seq + 1}
 	p, err := a.chrome.preferences, a.chrome.preferencesErr
 	a.chrome = chromeState{preferences: p, preferencesErr: err, tab: "Beranda", settingsTab: "WhatsApp"}
 	a.workspace = workspaceui.New()
 	a.resetAccess()
 	a.tasksContextChanged()
 	a.resetReminders()
+	a.meetings = meetingsState{}
+	a.deliveries = deliveriesState{}
+	a.offlineSync = offlineUIState{}
+	a.notificationSettingsState = notificationSettingsState{}
+	a.taskNotification = taskNotificationState{}
 	a.resetOrganization()
 }
 
@@ -98,7 +116,7 @@ func spaceIconButton(c *ui.Context, label, icon string) ui.Element {
 func popover(c *ui.Context, anchor ui.Element, open *bool, width float32, fn func()) {
 	ui.PopoverBase(c, anchor, open, func(panel ui.Element) {
 		t := c.Theme()
-		panel.Width(width).MaxHeight(420).Padding(12).Gap(6).Radius(12).Background(t.Surface).Border(1, t.Border).Shadow(0, 8, 24, 0, ui.RGBA(0, 0, 0, .25))
+		panel.Margin(6, 0, 0, 0).Width(width).MaxHeight(420).Padding(12).Gap(6).Radius(12).Background(t.Surface).Border(1, t.Border).Shadow(0, 8, 24, 0, ui.RGBA(0, 0, 0, .25))
 		fn()
 	}).AttachTo(anchor, ui.AnchorBottomRight, ui.AnchorTopRight)
 }
@@ -108,7 +126,16 @@ func (a *App) navigate(path string) {
 }
 
 func (a *App) shell(c *ui.Context) {
+	if c.Shortcut(ui.Ctrl, ui.KeyB) || c.Shortcut(ui.Cmd, ui.KeyB) {
+		a.chrome.preferences.SidebarCollapsed = !a.chrome.preferences.SidebarCollapsed
+		a.savePreferences(c)
+	}
+
+	a.tickOffline(c.Now())
+	a.tickRealtime(c)
 	a.tickNotes(c.Now())
+	a.tickDeliveries(c.Now())
+	c.After(15 * time.Second)
 	if a.notes.editor != nil && (a.notes.editing || a.notes.dirty) {
 		c.After(500 * time.Millisecond)
 	}
@@ -124,8 +151,9 @@ func (a *App) shell(c *ui.Context) {
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Grow(1).MinHeight(0).FillWidth().AlignItems(ui.Stretch).Children(func() {
 			a.sidebar(c)
-			ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+			ui.Column(c.Key("main-area")).Transition(ui.ElementTransition{Duration: 180 * time.Millisecond, Size: true, Position: true}).Grow(1).MinWidth(0).Children(func() {
 				a.header(c)
+				a.offlineBanner(c)
 				ui.Row(c).Grow(1).MinHeight(0).FillWidth().AlignItems(ui.Stretch).Children(func() {
 					a.router.View(c, func(r *ui.Route) { a.page(c, r) }).Grow(1).MinWidth(0).MinHeight(0)
 					// Keep one inspector at a time so the board remains usable
@@ -172,7 +200,7 @@ func (a *App) sidebar(c *ui.Context) {
 	if compact {
 		gap = 2
 	}
-	ui.Column(c.Key("sidebar")).Width(width).Shrink(0).Padding(12).Gap(gap).Background(t.Surface).BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
+	ui.Column(c.Key("sidebar")).Transition(ui.ElementTransition{Duration: 180 * time.Millisecond, Size: true}).Width(width).Shrink(0).Padding(12).Gap(gap).Background(t.Surface).BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
 		brandHeight := float32(62)
 		if compact {
 			brandHeight = 48
@@ -186,7 +214,13 @@ func (a *App) sidebar(c *ui.Context) {
 				})
 			}
 		})
-		a.periodPicker(c, collapsed)
+		// A growing spacer would push the picker to the middle of the sidebar,
+		// so the separation rides on the picker's own top margin instead.
+		periodGap := float32(8)
+		if compact {
+			periodGap = 6
+		}
+		a.periodPicker(c, collapsed, periodGap)
 		if !collapsed {
 			muted(c, "PRIBADI").FontSize(10).Padding(10, 8, 2, 8)
 		}
@@ -196,35 +230,27 @@ func (a *App) sidebar(c *ui.Context) {
 			muted(c, "SPACE").FontSize(10).Padding(10, 8, 2, 8)
 		}
 		a.navButton(c, PathSpaces, "Space saya", "grid", collapsed)
-		limit := int((h - 780) / 40)
-		if compact {
-			limit = int((h - 600) / 40)
-		}
-		limit = max(0, min(limit, 5))
-		for i, s := range a.access.spaces {
-			if i >= limit {
-				break
-			}
-			icon := "grid"
-			if s.Kind == api.SpaceShared {
-				icon = "link"
-			}
-			active := a.selectedSpaceID() == s.ID && a.router.Path() == PathSpaces
-			if a.sidebarSpaceButton(c.Key(s.ID), s, icon, active, collapsed).Clicked() {
-				a.selectSpace(s.ID)
-				a.navigate(PathSpaces)
-			}
-		}
-
-		if !compact && a.selectedSpace() != nil && a.router.Path() == PathSpaces {
-			for _, tab := range []struct{ label, icon string }{{"Beranda", "home"}, {"Board tugas", "board"}, {"Agenda", "calendar"}, {"Notes", "note"}} {
-				if a.sideButton(c, tab.label, tab.icon, a.chrome.tab == tab.label, collapsed).Clicked() {
-					a.chrome.tab = tab.label
+		ui.Scroll(c.Key("space-navigation")).Grow(1).MinHeight(48).FillWidth().Label("Divisi dan ruang").Children(func() {
+			for _, s := range a.access.spaces {
+				icon := "grid"
+				if s.Kind == api.SpaceShared {
+					icon = "link"
+				}
+				active := a.selectedSpaceID() == s.ID && a.router.Path() == PathSpaces
+				if a.sidebarSpaceButton(c.Key(s.ID), s, icon, active, collapsed).Clicked() {
+					a.selectSpace(s.ID)
+					a.navigate(PathSpaces)
 				}
 			}
-		}
 
-		ui.Box(c).Grow(1).MinHeight(0)
+			if !compact && a.selectedSpace() != nil && a.router.Path() == PathSpaces {
+				for _, tab := range []struct{ label, icon string }{{"Beranda", "home"}, {"Board tugas", "board"}, {"Agenda", "calendar"}, {"Notes", "note"}} {
+					if a.sideButton(c, tab.label, tab.icon, a.chrome.tab == tab.label, collapsed).Clicked() {
+						a.chrome.tab = tab.label
+					}
+				}
+			}
+		})
 		a.navButton(c, PathArsip, "Arsip periode", "archive", collapsed)
 		if a.sideButton(c, "Penampilan", "palette", a.chrome.appearance, collapsed).Clicked() {
 			a.chrome.appearance = !a.chrome.appearance
@@ -282,7 +308,7 @@ func (a *App) navButton(c *ui.Context, path, label, icon string, collapsed bool)
 		a.navigate(path)
 	}
 }
-func (a *App) periodPicker(c *ui.Context, collapsed bool) {
+func (a *App) periodPicker(c *ui.Context, collapsed bool, topGap float32) {
 	t := c.Theme()
 	label := "Periode"
 	text := "Pilih periode"
@@ -292,9 +318,9 @@ func (a *App) periodPicker(c *ui.Context, collapsed bool) {
 	}
 	var anchor ui.Element
 	if collapsed {
-		anchor = spaceIconButton(c, label, "calendar").FillWidth()
+		anchor = spaceIconButton(c, label, "calendar").FillWidth().Margin(topGap, 0, 0, 0)
 	} else {
-		anchor = ui.ButtonBase(c).Label(label).FillWidth().Row().AlignItems(ui.Center).Padding(11).Gap(10).Radius(10).Border(1, t.Border)
+		anchor = ui.ButtonBase(c).Label(label).FillWidth().Margin(topGap, 0, 0, 0).Row().AlignItems(ui.Center).Padding(11).Gap(10).Radius(10).Border(1, t.Border)
 		anchor.FocusRing(anchor.FocusVisible())
 		anchor.Children(func() {
 			ui.Icon(c, spaceIcon("archive")).Size(18, 18)
@@ -363,6 +389,7 @@ func (a *App) profile(c *ui.Context, collapsed bool) {
 		}
 	})
 	if b.Clicked() {
+		a.chrome.membersOpen = false
 		a.chrome.profileOpen = !a.chrome.profileOpen
 		a.chrome.notificationsOpen = false
 		a.chrome.searchOpen = false
@@ -392,6 +419,11 @@ func (a *App) header(c *ui.Context) {
 		title = a.spaceTitle()
 	}
 	ui.Row(c).FillWidth().Height(84).Shrink(0).Padding(16, 24).Gap(16).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
+		if div := a.selectedDivision(); div != nil && a.router.Path() == PathSpaces {
+			if logo := divisionLogo(div.Slug); logo != nil {
+				ui.Image(c, logo).Size(32, 32).Shrink(0).Fit(ui.Contain)
+			}
+		}
 		ui.Column(c).Grow(1).MinWidth(90).Gap(5).Children(func() {
 			ui.Text(c, title).FontSize(24).Bold().MaxLines(1)
 			s := "HIMASIF"
@@ -407,23 +439,26 @@ func (a *App) header(c *ui.Context) {
 		ui.Column(c).Width(searchWidth).Shrink(0).Children(func() {
 			var input ui.Element
 			shortcut := c.Shortcut(ui.Ctrl, ui.KeyK) || c.Shortcut(ui.Cmd, ui.KeyK)
-			ui.Row(c).FillWidth().Height(40).Padding(0, 10).Gap(8).AlignItems(ui.Center).Radius(9).Border(1, t.Border).Children(func() {
+			searchAnchor := ui.Row(c).FillWidth().Height(40).Padding(0, 10).Gap(8).AlignItems(ui.Center).Radius(9).Border(1, t.Border).Children(func() {
 				ui.Icon(c, spaceIcon("search")).Size(16, 16).TextColor(t.TextMuted)
-				input = ui.TextInput(c.Key("global-search"), &a.chrome.search).Label("Cari di Space").Placeholder("Cari tugas, notes, atau anggota…").Grow(1).MinWidth(0).Background(ui.RGBA(0, 0, 0, 0)).BorderWidth(0)
+				input = ui.TextInput(c.Key("global-search"), &a.chrome.search).Label("Cari di Space").Placeholder("Cari tugas atau halaman…").Grow(1).MinWidth(0).Background(ui.RGBA(0, 0, 0, 0)).BorderWidth(0)
 				if shortcut {
 					input.Focus()
 				}
 				if input.Clicked() || input.Changed() || shortcut {
 					a.chrome.searchOpen = true
+					a.chrome.membersOpen = false
 					a.chrome.notificationsOpen = false
 					a.chrome.profileOpen = false
 				}
 				ui.Text(c, "Ctrl K").FontSize(9).TextColor(t.TextMuted)
 			})
-			popover(c, input, &a.chrome.searchOpen, searchWidth, func() { a.searchResults(c) })
+			popover(c, searchAnchor, &a.chrome.searchOpen, searchWidth, func() { a.searchResults(c) })
 		})
+		a.headerMembers(c)
 		b := spaceIconButton(c, "Notifikasi", "bell")
 		if b.Clicked() {
+			a.chrome.membersOpen = false
 			a.chrome.notificationsOpen = !a.chrome.notificationsOpen
 			a.chrome.searchOpen = false
 			a.chrome.profileOpen = false
@@ -431,6 +466,7 @@ func (a *App) header(c *ui.Context) {
 		popover(c, b, &a.chrome.notificationsOpen, 310, func() {
 			ui.Text(c, "Notifikasi").FontSize(17).Bold()
 			muted(c, "Pembaruan yang memerlukan perhatianmu.")
+			a.deliveryNotifications(c)
 			a.taskNotifications(c)
 		})
 		a.taskHeaderAction(c)
@@ -482,31 +518,53 @@ func (a *App) statusbar(c *ui.Context) {
 		if a.conn == connOffline && spaceButton(c, "Coba lagi", "refresh", false).Padding(2, 6).MinHeight(22).Clicked() {
 			a.ping(c.Now())
 		}
+		if a.realtime.period != id.Nil {
+			label := "Periksa berkala"
+			if a.realtime.connected {
+				label = "Langsung"
+			}
+			b := spaceButton(c, label, "wifi", false).Label("Aktivitas sinkronisasi").Padding(2, 6).MinHeight(22)
+			if b.Clicked() {
+				a.chrome.syncOpen = !a.chrome.syncOpen
+			}
+			popover(c, b, &a.chrome.syncOpen, 300, func() {
+				ui.Text(c, "Aktivitas sinkronisasi").Bold()
+				for _, event := range a.realtime.activity {
+					muted(c, event)
+				}
+				if !a.realtime.connected {
+					muted(c, "Menyambungkan pembaruan langsung; sementara diperiksa setiap 30 detik.")
+				}
+			})
+		}
 		ui.Box(c).Grow(1)
-		ui.Text(c, "Ctrl K · Cari    Esc · Tutup menu").FontSize(10).TextColor(t.TextMuted)
+		ui.Text(c, "Ctrl B · Sidebar    Ctrl K · Cari    Esc · Tutup menu").FontSize(10).TextColor(t.TextMuted)
 		ui.Text(c, "Space · "+a.Version).FontSize(10).TextColor(t.TextMuted)
 	})
 }
 func (a *App) appearance(c *ui.Context) {
 	t := c.Theme()
 	p := &a.chrome.preferences
-	ui.Column(c).Width(288).Shrink(0).FillHeight().Background(t.Surface).BorderWidth(0, 0, 0, 1).BorderColor(t.Border).Children(func() {
+	workspaceui.Drawer(c.Key("appearance-drawer"), &a.chrome.drawerWidth, func() {
 		ui.Row(c).FillWidth().Padding(18).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, "Penampilan").FontSize(18).Bold().Grow(1)
 			if spaceIconButton(c, "Tutup penampilan", "close").Clicked() {
 				a.chrome.appearance = false
 			}
 		})
-		ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Children(func() {
-			ui.Column(c).FillWidth().Padding(18).Gap(18).Children(func() {
+		ui.Scroll(c).Label("Scroll penampilan").Grow(1).MinHeight(0).FillWidth().Children(func() {
+			ui.Column(c).FillWidth().Padding(18).Gap(14).Children(func() {
 				muted(c, "Sesuaikan ruang kerjamu. Preferensi disimpan di perangkat ini.")
 				ui.Text(c, "Tema").Bold()
-				for _, mode := range []struct{ key, label, icon string }{{"dark", "Gelap", "moon"}, {"light", "Terang", "sun"}, {"system", "Ikuti sistem", "monitor"}} {
-					if spaceButton(c, mode.label, mode.icon, p.Theme == mode.key).FillWidth().Clicked() {
-						p.Theme = mode.key
-						a.savePreferences(c)
+				ui.Row(c).FillWidth().Gap(4).Children(func() {
+					for _, mode := range []struct{ key, label, icon string }{{"dark", "Gelap", "moon"}, {"light", "Terang", "sun"}, {"system", "Ikuti sistem", "monitor"}} {
+						if spaceButton(c, mode.label, mode.icon, p.Theme == mode.key).Grow(1).MinWidth(0).Padding(7, 5).Gap(4).Clicked() {
+							p.Theme = mode.key
+							a.savePreferences(c)
+						}
 					}
-				}
+				})
+				a.paletteChoices(c)
 				ui.Text(c, "Warna aksen").Bold()
 				ui.Row(c).Gap(8).Children(func() {
 					for _, accent := range []string{"sand", "sage", "blue", "lavender", "rose"} {
@@ -521,7 +579,7 @@ func (a *App) appearance(c *ui.Context) {
 						}
 					}
 				})
-				ui.TextInput(c, &a.chrome.customAccent).Label("Warna aksen khusus").Placeholder("#RRGGBB").FillWidth()
+				taskInput(c, "accent-custom", "Warna aksen khusus", &a.chrome.customAccent)
 				if spaceButton(c, "Terapkan warna", "palette", false).FillWidth().Clicked() {
 					value := strings.ToLower(strings.TrimSpace(a.chrome.customAccent))
 					normalized := NormalizePreferences(Preferences{Accent: value})
@@ -532,6 +590,7 @@ func (a *App) appearance(c *ui.Context) {
 						c.AddToast(ui.Toast{Title: "Format warna belum sesuai", Description: "Gunakan kode enam digit, misalnya #a8c2ac.", Type: "error"})
 					}
 				}
+				a.boardColorChoices(c)
 				ui.Text(c, "Tata letak").Bold()
 				if spaceButton(c, "Tampilan ringkas", "grid", p.Compact).FillWidth().Clicked() {
 					p.Compact = !p.Compact

@@ -10,13 +10,16 @@ import (
 // LocalNoteDraft is a device recovery copy, not a committed cloud note.
 // Storage is separated by account and note; no authentication data belongs here.
 type LocalNoteDraft struct {
-	SpaceID      id.ID                 `json:"spaceId"`
-	NoteID       id.ID                 `json:"noteId"`
-	Title        string                `json:"title"`
-	Content      []api.NoteBlock       `json:"content"`
-	BaseVersion  int64                 `json:"baseVersion"`
-	SavedAt      time.Time             `json:"savedAt"`
-	PendingLinks []api.NoteLinkRequest `json:"pendingLinks,omitempty"`
+	SpaceID         id.ID                 `json:"spaceId"`
+	NoteID          id.ID                 `json:"noteId"`
+	Title           string                `json:"title"`
+	Content         []api.NoteBlock       `json:"content"`
+	BaselineTitle   string                `json:"baselineTitle,omitempty"`
+	BaselineContent []api.NoteBlock       `json:"baselineContent,omitempty"`
+	BaselineKnown   bool                  `json:"baselineKnown,omitempty"`
+	BaseVersion     int64                 `json:"baseVersion"`
+	SavedAt         time.Time             `json:"savedAt"`
+	PendingLinks    []api.NoteLinkRequest `json:"pendingLinks,omitempty"`
 }
 
 type NoteDraftStore interface {

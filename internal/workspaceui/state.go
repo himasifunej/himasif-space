@@ -48,6 +48,7 @@ type Task struct {
 	ExpectedOutput, Evidence               string
 	Lane                                   Lane
 	ReadOnly                               bool
+	Color                                  ui.Color
 }
 
 // MoveRequest asks the caller to move a task before BeforeID in Destination.
@@ -63,7 +64,9 @@ type taskDrag struct{ ID id.ID }
 // State owns local presentation state only. A nil OnMove makes the board
 // read-only. The caller persists moves and supplies a new snapshot on success.
 type State struct {
-	OnMove func(MoveRequest)
+	OnMove         func(MoveRequest)
+	InspectorWidth float32
+	LaneColors     [5]ui.Color
 	// Details supplies a caller-owned inspector body, inside the right panel.
 	Details         func(*ui.Context, id.ID)
 	tasks           []Task

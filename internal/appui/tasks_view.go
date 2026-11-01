@@ -80,7 +80,7 @@ func (a *App) taskFeedback(c *ui.Context) {
 	}
 }
 func (a *App) taskHeaderAction(c *ui.Context) {
-	b := spaceButton(c, "Buat tugas", "plus", true).Disabled(a.isAdmin())
+	b := primarySpaceButton(c, "Buat tugas", "plus").Disabled(a.isAdmin())
 	if b.Clicked() {
 		if len(a.manageableDivisions()) > 0 {
 			a.ensureTasks(false)
@@ -154,7 +154,7 @@ func (a *App) tasksOverview(c *ui.Context) {
 	})
 }
 func (a *App) taskCreatePanel(c *ui.Context) {
-	ui.Column(c).Width(350).Shrink(0).FillHeight().MinWidth(0).Background(c.Theme().Surface).BorderWidth(0, 0, 0, 1).BorderColor(c.Theme().Border).Label("Buat tugas baru").Children(func() {
+	workspaceui.Drawer(c.Key("create-task-drawer"), &a.chrome.drawerWidth, func() {
 		ui.Row(c).FillWidth().Padding(18).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, "Delegasikan tugas").Bold().Grow(1)
 			if spaceIconButton(c, "Tutup tugas baru", "close").Disabled(a.tasks.busy).Clicked() {
@@ -235,11 +235,15 @@ func (a *App) taskEditor(c *ui.Context) {
 		if p := a.period(); p != nil {
 			zone = p.TimeZone
 		}
-		muted(c, "Tanggal YYYY-MM-DD · jam opsional HH:MM · "+zone)
-		taskInput(c, "task-deadline", "Tenggat tugas *", &d.deadline)
-		taskInput(c, "task-deadline-time", "Jam tenggat (opsional)", &d.deadlineTime)
-		taskInput(c, "task-posting", "Tanggal posting (opsional)", &d.posting)
-		taskInput(c, "task-posting-time", "Jam posting (opsional)", &d.postingTime)
+		muted(c, "Jadwal pengerjaan · "+zone)
+		a.taskSchedule(c, d)
+		a.dateField(c, "task-posting", "Tanggal posting", &d.posting, false, true)
+		if d.posting == "" {
+			d.postingTime = ""
+		}
+		if d.posting != "" {
+			clockField(c, "task-posting-time", "Jam posting", &d.postingTime, false)
+		}
 		muted(c, "Tanpa jam tetap berupa tanggal, tanpa menambahkan jam otomatis. Tenggat dan posting disimpan terpisah.")
 		var shared []api.Space
 		for _, s := range a.access.spaces {
@@ -308,10 +312,13 @@ func (a *App) taskDetails(c *ui.Context, tid id.ID) {
 	}
 	ui.Text(c, t.Title).FontSize(23).Bold()
 	muted(c, progressLabel(t.Progress)+" · "+matchLabel(t.MatchStatus))
+	if t.LocalPending {
+		muted(c, "Tersimpan di perangkat — belum tersinkron. Isi resmi server belum berubah.")
+	}
 	if t.Description != "" {
 		ui.Text(c, t.Description).FontSize(13)
 	}
-	info(c, [][2]string{{"PJ utama", t.Assignee.DisplayName}, {"Tenggat tugas", taskDate(t.DeadlineDate, t.DeadlineAt, t.TimeZone)}, {"Posting", taskDate(t.PostingDate, t.PostingAt, t.TimeZone)}, {"Space", a.taskSpaceNames(*t)}})
+	info(c, [][2]string{{"PJ utama", t.Assignee.DisplayName}, {"Mulai pengerjaan", taskDate(t.PlannedStartDate, t.PlannedStartAt, t.TimeZone)}, {"Tenggat tugas", taskDate(t.DeadlineDate, t.DeadlineAt, t.TimeZone)}, {"Posting", taskDate(t.PostingDate, t.PostingAt, t.TimeZone)}, {"Space", a.taskSpaceNames(*t)}})
 	ui.Text(c, "Hasil yang diharapkan").Bold()
 	ui.Text(c, t.ExpectedOutput).FontSize(13)
 	if len(t.Participants) > 0 {
@@ -347,6 +354,7 @@ func (a *App) taskDetails(c *ui.Context, tid id.ID) {
 			}, func() { a.tasks.comment = "" })
 		}
 	}
+	a.taskNotificationControls(c, *t)
 	ui.Text(c, "Riwayat perubahan").Bold()
 	if !a.tasks.historyLoaded {
 		if spaceButton(c, "Muat riwayat", "refresh", false).Disabled(a.tasks.historyBusy).Clicked() {
@@ -402,6 +410,22 @@ func taskTimestamp(t time.Time, zone string) string {
 	return t.In(loc).Format("02 Jan 2006 · 15:04 MST")
 }
 func (a *App) taskProgressActions(c *ui.Context, t api.Task) {
+	if a.offlineMode() {
+		if a.offlineAvailable() && t.Permissions.Progress && (t.Progress == api.TaskTodo || t.Progress == api.TaskDoing) {
+			next := api.TaskDoing
+			label := "Mulai kerjakan · simpan di perangkat"
+			if t.Progress == api.TaskDoing {
+				next = api.TaskTodo
+				label = "Belum mulai · simpan di perangkat"
+			}
+			if spaceButton(c, label, "task", false).Disabled(a.tasks.busy).Clicked() {
+				a.queueProgress(t, next)
+			}
+		}
+		muted(c, "Penyerahan, tinjauan hasil, delegasi dan perubahan deadline memerlukan koneksi.")
+		return
+	}
+
 	ui.Column(c).FillWidth().Gap(8).Disabled(a.taskWriteBlocked()).Children(func() {
 		if t.Progress == api.TaskTodo || t.Progress == api.TaskDoing {
 			label := "Mulai kerjakan"
@@ -677,7 +701,7 @@ func (a *App) taskAgenda(c *ui.Context) {
 									label string
 									date  *timeutil.Date
 									at    *time.Time
-								}{{"Tenggat", task.DeadlineDate, task.DeadlineAt}, {"Posting", task.PostingDate, task.PostingAt}} {
+								}{{"Mulai", task.PlannedStartDate, task.PlannedStartAt}, {"Tenggat", task.DeadlineDate, task.DeadlineAt}, {"Posting", task.PostingDate, task.PostingAt}} {
 									matches := event.date != nil && *event.date == date
 									if event.at != nil {
 										matches = timeutil.DateOf(event.at.In(loc)) == date

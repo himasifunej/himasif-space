@@ -308,7 +308,7 @@ func (a *App) memberInvitations(c *ui.Context) {
 	})
 }
 
-var operationalRoleChoices = []struct{ cap, label string }{{api.CapTasksManage, "Kelola tugas"}, {api.CapResultsReview, "Tinjau hasil"}, {api.CapPingSend, "Kirim ping"}, {api.CapWhatsAppManage, "Kelola WhatsApp"}, {api.CapNotesManage, "Kelola catatan"}}
+var operationalRoleChoices = []struct{ cap, label string }{{api.CapTasksManage, "Kelola tugas"}, {api.CapResultsReview, "Tinjau hasil"}, {api.CapPingSend, "Kirim ping"}, {api.CapWhatsAppManage, "Kelola WhatsApp"}, {api.CapNotesManage, "Kelola catatan"}, {api.CapSOPRead, "Baca evaluasi SOP"}, {api.CapSOPReview, "Tinjau temuan SOP"}}
 
 func (a *App) memberRoles(c *ui.Context) {
 	m := &a.access.members
@@ -367,6 +367,9 @@ func (a *App) memberConfirmation(c *ui.Context) {
 			}
 			if m.actingCustom {
 				for _, r := range operationalRoleChoices {
+					if !slices.Contains([]string{api.CapTasksManage, api.CapResultsReview, api.CapPingSend, api.CapWhatsAppManage}, r.cap) {
+						continue
+					}
 					if spaceButton(c, r.label, "check", slices.Contains(m.actingCaps, r.cap)).Disabled(m.busy).Clicked() {
 						m.actingCaps = toggleString(m.actingCaps, r.cap)
 					}

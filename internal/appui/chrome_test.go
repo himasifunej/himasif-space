@@ -167,6 +167,8 @@ func TestChromeAppearancePersistsChanges(t *testing.T) {
 	if store.value.Accent != "#123456" || store.saves != 3 {
 		t.Fatalf("custom accent was not persisted: %+v; saves %d", store.value, store.saves)
 	}
+	h.tt.Scroll(1100, 650, 0, 10000)
+	h.tt.Frame()
 	h.click("Tampilan ringkas")
 	if !store.value.Compact || store.saves != 4 {
 		t.Fatalf("density was not persisted: %+v; saves %d", store.value, store.saves)
@@ -256,7 +258,7 @@ func TestChromeBoardRouteDistinguishesUnloadedAndConfirmedSnapshots(t *testing.T
 	h.dontWant("Board kosong")
 	h.app.tasks = tasksUIState{scope: h.app.selectedSpaceID(), loaded: true, items: []api.Task{}}
 	h.tt.Frame()
-	h.want("Board kosong")
+	h.want("Kolom Belum mulai")
 	h.want("0 tugas")
 	h.dontWant("Tugas belum dapat dimuat")
 	task := api.Task{ID: id.New(), Title: "Desain dari snapshot terkonfirmasi", Progress: api.TaskTodo, Assignee: api.PersonRef{DisplayName: "Ani Wulandari"}, Description: "Tautan hasil masih memerlukan tinjauan."}

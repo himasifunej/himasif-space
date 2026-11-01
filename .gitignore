@@ -8,3 +8,15 @@ mygo_windows_*.syso
 .env
 *.env
 !.env.example
+
+# Local WhatsApp bridge sessions, assets and dependency installation
+bridge/node_modules/
+bridge/state/
+bridge/.env
+
+# Private immutable attachment blobs
+space-data/
+
+# Python operational/release tooling caches
+__pycache__/
+*.pyc

@@ -186,6 +186,7 @@ func TestInspectorShrinksBoardAndReadOnlyDisablesMoves(t *testing.T) {
 	if s.SelectedID() != tasks[2].ID {
 		t.Fatal("card did not open inspector")
 	}
+	tt.Advance(300 * time.Millisecond)
 	panel := rect(t, tt, "Detail tugas")
 	after := rect(t, tt, "Kolom board")
 	if !(after.W < before.W && after.X+after.W <= panel.X+1) {

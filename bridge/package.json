@@ -1,0 +1,13 @@
+{
+  "name": "@himasif/space-wa-bridge",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.0.0" },
+  "scripts": { "start": "node src/server.mjs", "test": "node --test" },
+  "dependencies": {
+    "@whiskeysockets/baileys": "7.0.0-rc14",
+    "pino": "10.4.0",
+    "qrcode": "1.5.4"
+  }
+}

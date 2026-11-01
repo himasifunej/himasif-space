@@ -33,49 +33,54 @@ type TaskPermissions struct {
 // Task is one canonical object projected into authorized spaces and jobdesk.
 // Exactly one of DeadlineDate/DeadlineAt is present; date-only stays date-only.
 type Task struct {
-	ID              id.ID             `json:"id"`
-	PeriodID        id.ID             `json:"periodId"`
-	OwnerDivisionID id.ID             `json:"ownerDivisionId"`
-	SpaceIDs        []id.ID           `json:"spaceIds"`
-	Title           string            `json:"title"`
-	Description     string            `json:"description"`
-	ExpectedOutput  string            `json:"expectedOutput"`
-	Category        string            `json:"category"`
-	Assignee        PersonRef         `json:"assignee"`
-	Participants    []PersonRef       `json:"participants"`
-	DeadlineDate    *timeutil.Date    `json:"deadlineDate,omitempty"`
-	DeadlineAt      *time.Time        `json:"deadlineAt,omitempty"`
-	PostingDate     *timeutil.Date    `json:"postingDate,omitempty"`
-	PostingAt       *time.Time        `json:"postingAt,omitempty"`
-	TimeZone        string            `json:"timeZone"`
-	Progress        string            `json:"progress"`
-	MatchStatus     string            `json:"matchStatus"`
-	Version         int64             `json:"version"`
-	CreatedBy       PersonRef         `json:"createdBy"`
-	CreatedAt       time.Time         `json:"createdAt"`
-	UpdatedAt       time.Time         `json:"updatedAt"`
-	Permissions     TaskPermissions   `json:"permissions"`
-	Evidence        []TaskEvidence    `json:"evidence"`
-	Comments        []TaskComment     `json:"comments"`
-	HelpRequests    []TaskHelpRequest `json:"helpRequests"`
+	LocalPending     bool              `json:"-"`
+	ID               id.ID             `json:"id"`
+	PeriodID         id.ID             `json:"periodId"`
+	OwnerDivisionID  id.ID             `json:"ownerDivisionId"`
+	SpaceIDs         []id.ID           `json:"spaceIds"`
+	Title            string            `json:"title"`
+	Description      string            `json:"description"`
+	ExpectedOutput   string            `json:"expectedOutput"`
+	Category         string            `json:"category"`
+	Assignee         PersonRef         `json:"assignee"`
+	Participants     []PersonRef       `json:"participants"`
+	PlannedStartDate *timeutil.Date    `json:"plannedStartDate,omitempty"`
+	PlannedStartAt   *time.Time        `json:"plannedStartAt,omitempty"`
+	DeadlineDate     *timeutil.Date    `json:"deadlineDate,omitempty"`
+	DeadlineAt       *time.Time        `json:"deadlineAt,omitempty"`
+	PostingDate      *timeutil.Date    `json:"postingDate,omitempty"`
+	PostingAt        *time.Time        `json:"postingAt,omitempty"`
+	TimeZone         string            `json:"timeZone"`
+	Progress         string            `json:"progress"`
+	MatchStatus      string            `json:"matchStatus"`
+	Version          int64             `json:"version"`
+	CreatedBy        PersonRef         `json:"createdBy"`
+	CreatedAt        time.Time         `json:"createdAt"`
+	UpdatedAt        time.Time         `json:"updatedAt"`
+	Permissions      TaskPermissions   `json:"permissions"`
+	Evidence         []TaskEvidence    `json:"evidence"`
+	Comments         []TaskComment     `json:"comments"`
+	HelpRequests     []TaskHelpRequest `json:"helpRequests"`
 }
 
 // TaskWriteRequest replaces editable metadata. Owner division is fixed after
 // creation. SpaceIDs adds shared spaces; the owner's division space is implicit.
 type TaskWriteRequest struct {
-	OwnerDivisionID id.ID          `json:"ownerDivisionId"`
-	SpaceIDs        []id.ID        `json:"spaceIds"`
-	Title           string         `json:"title"`
-	Description     string         `json:"description"`
-	ExpectedOutput  string         `json:"expectedOutput"`
-	Category        string         `json:"category"`
-	AssigneeID      id.ID          `json:"assigneeId"`
-	DeadlineDate    *timeutil.Date `json:"deadlineDate,omitempty"`
-	DeadlineAt      *time.Time     `json:"deadlineAt,omitempty"`
-	PostingDate     *timeutil.Date `json:"postingDate,omitempty"`
-	PostingAt       *time.Time     `json:"postingAt,omitempty"`
-	ExpectedVersion int64          `json:"expectedVersion,omitempty"`
-	Reason          string         `json:"reason,omitempty"`
+	OwnerDivisionID  id.ID          `json:"ownerDivisionId"`
+	SpaceIDs         []id.ID        `json:"spaceIds"`
+	Title            string         `json:"title"`
+	Description      string         `json:"description"`
+	ExpectedOutput   string         `json:"expectedOutput"`
+	Category         string         `json:"category"`
+	AssigneeID       id.ID          `json:"assigneeId"`
+	PlannedStartDate *timeutil.Date `json:"plannedStartDate,omitempty"`
+	PlannedStartAt   *time.Time     `json:"plannedStartAt,omitempty"`
+	DeadlineDate     *timeutil.Date `json:"deadlineDate,omitempty"`
+	DeadlineAt       *time.Time     `json:"deadlineAt,omitempty"`
+	PostingDate      *timeutil.Date `json:"postingDate,omitempty"`
+	PostingAt        *time.Time     `json:"postingAt,omitempty"`
+	ExpectedVersion  int64          `json:"expectedVersion,omitempty"`
+	Reason           string         `json:"reason,omitempty"`
 }
 
 // Move changes canonical progress and ordering. BeforeID must be a readable
@@ -126,6 +131,7 @@ type TaskEvidence struct {
 	Note         string     `json:"note"`
 	MatchStatus  string     `json:"matchStatus"`
 	SubmittedAt  time.Time  `json:"submittedAt"`
+	RecordedAt   time.Time  `json:"recordedAt"`
 	ReviewedAt   *time.Time `json:"reviewedAt,omitempty"`
 	ReviewedBy   *PersonRef `json:"reviewedBy,omitempty"`
 	ReviewReason string     `json:"reviewReason,omitempty"`
