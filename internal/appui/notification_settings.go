@@ -25,7 +25,7 @@ type notificationSettingsState struct {
 func (a *App) notificationSettings(c *ui.Context) {
 	a.ensureMeetings()
 	sp := a.selectedSpace()
-	pageBody(c, "Pengingat dan ping", func() {
+	settingsBody(c, "Pengingat dan ping", "Atur jadwal pengingat tugas dan kirim ping sesuai izin di Space.", func() {
 		if sp == nil {
 			muted(c, "Pilih Space untuk mengatur pengingat divisi atau mengirim ping.")
 			for _, s := range a.access.spaces {
@@ -51,20 +51,21 @@ func (a *App) notificationSettings(c *ui.Context) {
 			ui.Text(c, st.err).TextColor(c.Theme().Danger)
 		}
 		if did != id.Nil && !sp.ReadOnly {
-			ui.Text(c, "Jadwal tugas").Bold()
 			if !st.loaded && !st.busy {
 				a.loadNotificationPolicy()
 			}
-			for _, f := range []struct {
-				label string
-				value *string
-			}{{"Hari sebelum tenggat · pisahkan koma", &st.days}, {"Jam lokal · 0–23", &st.hour}, {"Menit · 0–59", &st.minute}, {"Overdue setiap berapa hari · 1–30", &st.overdue}} {
-				ui.TextInput(c.Key(f.label), f.value).Label(f.label).FillWidth()
-			}
-			if spaceButton(c, "Simpan jadwal divisi", "check", true).Disabled(st.busy || a.conn != connOnline).Clicked() {
-				a.saveNotificationPolicy()
-			}
-			muted(c, "Bawaan H-2/H-1/H-0 pukul 06.00 pada zona periode. Deadline tetap terpisah dari jam pengiriman. Slot historis tidak dibunyikan seluruhnya saat kembali online.")
+			pageSection(c, "Jadwal tugas", "Tentukan hari dan jam pengingat untuk tugas divisi.", func() {
+				for _, f := range []struct {
+					label string
+					value *string
+				}{{"Hari sebelum tenggat · pisahkan koma", &st.days}, {"Jam lokal · 0–23", &st.hour}, {"Menit · 0–59", &st.minute}, {"Overdue setiap berapa hari · 1–30", &st.overdue}} {
+					ui.Field(c.Key(f.label), f.label, func() { ui.TextInput(c, f.value).Label(f.label).FillWidth() })
+				}
+				if spaceButton(c, "Simpan jadwal divisi", "check", true).Disabled(st.busy || a.conn != connOnline).Clicked() {
+					a.saveNotificationPolicy()
+				}
+				muted(c, "Bawaan H-2/H-1/H-0 pukul 06.00 pada zona periode. Deadline tetap terpisah dari jam pengiriman. Slot historis tidak dibunyikan seluruhnya saat kembali online.")
+			})
 		}
 		if !slices.Contains(sp.Capabilities, api.CapPingSend) || sp.ReadOnly {
 			return
@@ -96,7 +97,7 @@ func (a *App) notificationSettings(c *ui.Context) {
 				}
 			}
 		}
-		ui.TextInput(c, &st.pingMessage).Label("Pesan · kosong memakai pesan bawaan").FillWidth()
+		ui.Field(c, "Pesan · kosong memakai pesan bawaan", func() { ui.TextInput(c, &st.pingMessage).Label("Pesan · kosong memakai pesan bawaan").FillWidth() })
 		ui.Row(c).Wrap().Gap(8).Children(func() {
 			if spaceButton(c, "Perangkat", "monitor", st.device).Clicked() {
 				st.device = !st.device
@@ -301,7 +302,9 @@ func (a *App) taskNotificationControls(c *ui.Context, t api.Task) {
 		label string
 		v     *string
 	}{{"Hari sebelum deadline", &st.days}, {"Jam lokal", &st.hour}, {"Menit", &st.minute}, {"Overdue setiap N hari", &st.overdue}} {
-		ui.TextInput(c.Key(f.label), f.v).Label(f.label).FillWidth().Disabled(st.busy || a.conn != connOnline)
+		ui.Field(c.Key(f.label), f.label, func() {
+			ui.TextInput(c, f.v).Label(f.label).FillWidth().Disabled(st.busy || a.conn != connOnline)
+		})
 	}
 	if st.err != "" {
 		muted(c, st.err)

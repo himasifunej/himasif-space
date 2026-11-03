@@ -2,6 +2,7 @@ package appui
 
 import (
 	"strings"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/himasifunej/himasif-space/internal/api"
@@ -28,15 +29,53 @@ func (a *App) remindersView(c *ui.Context) {
 		})
 		a.reminderFeedback(c)
 		ui.Row(c).Grow(1).MinHeight(0).FillWidth().MinWidth(0).AlignItems(ui.Stretch).Children(func() {
-			ui.Scroll(c).Grow(1).MinWidth(0).MinHeight(0).Label("Daftar reminder pribadi").Children(func() {
-				ui.Column(c).FillWidth().MinWidth(0).Padding(22).Gap(18).Children(func() {
-					a.reminderPrivacyPreference(c)
-					muted(c, "Reminder pribadi hanya dikirim ke perangkat pemilik, tanpa grup WhatsApp. Tanggal tanpa jam memakai pukul 06.00 pada zona reminder; slot yang sudah lewat sebelum dibuat tidak dikirim ulang.")
-					ui.TextInput(c.Key("reminder-filter"), &a.reminders.filter).FillWidth().Label("Cari reminder").Placeholder("Cari judul atau catatan…")
-					a.reminderList(c)
+			panelOpen := (a.reminders.draft != nil || a.reminders.selected != id.Nil) && !a.chrome.appearance
+			w, _ := c.Size()
+			maxListWidth := max(float32(220), min(float32(480), w-244-350))
+			if a.reminders.listWidth == 0 {
+				a.reminders.listWidth = 290
+			}
+			shownWidth := min(max(a.reminders.listWidth, 220), maxListWidth)
+			listColumn := ui.Column(c.Key("reminder-list-column")).Transition(ui.ElementTransition{Duration: 180 * time.Millisecond, Size: true, Position: true}).MinWidth(0).MinHeight(0).FillHeight()
+			if panelOpen {
+				listColumn.Width(shownWidth).Shrink(0)
+			} else {
+				listColumn.Grow(1)
+			}
+			listColumn.Children(func() {
+				ui.Scroll(c).Grow(1).FillWidth().MinWidth(0).MinHeight(0).Label("Daftar reminder pribadi").Children(func() {
+					ui.Column(c).FillWidth().MinWidth(0).Padding(18).Gap(14).Children(func() {
+						if panelOpen {
+							if spaceButton(c, "Privasi reminder", "lock", a.reminders.privacyOpen).FillWidth().Clicked() {
+								a.reminders.privacyOpen = !a.reminders.privacyOpen
+							}
+						}
+						if !panelOpen || a.reminders.privacyOpen {
+							a.reminderPrivacyPreference(c)
+							muted(c, "Reminder pribadi hanya dikirim ke perangkat pemilik, tanpa grup WhatsApp. Tanggal tanpa jam memakai pukul 06.00 pada zona reminder; slot yang sudah lewat sebelum dibuat tidak dikirim ulang.")
+						}
+						ui.TextInput(c.Key("reminder-filter"), &a.reminders.filter).FillWidth().Label("Cari reminder").Placeholder("Cari judul atau catatan…")
+						a.reminderList(c)
+					})
 				})
+				if panelOpen {
+					edge := ui.Box(c.Key("reminder-resize")).Label("Ubah lebar daftar reminder").Tooltip("Tarik untuk mengubah lebar · panah kiri/kanan").Absolute().Right(0).Top(0).Width(6).FillHeight().Cursor(ui.CursorResizeEW).Focusable()
+					dx, _, held := edge.Dragged()
+					if held && dx != 0 {
+						a.reminders.listWidth = min(max(shownWidth+dx, 220), maxListWidth)
+					}
+					if edge.Shortcut(0, ui.KeyLeft) {
+						a.reminders.listWidth = max(shownWidth-24, 220)
+					}
+					if edge.Shortcut(0, ui.KeyRight) {
+						a.reminders.listWidth = min(shownWidth+24, maxListWidth)
+					}
+					if edge.Hovered() || held || edge.FocusVisible() {
+						edge.Background(c.Theme().Accent)
+					}
+				}
 			})
-			if (a.reminders.draft != nil || a.reminders.selected != id.Nil) && !a.chrome.appearance {
+			if panelOpen {
 				a.reminderPanel(c)
 			}
 		})
@@ -48,12 +87,8 @@ func (a *App) reminderFeedback(c *ui.Context) {
 		ui.Text(c, a.reminders.err).FillWidth().MinWidth(0).Padding(8, 22).FontSize(12).TextColor(c.Theme().Danger)
 	}
 	if a.reminders.notice != "" {
-		ui.Row(c).FillWidth().MinWidth(0).Padding(8, 22).Gap(8).Children(func() {
-			ui.Text(c, a.reminders.notice).FontSize(12).TextColor(c.Theme().Accent).Grow(1).MinWidth(0)
-			if spaceIconButton(c, "Tutup informasi reminder", "close").Clicked() {
-				a.reminders.notice = ""
-			}
-		})
+		c.AddToast(ui.Toast{Title: a.reminders.notice, Type: "success", Timeout: 8 * time.Second})
+		a.reminders.notice = ""
 	}
 	if a.reminders.busy {
 		muted(c, "Menyimpan perubahan ke server…").Padding(6, 22)
@@ -163,7 +198,7 @@ func (a *App) reminderPanel(c *ui.Context) {
 	if creating {
 		title = "Reminder baru"
 	}
-	ui.Column(c).Width(350).Shrink(0).MinWidth(0).MinHeight(0).FillHeight().Background(c.Theme().Surface).BorderWidth(0, 0, 0, 1).BorderColor(c.Theme().Border).Label("Panel reminder").Children(func() {
+	ui.Column(c.Key("reminder-panel")).Transition(ui.ElementTransition{Duration: 180 * time.Millisecond, Size: true, Position: true}).Grow(1).MinWidth(0).MinHeight(0).FillHeight().Background(c.Theme().Surface).BorderWidth(0, 0, 0, 1).BorderColor(c.Theme().Border).Label("Panel reminder").Children(func() {
 		ui.Row(c).FillWidth().Padding(16).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, title).Bold().Grow(1).MinWidth(0)
 			if spaceIconButton(c, "Tutup reminder", "close").Disabled(a.reminders.busy).Clicked() {
@@ -213,8 +248,7 @@ func (a *App) reminderEditor(c *ui.Context) {
 		taskLongInput(c, "reminder-notes", "Catatan reminder", &d.notes)
 		taskInput(c, "reminder-date", "Tanggal reminder *", &d.date)
 		muted(c, "Gunakan YYYY-MM-DD, misalnya 2026-10-31.").FontSize(11)
-		taskInput(c, "reminder-clock", "Jam reminder (opsional)", &d.clock)
-		muted(c, "Gunakan HH:MM. Kosongkan untuk menyimpan tanggal tanpa jam.").FontSize(11)
+		a.reminderClockField(c, &d.clock)
 		taskInput(c, "reminder-zone", "Zona waktu reminder", &d.zone)
 		muted(c, "Zona IANA, misalnya Asia/Jakarta. Tidak mengikuti perubahan periode.").FontSize(11)
 	})

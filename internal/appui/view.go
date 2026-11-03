@@ -19,19 +19,26 @@ func (a *App) View(c *ui.Context) {
 	c.SetTheme(paletteTheme(dark, a.chrome.preferences))
 	t := c.Theme()
 	ui.Column(c).Fill().Background(t.Background).TextColor(t.Text).Children(func() {
-		if a.accountFlowView(c) {
-			return
+		if bar := c.TitleBar(); bar.Height > 0 {
+			ui.Row(c).FillWidth().Height(bar.Height).Shrink(0).Padding(0, bar.Right+12, 0, bar.Left+12).AlignItems(ui.Center).DragWindow().Background(t.Surface).Children(func() {
+				ui.Text(c, "Space · Ruang Kerja HIMASIF").FontSize(11).TextColor(t.TextMuted)
+			})
 		}
-		switch a.screen {
-		case screenStarting:
-			a.starting(c)
-		case screenOffline:
-			a.offline(c)
-		case screenShell:
-			a.shell(c)
-		default:
-			a.loginView(c)
-		}
+		ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
+			if a.accountFlowView(c) {
+				return
+			}
+			switch a.screen {
+			case screenStarting:
+				a.starting(c)
+			case screenOffline:
+				a.offline(c)
+			case screenShell:
+				a.shell(c)
+			default:
+				a.loginView(c)
+			}
+		})
 	})
 }
 

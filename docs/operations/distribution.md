@@ -1,6 +1,6 @@
 # Distribusi dan pemulihan versi Space
 
-Candidate `0.3.0-pilot.5`, tanpa mobile. Hasil build/test aktual untuk setiap paket dicatat dalam `verification.json` dan log pendamping. Keberadaan panduan ini sendiri bukan bukti tes lulus. Builder tidak mengaktifkan DNS atau auto-update. Deployment backend AWS yang diminta pengguna dicatat terpisah dalam [backend AWS](aws-pilot.md).
+Candidate `0.3.0-pilot.10`, tanpa mobile. Pengguna meminta tidak menjalankan tes Go pada tahap ini; jangan menyatakan perubahan sesudah pilot.9 sudah lulus tes. Hasil build/test aktual untuk setiap paket dicatat dalam `verification.json` dan log pendamping. Keberadaan panduan ini sendiri bukan bukti tes lulus. Builder tidak mengaktifkan DNS atau auto-update. Deployment backend AWS yang diminta pengguna dicatat terpisah dalam [backend AWS](aws-pilot.md).
 
 ## Isi paket akhir
 

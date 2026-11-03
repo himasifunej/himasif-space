@@ -248,7 +248,7 @@ func (a *App) emergencyView(c *ui.Context) {
 	if st.user != a.user.ID || st.period != a.periodID {
 		*st = emergencyUIState{seq: st.seq + 1, user: a.user.ID, period: a.periodID, space: a.selectedSpaceID()}
 	}
-	pageBody(c, "Salinan darurat dan rekonsiliasi", func() {
+	settingsBody(c, "Salinan darurat dan rekonsiliasi", "Siapkan salinan tugas dan tinjau perubahan setelah layanan pulih.", func() {
 		if a.period() == nil {
 			muted(c, "Pilih periode terlebih dahulu.")
 			return
@@ -360,9 +360,11 @@ func (a *App) emergencyView(c *ui.Context) {
 			if selected == 0 {
 				return
 			}
-			if ui.TextArea(c, &st.reason).Label("Alasan menerapkan rekonsiliasi").FillWidth().Height(80).Changed() {
-				st.confirmed = false
-			}
+			ui.Field(c, "Alasan menerapkan rekonsiliasi", func() {
+				if ui.TextArea(c, &st.reason).Label("Alasan menerapkan rekonsiliasi").FillWidth().Height(80).Changed() {
+					st.confirmed = false
+				}
+			})
 			ui.Checkbox(c, &st.confirmed, "Saya sudah memeriksa baris terpilih, baseline dan keadaan server terbaru.").Disabled(st.busy)
 			if spaceButton(c, fmt.Sprintf("Terapkan %d progres yang siap", ready), "check", false).Disabled(st.busy || a.offlineMode() || ready == 0 || !st.confirmed || strings.TrimSpace(st.reason) == "").Clicked() {
 				a.reconcileEmergency("apply")

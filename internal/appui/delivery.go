@@ -25,12 +25,13 @@ type DeliveryAPI interface {
 	SendPing(context.Context, id.ID, api.PingRequest) error
 }
 type deliveriesState struct {
-	items      []api.Delivery
-	loading    bool
-	last       time.Time
-	err        string
-	offered    map[string]bool
-	navigation *deliveryNavigation
+	items           []api.Delivery
+	loading         bool
+	last            time.Time
+	err             string
+	notificationErr string
+	offered         map[string]bool
+	navigation      *deliveryNavigation
 }
 
 func (a *App) deliveryService() (DeliveryAPI, bool) {
@@ -108,7 +109,9 @@ func (a *App) PollDeliveries() {
 							return
 						}
 						if err != nil {
-							a.deliveries.err = "Notifikasi perangkat belum diterima: " + err.Error()
+							a.deliveries.notificationErr = "Notifikasi perangkat belum diterima: " + err.Error()
+						} else {
+							a.deliveries.notificationErr = ""
 						}
 					}
 				})
@@ -291,6 +294,9 @@ func (a *App) applyNotificationNavigation() {
 	}
 }
 func (a *App) deliveryNotifications(c *ui.Context) {
+	if a.deliveries.notificationErr != "" {
+		ui.Text(c, a.deliveries.notificationErr).FontSize(12).TextColor(c.Theme().Danger)
+	}
 	if a.deliveries.err != "" {
 		muted(c, a.deliveries.err)
 	}

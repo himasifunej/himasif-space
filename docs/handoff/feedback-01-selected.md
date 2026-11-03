@@ -21,6 +21,14 @@ Tab di atas untuk beberapa drawer (misalnya Penampilan dan Buat tugas), referens
 
 Implementasi desktop/web dilanjutkan pada proyek AWS terisolasi. Kandidat baru: `0.3.0-pilot.5`.
 
+Tindak lanjut note pilot.5 disiapkan untuk kandidat `0.3.0-pilot.6`: pemilih jam reminder, tata letak board dan title bar, halaman pengaturan, serta diagnosis notifikasi perangkat. Verifikasi Windows asli untuk notifikasi dan title bar tetap diperlukan; versi server aktif tidak otomatis berubah dengan pemasangan desktop.
+
+Kandidat `0.3.0-pilot.7` melanjutkan perbaikan board agar kolom turut mengecil saat panel terbuka dan menjaga pesan kegagalan notifikasi tetap terlihat setelah sinkronisasi ulang.
+
+Kandidat `0.3.0-pilot.8` menambahkan label yang terlihat pada isian pengaturan pengingat, WhatsApp, perangkat, dan rekonsiliasi. Verifikasi notifikasi dan title bar pada Windows asli masih diperlukan.
+
+Kandidat `0.3.0-pilot.9` mempertahankan status notifikasi yang belum pasti ketika jurnal perangkat dibaca ulang; status itu tidak lagi dianggap berhasil tanpa bukti.
+
 QA native pada AWS telah lulus: form kalender/jam dan skip, rentang mulai–tenggat terpisah dari posting, palet dengan aksen khusus, Ctrl+B, drag tepi drawer, batas lebar dan reduced motion. Capture berasal dari renderer MyGo yang dipakai bersama desktop/web. Uji realtime membuktikan reconnect, penolakan callback konteks lama dan pelestarian draf. Refresh detail note mempertahankan baseline/draf serta memperbarui komentar dan mendeteksi konflik.
 
 Uji PostgreSQL disposable telah membuktikan selesai rapat nullable, round trip tanggal mulai termasuk penghapusan dan zona waktu campuran, SSE committed/rollback, komentar tanpa bump versi induk, serta pencabutan membership dan sesi. Migrasi tambahan 0022 mencakup child task/note/rapat dan perubahan akun/sesi. Notifikasi pengiriman pribadi tetap memiliki polling 15 detik; jangan mengklaim semua modul memakai SSE.

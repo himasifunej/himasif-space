@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"fmt"
 	"image/png"
 	"slices"
 	"strings"
@@ -34,6 +35,71 @@ type whatsappUIState struct {
 	mapJID                               string
 	commandsEnabled                      bool
 	command                              *api.WACustomCommand
+	polling                              bool
+	pollSeq                              uint64
+	pollNext, pollUntil                  time.Time
+}
+
+func waQRBitmap(value string) *ui.Bitmap {
+	if !strings.HasPrefix(value, "data:image/png;base64,") || len(value) >= 2<<20 {
+		return nil
+	}
+	data, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(value, "data:image/png;base64,"))
+	if err != nil {
+		return nil
+	}
+	decoded, err := png.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil
+	}
+	return ui.NewBitmap(decoded)
+}
+
+// Poll only the session while pairing, without replacing unsaved settings.
+func (a *App) waPollPairing(c *ui.Context) {
+	st := &a.whatsapp
+	if st.connection == nil || st.pollUntil.IsZero() || c.Now().After(st.pollUntil) {
+		return
+	}
+	if st.polling || st.loading || st.busy {
+		c.After(time.Second)
+		return
+	}
+	if c.Now().Before(st.pollNext) {
+		c.After(st.pollNext.Sub(c.Now()))
+		return
+	}
+	cl := a.notificationClient()
+	if cl == nil {
+		return
+	}
+	gen, seq, pollSeq, connectionID := a.gen, st.seq, st.pollSeq, st.connection.ID
+	st.polling = true
+	st.pollNext = c.Now().Add(3 * time.Second)
+	a.async(func() func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+		defer cancel()
+		session, err := cl.WAState(ctx, connectionID)
+		qr := waQRBitmap(session.QR)
+		return func() {
+			if !a.waCurrent(gen, seq) || a.whatsapp.pollSeq != pollSeq {
+				return
+			}
+			current := &a.whatsapp
+			current.polling = false
+			if err != nil {
+				current.notice = "Status perangkat belum dapat diperbarui. Coba muat ulang."
+				return
+			}
+			current.session, current.qr = session, qr
+			if session.Status == "connected" {
+				current.pollUntil = time.Time{}
+				current.notice = "WhatsApp berhasil terhubung."
+				a.loadWhatsApp()
+			}
+		}
+	})
+	c.After(3 * time.Second)
 }
 
 func (a *App) ensureWhatsApp() {
@@ -100,15 +166,7 @@ func (a *App) loadWhatsApp() {
 			if stateErr != nil {
 				notice = "Konfigurasi tersimpan. Status bridge belum dapat diperiksa."
 			} else {
-				if strings.HasPrefix(session.QR, "data:image/png;base64,") && len(session.QR) < 2<<20 {
-					data, e := base64.StdEncoding.DecodeString(strings.TrimPrefix(session.QR, "data:image/png;base64,"))
-					if e == nil {
-						decoded, decodeErr := png.Decode(bytes.NewReader(data))
-						if decodeErr == nil {
-							qr = ui.NewBitmap(decoded)
-						}
-					}
-				}
+				qr = waQRBitmap(session.QR)
 				if session.Status == "connected" {
 					groups, _ = cl.WAAvailableGroups(context.Background(), connection.ID)
 				}
@@ -155,6 +213,8 @@ func (a *App) waRun(work func() error) {
 		return
 	}
 	gen, seq := a.gen, a.whatsapp.seq
+	a.whatsapp.pollSeq++
+	a.whatsapp.polling = false
 	a.whatsapp.busy = true
 	a.whatsapp.err = ""
 	a.async(func() func() {
@@ -166,6 +226,7 @@ func (a *App) waRun(work func() error) {
 			a.whatsapp.busy = false
 			a.whatsapp.qr = nil
 			if err != nil {
+				a.whatsapp.pollUntil = time.Time{}
 				a.whatsapp.err = a.failed(err)
 				return
 			}
@@ -221,7 +282,7 @@ func (a *App) waHeader(c *ui.Context) bool {
 }
 
 func (a *App) whatsappSettings(c *ui.Context) {
-	pageBody(c, "WhatsApp divisi", func() {
+	settingsBody(c, "WhatsApp divisi", "Kelola identitas dan sesi WhatsApp pada divisi yang dipilih.", func() {
 		if !a.waHeader(c) {
 			return
 		}
@@ -258,8 +319,32 @@ func (a *App) whatsappSettings(c *ui.Context) {
 			pageNotice(c, "shield", "Pengaturan koneksi", "Koneksi dan command dikelola kadiv atau pemegang izin WhatsApp divisi.")
 			return
 		}
+		pageSection(c, "Pusat kendali WhatsApp", "Status perangkat dan aktivitas pengingat divisi.", func() {
+			status := "Belum dikonfigurasi"
+			if st.connection != nil {
+				status = st.session.Status
+				if status == "" {
+					status = st.connection.Status
+				}
+				if label := map[string]string{"connected": "Terhubung", "connecting": "Menyambungkan", "pairing": "Menunggu pemindaian QR", "disconnected": "Terputus", "needs_pairing": "Perlu ditautkan ulang"}[status]; label != "" {
+					status = label
+				}
+			}
+			ui.Text(c, "Perangkat: "+status).Bold()
+			muted(c, fmt.Sprintf("Aktivitas pengiriman: %d catatan", len(st.outbox)))
+			if len(st.outbox) == 0 {
+				muted(c, "Belum ada aktivitas pengiriman yang dapat ditampilkan.")
+			} else {
+				for _, item := range st.outbox[:min(3, len(st.outbox))] {
+					muted(c, item.GroupName+" · "+item.Status+" · "+item.CreatedAt.Local().Format("02 Jan 15:04"))
+				}
+			}
+			if st.connection == nil {
+				muted(c, "Simpan konfigurasi di bawah untuk menyiapkan perangkat.")
+			}
+		})
 		pageSection(c, "Identitas dalam pesan", "Nama, bahasa dan template tersimpan untuk koneksi divisi ini. Template memakai {body}; tersedia juga {title}, {name}, dan {greeting}.", func() {
-			ui.TextInput(c, &st.name).Label("Nama bot").FillWidth()
+			ui.Field(c, "Nama bot", func() { ui.TextInput(c, &st.name).Label("Nama bot").FillWidth() })
 			ui.Row(c).Wrap().Gap(5).Children(func() {
 				for _, language := range []struct{ code, label string }{{"id", "Indonesia"}, {"en", "English"}} {
 					if spaceButton(c.Key(language.code), language.label, "", st.language == language.code).Disabled(disabled).Clicked() {
@@ -268,9 +353,9 @@ func (a *App) whatsappSettings(c *ui.Context) {
 				}
 			})
 			muted(c, "Bahasa berlaku pada respons inti dan pesan baru. Judul, catatan pengguna, sapaan, template dan isi custom command tetap sesuai isinya.")
-			ui.TextInput(c, &st.greeting).Label("Sapaan").FillWidth()
+			ui.Field(c, "Sapaan", func() { ui.TextInput(c, &st.greeting).Label("Sapaan").FillWidth() })
 			for i, key := range waTemplateKeys {
-				ui.TextInput(c.Key(key), &st.templates[i]).Label("Template " + key).FillWidth()
+				ui.Field(c.Key(key), "Template "+key, func() { ui.TextInput(c, &st.templates[i]).Label("Template " + key).FillWidth() })
 			}
 			if spaceButton(c, "Simpan konfigurasi", "check", false).Disabled(disabled).Clicked() {
 				pid, did := st.period, st.division
@@ -299,6 +384,7 @@ func (a *App) whatsappSettings(c *ui.Context) {
 		}
 		conn := *st.connection
 		pageSection(c, "Sesi WhatsApp", "Gunakan nomor divisi; QR hanya ditampilkan kepada pengelola berwenang.", func() {
+			a.waPollPairing(c)
 			status := st.session.Status
 			if status == "" {
 				status = conn.Status
@@ -311,6 +397,12 @@ func (a *App) whatsappSettings(c *ui.Context) {
 				for _, action := range []struct{ key, label string }{{"connect", "Hubungkan / pasangkan"}, {"disconnect", "Putuskan"}} {
 					if spaceButton(c.Key(action.key), action.label, "whatsapp", false).Disabled(disabled).Clicked() {
 						key := action.key
+						if key == "connect" {
+							st.pollUntil = c.Now().Add(2 * time.Minute)
+							st.pollNext = time.Time{}
+						} else {
+							st.pollUntil = time.Time{}
+						}
 						a.waRun(func() error {
 							return cl.WAAction(context.Background(), conn.ID, api.WAActionRequest{Action: key, ExpectedVersion: conn.Version})
 						})
@@ -333,8 +425,13 @@ func (a *App) whatsappSettings(c *ui.Context) {
 			}
 			if st.qr != nil && st.session.QRExpiresAt != nil && time.Now().Before(*st.session.QRExpiresAt) {
 				ui.Image(c, st.qr).Size(240, 240).Fit(ui.Contain)
-				muted(c, "Pindai lewat Perangkat tertaut WhatsApp, lalu muat ulang status.")
+				muted(c, "Di ponsel, buka WhatsApp → Perangkat tertaut → Tautkan perangkat, lalu pindai QR ini. Status diperbarui otomatis.")
+				muted(c, "QR berlaku hingga "+st.session.QRExpiresAt.Local().Format("15:04:05")+". Jangan bagikan kode ini.")
 				c.After(time.Second)
+			} else if !st.pollUntil.IsZero() && c.Now().Before(st.pollUntil) {
+				muted(c, "Menunggu QR dari perangkat. Biarkan halaman ini terbuka.")
+			} else if st.session.Status == "pairing" {
+				muted(c, "QR belum tersedia atau telah kedaluwarsa. Pilih Hubungkan / pasangkan lagi.")
 			}
 		})
 		pageSection(c, "Grup tujuan", "Pilih Space lalu grup yang benar-benar tersedia pada akun bot.", func() {
@@ -387,7 +484,7 @@ func (a *App) waSpaceName(sid id.ID) string {
 }
 
 func (a *App) commandSettings(c *ui.Context) {
-	pageBody(c, "Command bot", func() {
+	settingsBody(c, "Command bot", "Kelola pemicu, respons, dan cakupan grup untuk command khusus.", func() {
 		if !a.waHeader(c) {
 			return
 		}
@@ -414,8 +511,8 @@ func (a *App) commandSettings(c *ui.Context) {
 		if draft == nil {
 			return
 		}
-		ui.TextInput(c, &draft.Trigger).Label("Pemicu, misalnya damn").FillWidth()
-		ui.TextInput(c, &draft.Response).Label("Respons teks").FillWidth()
+		ui.Field(c, "Pemicu, misalnya damn", func() { ui.TextInput(c, &draft.Trigger).Label("Pemicu, misalnya damn").FillWidth() })
+		ui.Field(c, "Respons teks", func() { ui.TextInput(c, &draft.Response).Label("Respons teks").FillWidth() })
 		if draft.AssetID != "" {
 			muted(c, "Media tersimpan: "+draft.MediaType)
 			if spaceButton(c, "Lepaskan media dari command", "close", false).Disabled(disabled).Clicked() {
@@ -449,7 +546,7 @@ func (a *App) commandSettings(c *ui.Context) {
 }
 
 func (a *App) whatsappActivity(c *ui.Context) {
-	pageBody(c, "Aktivitas WhatsApp", func() {
+	settingsBody(c, "Aktivitas WhatsApp", "Tinjau antrean dan status pengiriman pada koneksi divisi.", func() {
 		if !a.waHeader(c) {
 			return
 		}
@@ -458,10 +555,10 @@ func (a *App) whatsappActivity(c *ui.Context) {
 			return
 		}
 		if len(st.outbox) == 0 {
-			muted(c, "Belum ada job pengiriman pada koneksi ini.")
+			pageEmpty(c, "clock", "Belum ada aktivitas", "Belum ada job pengiriman pada koneksi ini.")
 		}
 		for _, item := range st.outbox {
-			ui.Column(c.Key(item.ID.String())).FillWidth().Gap(4).Children(func() {
+			ui.Column(c.Key(item.ID.String())).FillWidth().MinWidth(0).Padding(16).Gap(6).Radius(10).Background(c.Theme().Surface).Border(1, c.Theme().Border).Children(func() {
 				ui.Text(c, item.GroupName+" · "+item.Status).Bold()
 				muted(c, item.CreatedAt.Local().Format("02 Jan 15:04"))
 				if item.SuppressedAt != nil {

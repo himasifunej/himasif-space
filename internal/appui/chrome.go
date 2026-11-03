@@ -166,11 +166,18 @@ func (a *App) shell(c *ui.Context) {
 					}
 				})
 			})
+			if a.taskBoardVisible() && !a.chrome.appearance {
+				if a.tasks.draft != nil && a.tasks.draft.taskID == id.Nil {
+					a.taskCreatePanel(c)
+				} else if a.workspace != nil && a.workspace.SelectedID() != id.Nil {
+					a.workspace.Inspector(c)
+				}
+			}
 		})
 		a.statusbar(c)
 	})
 	ui.ToastViewportBase(c, func(viewport ui.Element, toasts []ui.Toast) {
-		viewport.Gap(8).Padding(16)
+		viewport.Justify(ui.Start).AlignItems(ui.Center).Gap(8).Padding(16)
 		for _, toast := range toasts {
 			parts := ui.ToastBase(c, toast)
 			parts.Root.Width(330).Row().AlignItems(ui.Center).Padding(14).Gap(10).Radius(10).Background(t.Surface).Border(1, t.Border).Shadow(0, 4, 16, 0, ui.RGBA(0, 0, 0, .2)).Children(func() {
@@ -185,6 +192,11 @@ func (a *App) shell(c *ui.Context) {
 			})
 		}
 	})
+}
+
+func (a *App) taskBoardVisible() bool {
+	path := a.router.Path()
+	return path == PathJobdesk || ((path == PathSpaces || path == PathMedhum) && a.chrome.tab == "Board tugas")
 }
 
 func (a *App) sidebar(c *ui.Context) {
@@ -414,6 +426,19 @@ func (a *App) profile(c *ui.Context, collapsed bool) {
 func (a *App) header(c *ui.Context) {
 	t := c.Theme()
 	w, _ := c.Size()
+	if a.taskBoardVisible() && !a.chrome.appearance {
+		panelWidth := float32(0)
+		if a.tasks.draft != nil && a.tasks.draft.taskID == id.Nil {
+			panelWidth = a.chrome.drawerWidth
+		} else if a.workspace != nil && a.workspace.SelectedID() != id.Nil {
+			panelWidth = a.workspace.InspectorWidth
+		}
+		if panelWidth > 0 {
+			w -= panelWidth
+		} else if (a.tasks.draft != nil && a.tasks.draft.taskID == id.Nil) || (a.workspace != nil && a.workspace.SelectedID() != id.Nil) {
+			w -= 416
+		}
+	}
 	title := map[string]string{PathJobdesk: "Jobdesk saya", PathReminder: "Reminder pribadi", PathArsip: "Arsip periode", PathArchiveAccess: "Izin arsip", PathPengaturan: "Pengaturan", PathOrganisasi: "Organisasi", PathEvaluasi: "Evaluasi SOP"}[a.router.Path()]
 	if title == "" {
 		title = a.spaceTitle()
@@ -435,6 +460,9 @@ func (a *App) header(c *ui.Context) {
 		searchWidth := float32(360)
 		if w < 1150 {
 			searchWidth = 240
+		}
+		if w < 900 {
+			searchWidth = 140
 		}
 		ui.Column(c).Width(searchWidth).Shrink(0).Children(func() {
 			var input ui.Element

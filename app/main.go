@@ -22,7 +22,7 @@ import (
 
 // version is the app's version where the build does not stamp one, as in
 // a browser or under go run; keep it as mygo.json's.
-var version = "0.3.0-pilot.5"
+var version = "0.3.0-pilot.10"
 
 // appVersion returns the version of the app.
 func appVersion() string {
@@ -51,13 +51,14 @@ func main() {
 		app.NoteDrafts = newNoteDraftStore()
 		app.PendingFiles = newPendingFileStore()
 		win = mygo.NewWindow(mygo.WindowOptions{
-			Title:     "Space — Ruang Kerja HIMASIF",
-			Width:     1440,
-			Height:    900,
-			MinWidth:  880,
-			MinHeight: 640,
-			StateKey:  "main",
-			Content:   ui.View(app.View),
+			Title:         "Space — Ruang Kerja HIMASIF",
+			TitleBarStyle: mygo.TitleBarHidden,
+			Width:         1440,
+			Height:        900,
+			MinWidth:      880,
+			MinHeight:     640,
+			StateKey:      "main",
+			Content:       ui.View(app.View),
 		})
 		app.PickFile = func(maxBytes int64, done func(appui.SelectedFile, error)) { pickFile(win, maxBytes, done) }
 		app.ExportFile = func(name, mediaType string, data []byte) (string, error) {

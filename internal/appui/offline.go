@@ -227,15 +227,17 @@ func (a *App) offlineBanner(c *ui.Context) {
 	}
 }
 func (a *App) offlineView(c *ui.Context) {
-	pageBody(c, "Sinkronisasi perangkat", func() {
+	settingsBody(c, "Sinkronisasi perangkat", "Tinjau perubahan yang tersimpan di perangkat dan kirim saat koneksi tersedia.", func() {
 		if a.offlineClient() == nil {
 			pageNotice(c, "alert", "Penyimpanan offline tidak tersedia", "Cache dan antrean belum dapat disimpan pada perangkat ini.")
 			return
 		}
-		muted(c, "Hanya data yang sudah diunduh tersedia offline. Delegasi, role, akses, konfigurasi bot dan penyerahan hasil memerlukan koneksi.")
-		if spaceButton(c, "Sinkronkan sekarang", "refresh", true).Disabled(a.offlineSync.loading).Clicked() {
-			a.refreshOffline(true)
-		}
+		pageSection(c, "Status perangkat", "Hanya data yang sudah diunduh tersedia offline. Delegasi, akses, konfigurasi bot dan penyerahan hasil memerlukan koneksi.", func() {
+			muted(c, fmt.Sprintf("%d perubahan tersimpan di perangkat.", len(a.offlineSync.items)))
+			if spaceButton(c, "Sinkronkan sekarang", "refresh", true).Disabled(a.offlineSync.loading).Clicked() {
+				a.refreshOffline(true)
+			}
+		})
 		if a.offlineSync.err != "" {
 			ui.Text(c, a.offlineSync.err).TextColor(c.Theme().Danger)
 		}
@@ -282,7 +284,7 @@ func (a *App) offlineView(c *ui.Context) {
 			})
 		}
 		if len(a.offlineSync.items) == 0 {
-			muted(c, "Tidak ada perubahan yang menunggu sinkronisasi.")
+			pageEmpty(c, "check", "Antrean kosong", "Tidak ada perubahan yang menunggu sinkronisasi.")
 		}
 		muted(c, fmt.Sprintf("%d perubahan tersimpan. Lampiran lokal yang belum diunggah tetap berstatus pending.", len(a.offlineSync.items)))
 	})

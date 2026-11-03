@@ -237,9 +237,9 @@ func TestCustomMoveMenuAndHorizontalEdgeScroll(t *testing.T) {
 	}
 	source := rect(t, tt, "Tugas "+tasks[0].Title)
 	viewport := rect(t, tt, "Kolom board")
+	start := s.boardScroll.X
 	tt.Press(source.X+30, source.Y+45)
 	tt.Move(viewport.X+viewport.W-12, source.Y+50)
-	start := s.boardScroll.X
 	tt.Advance(160 * time.Millisecond)
 	if s.boardScroll.X <= start {
 		t.Fatalf("horizontal edge did not scroll: %v => %v (max %v)", start, s.boardScroll.X, s.boardScroll.MaxX)

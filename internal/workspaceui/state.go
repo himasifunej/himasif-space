@@ -75,6 +75,7 @@ type State struct {
 	menuID          id.ID
 	menuOpen        bool
 	boardScroll     ui.ScrollState
+	boardWidth      float32
 	lanes           [5]ui.ScrollState
 	inspectorScroll ui.ScrollState
 }

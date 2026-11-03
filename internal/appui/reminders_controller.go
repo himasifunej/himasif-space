@@ -52,6 +52,8 @@ func (d *reminderDraft) unchanged() bool {
 }
 
 type remindersUIState struct {
+	privacyOpen                         bool
+	listWidth                           float32
 	seq, detailSeq, candidatesSeq       uint64
 	loaded, loading, busy               bool
 	items                               []api.Reminder
@@ -69,6 +71,7 @@ type remindersUIState struct {
 	candidatesLoading, candidatesLoaded bool
 	candidatesErr, recipientFilter      string
 	recipientOpen, deleteConfirm        bool
+	clockOpen, clockMinutes             bool
 	candidatesPeriod                    id.ID
 	candidatesAccess                    uint64
 }

@@ -106,7 +106,7 @@ func (a *App) operationsView(c *ui.Context) {
 	if a.period() != nil {
 		zone = a.period().TimeZone
 	}
-	pageBody(c, "Status layanan", func() {
+	settingsBody(c, "Status layanan", "Periksa versi dan keadaan server, pekerja, serta layanan yang boleh kamu lihat.", func() {
 		if st.err != "" {
 			pageNotice(c, "alert", "Status belum dapat dimuat", st.err)
 		}
@@ -116,7 +116,9 @@ func (a *App) operationsView(c *ui.Context) {
 		muted(c, "Status diambil saat dimuat ulang. Heartbeat menunjukkan progres worker, bukan bukti pesan sudah terkirim atau terbaca.")
 		if st.system != nil {
 			system := st.system
-			info(c, [][2]string{{"Versi server", system.Version}, {"Revisi sumber", system.Build.Revision}, {"Hash snapshot", system.Build.SourceDigest}, {"Mode", system.RunMode}, {"Status layanan", operationState(system.Status)}, {"Diperiksa", taskTimestamp(system.GeneratedAt, zone)}})
+			pageSection(c, "Server dan aplikasi", "Aplikasi dan server diperbarui terpisah; versinya dapat berbeda.", func() {
+				info(c, [][2]string{{"Versi aplikasi", a.Version}, {"Versi server", system.Version}, {"Status layanan", operationState(system.Status)}, {"Mode", system.RunMode}, {"Diperiksa", taskTimestamp(system.GeneratedAt, zone)}, {"Revisi sumber server", system.Build.Revision}, {"Hash snapshot server", system.Build.SourceDigest}})
+			})
 			if system.RunMode != "live" {
 				pageNotice(c, "info", "Pengiriman dinonaktifkan", "Mode pemeliharaan/restore menonaktifkan worker dan transport eksternal. Status nonaktif pada mode ini memang diharapkan.")
 			}

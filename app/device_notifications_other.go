@@ -8,13 +8,18 @@ import (
 	"github.com/himasifunej/himasif-space/internal/api"
 )
 
-func registerNotifications() error   { return nil }
-func setDeviceAutostart(bool) error  { return errors.New("Autostart ini tersedia pada Windows.") }
-func notificationSoundAllowed() bool { return true }
+func registerNotifications() error    { return nil }
+func setDeviceAutostart(bool) error   { return errors.New("Autostart ini tersedia pada Windows.") }
+func notificationSoundAllowed() bool  { return true }
+func openNotificationSettings() error { return errors.New("Pengaturan ini tersedia pada Windows.") }
 func showDeviceNotification(d api.Delivery, link string) error {
 	n := mygo.NewNotification(mygo.NotificationOptions{ID: d.ID.String(), Title: d.Title, Body: d.Body, Silent: true, Group: "Space"})
 	n.OnClick(func() { mygo.App.WhenReady(func() { _ = mygo.Shell.OpenExternal(link) }) })
 	return n.Show()
+}
+
+func showTestDeviceNotification() error {
+	return mygo.NewNotification(mygo.NotificationOptions{Title: "Space", Body: "Notifikasi percobaan dari Space.", Group: "Space"}).Show()
 }
 
 func clearDeviceNotifications(string) { mygo.ClearNotifications() }

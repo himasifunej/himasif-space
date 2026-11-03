@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/egoist/mygo/ui"
 	"github.com/himasifunej/himasif-space/internal/api"
 	"github.com/himasifunej/himasif-space/internal/id"
 )
@@ -30,6 +31,72 @@ func TestShellFitsMinimumWindow(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestShellFitsWithCustomTitleBar(t *testing.T) {
+	h := newChromeHarness(t, nil)
+	h.tt.SetSize(880, 640)
+	h.tt.SetTitleBar(ui.TitleBar{Height: 32, Right: 138})
+	h.tt.Frame()
+	for _, label := range []string{"Menu profil", "Tersambung", "Notifikasi"} {
+		r, ok := h.tt.Find(label)
+		if !ok || r.Y < 32 || r.Y+r.H > 640 {
+			t.Fatalf("%s outside content area with title bar: %+v exists=%v", label, r, ok)
+		}
+	}
+}
+
+func TestSettingsTabsReachableAtDesktopWidths(t *testing.T) {
+	h := newChromeHarness(t, nil)
+	h.app.router.Replace(PathPengaturan)
+	h.app.DeviceSettings = func(c *ui.Context) { ui.Text(c, "Perangkat, notifikasi, dan Ace") }
+	for _, size := range [][2]int{{1440, 900}, {880, 640}} {
+		h.tt.SetSize(size[0], size[1])
+		for _, tab := range []struct{ name, heading string }{
+			{"Sinkronisasi", "Sinkronisasi perangkat"}, {"Darurat", "Salinan darurat dan rekonsiliasi"},
+			{"Status layanan", "Status layanan"}, {"Perangkat", "Perangkat, notifikasi, dan Ace"},
+			{"WhatsApp", "WhatsApp divisi"}, {"Pengingat", "Pengingat dan ping"},
+			{"Command", "Command bot"}, {"Aktivitas", "Aktivitas WhatsApp"}, {"Akun", "Akun dan aplikasi"},
+		} {
+			h.tt.Frame()
+			if err := h.tt.Click(tab.name); err != nil {
+				t.Fatalf("%dx%d: tab %s: %v", size[0], size[1], tab.name, err)
+			}
+			h.tt.Frame()
+			if h.app.chrome.settingsTab != tab.name || !h.tt.HasText(tab.heading) {
+				t.Fatalf("%dx%d: tab %s did not open %s", size[0], size[1], tab.name, tab.heading)
+			}
+			if size[0] == 1440 {
+				h.tt.Advance(500 * time.Millisecond)
+				captureNativeUI(t, h, "settings-"+tab.name)
+			}
+		}
+	}
+}
+
+func TestNotificationSettingsFieldsHaveVisibleLabels(t *testing.T) {
+	h := newChromeHarness(t, nil)
+	h.tt.SetSize(1440, 900)
+	s := testAuthorizedSpace(h.app, h.api.divisions[0])
+	s.Roles[0].Capabilities = append(s.Roles[0].Capabilities, api.CapTasksManage, api.CapPingSend)
+	s.Capabilities = append(s.Capabilities, api.CapTasksManage, api.CapPingSend)
+	h.app.access.spaces[0] = s
+	h.app.chrome.settingsTab = "Pengingat"
+	h.app.router.Replace(PathPengaturan)
+	h.tt.Advance(500 * time.Millisecond)
+	h.tt.Frame()
+	for _, label := range []string{"Hari sebelum tenggat · pisahkan koma", "Jam lokal · 0–23", "Menit · 0–59", "Overdue setiap berapa hari · 1–30"} {
+		count := 0
+		for _, text := range h.tt.Texts() {
+			if text == label {
+				count++
+			}
+		}
+		if count < 2 {
+			t.Fatalf("field %q should have a visible label and an accessible input: %v", label, h.tt.Texts())
+		}
+	}
+	captureNativeUI(t, h, "settings-pengingat-labels")
 }
 
 // SPACE_UI_CAPTURE_DIR opts into PNG captures from the actual native renderer.
@@ -122,5 +189,33 @@ func TestInspectorsShareRightSideAtMinimumWidth(t *testing.T) {
 	board := chromeRect(t, h.tt, "Kolom board")
 	if board.W < 200 {
 		t.Fatalf("board became unusably narrow: %+v", board)
+	}
+}
+
+func TestCreateTaskPanelResizesBoard(t *testing.T) {
+	h := newChromeHarness(t, nil)
+	h.tt.SetSize(1440, 900)
+	testAuthorizedSpace(h.app, h.api.divisions[0])
+	h.app.chrome.tab = "Board tugas"
+	h.app.router.Push(PathSpaces)
+	h.app.tasks = tasksUIState{scope: h.app.selectedSpaceID(), loaded: true}
+	h.tt.Advance(500 * time.Millisecond)
+	before := chromeRect(t, h.tt, "Kolom board")
+	laneBefore := chromeRect(t, h.tt, "Kolom Belum mulai")
+	h.app.tasks.draft = &taskDraft{}
+	h.tt.Frame()
+	h.tt.Advance(500 * time.Millisecond)
+	board := chromeRect(t, h.tt, "Kolom board")
+	laneAfter := chromeRect(t, h.tt, "Kolom Belum mulai")
+	if laneAfter.W >= laneBefore.W-10 {
+		t.Fatalf("lane should shrink with board: before=%+v after=%+v", laneBefore, laneAfter)
+	}
+	panel := chromeRect(t, h.tt, "Tutup tugas baru")
+	if board.W >= before.W || board.X+board.W > panel.X || board.W < 200 {
+		t.Fatalf("board should shrink beside the creation panel: before=%+v board=%+v panel=%+v", before, board, panel)
+	}
+	done := chromeRect(t, h.tt, "Kolom Selesai")
+	if done.X+done.W > board.X+board.W+1 {
+		t.Fatalf("all four columns should fit when the board has enough room: board=%+v done=%+v", board, done)
 	}
 }

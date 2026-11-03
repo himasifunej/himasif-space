@@ -39,6 +39,7 @@ type meetingsState struct {
 	err                   string
 	draft                 *meetingDraft
 	selected              id.ID
+	participant           id.ID
 	arrival, note         string
 }
 
@@ -322,6 +323,8 @@ func (a *App) meetingsListView(c *ui.Context) {
 					ui.Row(c).Wrap().Gap(8).Children(func() {
 						if spaceButton(c, "Peserta / kehadiran", "users", a.meetings.selected == m.ID).Clicked() {
 							a.meetings.selected = m.ID
+							a.meetings.participant = id.Nil
+							a.meetings.arrival, a.meetings.note = "", ""
 						}
 						if spaceButton(c, "Ubah / batalkan", "settings", false).Disabled(!m.CanManage || a.conn != connOnline || a.meetings.busy).Clicked() {
 							a.beginMeeting(&m)
@@ -333,30 +336,63 @@ func (a *App) meetingsListView(c *ui.Context) {
 						}
 					})
 					if a.meetings.selected == m.ID {
-						if m.OrganizerID == a.user.ID {
-							ui.TextInput(c.Key("arrival"), &a.meetings.arrival).Label("Waktu datang aktual · zona rapat").Placeholder("YYYY-MM-DD HH:MM").FillWidth()
-							ui.TextInput(c.Key("attendance-note"), &a.meetings.note).Label("Catatan kehadiran").FillWidth()
-						}
-						for _, p := range m.Participants {
-							p := p
-							ui.Column(c.Key(p.UserID)).Gap(6).Children(func() {
-								label := p.DisplayName + " · " + p.AttendanceStatus
-								if p.ArrivedAt != nil {
-									label += " · " + taskTimestamp(*p.ArrivedAt, m.TimeZone)
-								}
-								ui.Text(c, label)
-								muted(c, p.AttendanceNote)
-								if m.OrganizerID == a.user.ID {
-									ui.Row(c).Wrap().Gap(6).Children(func() {
-										for _, status := range []struct{ k, label string }{{"present", "Hadir"}, {"excused", "Izin"}, {"absent", "Tidak hadir"}, {"unrecorded", "Hapus catatan hadir"}} {
-											if spaceButton(c, status.label, "", false).Disabled(a.conn != connOnline || a.meetings.busy).Clicked() {
-												a.attendance(m.ID, p.UserID, m.Version, status.k)
+						ui.Row(c).FillWidth().MinWidth(0).Gap(16).AlignItems(ui.Start).Children(func() {
+							ui.Column(c).Width(220).Shrink(0).Gap(6).Children(func() {
+								ui.Text(c, "Peserta").Bold()
+								for _, participant := range m.Participants {
+									p := participant
+									if spaceButton(c.Key(p.UserID), p.DisplayName, "users", a.meetings.participant == p.UserID).FillWidth().Clicked() {
+										a.meetings.participant = p.UserID
+										a.meetings.arrival, a.meetings.note = "", p.AttendanceNote
+										if p.ArrivedAt != nil {
+											if loc, err := time.LoadLocation(m.TimeZone); err == nil {
+												a.meetings.arrival = p.ArrivedAt.In(loc).Format("2006-01-02 15:04")
 											}
 										}
-									})
+									}
+								}
+								if len(m.Participants) == 0 {
+									muted(c, "Belum ada peserta.")
 								}
 							})
-						}
+							ui.Column(c).Grow(1).MinWidth(0).Gap(8).Children(func() {
+								participant := slices.IndexFunc(m.Participants, func(p api.MeetingParticipant) bool { return p.UserID == a.meetings.participant })
+								if participant < 0 {
+									muted(c, "Pilih peserta untuk melihat kehadiran.")
+									return
+								}
+								p := m.Participants[participant]
+								ui.Text(c, p.DisplayName).Bold()
+								status := map[string]string{"present": "Hadir", "excused": "Izin", "absent": "Tidak hadir", "unrecorded": "Belum dicatat"}[p.AttendanceStatus]
+								if status == "" {
+									status = "Belum dicatat"
+								}
+								muted(c, "Status: "+status)
+								if m.OrganizerID != a.user.ID {
+									if p.ArrivedAt != nil {
+										muted(c, "Datang: "+taskTimestamp(*p.ArrivedAt, m.TimeZone))
+									}
+									if p.AttendanceNote != "" {
+										muted(c, p.AttendanceNote)
+									}
+									return
+								}
+								ui.Field(c, "Waktu datang aktual · wajib untuk Hadir", func() {
+									ui.TextInput(c.Key("arrival"), &a.meetings.arrival).Label("Waktu datang aktual · zona rapat").Placeholder("Contoh: 2026-11-05 19:00").FillWidth()
+								})
+								muted(c, "Gunakan tanggal dan jam dalam zona "+m.TimeZone+".").FontSize(11)
+								ui.Field(c, "Catatan kehadiran · opsional", func() {
+									ui.TextInput(c.Key("attendance-note"), &a.meetings.note).Label("Catatan kehadiran").Placeholder("Contoh: terlambat karena kelas").FillWidth()
+								})
+								ui.Row(c).Wrap().Gap(6).Children(func() {
+									for _, status := range []struct{ k, label string }{{"present", "Hadir"}, {"excused", "Izin"}, {"absent", "Tidak hadir"}, {"unrecorded", "Hapus catatan hadir"}} {
+										if spaceButton(c.Key(status.k), status.label, "", false).Disabled(a.conn != connOnline || a.meetings.busy).Clicked() {
+											a.attendance(m.ID, p.UserID, m.Version, status.k)
+										}
+									}
+								})
+							})
+						})
 					}
 				})
 			}

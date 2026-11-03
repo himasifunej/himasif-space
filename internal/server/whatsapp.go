@@ -244,6 +244,9 @@ func (s *Server) waAction(w http.ResponseWriter, r *http.Request, p *principal) 
 			if req.ExpectedVersion != current.Version {
 				return conflict("Konfigurasi berubah. Muat ulang sebelum mengubah sesi.")
 			}
+			if req.Action == "connect" && !s.wa.Available() {
+				return fail(503, api.CodeUnavailable, "Bridge WhatsApp belum dikonfigurasi; sesi belum diaktifkan.")
+			}
 			current.Enabled = req.Action == "connect"
 			current.Version++
 			current.UpdatedAt = s.now().UTC()

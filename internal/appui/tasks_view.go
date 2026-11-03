@@ -23,7 +23,7 @@ func (a *App) taskBoardView(c *ui.Context, personal bool) {
 				label = "Jobdesk saya"
 			}
 			ui.Text(c, label).FontSize(14).Bold().Grow(1)
-			if ui.TextInput(c.Key("task-filter"), &a.tasks.filter).Label("Filter tugas").Placeholder("Judul, kategori, atau PJ…").Width(220).Changed() {
+			if ui.TextInput(c.Key("task-filter"), &a.tasks.filter).Label("Filter tugas").Placeholder("Judul, kategori, atau PJ…").Grow(1).MinWidth(90).MaxWidth(220).Changed() {
 				a.projectTasks()
 			}
 			if spaceButton(c, "Dibatalkan", "archive", a.tasks.showCancelled).Clicked() {
@@ -53,24 +53,21 @@ func (a *App) taskBoardView(c *ui.Context, personal bool) {
 		}
 		a.projectTasks()
 		ui.Row(c).Grow(1).MinHeight(0).FillWidth().MinWidth(0).Children(func() {
-			a.workspace.View(c)
-			if a.tasks.draft != nil && a.tasks.draft.taskID == id.Nil && !a.chrome.appearance {
-				a.taskCreatePanel(c)
-			}
+			a.workspace.ViewBoard(c)
 		})
 	})
 }
 func (a *App) taskFeedback(c *ui.Context) {
+	if a.tasks.notice != "" {
+		kind := "info"
+		if strings.HasSuffix(a.tasks.notice, "tersimpan di server.") {
+			kind = "success"
+		}
+		c.AddToast(ui.Toast{Title: a.tasks.notice, Type: kind, Timeout: 8 * time.Second})
+		a.tasks.notice = ""
+	}
 	if a.tasks.err != "" {
 		ui.Row(c).FillWidth().Padding(10, 22).Gap(8).Children(func() { ui.Text(c, a.tasks.err).FontSize(12).TextColor(c.Theme().Danger).Grow(1).MinWidth(0) })
-	}
-	if a.tasks.notice != "" {
-		ui.Row(c).FillWidth().Padding(8, 22).Gap(8).Children(func() {
-			ui.Text(c, a.tasks.notice).FontSize(12).TextColor(c.Theme().Accent).Grow(1).MinWidth(0)
-			if spaceIconButton(c, "Tutup informasi tugas", "close").Clicked() {
-				a.tasks.notice = ""
-			}
-		})
 	}
 	if a.tasks.busy || a.tasks.loading {
 		muted(c, "Menyimpan atau memuat data server…").Padding(6, 22)

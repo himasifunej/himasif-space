@@ -40,27 +40,29 @@ type devicePreferences struct {
 	X, Y      int
 }
 type desktopDevice struct {
-	mu                sync.Mutex
-	deliveryMu        sync.Mutex
-	notificationPrefs atomic.Value
-	activeUser        id.ID
-	pendingLink       string
-	root              string
-	prefs             devicePreferences
-	win, ace          *mygo.Window
-	app               *appui.App
-	tray              *mygo.Tray
-	quitting          bool
-	err               string
-	volume            string
-	current           *api.Delivery
-	expandedUntil     time.Time
-	frames            []*ui.Bitmap
-	delays            []time.Duration
-	frame             int
-	nextFrame         time.Time
-	expanded          bool
-	journal           map[string]string
+	mu                  sync.Mutex
+	deliveryMu          sync.Mutex
+	notificationPrefs   atomic.Value
+	activeUser          id.ID
+	pendingLink         string
+	root                string
+	prefs               devicePreferences
+	win, ace            *mygo.Window
+	app                 *appui.App
+	tray                *mygo.Tray
+	quitting            bool
+	err                 string
+	notificationTest    string
+	testingNotification bool
+	volume              string
+	current             *api.Delivery
+	expandedUntil       time.Time
+	frames              []*ui.Bitmap
+	delays              []time.Duration
+	frame               int
+	nextFrame           time.Time
+	expanded            bool
+	journal             map[string]string
 }
 
 func atomicDeviceFile(path string, data []byte) error {
@@ -451,82 +453,125 @@ func (d *desktopDevice) aceView(c *ui.Context) {
 }
 func (d *desktopDevice) settings(c *ui.Context) {
 	ui.Scroll(c).Fill().Children(func() {
-		ui.Column(c).FillWidth().Padding(24).Gap(12).Children(func() {
-			ui.Text(c, "Perangkat, notifikasi, dan Ace").FontSize(22).Bold()
+		ui.Column(c).FillWidth().MinWidth(0).MaxWidth(1000).Padding(26).Gap(20).Children(func() {
+			ui.Column(c).Gap(6).Children(func() {
+				ui.Text(c, "Perangkat, notifikasi, dan Ace").FontSize(26).Bold()
+				ui.Text(c, "Atur notifikasi dan pengalaman pada perangkat ini.").FontSize(12).TextColor(c.Theme().TextMuted)
+			})
 			if d.err != "" {
 				ui.Text(c, d.err).TextColor(c.Theme().Danger)
 			}
-			label := "Mulai saat login Windows: mati"
-			if d.prefs.Autostart {
-				label = "Mulai saat login Windows: aktif"
-			}
-			if ui.Button(c, label).Clicked() {
-				enabled := !d.prefs.Autostart
-				if err := setDeviceAutostart(enabled); err != nil {
-					d.err = err.Error()
-				} else {
-					d.prefs.Autostart = enabled
-					d.save()
-				}
-			}
-			ui.TextInput(c, &d.prefs.AceName).Label("Nama maskot").FillWidth()
-			ui.Row(c).Wrap().Gap(8).Children(func() {
-				for _, mode := range []string{"floating", "edge", "hidden"} {
-					if ui.Button(c, map[string]string{"floating": "Mengambang", "edge": "Tepi layar", "hidden": "Disembunyikan"}[mode]).Clicked() {
-						d.prefs.AceMode = mode
-						d.restorePosition()
-						if mode == "hidden" {
-							d.ace.Hide()
-						} else {
-							d.ace.ShowInactive()
+			deviceSection(c, "Notifikasi perangkat", "Periksa izin Windows dan mode jangan ganggu bila notifikasi tidak terlihat.", func() {
+				if ui.Button(c, "Buka pengaturan notifikasi Windows").Clicked() {
+					go func() {
+						if err := openNotificationSettings(); err != nil {
+							d.win.Update(func() { d.err = "Pengaturan notifikasi tidak dapat dibuka: " + err.Error() })
 						}
+					}()
+				}
+				if ui.Button(c, "Coba notifikasi perangkat").Disabled(d.testingNotification).Clicked() {
+					d.testingNotification = true
+					d.notificationTest = "Mengirim notifikasi percobaan ke perangkat ini…"
+					go func() {
+						err := showTestDeviceNotification()
+						d.win.Update(func() {
+							d.testingNotification = false
+							if err != nil {
+								d.notificationTest = "Notifikasi belum diterima sistem: " + err.Error()
+							} else {
+								d.notificationTest = "Sistem menerima permintaan. Periksa notifikasi Windows dan mode jangan ganggu."
+							}
+						})
+					}()
+				}
+				if d.notificationTest != "" {
+					ui.Text(c, d.notificationTest).FontSize(12).TextColor(c.Theme().TextMuted)
+				}
+			})
+			deviceSection(c, "Mulai bersama Windows", "Space dapat berjalan di latar belakang setelah masuk ke Windows.", func() {
+				label := "Mulai saat login Windows: mati"
+				if d.prefs.Autostart {
+					label = "Mulai saat login Windows: aktif"
+				}
+				if ui.Button(c, label).Clicked() {
+					enabled := !d.prefs.Autostart
+					if err := setDeviceAutostart(enabled); err != nil {
+						d.err = err.Error()
+					} else {
+						d.prefs.Autostart = enabled
 						d.save()
 					}
 				}
 			})
-			if ui.Button(c, "Pulihkan posisi Ace ke monitor utama").Clicked() {
-				d.prefs.X = 0
-				d.prefs.Y = 0
-				d.restorePosition()
-				d.save()
-			}
-			if ui.Button(c, "Impor maskot PNG / GIF").Clicked() {
-				d.importFile("mascot")
-			}
-			if ui.Button(c, "Gunakan Ace bawaan").Clicked() {
-				d.prefs.Mascot = ""
-				d.loadMascot()
-				d.save()
-				d.ace.Update(func() {})
-			}
-			sound := "Suara bel: mati"
-			if d.prefs.Sound {
-				sound = "Suara bel: aktif"
-			}
-			if ui.Button(c, sound).Clicked() {
-				d.prefs.Sound = !d.prefs.Sound
-				d.save()
-			}
-			ui.TextInput(c, &d.volume).Label("Volume bel · 0–100").FillWidth()
-			if ui.Button(c, "Simpan nama dan volume").Clicked() {
-				v, err := strconv.Atoi(d.volume)
-				if err != nil || v < 0 || v > 100 {
-					d.err = "Volume harus 0–100."
-				} else {
-					d.prefs.Volume = float64(v) / 100
+			deviceSection(c, "Ace dan suara", "Pilih tampilan maskot serta suara pengingat pada perangkat ini.", func() {
+				ui.Field(c, "Nama maskot", func() { ui.TextInput(c, &d.prefs.AceName).Label("Nama maskot").FillWidth() })
+				ui.Row(c).Wrap().Gap(8).Children(func() {
+					for _, mode := range []string{"floating", "edge", "hidden"} {
+						if ui.Button(c, map[string]string{"floating": "Mengambang", "edge": "Tepi layar", "hidden": "Disembunyikan"}[mode]).Clicked() {
+							d.prefs.AceMode = mode
+							d.restorePosition()
+							if mode == "hidden" {
+								d.ace.Hide()
+							} else {
+								d.ace.ShowInactive()
+							}
+							d.save()
+						}
+					}
+				})
+				if ui.Button(c, "Pulihkan posisi Ace ke monitor utama").Clicked() {
+					d.prefs.X = 0
+					d.prefs.Y = 0
+					d.restorePosition()
+					d.save()
+				}
+				if ui.Button(c, "Impor maskot PNG / GIF").Clicked() {
+					d.importFile("mascot")
+				}
+				if ui.Button(c, "Gunakan Ace bawaan").Clicked() {
+					d.prefs.Mascot = ""
+					d.loadMascot()
 					d.save()
 					d.ace.Update(func() {})
 				}
-			}
-			if ui.Button(c, "Impor bel WAV").Clicked() {
-				d.importFile("bell.wav")
-			}
-			if ui.Button(c, "Gunakan bel bawaan").Clicked() {
-				d.prefs.Audio = ""
-				d.save()
-			}
+				sound := "Suara bel: mati"
+				if d.prefs.Sound {
+					sound = "Suara bel: aktif"
+				}
+				if ui.Button(c, sound).Clicked() {
+					d.prefs.Sound = !d.prefs.Sound
+					d.save()
+				}
+				ui.Field(c, "Volume bel · 0–100", func() { ui.TextInput(c, &d.volume).Label("Volume bel · 0–100").FillWidth() })
+				if ui.Button(c, "Simpan nama dan volume").Clicked() {
+					v, err := strconv.Atoi(d.volume)
+					if err != nil || v < 0 || v > 100 {
+						d.err = "Volume harus 0–100."
+					} else {
+						d.prefs.Volume = float64(v) / 100
+						d.save()
+						d.ace.Update(func() {})
+					}
+				}
+				if ui.Button(c, "Impor bel WAV").Clicked() {
+					d.importFile("bell.wav")
+				}
+				if ui.Button(c, "Gunakan bel bawaan").Clicked() {
+					d.prefs.Audio = ""
+					d.save()
+				}
+			})
 			ui.Text(c, "Pengaturan berlaku pada perangkat ini. Notifikasi mengikuti izin dan mode senyap Windows. Keluar aplikasi tersedia di tray.")
 		})
+	})
+}
+
+func deviceSection(c *ui.Context, title, description string, body func()) {
+	t := c.Theme()
+	ui.Column(c).FillWidth().MinWidth(0).Padding(20).Gap(14).Radius(11).Background(t.Surface).Border(1, t.Border).Children(func() {
+		ui.Text(c, title).FontSize(15).Bold()
+		ui.Text(c, description).FontSize(12).TextColor(t.TextMuted)
+		body()
 	})
 }
 func (d *desktopDevice) importFile(kind string) {
@@ -624,15 +669,26 @@ func (d *desktopDevice) NotifyBatch(uid id.ID, items []api.Delivery) error {
 		return nil
 	}
 	unseen := []api.Delivery{}
+	uncertain := false
 	d.mu.Lock()
 	for _, n := range items {
 		key := uid.String() + ":" + n.ID.String() + ":" + n.AvailableAt.Format(time.RFC3339Nano)
-		if d.journal[key] == "" {
+		switch d.journal[key] {
+		case "":
 			unseen = append(unseen, n)
+		case "accepted":
+			// The device previously accepted this delivery.
+		default:
+			// An interrupted attempt cannot be promoted to accepted without
+			// evidence, even when no new notifications need to be displayed.
+			uncertain = true
 		}
 	}
 	d.mu.Unlock()
 	if len(unseen) == 0 {
+		if uncertain {
+			return errors.New("Penerimaan notifikasi sebelumnya tidak dapat dipastikan; periksa kotak notifikasi.")
+		}
 		return nil
 	}
 	first := unseen[0]
@@ -656,6 +712,9 @@ func (d *desktopDevice) NotifyBatch(uid id.ID, items []api.Delivery) error {
 	}
 	if err != nil {
 		return err
+	}
+	if uncertain {
+		return errors.New("Penerimaan sebagian notifikasi sebelumnya tidak dapat dipastikan; periksa kotak notifikasi.")
 	}
 	return e
 }

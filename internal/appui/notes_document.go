@@ -23,19 +23,21 @@ type noteDocumentPage struct{ items, rows, columns int }
 // noteDocumentEditor owns a working document, never the canonical API value.
 // Locks, saving, account isolation and recovery are the containing page's job.
 type noteDocumentEditor struct {
-	OnExtract func(text string, target string)
-	blocks    []api.NoteBlock
-	editable  bool
-	changed   bool
-	selected  int
-	blockPage int
-	item      int
-	row       int
-	column    int
-	span      int
-	spanPage  int
-	addOpen   bool
-	pages     map[int]*noteDocumentPage
+	OnExtract  func(text string, target string)
+	blocks     []api.NoteBlock
+	editable   bool
+	changed    bool
+	selected   int
+	blockPage  int
+	item       int
+	row        int
+	column     int
+	span       int
+	spanPage   int
+	addOpen    bool
+	advanced   bool
+	focusBlock int
+	pages      map[int]*noteDocumentPage
 }
 
 func newNoteDocumentEditor(content []api.NoteBlock) *noteDocumentEditor {
@@ -129,6 +131,9 @@ func (e *noteDocumentEditor) page(index int) *noteDocumentPage {
 func (e *noteDocumentEditor) selectBlock(index int) {
 	if index < 0 || index >= len(e.blocks) {
 		return
+	}
+	if e.selected != index {
+		e.advanced = false
 	}
 	e.selected, e.blockPage, e.span, e.spanPage = index, index/noteBlocksPerPage, 0, 0
 	p := e.page(index)
@@ -376,7 +381,13 @@ func (e *noteDocumentEditor) View(c *ui.Context) {
 			e.selectBlock(e.blockPage * noteBlocksPerPage)
 		}
 		if len(e.blocks) == 0 {
-			muted(c, "Catatan belum memiliki isi.")
+			if e.editable {
+				if spaceButton(c, "Mulai menulis", "plus", false).Clicked() {
+					e.addBlock(api.BlockParagraph)
+				}
+			} else {
+				muted(c, "Catatan belum memiliki isi.")
+			}
 			return
 		}
 		start, end := e.blockPage*noteBlocksPerPage, min((e.blockPage+1)*noteBlocksPerPage, len(e.blocks))
@@ -388,26 +399,59 @@ func (e *noteDocumentEditor) View(c *ui.Context) {
 
 func (e *noteDocumentEditor) blockView(c *ui.Context, index int) {
 	b := e.blocks[index]
-	border := c.Theme().Border
-	if e.editable && e.selected == index {
-		border = c.Theme().Accent
-	}
-	ui.Column(c).FillWidth().MinWidth(0).Gap(12).Padding(14).Radius(9).Background(c.Theme().Surface).Border(1, border).Children(func() {
-		ui.Row(c).FillWidth().MinWidth(0).Gap(6).AlignItems(ui.Center).Children(func() {
-			label := noteBlockLabel(b.Type)
-			if label == "" {
-				label = "Blok yang belum didukung"
-			}
-			muted(c, fmt.Sprintf("%d · %s", index+1, label)).FontSize(11).Grow(1).MinWidth(0)
-			if e.editable && spaceIconButton(c, fmt.Sprintf("Ubah blok %d", index+1), "edit").Clicked() {
-				e.selectBlock(index)
-			}
-		})
+	ui.Column(c).FillWidth().MinWidth(0).Gap(8).Padding(4, 0).Children(func() {
 		switch b.Type {
 		case api.BlockHeading:
-			ui.Text(c, b.Text).FontSize(float32(28 - max(1, min(b.Level, 3))*4)).Bold().FillWidth().MinWidth(0)
+			if e.editable {
+				input := ui.TextInput(c.Key("inline-heading"), &e.blocks[index].Text).Label(fmt.Sprintf("Judul bagian %d", index+1)).FillWidth().FontSize(float32(28 - max(1, min(b.Level, 3))*4)).Bold().Background(ui.RGBA(0, 0, 0, 0)).BorderWidth(0)
+				if e.focusBlock == index+1 {
+					input.Focus()
+					e.focusBlock = 0
+				}
+				if input.Focused() {
+					e.selectBlock(index)
+				}
+				if input.Changed() {
+					e.changed = true
+				}
+			} else {
+				ui.Text(c, b.Text).FontSize(float32(28 - max(1, min(b.Level, 3))*4)).Bold().FillWidth().MinWidth(0)
+			}
 		case api.BlockParagraph:
-			noteDocumentRichText(c, b.Spans, true)
+			plain := len(b.Spans) <= 1 && (len(b.Spans) == 0 || (!b.Spans[0].Bold && b.Spans[0].Link == ""))
+			if e.editable && plain {
+				value := ""
+				if len(b.Spans) == 1 {
+					value = b.Spans[0].Text
+				}
+				input := ui.TextArea(c.Key("inline-paragraph"), &value).Label(fmt.Sprintf("Paragraf %d", index+1)).Placeholder("Mulai menulis…").FillWidth().MinHeight(72).Background(ui.RGBA(0, 0, 0, 0)).BorderWidth(0)
+				if input.Focused() {
+					e.selectBlock(index)
+				}
+				if input.Changed() {
+					// Convert only a freshly typed marker, never pasted or formatted content.
+					switch value {
+					case "# ", "## ", "### ":
+						e.blocks[index] = api.NoteBlock{Type: api.BlockHeading, Level: len(value) - 1}
+						e.focusBlock = index + 1
+					case "- ", "* ", "1. ", "[] ", "[ ] ":
+						kind := api.BlockBulletedList
+						if value == "1. " {
+							kind = api.BlockNumberedList
+						}
+						if value == "[] " || value == "[ ] " {
+							kind = api.BlockChecklist
+						}
+						e.blocks[index] = api.NoteBlock{Type: kind, Items: []api.NoteListItem{{Spans: []api.Span{{}}}}}
+						e.focusBlock = index + 1
+					default:
+						e.blocks[index].Spans = []api.Span{{Text: value}}
+					}
+					e.changed = true
+				}
+			} else {
+				noteDocumentRichText(c, b.Spans, true)
+			}
 		case api.BlockBulletedList, api.BlockNumberedList, api.BlockChecklist:
 			e.listView(c, index, b)
 		case api.BlockTable:
@@ -417,10 +461,20 @@ func (e *noteDocumentEditor) blockView(c *ui.Context, index int) {
 		default:
 			muted(c, "Isi blok dipertahankan. Jenis ini belum dapat diedit di aplikasi ini.")
 		}
-		if e.OnExtract != nil && b.Type != api.BlockDivider {
+		if e.OnExtract != nil && b.Type != api.BlockDivider && e.advanced && e.selected == index {
 			e.extractView(c, noteBlockText(b), fmt.Sprintf("blok %d", index+1))
 		}
-		if e.editable && e.selected == index {
+		if e.editable {
+			if spaceButton(c, "Format dan atur blok", "edit", e.advanced && e.selected == index).Label(fmt.Sprintf("Atur blok %d", index+1)).Padding(4, 8).MinHeight(24).Clicked() {
+				if e.selected == index {
+					e.advanced = !e.advanced
+				} else {
+					e.selectBlock(index)
+					e.advanced = true
+				}
+			}
+		}
+		if e.editable && e.selected == index && e.advanced {
 			e.blockEditor(c)
 		}
 	})
@@ -492,7 +546,28 @@ func (e *noteDocumentEditor) listView(c *ui.Context, index int, b api.NoteBlock)
 				default:
 					ui.Text(c, "•").Width(22).TextColor(c.Theme().TextMuted)
 				}
-				ui.Column(c).Grow(1).MinWidth(0).Children(func() { noteDocumentRichText(c, b.Items[i].Spans, true) })
+				ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+					spans := b.Items[i].Spans
+					plain := len(spans) <= 1 && (len(spans) == 0 || (!spans[0].Bold && spans[0].Link == ""))
+					if e.editable && plain {
+						value := noteSpansText(spans)
+						input := ui.TextInput(c.Key("inline-list-item"), &value).Label(fmt.Sprintf("Butir %d blok %d", i+1, index+1)).Placeholder("Tulis poin…").FillWidth().Background(ui.RGBA(0, 0, 0, 0)).BorderWidth(0)
+						if e.focusBlock == index+1 && i == 0 {
+							input.Focus()
+							e.focusBlock = 0
+						}
+						if input.Focused() {
+							e.selectBlock(index)
+							e.item = i
+						}
+						if input.Changed() {
+							e.blocks[index].Items[i].Spans = []api.Span{{Text: value}}
+							e.changed = true
+						}
+					} else {
+						noteDocumentRichText(c, spans, true)
+					}
+				})
 				if e.editable && spaceIconButton(c, fmt.Sprintf("Ubah butir %d blok %d", i+1, index+1), "edit").Clicked() {
 					e.selectBlock(index)
 					e.item = i
@@ -500,6 +575,10 @@ func (e *noteDocumentEditor) listView(c *ui.Context, index int, b api.NoteBlock)
 			})
 			e.extractView(c, noteSpansText(b.Items[i].Spans), fmt.Sprintf("butir %d blok %d", i+1, index+1))
 		})
+	}
+	if e.editable && spaceButton(c, "Tambah poin", "plus", false).Clicked() {
+		e.selectBlock(index)
+		e.addItem()
 	}
 }
 

@@ -14,9 +14,25 @@ var moreIcon = ui.MustParseSVG([]byte(`<svg viewBox="0 0 24 24" fill="currentCol
 
 // View builds a native board and, when selected, an in-layout task inspector.
 func (s *State) View(c *ui.Context) ui.Element {
+	return s.view(c, true)
+}
+
+// ViewBoard leaves the selected inspector to the surrounding app shell.
+func (s *State) ViewBoard(c *ui.Context) ui.Element {
+	return s.view(c, false)
+}
+
+// Inspector builds the selected task detail when the surrounding shell has room.
+func (s *State) Inspector(c *ui.Context) {
+	if task, ok := s.task(s.selected); ok {
+		s.inspector(c.Key("task-inspector"), task)
+	}
+}
+
+func (s *State) view(c *ui.Context, inlineInspector bool) ui.Element {
 	t := c.Theme()
 	dragging := false
-	root := ui.Row(c).Fill().MinWidth(0).Gap(0)
+	root := ui.Row(c).Grow(1).FillHeight().MinWidth(0).Gap(0)
 	root.Children(func() {
 		ui.Column(c.Key("board-area")).Transition(ui.ElementTransition{Duration: 260 * time.Millisecond, Size: true, Position: true}).Grow(1).MinWidth(0).FillHeight().Gap(16).Padding(22).Children(func() {
 			ui.Row(c).FillWidth().AlignItems(ui.Center).Children(func() {
@@ -28,13 +44,28 @@ func (s *State) View(c *ui.Context) ui.Element {
 			})
 
 			scroll := ui.ScrollHorizontal(c.Key("board-scroll")).Grow(1).MinHeight(0).FillWidth().TrackScroll(&s.boardScroll).Label("Kolom board")
+			count := 4
+			if s.hasLane(Cancelled) {
+				count++
+			}
+			// Bounds are from the preceding frame. Redraw after resizing so the
+			// lanes use the width left by a newly opened or resized inspector.
+			width := scroll.Bounds().W
+			if width != s.boardWidth {
+				s.boardWidth = width
+				c.After(0)
+			}
+			laneWidth := float32(268)
+			if width > 0 {
+				laneWidth = max(160, min(268, (width-float32(count-1)*14)/float32(count)))
+			}
 			scroll.Children(func() {
 				ui.Row(c).FillHeight().Gap(14).Padding(0, 0, 10, 0).Children(func() {
 					for lane := Todo; lane <= Cancelled; lane++ {
 						if lane == Cancelled && !s.hasLane(Cancelled) {
 							continue
 						}
-						s.lane(c.Key(lane), lane, &dragging)
+						s.lane(c.Key(lane), lane, laneWidth, &dragging)
 					}
 				})
 			})
@@ -59,14 +90,14 @@ func (s *State) View(c *ui.Context) ui.Element {
 				}
 			}
 		})
-		if task, ok := s.task(s.selected); ok {
-			s.inspector(c.Key("task-inspector"), task)
+		if inlineInspector {
+			s.Inspector(c)
 		}
 	})
 	return root
 }
 
-func (s *State) lane(c *ui.Context, lane Lane, dragging *bool) {
+func (s *State) lane(c *ui.Context, lane Lane, width float32, dragging *bool) {
 	t := c.Theme()
 	count := 0
 	for _, task := range s.tasks {
@@ -74,7 +105,7 @@ func (s *State) lane(c *ui.Context, lane Lane, dragging *bool) {
 			count++
 		}
 	}
-	column := ui.Column(c).Width(268).Shrink(0).FillHeight().MinHeight(0).Gap(12).Padding(8).Radius(10).Background(t.SurfacePressed).Border(1, t.Border).Label("Kolom " + lane.String())
+	column := ui.Column(c).Width(width).Shrink(0).FillHeight().MinHeight(0).Gap(12).Padding(8).Radius(10).Background(t.SurfacePressed).Border(1, t.Border).Label("Kolom " + lane.String())
 	column.Children(func() {
 		ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Padding(2).Children(func() {
 			color := t.TextMuted

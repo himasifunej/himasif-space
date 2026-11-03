@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/himasifunej/himasif-space/internal/api"
 	"golang.org/x/sys/windows/registry"
@@ -18,7 +19,11 @@ import (
 	"time"
 	"unicode/utf16"
 	"unsafe"
+
+	"github.com/egoist/mygo"
 )
+
+func openNotificationSettings() error { return mygo.Shell.OpenExternal("ms-settings:notifications") }
 
 func powershell(script string) error {
 	words := utf16.Encode([]rune(script))
@@ -32,7 +37,18 @@ func powershell(script string) error {
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("notifikasi Windows: %w: %s", err, strings.TrimSpace(string(output)))
+		text := string(output)
+		for code, message := range map[string]string{
+			"SPACE_NOTIFICATION_SETTING=1": "Notifikasi Space dinonaktifkan di pengaturan Windows. Aktifkan notifikasi untuk Space.",
+			"SPACE_NOTIFICATION_SETTING=2": "Notifikasi untuk akun Windows ini dinonaktifkan. Aktifkan notifikasi Windows.",
+			"SPACE_NOTIFICATION_SETTING=3": "Notifikasi dibatasi kebijakan administrator Windows.",
+			"SPACE_NOTIFICATION_SETTING=4": "Windows tidak mengenali aplikasi ini sebagai aplikasi yang mendukung notifikasi. Pasang ulang Space lalu coba lagi.",
+		} {
+			if strings.Contains(text, code) {
+				return errors.New(message)
+			}
+		}
+		return fmt.Errorf("Windows belum menerima notifikasi: %w", err)
 	}
 	return nil
 }
@@ -119,8 +135,21 @@ $t=[Windows.UI.Notifications.ToastNotification]::new($x)
 $t.Tag='` + windowsNotificationTag(d.ID) + `'
 $t.Group='` + escapeXML(group) + `'
 $n=[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('id.himasif.space')
-if($n.Setting -ne [Windows.UI.Notifications.NotificationSetting]::Enabled){throw 'Notifikasi dinonaktifkan oleh Windows.'}
+if($n.Setting -ne [Windows.UI.Notifications.NotificationSetting]::Enabled){[Console]::Error.WriteLine('SPACE_NOTIFICATION_SETTING='+[int]$n.Setting);exit 42}
 $n.Show($t)`)
+}
+
+// showTestDeviceNotification exercises the same Windows notifier without
+// creating a server delivery or offering actions for a nonexistent reminder.
+func showTestDeviceNotification() error {
+	return powershell(`$ErrorActionPreference='Stop'
+[Windows.UI.Notifications.ToastNotificationManager,Windows.UI.Notifications,ContentType=WindowsRuntime] | Out-Null
+[Windows.Data.Xml.Dom.XmlDocument,Windows.Data.Xml.Dom.XmlDocument,ContentType=WindowsRuntime] | Out-Null
+$x=New-Object Windows.Data.Xml.Dom.XmlDocument
+$x.LoadXml('<toast><visual><binding template="ToastGeneric"><text>Space</text><text>Notifikasi percobaan dari Space.</text></binding></visual></toast>')
+$n=[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('id.himasif.space')
+if($n.Setting -ne [Windows.UI.Notifications.NotificationSetting]::Enabled){[Console]::Error.WriteLine('SPACE_NOTIFICATION_SETTING='+[int]$n.Setting);exit 42}
+$n.Show([Windows.UI.Notifications.ToastNotification]::new($x))`)
 }
 func notificationSoundAllowed() bool {
 	proc := syscall.NewLazyDLL("shell32.dll").NewProc("SHQueryUserNotificationState")
