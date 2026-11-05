@@ -87,7 +87,7 @@ func (s *Server) RunWhatsApp(ctx context.Context) {
 			if err != nil {
 				if ctx.Err() == nil {
 					s.workerProgress("wa.commands", true)
-					s.log.Info("whatsapp command processing deferred")
+					s.log.Info("whatsapp command processing deferred", "error", err.Error())
 				}
 				return
 			}
@@ -104,7 +104,7 @@ func (s *Server) RunWhatsApp(ctx context.Context) {
 			if err != nil {
 				if ctx.Err() == nil {
 					s.workerProgress("wa.content", true)
-					s.log.Info("whatsapp content processing deferred")
+					s.log.Info("whatsapp content processing deferred", "error", err.Error())
 				}
 				return
 			}

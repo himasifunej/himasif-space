@@ -112,7 +112,7 @@ func (s *Server) record(r *http.Request, q store.Querier, p *principal, e store.
 	}
 	e.RequestID = requestID(r.Context())
 	if inboundID, ok := r.Context().Value(waAuditKey{}).(id.ID); ok {
-		e.Source = "whatsapp"
+		e.Source = "wa" // audit_events_source_check accepts 'wa', not 'whatsapp'
 		e.RequestID = "wa:" + inboundID.String()
 	}
 	if e.OccurredAt.IsZero() {
