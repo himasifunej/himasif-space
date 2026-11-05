@@ -50,7 +50,9 @@ export class Connections {
   async connect(id) {
     const c = await this.get(id);
     if (c.socket && ['connected', 'connecting', 'pairing'].includes(c.status)) return this.status(c);
-    if (c.reconnectAt && Date.now() < Date.parse(c.reconnectAt)) throw Object.assign(new Error('reconnect cooldown is active'), { status: 409 });
+    // An explicit connect from a manager starts a fresh attempt (and a fresh
+    // QR) instead of waiting out the automatic reconnect backoff.
+    clearTimeout(c.reconnect); c.reconnect = null; c.reconnectAt = null; c.attempts = 0;
     c.config.enabled = true; await c.store.write('configuration', c.config);
     this.launch(c).catch(() => { c.status = 'failed'; c.lastError = 'Connection startup failed; inspect protected service logs.'; });
     return this.status(c);
@@ -80,7 +82,10 @@ export class Connections {
         if (update.connection === 'close') {
           c.socket = null; c.qr = ''; c.qrExpiresAt = null;
           const code = update.lastDisconnect?.error?.output?.statusCode;
-          if ([DisconnectReason.loggedOut, DisconnectReason.badSession, DisconnectReason.connectionReplaced, 403].includes(code)) { c.status = 'needs_pairing'; c.config.enabled = false; await c.store.write('configuration', c.config); }
+          // QR codes that expire before the first pairing must not loop through
+          // background reconnects; the manager asks for a new QR explicitly.
+          const unpairedTimeout = code === DisconnectReason.timedOut && !auth.state.creds?.me;
+          if (unpairedTimeout || [DisconnectReason.loggedOut, DisconnectReason.badSession, DisconnectReason.connectionReplaced, 403].includes(code)) { c.status = 'needs_pairing'; c.config.enabled = false; await c.store.write('configuration', c.config); }
           else if (c.config.enabled) {
             c.status = 'reconnecting'; const wait = Math.min(300_000, 30_000 * 2 ** Math.min(c.attempts++, 4)); c.reconnectAt = new Date(Date.now() + wait).toISOString();
             c.reconnect = setTimeout(() => this.launch(c).catch(() => { c.status = 'failed'; }), wait); c.reconnect.unref();
