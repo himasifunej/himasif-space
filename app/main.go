@@ -60,6 +60,9 @@ func main() {
 			StateKey:      "main",
 			Content:       ui.View(app.View),
 		})
+		// Without an explicit window icon Windows can show the runtime's
+		// default tile on the taskbar instead of the embedded Space logo.
+		_ = win.SetIcon(applicationIcon)
 		app.PickFile = func(maxBytes int64, done func(appui.SelectedFile, error)) { pickFile(win, maxBytes, done) }
 		app.ExportFile = func(name, mediaType string, data []byte) (string, error) {
 			return exportFile(win, name, mediaType, data)
