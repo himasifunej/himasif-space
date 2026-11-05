@@ -310,7 +310,15 @@ func (a *App) whatsappSettings(c *ui.Context) {
 				})
 			}
 			if st.link != nil && time.Now().Before(st.link.ExpiresAt) {
-				ui.Text(c, st.link.Instructions)
+				ui.Text(c, st.link.Instructions).Selectable()
+				command := "!link " + st.link.Code
+				ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, command).FontSize(13).Bold().Selectable().Padding(6, 10).Radius(7).Background(c.Theme().Background).Border(1, c.Theme().Border)
+					if primarySpaceButton(c, "Salin perintah", "link").Clicked() {
+						c.WriteClipboard(command)
+						c.AddToast(ui.Toast{Title: "Perintah disalin. Tempel di grup WhatsApp.", Type: "success", Timeout: 4 * time.Second})
+					}
+				})
 				muted(c, "Berlaku sampai "+st.link.ExpiresAt.Local().Format("15:04"))
 				c.After(time.Second)
 			}
