@@ -258,6 +258,7 @@ func (a *App) submitSourceDecision() {
 		}
 	})
 }
+
 // connectorsBody is the Medhum "Sumber dan sinkron" tab: the Humas
 // calendar sources, their previews and history.
 func (a *App) connectorsBody(c *ui.Context) {
