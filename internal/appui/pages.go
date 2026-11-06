@@ -228,6 +228,9 @@ func (a *App) overviewPage(c *ui.Context, title string, shared bool) {
 	t := c.Theme()
 	ui.Scroll(c).Fill().Children(func() {
 		body := ui.Column(c).FillWidth().MinWidth(0).Padding(26).Gap(24)
+		if isMobile(c) {
+			body.Padding(16).Gap(16)
+		}
 		wide := body.Bounds().W >= 720
 		body.Children(func() {
 			heading := ui.Column(c).FillWidth().MinWidth(0).Gap(20)
@@ -245,7 +248,10 @@ func (a *App) overviewPage(c *ui.Context, title string, shared bool) {
 					if p := a.period(); p != nil {
 						ui.Text(c, "HIMASIF · "+p.Label).FontSize(10).TextColor(t.TextMuted)
 					}
-					ui.Text(c, "Ruang "+title+" kita.").FontSize(29).Bold()
+					heading := ui.Text(c, "Ruang "+title+" kita.").FontSize(29).Bold()
+					if isMobile(c) {
+						heading.FontSize(22)
+					}
 					muted(c, "Biar setiap ide punya tempat, dan setiap tugas tetap dalam alurnya.")
 				})
 				ui.Column(c).Gap(6).Children(func() {
