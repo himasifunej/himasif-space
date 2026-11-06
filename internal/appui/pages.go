@@ -33,6 +33,9 @@ func (a *App) page(c *ui.Context, r *ui.Route) {
 		a.archivePage(c, r)
 	case r.Match(PathPengaturan):
 		a.settings(c, r)
+	case r.Match(PathLainnya):
+		r.Title("Lainnya")
+		a.lainnyaPage(c)
 	case r.Match(PathOrganisasi) && a.isAdmin():
 		a.organizationPage(c, r)
 	default:
@@ -168,8 +171,18 @@ func (a *App) spacePage(c *ui.Context, r *ui.Route, shared bool) {
 	}
 	r.Title(title)
 	ui.Column(c).Fill().MinWidth(0).Children(func() {
-		ui.ScrollHorizontal(c.Key("space-tabs")).FillWidth().Height(58).Shrink(0).Background(c.Theme().Background).BorderWidth(0, 0, 1, 0).BorderColor(c.Theme().Border).Children(func() {
-			ui.Row(c).FillWidth().Wrap().Padding(8, 22).Gap(5).AlignItems(ui.Center).Children(func() {
+		mobile := isMobile(c)
+		tabsHeight, tabsPadding := float32(58), float32(22)
+		if mobile {
+			tabsHeight, tabsPadding = 50, 12
+		}
+		ui.ScrollHorizontal(c.Key("space-tabs")).FillWidth().Height(tabsHeight).Shrink(0).Background(c.Theme().Background).BorderWidth(0, 0, 1, 0).BorderColor(c.Theme().Border).Children(func() {
+			row := ui.Row(c).Padding(8, tabsPadding).Gap(5).AlignItems(ui.Center)
+			if !mobile {
+				// Phones scroll one line of tabs instead of stacking rows.
+				row.FillWidth().Wrap()
+			}
+			row.Children(func() {
 				tabs := []struct{ title, icon string }{{"Beranda", "home"}, {"Board tugas", "board"}, {"Agenda", "calendar"}, {"Notes", "note"}, {"Anggota", "users"}, {"Pengaturan", "settings"}}
 				if sp := a.selectedSpace(); sp != nil && sp.Code == "medhum" {
 					tabs = append(tabs, struct{ title, icon string }{"Kalender konten", "calendar"})
@@ -243,6 +256,13 @@ func (a *App) overviewPage(c *ui.Context, title string, shared bool) {
 				})
 			})
 			a.tasksOverview(c)
+			if canPing(a.selectedSpace()) {
+				pageSection(c, "Ping cepat", "Ingatkan anggota lewat perangkat dan WhatsApp.", func() {
+					if primarySpaceButton(c, "Kirim ping", "send").Clicked() {
+						a.chrome.pingOpen = true
+					}
+				})
+			}
 			if shared {
 				pageNotice(c, "link", "Ruang kolaborasi", "Akses ruang bersama tidak membuka pekerjaan internal divisi lain.")
 			}

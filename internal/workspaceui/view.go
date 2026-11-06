@@ -32,12 +32,18 @@ func (s *State) Inspector(c *ui.Context) {
 func (s *State) view(c *ui.Context, inlineInspector bool) ui.Element {
 	t := c.Theme()
 	dragging := false
+	vw, _ := c.Size()
+	phone := vw < 720
+	pad, titleSize := float32(22), float32(22)
+	if phone {
+		pad, titleSize = 12, 18
+	}
 	root := ui.Row(c).Grow(1).FillHeight().MinWidth(0).Gap(0)
 	root.Children(func() {
-		ui.Column(c.Key("board-area")).Transition(ui.ElementTransition{Duration: 260 * time.Millisecond, Size: true, Position: true}).Grow(1).MinWidth(0).FillHeight().Gap(16).Padding(22).Children(func() {
+		ui.Column(c.Key("board-area")).Transition(ui.ElementTransition{Duration: 260 * time.Millisecond, Size: true, Position: true}).Grow(1).MinWidth(0).FillHeight().Gap(16).Padding(pad).Children(func() {
 			ui.Row(c).FillWidth().AlignItems(ui.Center).Children(func() {
 				ui.Column(c).Grow(1).Gap(4).Children(func() {
-					ui.Text(c, "Board tugas").FontSize(22).Bold()
+					ui.Text(c, "Board tugas").FontSize(titleSize).Bold()
 					ui.Text(c, "Semua pekerjaan, satu alur bersama.").FontSize(12).TextColor(t.TextMuted)
 				})
 				ui.Text(c, fmt.Sprintf("%d tugas", len(s.tasks))).FontSize(12).TextColor(t.TextMuted)
@@ -58,6 +64,11 @@ func (s *State) view(c *ui.Context, inlineInspector bool) ui.Element {
 			laneWidth := float32(268)
 			if width > 0 {
 				laneWidth = max(160, min(268, (width-float32(count-1)*14)/float32(count)))
+			}
+			if phone {
+				// One lane per screen; swipe sideways to the next lane. The
+				// window width is known this frame, so the lanes don't jump.
+				laneWidth = max(160, vw-2*pad-28)
 			}
 			scroll.Children(func() {
 				ui.Row(c).FillHeight().Gap(14).Padding(0, 0, 10, 0).Children(func() {

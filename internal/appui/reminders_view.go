@@ -246,9 +246,7 @@ func (a *App) reminderEditor(c *ui.Context) {
 	ui.Column(c).FillWidth().MinWidth(0).Gap(13).Disabled(a.reminderWriteBlocked() || a.reminders.detailsLoading || a.reminders.detailsErr != "").Children(func() {
 		taskInput(c, "reminder-title", "Judul reminder *", &d.title)
 		taskLongInput(c, "reminder-notes", "Catatan reminder", &d.notes)
-		taskInput(c, "reminder-date", "Tanggal reminder *", &d.date)
-		muted(c, "Gunakan YYYY-MM-DD, misalnya 2026-10-31.").FontSize(11)
-		a.reminderClockField(c, &d.clock)
+		a.whenField(c, "reminder-when", "Waktu reminder", &d.date, &d.clock, true)
 		taskInput(c, "reminder-zone", "Zona waktu reminder", &d.zone)
 		muted(c, "Zona IANA, misalnya Asia/Jakarta. Tidak mengikuti perubahan periode.").FontSize(11)
 	})

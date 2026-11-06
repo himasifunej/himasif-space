@@ -14,11 +14,19 @@ func Drawer(c *ui.Context, width *float32, body func()) ui.Element {
 		*width = 416
 	}
 	shown := min(max(*width, 280), maxWidth)
+	// Phones show the drawer as a full-screen page without the resize edge.
+	phone := w < 720
+	if phone {
+		shown = w
+	}
 	t := c.Theme()
 	panel := ui.Column(c).Width(shown).Shrink(0).FillHeight().MinWidth(0).Background(t.Surface).BorderWidth(0, 0, 0, 1).BorderColor(t.Border).
 		Transition(ui.ElementTransition{Duration: 260 * time.Millisecond, Size: true, Position: true, Enter: &ui.Motion{Collapse: true, Opacity: 1}, Exit: &ui.Motion{X: 20, Opacity: 0}})
 	panel.Children(func() {
 		body()
+		if phone {
+			return
+		}
 		edge := ui.Box(c.Key("drawer-resize")).Label("Ubah lebar drawer").Tooltip("Tarik untuk mengubah lebar · panah kiri/kanan").Absolute().Left(0).Top(0).Width(6).FillHeight().Cursor(ui.CursorResizeEW).Focusable()
 		dx, _, held := edge.Dragged()
 		if held && dx != 0 {

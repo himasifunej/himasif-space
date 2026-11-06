@@ -55,7 +55,7 @@ func main() {
 			TitleBarStyle: mygo.TitleBarHidden,
 			Width:         1440,
 			Height:        900,
-			MinWidth:      880,
+			MinWidth:      380,
 			MinHeight:     640,
 			StateKey:      "main",
 			Content:       ui.View(app.View),

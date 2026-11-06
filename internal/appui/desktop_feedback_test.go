@@ -106,18 +106,17 @@ func TestDesktopFeedbackNativeCapture(t *testing.T) {
 	h.click("Tutup penampilan")
 	h.app.tasks.draft = &taskDraft{owner: sp.Divisions[0].ID, title: "Poster kegiatan", output: "Desain siap posting", plannedStart: "2026-11-02", deadline: "2026-11-05", shared: map[id.ID]bool{}}
 	capture("task-drawer")
-	h.click("Pilih mulai pengerjaan")
-	form := chromeRect(t, h.tt, "Area scroll form tugas")
-	h.tt.Scroll(form.X+form.W/2, form.Y+form.H/2, 0, 440)
+	h.click("Jadwal tugas")
 	capture("task-range-calendar")
+	h.click("Selesai")
 	h.app.tasks.draft = nil
 	h.app.chrome.tab = "Agenda"
 	h.app.meetings = meetingsState{space: sp.ID, loaded: true, draft: &meetingDraft{title: "Rapat koordinasi", date: "2026-11-05", start: "19:00", zone: "Asia/Jakarta", minutes: "60,15"}}
 	capture("meeting-drawer")
-	if !h.tt.HasText("Tanggal rapat *") || !h.tt.HasText("Mulai *") || h.tt.HasText("Selesai *") {
+	if !h.tt.HasText("Mulai rapat *") || h.tt.HasText("Jam selesai *") {
 		t.Fatal("meeting required labels incorrect")
 	}
-	h.click("Tanggal rapat")
+	h.click("Mulai rapat")
 	capture("meeting-calendar")
 	h.app.chrome.preferences.Theme = "light"
 	capture("meeting-calendar-light")

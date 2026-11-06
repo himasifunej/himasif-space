@@ -24,7 +24,12 @@ func TestShellFitsMinimumWindow(t *testing.T) {
 	for _, size := range [][2]int{{1440, 900}, {1100, 720}, {880, 640}} {
 		h.tt.SetSize(size[0], size[1])
 		h.tt.Frame()
-		for _, label := range []string{"Menu profil", "Penampilan", "Ciutkan sidebar", "Tersambung", "Notifikasi", "Cari di Space"} {
+		sidebarToggle := "Ciutkan sidebar"
+		if size[0] < tabletMaxWidth {
+			// Tablets show the icon rail, whose toggle opens the sidebar.
+			sidebarToggle = "Buka sidebar"
+		}
+		for _, label := range []string{"Menu profil", "Penampilan", sidebarToggle, "Tersambung", "Notifikasi", "Cari di Space"} {
 			r, ok := h.tt.Find(label)
 			if !ok || r.X < 0 || r.Y < 0 || r.X+r.W > float32(size[0])+1 || r.Y+r.H > float32(size[1])+1 {
 				t.Errorf("%dx%d: %s out of window: %+v, exists=%v", size[0], size[1], label, r, ok)
@@ -217,5 +222,32 @@ func TestCreateTaskPanelResizesBoard(t *testing.T) {
 	done := chromeRect(t, h.tt, "Kolom Selesai")
 	if done.X+done.W > board.X+board.W+1 {
 		t.Fatalf("all four columns should fit when the board has enough room: board=%+v done=%+v", board, done)
+	}
+}
+
+func TestPhoneShellUsesBottomTabsAndFullScreenPanels(t *testing.T) {
+	h := newChromeHarness(t, nil)
+	h.tt.SetSize(390, 844)
+	testAuthorizedSpace(h.app, h.api.divisions[0])
+	h.app.router.Push(PathJobdesk)
+	h.tt.Advance(400 * time.Millisecond)
+	h.tt.Frame()
+	if h.tt.HasText("Ciutkan sidebar") || h.tt.HasText("Cari di Space") {
+		t.Fatal("phone layout still shows the desktop sidebar or header search")
+	}
+	for _, label := range []string{"Beranda", "Jobdesk", "Board", "Medhum", "Lainnya", "Notifikasi", "Menu profil"} {
+		r, ok := h.tt.Find(label)
+		if !ok || r.X < 0 || r.X+r.W > 391 || r.Y+r.H > 845 {
+			t.Fatalf("%s missing or outside the phone: %+v exists=%v", label, r, ok)
+		}
+	}
+	h.click("Lainnya")
+	h.tt.Frame()
+	h.want("Reminder pribadi")
+	h.want("Pengaturan")
+	h.click("Board")
+	h.tt.Frame()
+	if h.app.chrome.tab != "Board tugas" || h.app.router.Path() != PathSpaces {
+		t.Fatalf("Board tab opened %q on %s", h.app.chrome.tab, h.app.router.Path())
 	}
 }

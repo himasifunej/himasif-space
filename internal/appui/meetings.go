@@ -404,11 +404,8 @@ func (a *App) meetingForm(c *ui.Context) {
 	ui.Column(c.Key(d)).FillWidth().Padding(16).Gap(10).Border(1, c.Theme().Border).Radius(10).Children(func() {
 		taskInput(c, "meeting-title", "Judul rapat *", &d.title)
 		taskLongInput(c, "meeting-description", "Tujuan / agenda", &d.description)
-		a.dateField(c, "meeting-date", "Tanggal rapat", &d.date, true, false)
-		ui.Row(c).FillWidth().Gap(12).Children(func() {
-			ui.Column(c).Grow(1).MinWidth(0).Children(func() { clockField(c, "meeting-start", "Mulai", &d.start, true) })
-			ui.Column(c).Grow(1).MinWidth(0).Children(func() { clockField(c, "meeting-end", "Selesai", &d.end, false) })
-		})
+		a.whenField(c, "meeting-when", "Mulai rapat", &d.date, &d.start, true)
+		clockField(c, "meeting-end", "Jam selesai", &d.end, false)
 		muted(c, "Jam selesai boleh dikosongkan: rapat berlangsung sampai selesai.")
 		if d.end != "" {
 			a.dateField(c, "meeting-end-date", "Tanggal selesai (jika beda hari)", &d.endDate, false, false)

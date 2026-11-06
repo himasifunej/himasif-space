@@ -17,16 +17,37 @@ func (a *App) personalTasksView(c *ui.Context) { a.ensureTasks(true); a.taskBoar
 func (a *App) spaceTasksView(c *ui.Context)    { a.ensureTasks(false); a.taskBoardView(c, false) }
 func (a *App) taskBoardView(c *ui.Context, personal bool) {
 	ui.Column(c).Grow(1).MinHeight(0).FillWidth().MinWidth(0).Gap(0).Children(func() {
-		ui.Row(c).FillWidth().Padding(12, 22).Gap(10).AlignItems(ui.Center).Children(func() {
+		phone := isMobile(c)
+		bar := ui.Row(c).FillWidth().Padding(12, 22).Gap(10).AlignItems(ui.Center)
+		if phone {
+			bar.Padding(8, 12).Gap(6)
+		}
+		bar.Children(func() {
 			label := "Tugas Space"
 			if personal {
 				label = "Jobdesk saya"
 			}
-			ui.Text(c, label).FontSize(14).Bold().Grow(1)
-			if ui.TextInput(c.Key("task-filter"), &a.tasks.filter).Label("Filter tugas").Placeholder("Judul, kategori, atau PJ…").Grow(1).MinWidth(90).MaxWidth(220).Changed() {
+			if !phone {
+				// The phone's top bar already names the page.
+				ui.Text(c, label).FontSize(14).Bold().Grow(1)
+			}
+			filter := ui.TextInput(c.Key("task-filter"), &a.tasks.filter).Label("Filter tugas").Placeholder("Judul, kategori, atau PJ…").Grow(1).MinWidth(90)
+			if !phone {
+				filter.MaxWidth(220)
+			}
+			if filter.Changed() {
 				a.projectTasks()
 			}
-			if spaceButton(c, "Dibatalkan", "archive", a.tasks.showCancelled).Clicked() {
+			var cancelled ui.Element
+			if phone {
+				cancelled = spaceIconButton(c, "Dibatalkan", "archive").Size(44, 44)
+				if a.tasks.showCancelled {
+					cancelled.Background(c.Theme().SurfaceHover)
+				}
+			} else {
+				cancelled = spaceButton(c, "Dibatalkan", "archive", a.tasks.showCancelled)
+			}
+			if cancelled.Clicked() {
 				a.tasks.showCancelled = !a.tasks.showCancelled
 				a.projectTasks()
 			}
@@ -233,13 +254,11 @@ func (a *App) taskEditor(c *ui.Context) {
 			zone = p.TimeZone
 		}
 		muted(c, "Jadwal pengerjaan · "+zone)
-		a.taskSchedule(c, d)
-		a.dateField(c, "task-posting", "Tanggal posting", &d.posting, false, true)
+		a.rangeWhenField(c, "task-schedule", d)
+		// Posting is its own schedule; the H-2 design deadline follows it.
+		a.whenField(c, "task-posting", "Jadwal posting", &d.posting, &d.postingTime, false)
 		if d.posting == "" {
 			d.postingTime = ""
-		}
-		if d.posting != "" {
-			clockField(c, "task-posting-time", "Jam posting", &d.postingTime, false)
 		}
 		muted(c, "Tanpa jam tetap berupa tanggal, tanpa menambahkan jam otomatis. Tenggat dan posting disimpan terpisah.")
 		var shared []api.Space

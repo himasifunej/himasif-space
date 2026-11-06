@@ -13,6 +13,7 @@ import (
 type chromeState struct {
 	preferences                                                        Preferences
 	datePickers                                                        map[string]*datePickerState
+	whens                                                              map[string]*whenState
 	drawerWidth                                                        float32
 	membersOpen                                                        bool
 	tab, settingsTab                                                   string
@@ -20,7 +21,7 @@ type chromeState struct {
 	appearance, periodOpen, profileOpen, notificationsOpen, searchOpen bool
 	search, customAccent, preferencesErr                               string
 	members                                                            headerMembersState
-	syncOpen                                                           bool
+	syncOpen, pingOpen                                                 bool
 }
 
 func (a *App) resetWorkspace() {
@@ -147,7 +148,12 @@ func (a *App) shell(c *ui.Context) {
 	} else {
 		c.After(next.Sub(c.Now()))
 	}
-	t := c.Theme()
+	if isMobile(c) {
+		a.mobileShell(c)
+		a.pingDialog(c)
+		a.toasts(c)
+		return
+	}
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Grow(1).MinHeight(0).FillWidth().AlignItems(ui.Stretch).Children(func() {
 			a.sidebar(c)
@@ -176,11 +182,18 @@ func (a *App) shell(c *ui.Context) {
 		})
 		a.statusbar(c)
 	})
+	a.pingDialog(c)
+	a.toasts(c)
+}
+
+func (a *App) toasts(c *ui.Context) {
+	t := c.Theme()
+	w, _ := c.Size()
 	ui.ToastViewportBase(c, func(viewport ui.Element, toasts []ui.Toast) {
 		viewport.Justify(ui.Start).AlignItems(ui.Center).Gap(8).Padding(16)
 		for _, toast := range toasts {
 			parts := ui.ToastBase(c, toast)
-			parts.Root.Width(330).Row().AlignItems(ui.Center).Padding(14).Gap(10).Radius(10).Background(t.Surface).Border(1, t.Border).Shadow(0, 4, 16, 0, ui.RGBA(0, 0, 0, .2)).Children(func() {
+			parts.Root.Width(min(float32(330), w-32)).Row().AlignItems(ui.Center).Padding(14).Gap(10).Radius(10).Background(t.Surface).Border(1, t.Border).Shadow(0, 4, 16, 0, ui.RGBA(0, 0, 0, .2)).Children(func() {
 				ui.Icon(c, spaceIcon("info")).Size(18, 18).TextColor(t.Accent)
 				ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
 					ui.Text(c, toast.Title).Bold()
@@ -203,7 +216,8 @@ func (a *App) sidebar(c *ui.Context) {
 	t := c.Theme()
 	_, h := c.Size()
 	compact := h < 900 || a.chrome.preferences.Compact
-	collapsed := a.chrome.preferences.SidebarCollapsed
+	// Tablets get the icon rail; the saved preference applies on desktop.
+	collapsed := a.chrome.preferences.SidebarCollapsed || viewportMode(c) == layoutTablet
 	width := float32(244)
 	if collapsed {
 		width = 66
@@ -439,7 +453,7 @@ func (a *App) header(c *ui.Context) {
 			w -= 416
 		}
 	}
-	title := map[string]string{PathJobdesk: "Jobdesk saya", PathReminder: "Reminder pribadi", PathArsip: "Arsip periode", PathArchiveAccess: "Izin arsip", PathPengaturan: "Pengaturan", PathOrganisasi: "Organisasi", PathEvaluasi: "Evaluasi SOP"}[a.router.Path()]
+	title := map[string]string{PathJobdesk: "Jobdesk saya", PathReminder: "Reminder pribadi", PathArsip: "Arsip periode", PathArchiveAccess: "Izin arsip", PathPengaturan: "Pengaturan", PathOrganisasi: "Organisasi", PathEvaluasi: "Evaluasi SOP", PathLainnya: "Lainnya"}[a.router.Path()]
 	if title == "" {
 		title = a.spaceTitle()
 	}
@@ -497,7 +511,50 @@ func (a *App) header(c *ui.Context) {
 			a.deliveryNotifications(c)
 			a.taskNotifications(c)
 		})
+		if canPing(a.selectedSpace()) && a.router.Path() == PathSpaces {
+			if spaceButton(c, "Ping", "bell", a.chrome.pingOpen).Tooltip("Kirim ping ke anggota").Border(1, t.Border).Clicked() {
+				a.chrome.pingOpen = true
+			}
+		}
 		a.taskHeaderAction(c)
+	})
+}
+
+// pingDialog opens the shared ping composer over the window. On phones it
+// takes the full width as a sheet from the bottom.
+func (a *App) pingDialog(c *ui.Context) {
+	if !a.chrome.pingOpen {
+		return
+	}
+	if !canPing(a.selectedSpace()) {
+		a.chrome.pingOpen = false
+		return
+	}
+	t := c.Theme()
+	w, h := c.Size()
+	phone := w < mobileMaxWidth
+	ui.DialogBase(c.Key("ping-dialog"), &a.chrome.pingOpen, func(backdrop, panel ui.Element) {
+		backdrop.Background(ui.RGBA(0, 0, 0, .45))
+		if phone {
+			backdrop.Justify(ui.End)
+			panel.Width(w).MaxHeight(h-40).Radius(18, 18, 0, 0)
+		} else {
+			panel.Width(min(float32(600), w-48)).MaxHeight(h - 80).Radius(16)
+		}
+		panel.Column().Background(t.Surface).Border(1, t.Border).Children(func() {
+			ui.Row(c).FillWidth().Padding(14, 18).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
+				ui.Text(c, "Kirim ping").FontSize(17).Bold().Grow(1)
+				if sp := a.selectedSpace(); sp != nil {
+					muted(c, sp.Name).Padding(0, 10)
+				}
+				if spaceIconButton(c, "Tutup ping", "close").Clicked() {
+					a.chrome.pingOpen = false
+				}
+			})
+			ui.Scroll(c.Key("ping-scroll")).Grow(1).MinHeight(0).FillWidth().Children(func() {
+				ui.Column(c).FillWidth().Padding(18).Gap(10).Children(func() { a.pingComposer(c) })
+			})
+		})
 	})
 }
 func (a *App) searchResults(c *ui.Context) {

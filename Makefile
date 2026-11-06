@@ -31,6 +31,7 @@ test-db:
 # the WebAssembly for the server to send.
 web:
 	$(GO) tool mygo build -platform web ./app
+	python3 scripts/release/patch_web_index.py $(WEB_OUT)/index.html
 	gzip -kf9 $(WEB_OUT)/*.wasm
 
 desktop-windows:
