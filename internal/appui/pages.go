@@ -1,11 +1,13 @@
 package appui
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/himasifunej/himasif-space/internal/api"
+	"github.com/himasifunej/himasif-space/internal/timeutil"
 	"github.com/himasifunej/himasif-space/internal/workspaceui"
 )
 
@@ -281,8 +283,8 @@ func (a *App) overviewPage(c *ui.Context, title string, shared bool) {
 						first.FillWidth()
 					}
 					first.Children(func() {
-						pageSection(c, "Agenda terdekat", "Tenggat, rapat, dan jadwal posting.", func() {
-							pageEmpty(c, "calendar", "Agenda belum tersedia", "Jadwal bersama belum dapat dimuat.")
+						pageSection(c, "Agenda terdekat", "Rapat yang akan datang di ruang ini.", func() {
+							a.homeAgenda(c)
 							if spaceButton(c, "Lihat agenda", "arrow", false).Clicked() {
 								a.chrome.tab = "Agenda"
 							}
@@ -296,7 +298,7 @@ func (a *App) overviewPage(c *ui.Context, title string, shared bool) {
 					}
 					second.Children(func() {
 						pageSection(c, "Catatan bersama", "Simpan hasil rapat dan arah pekerjaan.", func() {
-							pageEmpty(c, "note", "Catatan belum tersedia", "Notes space belum dapat dimuat.")
+							a.homeNotes(c)
 							if spaceButton(c, "Buka notes", "arrow", false).Clicked() {
 								a.chrome.tab = "Notes"
 							}
@@ -568,4 +570,53 @@ func (a *App) unavailableBoard(c *ui.Context) {
 			})
 		})
 	})
+}
+
+func (a *App) homeAgenda(c *ui.Context) {
+	a.ensureMeetings()
+	t := c.Theme()
+	if !a.meetings.loaded {
+		muted(c, "Memuat rapat…")
+		return
+	}
+	now := c.Now()
+	shown := 0
+	for _, m := range a.meetings.items {
+		if m.Cancelled || m.StartsAt.Before(now.Add(-2*time.Hour)) || shown == 4 {
+			continue
+		}
+		shown++
+		loc, _ := timeutil.LoadZone(m.TimeZone)
+		if loc == nil {
+			loc = time.UTC
+		}
+		at := m.StartsAt.In(loc)
+		ui.Row(c.Key(m.ID)).FillWidth().Gap(12).AlignItems(ui.Center).MinHeight(40).Children(func() {
+			ui.Text(c, fmt.Sprintf("%s %d", shortDays[at.Weekday()], at.Day())).FontSize(12).TextColor(t.TextMuted).Width(52).Shrink(0)
+			ui.Text(c, m.Title).FontSize(13).Grow(1).MinWidth(0).MaxLines(1)
+			ui.Text(c, at.Format("15.04")).FontSize(11).Padding(3, 8).Radius(6).Background(t.Background).Shrink(0)
+		})
+	}
+	if shown == 0 {
+		muted(c, "Belum ada rapat terjadwal.")
+	}
+}
+
+func (a *App) homeNotes(c *ui.Context) {
+	a.ensureNotes()
+	if !a.notes.loaded {
+		muted(c, "Memuat catatan…")
+		return
+	}
+	for i, n := range a.notes.items {
+		if i == 4 {
+			break
+		}
+		if spaceButton(c.Key(n.ID), n.Title, "note", false).FillWidth().Clicked() {
+			a.chrome.tab = "Notes"
+		}
+	}
+	if len(a.notes.items) == 0 {
+		muted(c, "Belum ada catatan.")
+	}
 }

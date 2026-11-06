@@ -116,10 +116,7 @@ func (a *App) boardColorChoices(c *ui.Context) {
 			}
 		})
 	}
-	if spaceButton(c, "Warna kartu mengikuti tag", "palette", p.ColorCardsByTag).FillWidth().Clicked() {
-		p.ColorCardsByTag = !p.ColorCardsByTag
-		a.savePreferences(c)
-	}
+	a.cardColorChoices(c)
 	if spaceButton(c, "Reset warna lajur", "refresh", false).FillWidth().Clicked() {
 		p.LaneColors = [5]string{}
 		a.savePreferences(c)
@@ -133,9 +130,33 @@ func tagColor(category string) ui.Color {
 	return ui.Hex(colors[int(h.Sum32())%len(colors)])
 }
 
-func (a *App) taskCardColor(category string) ui.Color {
-	if a.chrome.preferences.ColorCardsByTag && category != "" {
+// taskCardColor follows the board's color mode: the task's tag by default,
+// its status, or none. Tags keep one color everywhere a task appears.
+func (a *App) taskCardColor(category string, lane workspaceui.Lane) ui.Color {
+	switch a.chrome.preferences.CardColor {
+	case "plain":
+		return ui.Color{}
+	case "status":
+		if color := a.chrome.preferences.LaneColors[lane]; color != "" {
+			return spaceAccent(color)
+		}
+		return ui.Hex([]string{"#8f8878", "#a2bbd2", "#d7c3a0", "#a8c2ac", "#6d6c60"}[lane])
+	}
+	if category != "" {
 		return tagColor(category)
 	}
 	return ui.Color{}
+}
+
+func (a *App) cardColorChoices(c *ui.Context) {
+	p := &a.chrome.preferences
+	ui.Row(c.Key("card-colors")).Gap(4).AlignItems(ui.Center).Children(func() {
+		for _, mode := range []struct{ key, label string }{{"", "Warna: label"}, {"status", "Status"}, {"plain", "Polos"}} {
+			if spaceButton(c.Key("card-"+mode.key), mode.label, "", p.CardColor == mode.key).Padding(6, 10).MinHeight(32).Clicked() {
+				p.CardColor = mode.key
+				a.savePreferences(c)
+				a.projectTasks()
+			}
+		}
+	})
 }

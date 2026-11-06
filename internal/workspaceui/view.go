@@ -197,7 +197,12 @@ func (s *State) card(c *ui.Context, task Task, dragging *bool) {
 		ui.Column(c).FillWidth().Gap(11).Children(func() {
 			ui.Row(c).FillWidth().AlignItems(ui.Center).Children(func() {
 				if task.Category != "" {
-					ui.Text(c, task.Category).FontSize(10).TextColor(categoryInk).Padding(3, 7).Radius(5).Background(t.Background)
+					chip := ui.Text(c, task.Category).FontSize(10).Bold().Padding(3, 7).Radius(5)
+					if task.Color.A != 0 {
+						chip.Background(task.Color).TextColor(ui.Hex("#24221c"))
+					} else {
+						chip.TextColor(categoryInk).Background(t.Background)
+					}
 				}
 				ui.Box(c).Grow(1)
 				if s.OnMove != nil && !task.ReadOnly {
@@ -307,6 +312,27 @@ func (s *State) moveMenu(c *ui.Context, anchor ui.Element, task Task) {
 			if button.Clicked() {
 				s.requestMove(task.ID, task.Lane, move.before)
 				s.menuOpen = false
+			}
+		}
+		if s.OnAction == nil {
+			return
+		}
+		ui.Box(c).Height(1).FillWidth().Background(t.Border).Margin(4, 0)
+		for _, action := range []struct{ key, label string }{{"edit", "Ubah tugas"}, {"duplicate", "Duplikat"}, {"cancel", "Batalkan tugas"}} {
+			button := ui.ButtonBase(c.Key(action.key)).Label(action.label).FillWidth().Padding(10).Radius(6)
+			button.Children(func() {
+				text := ui.Text(c, action.label).FontSize(12)
+				if action.key == "cancel" {
+					text.TextColor(t.Danger)
+				}
+			})
+			if button.Hovered() {
+				button.Background(t.SurfaceHover)
+			}
+			button.FocusRing(button.FocusVisible())
+			if button.Clicked() {
+				s.menuOpen = false
+				s.OnAction(task.ID, action.key)
 			}
 		}
 	})

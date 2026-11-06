@@ -67,6 +67,8 @@ type State struct {
 	OnMove         func(MoveRequest)
 	InspectorWidth float32
 	LaneColors     [5]ui.Color
+	// OnAction receives card menu actions: "edit", "duplicate", "cancel".
+	OnAction func(id.ID, string)
 	// Details supplies a caller-owned inspector body, inside the right panel.
 	Details         func(*ui.Context, id.ID)
 	tasks           []Task

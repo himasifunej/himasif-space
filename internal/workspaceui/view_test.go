@@ -4,6 +4,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -308,5 +309,33 @@ func TestMixedTaskPermissionsAndCancelledInspector(t *testing.T) {
 	tt := boardTester(t, s, 1440)
 	if !tt.HasText("Dibatalkan") || !tt.HasText("Tugas dibatalkan") {
 		t.Fatal("cancelled task cannot be inspected")
+	}
+}
+
+func TestCardMenuOffersEditDuplicateAndCancel(t *testing.T) {
+	s := New()
+	tasks := fixtureTasks()
+	if err := s.SetTasks(tasks); err != nil {
+		t.Fatal(err)
+	}
+	s.OnMove = func(MoveRequest) {}
+	var got []string
+	s.OnAction = func(tid id.ID, action string) {
+		if tid != tasks[0].ID {
+			t.Fatalf("action for %v, want %v", tid, tasks[0].ID)
+		}
+		got = append(got, action)
+	}
+	tt := boardTester(t, s, 1300)
+	for _, label := range []string{"Ubah tugas", "Duplikat", "Batalkan tugas"} {
+		if err := tt.Click("Pindahkan " + tasks[0].Title); err != nil {
+			t.Fatal(err)
+		}
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !slices.Equal(got, []string{"edit", "duplicate", "cancel"}) {
+		t.Fatalf("actions = %v", got)
 	}
 }

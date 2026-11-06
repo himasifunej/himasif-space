@@ -3,6 +3,7 @@ package appui
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -51,6 +52,9 @@ func (a *App) taskBoardView(c *ui.Context, personal bool) {
 				a.tasks.showCancelled = !a.tasks.showCancelled
 				a.projectTasks()
 			}
+			if !phone && !personal {
+				a.cardColorChoices(c)
+			}
 			if spaceIconButton(c, "Muat ulang tugas", "refresh").Disabled(a.tasks.loading || a.tasks.busy).Clicked() {
 				a.loadTasks()
 			}
@@ -76,6 +80,7 @@ func (a *App) taskBoardView(c *ui.Context, personal bool) {
 		ui.Row(c).Grow(1).MinHeight(0).FillWidth().MinWidth(0).Children(func() {
 			a.workspace.ViewBoard(c)
 		})
+		a.cancelTaskDialog(c)
 	})
 }
 func (a *App) taskFeedback(c *ui.Context) {
@@ -144,32 +149,216 @@ func (a *App) taskHeaderAction(c *ui.Context) {
 }
 func (a *App) tasksOverview(c *ui.Context) {
 	a.ensureTasks(false)
-	pageSection(c, "Pekerjaan di ruang ini", "Satu tugas tetap tersinkron di jobdesk PJ dan Space yang dituju.", func() {
-		if !a.tasks.loaded {
+	t := c.Theme()
+	if !a.tasks.loaded {
+		pageSection(c, "Pekerjaan di ruang ini", "Satu tugas tetap tersinkron di jobdesk PJ dan Space yang dituju.", func() {
 			muted(c, "Memuat tugas…")
 			if a.tasks.err != "" {
-				ui.Text(c, a.tasks.err).TextColor(c.Theme().Danger)
-			}
-			return
-		}
-		counts := [4]int{}
-		for _, t := range a.tasks.items {
-			if t.Progress != api.TaskCancelled {
-				counts[taskLane(t)]++
-			}
-		}
-		ui.Row(c).FillWidth().Gap(18).Children(func() {
-			for lane := workspaceui.Todo; lane <= workspaceui.Done; lane++ {
-				ui.Column(c.Key(lane)).Grow(1).MinWidth(0).Gap(5).Children(func() { ui.Text(c, fmt.Sprint(counts[lane])).FontSize(24).Bold(); muted(c, lane.String()).FontSize(11) })
+				ui.Text(c, a.tasks.err).TextColor(t.Danger)
 			}
 		})
-		if len(a.tasks.items) == 0 {
-			muted(c, "Belum ada tugas di Space ini.")
+		return
+	}
+	now := c.Now()
+	var active, late, review, done int
+	type load struct {
+		name  string
+		lanes [3]int
+		late  int
+	}
+	loads := map[string]*load{}
+	var order []string
+	var upcoming []api.Task
+	for _, task := range a.tasks.items {
+		switch {
+		case task.Progress == api.TaskCancelled:
+			continue
+		case task.Progress == api.TaskDone:
+			done++
+			continue
 		}
-		if spaceButton(c, "Lihat semua tugas", "board", false).Clicked() {
-			a.chrome.tab = "Board tugas"
+		active++
+		lane := taskLane(task)
+		if lane == workspaceui.Review || task.MatchStatus == api.MatchPending {
+			review++
+		}
+		isLate := taskLate(task, now)
+		if isLate {
+			late++
+		}
+		name := task.Assignee.DisplayName
+		if name == "" {
+			name = "Belum ada PJ"
+		}
+		l := loads[name]
+		if l == nil {
+			l = &load{name: name}
+			loads[name] = l
+			order = append(order, name)
+		}
+		if isLate {
+			l.late++
+		} else if lane <= workspaceui.Review {
+			l.lanes[lane]++
+		}
+		upcoming = append(upcoming, task)
+	}
+	slices.SortFunc(upcoming, func(x, y api.Task) int { return taskDue(x).Compare(taskDue(y)) })
+	phone := isMobile(c)
+	cols := 4
+	if phone {
+		cols = 2
+	}
+	ui.Grid(c.Key("home-kpis")).FillWidth().Columns(cols).Gap(12).Children(func() {
+		for _, k := range []struct {
+			label, detail string
+			value         int
+			color         ui.Color
+		}{
+			{"Tugas aktif", "Belum selesai di ruang ini", active, ui.Hex("#a2bbd2")},
+			{"Lewat tenggat", "Pengingat harian berjalan", late, t.Danger},
+			{"Perlu tinjauan", "Bukti menunggu dicocokkan", review, t.Warning},
+			{"Selesai", "Periode ini", done, t.Success},
+		} {
+			ui.Column(c.Key(k.label)).MinWidth(0).Padding(14).Gap(4).Radius(12).Background(t.Surface).Border(1, t.Border).Children(func() {
+				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+					ui.Box(c).Size(8, 8).Radius(4).Background(k.color)
+					muted(c, k.label)
+				})
+				v := ui.Text(c, fmt.Sprint(k.value)).FontSize(26).Bold()
+				if k.label == "Lewat tenggat" && k.value > 0 {
+					v.TextColor(t.Danger)
+				}
+				muted(c, k.detail).FontSize(11).MaxLines(1)
+			})
 		}
 	})
+	sections := ui.Column(c.Key("home-sections")).FillWidth().Gap(16)
+	if !phone {
+		sections.Row().AlignItems(ui.Stretch)
+	}
+	sections.Children(func() {
+		ui.Column(c.Key("home-load")).Grow(1).MinWidth(0).Children(func() {
+			pageSection(c, "Beban kerja anggota", "Tugas aktif per PJ.", func() {
+				most := 1
+				for _, l := range loads {
+					most = max(most, l.lanes[0]+l.lanes[1]+l.lanes[2]+l.late)
+				}
+				if len(order) == 0 {
+					muted(c, "Belum ada tugas aktif.")
+				}
+				colors := []ui.Color{ui.Hex("#8f8878"), ui.Hex("#a2bbd2"), t.Warning}
+				for _, name := range order {
+					l := loads[name]
+					total := l.lanes[0] + l.lanes[1] + l.lanes[2] + l.late
+					ui.Row(c.Key(name)).FillWidth().Gap(10).AlignItems(ui.Center).Children(func() {
+						ui.Text(c, name).FontSize(12).Width(110).Shrink(0).MaxLines(1)
+						track := ui.Row(c).Grow(1).MinWidth(0).Height(12).Radius(6).Background(t.Background)
+						width := track.Bounds().W
+						if width == 0 {
+							// Bars size from the track's last layout.
+							c.After(0)
+						}
+						track.Children(func() {
+							for i, n := range l.lanes {
+								if n > 0 && width > 0 {
+									ui.Box(c.Key(i)).Width(width * float32(n) / float32(most)).FillHeight().Background(colors[i])
+								}
+							}
+							if l.late > 0 && width > 0 {
+								ui.Box(c.Key("late")).Width(width * float32(l.late) / float32(most)).FillHeight().Background(t.Danger)
+							}
+						})
+						ui.Text(c, fmt.Sprintf("%d tugas", total)).FontSize(11).TextColor(t.TextMuted).Width(52).Shrink(0)
+					})
+				}
+				ui.Row(c).Wrap().Gap(12).Children(func() {
+					for i, label := range []string{"Belum mulai", "Dikerjakan", "Perlu tinjauan", "Lewat tenggat"} {
+						color := t.Danger
+						if i < 3 {
+							color = colors[i]
+						}
+						ui.Row(c.Key(label)).Gap(5).AlignItems(ui.Center).Children(func() {
+							ui.Box(c).Size(8, 8).Radius(2).Background(color)
+							muted(c, label).FontSize(11)
+						})
+					}
+				})
+			})
+		})
+		ui.Column(c.Key("home-due")).Grow(1).MinWidth(0).Children(func() {
+			pageSection(c, "Tenggat terdekat", "Diurutkan dari yang paling dekat.", func() {
+				if len(upcoming) == 0 {
+					muted(c, "Tidak ada tugas aktif.")
+				}
+				for i, task := range upcoming {
+					if i == 6 {
+						break
+					}
+					row := ui.ButtonBase(c.Key(task.ID)).Label("Buka "+task.Title).FillWidth().Row().Gap(10).AlignItems(ui.Center).MinHeight(44).Padding(6, 8).Radius(8)
+					if row.Hovered() {
+						row.Background(t.SurfaceHover)
+					}
+					isLate := taskLate(task, now)
+					row.FocusRing(row.FocusVisible()).Children(func() {
+						dot := tagColor(task.Category)
+						if isLate {
+							dot = t.Danger
+						}
+						ui.Box(c).Size(8, 8).Radius(4).Background(dot).Shrink(0)
+						ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
+							ui.Text(c, task.Title).FontSize(13).MaxLines(1)
+							muted(c, task.Assignee.DisplayName).FontSize(11).MaxLines(1)
+						})
+						due := taskDate(task.DeadlineDate, task.DeadlineAt, task.TimeZone)
+						if isLate {
+							due += " · lewat"
+						}
+						d := ui.Text(c, due).FontSize(11).Shrink(0)
+						if isLate {
+							d.TextColor(t.Danger)
+						} else {
+							d.TextColor(t.TextMuted)
+						}
+					})
+					if row.Clicked() {
+						a.chrome.tab = "Board tugas"
+						a.workspace.Open(task.ID)
+					}
+				}
+				if spaceButton(c, "Lihat semua tugas", "board", false).Clicked() {
+					a.chrome.tab = "Board tugas"
+				}
+			})
+		})
+	})
+}
+
+// taskDue orders tasks by deadline; tasks without one come last.
+func taskDue(t api.Task) time.Time {
+	if t.DeadlineAt != nil {
+		return *t.DeadlineAt
+	}
+	if t.DeadlineDate != nil {
+		loc, _ := timeutil.LoadZone(t.TimeZone)
+		if loc == nil {
+			loc = time.UTC
+		}
+		return t.DeadlineDate.At(23, 59, loc)
+	}
+	return time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC)
+}
+
+// taskLate reports an unfinished task past its deadline. A date-only
+// deadline lasts the whole day in the task's time zone.
+func taskLate(t api.Task, now time.Time) bool {
+	if t.Progress == api.TaskDone || t.Progress == api.TaskCancelled || t.Progress == api.TaskSubmitted {
+		return false
+	}
+	if t.DeadlineAt == nil && t.DeadlineDate == nil {
+		return false
+	}
+	return taskDue(t).Before(now)
 }
 func (a *App) taskCreatePanel(c *ui.Context) {
 	workspaceui.Drawer(c.Key("create-task-drawer"), &a.chrome.drawerWidth, func() {
@@ -787,4 +976,35 @@ func taskEventLabel(action string) string {
 		return "Bukti dicocokkan"
 	}
 	return "Tugas diperbarui"
+}
+
+func (a *App) cancelTaskDialog(c *ui.Context) {
+	if !a.tasks.cancelOpen {
+		return
+	}
+	t := a.taskByID(a.tasks.cancelID)
+	if t == nil {
+		a.tasks.cancelOpen = false
+		return
+	}
+	th := c.Theme()
+	w, _ := c.Size()
+	ui.DialogBase(c.Key("cancel-task"), &a.tasks.cancelOpen, func(backdrop, panel ui.Element) {
+		backdrop.Background(ui.RGBA(0, 0, 0, .45))
+		panel.Width(min(float32(460), w-32)).Column().Padding(20).Gap(12).Radius(14).Background(th.Surface).Border(1, th.Border).Children(func() {
+			ui.Text(c, "Batalkan “"+t.Title+"”?").FontSize(17).Bold()
+			muted(c, "Tugas pindah ke lajur Dibatalkan dan pengingatnya berhenti. Riwayat, komentar dan bukti tetap tersimpan untuk evaluasi.")
+			taskInput(c, "cancel-reason", "Alasan pembatalan *", &a.tasks.cancelReason)
+			ui.Row(c).FillWidth().Gap(8).Children(func() {
+				ui.Box(c).Grow(1)
+				if spaceButton(c, "Kembali", "", false).Clicked() {
+					a.tasks.cancelOpen = false
+				}
+				b := spaceButton(c, "Batalkan tugas", "archive", false).Background(th.Danger).TextColor(ui.Hex("#ffffff")).Disabled(strings.TrimSpace(a.tasks.cancelReason) == "")
+				if b.Clicked() {
+					a.confirmCancelTask()
+				}
+			})
+		})
+	})
 }

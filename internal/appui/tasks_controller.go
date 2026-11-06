@@ -54,6 +54,9 @@ type tasksUIState struct {
 	memberErrors                                             map[id.ID]string
 	ownerOpen, assigneeOpen, createOpen                      bool
 	filter, comment, help, evidenceURL, evidenceNote, reason string
+	cancelID                                                 id.ID
+	cancelOpen                                               bool
+	cancelReason                                             string
 	inspected, pendingOpen                                   id.ID
 	weekOffset                                               int
 	showCancelled                                            bool
@@ -227,7 +230,7 @@ func (a *App) projectTasks() {
 		if t.LocalPending {
 			title += " · perangkat, belum cloud"
 		}
-		tasks = append(tasks, workspaceui.Task{ID: t.ID, Title: title, Description: t.Description, ExpectedOutput: t.ExpectedOutput, Category: t.Category, Color: a.taskCardColor(t.Category), Assignee: t.Assignee.DisplayName, Deadline: taskDate(t.DeadlineDate, t.DeadlineAt, t.TimeZone), Posting: taskDate(t.PostingDate, t.PostingAt, t.TimeZone), Space: a.taskSpaceNames(t), Lane: taskLane(t), ReadOnly: !t.Permissions.Manage && (!t.Permissions.Progress || t.Progress == api.TaskDone || t.Progress == api.TaskCancelled)})
+		tasks = append(tasks, workspaceui.Task{ID: t.ID, Title: title, Description: t.Description, ExpectedOutput: t.ExpectedOutput, Category: t.Category, Color: a.taskCardColor(t.Category, taskLane(t)), Assignee: t.Assignee.DisplayName, Deadline: taskDate(t.DeadlineDate, t.DeadlineAt, t.TimeZone), Posting: taskDate(t.PostingDate, t.PostingAt, t.TimeZone), Space: a.taskSpaceNames(t), Lane: taskLane(t), ReadOnly: !t.Permissions.Manage && (!t.Permissions.Progress || t.Progress == api.TaskDone || t.Progress == api.TaskCancelled)})
 	}
 	for i, color := range a.chrome.preferences.LaneColors {
 		if color != "" {
@@ -239,6 +242,7 @@ func (a *App) projectTasks() {
 	_ = a.workspace.SetTasks(tasks)
 	a.workspace.OnMove = a.moveTask
 	a.workspace.Details = a.taskDetails
+	a.workspace.OnAction = a.taskAction
 	if a.tasks.busy || a.tasks.loading || (a.conn == connOffline && !a.offlineAvailable()) {
 		a.workspace.OnMove = nil
 	}
@@ -526,4 +530,39 @@ func (a *App) loadTaskNotifications() {
 			a.tasks.notificationsLoaded = true
 		}
 	})
+}
+
+// taskAction runs a card menu action. Duplicating opens a prefilled form to
+// review before saving; cancelling asks for a reason because history and
+// evidence stay (PRD TSK-05). There is no silent deletion.
+func (a *App) taskAction(tid id.ID, action string) {
+	t := a.taskByID(tid)
+	if t == nil || !t.Permissions.Manage {
+		return
+	}
+	switch action {
+	case "edit":
+		a.workspace.Open(tid)
+		a.editTask(*t)
+	case "duplicate":
+		a.editTask(*t)
+		a.tasks.draft.taskID, a.tasks.draft.version = id.Nil, 0
+		a.tasks.draft.title = t.Title + " (salinan)"
+		a.workspace.Close()
+		a.tasks.notice = "Periksa salinan, lalu simpan untuk membuat tugas baru."
+	case "cancel":
+		a.tasks.cancelID, a.tasks.cancelOpen, a.tasks.cancelReason = tid, true, ""
+	}
+}
+
+func (a *App) confirmCancelTask() {
+	reason := strings.TrimSpace(a.tasks.cancelReason)
+	if reason == "" {
+		a.tasks.err = "Tulis alasan pembatalan."
+		return
+	}
+	a.tasks.cancelOpen = false
+	a.tasks.reason = reason
+	a.moveTask(workspaceui.MoveRequest{TaskID: a.tasks.cancelID, Destination: workspaceui.Cancelled})
+	a.tasks.reason = ""
 }

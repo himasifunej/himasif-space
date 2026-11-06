@@ -12,6 +12,8 @@ type Preferences struct {
 	Palette          string    `json:"palette,omitempty"`
 	LaneColors       [5]string `json:"laneColors,omitempty"`
 	ColorCardsByTag  bool      `json:"colorCardsByTag,omitempty"`
+	// CardColor colors board cards by "" (their tag), "status" or "plain".
+	CardColor string `json:"cardColor,omitempty"`
 }
 
 type PreferencesStore interface {
