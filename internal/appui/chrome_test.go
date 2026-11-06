@@ -273,10 +273,11 @@ func TestChromeBoardRouteDistinguishesUnloadedAndConfirmedSnapshots(t *testing.T
 		t.Fatal("task did not open its inspector")
 	}
 	h.want(task.Description)
-	panel := chromeRect(t, h.tt, "Detail tugas")
+	// Desktop opens the task as a modal over the board, which keeps its size.
+	close := chromeRect(t, h.tt, "Tutup detail tugas")
 	after := chromeRect(t, h.tt, "Kolom board")
-	if !(after.W < before.W && after.X+after.W <= panel.X+1 && panel.X > after.X) {
-		t.Fatalf("inspector did not shrink board: before=%+v after=%+v inspector=%+v", before, after, panel)
+	if after.W != before.W || close.W == 0 {
+		t.Fatalf("detail modal should overlay the board: before=%+v after=%+v close=%+v", before, after, close)
 	}
 }
 
@@ -290,8 +291,9 @@ func TestChromePeriodChangeClearsBoardSnapshotAndAuthority(t *testing.T) {
 	h.tt.Frame()
 	h.click("Tugas " + task.Title)
 	previous := h.app.workspace
-	h.click("2025/2026 (aktif)")
-	h.click("2024/2025 (ditutup)")
+	// The task modal covers the sidebar; change the period the way the
+	// picker does, with the task still open.
+	h.app.changePeriod(h.api.periods[0].ID)
 	h.settle()
 	if period := h.app.period(); period == nil || period.ID != h.api.periods[0].ID {
 		t.Fatalf("period selection failed: %+v", period)

@@ -99,6 +99,26 @@ func (s *Store) Task(ctx context.Context, q Querier, tid id.ID, lock string) (Ta
 	if err != nil {
 		return t, err
 	}
+	rows, err = q.Query(ctx, `select c.id,c.body,c.done,c.done_at,c.created_at,u.id,u.display_name from task_checklist_items c left join users u on u.id=c.done_by where c.task_id=$1 and c.deleted_at is null order by c.position,c.id`, tid)
+	if err != nil {
+		return t, err
+	}
+	t.Checklist, err = pgx.CollectRows(rows, func(r pgx.CollectableRow) (api.TaskChecklistItem, error) {
+		var c api.TaskChecklistItem
+		var who *id.ID
+		var name *string
+		e := r.Scan(&c.ID, &c.Body, &c.Done, &c.DoneAt, &c.CreatedAt, &who, &name)
+		if who != nil && name != nil {
+			c.DoneBy = &api.PersonRef{ID: *who, DisplayName: *name}
+		}
+		return c, e
+	})
+	if err != nil {
+		return t, err
+	}
+	if t.Checklist == nil {
+		t.Checklist = []api.TaskChecklistItem{}
+	}
 	rows, err = q.Query(ctx, `select h.id,u.id,u.display_name,h.message,h.status,h.created_at from task_help_requests h join users u on u.id=h.user_id where h.task_id=$1 order by h.created_at,h.id`, tid)
 	if err != nil {
 		return t, err
@@ -213,6 +233,40 @@ func (s *Store) TaskRank(ctx context.Context, q Querier, pid, tid, before id.ID,
 		}
 	}
 	return int64(pos+1) * 1024, nil
+}
+
+func (s *Store) AddTaskChecklistItem(ctx context.Context, q Querier, tid, author id.ID, c api.TaskChecklistItem) error {
+	_, e := q.Exec(ctx, `insert into task_checklist_items(id,task_id,body,position,created_by,created_at,updated_at)
+ values($1,$2,$3,(select coalesce(max(position),0)+1 from task_checklist_items where task_id=$2),$4,$5,$5)`, c.ID, tid, c.Body, author, c.CreatedAt)
+	return e
+}
+
+// UpdateTaskChecklistItem changes the body or done state of a live item of
+// the task. It reports ErrNotFound for another task's item or a deleted one.
+func (s *Store) UpdateTaskChecklistItem(ctx context.Context, q Querier, tid, item, actor id.ID, body *string, done *bool, at time.Time) error {
+	tag, e := q.Exec(ctx, `update task_checklist_items set body=coalesce($4,body),
+ done=coalesce($5,done),
+ done_by=case when $5::boolean is null then done_by when $5 then $3 else null end,
+ done_at=case when $5::boolean is null then done_at when $5 then $6 else null end,
+ updated_at=$6 where id=$2 and task_id=$1 and deleted_at is null`, tid, item, actor, body, done, at)
+	if e != nil {
+		return e
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Store) DeleteTaskChecklistItem(ctx context.Context, q Querier, tid, item id.ID, at time.Time) error {
+	tag, e := q.Exec(ctx, `update task_checklist_items set deleted_at=$3,updated_at=$3 where id=$2 and task_id=$1 and deleted_at is null`, tid, item, at)
+	if e != nil {
+		return e
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (s *Store) AddTaskComment(ctx context.Context, q Querier, tid id.ID, c api.TaskComment) error {

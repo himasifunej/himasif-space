@@ -33,34 +33,35 @@ type TaskPermissions struct {
 // Task is one canonical object projected into authorized spaces and jobdesk.
 // Exactly one of DeadlineDate/DeadlineAt is present; date-only stays date-only.
 type Task struct {
-	LocalPending     bool              `json:"-"`
-	ID               id.ID             `json:"id"`
-	PeriodID         id.ID             `json:"periodId"`
-	OwnerDivisionID  id.ID             `json:"ownerDivisionId"`
-	SpaceIDs         []id.ID           `json:"spaceIds"`
-	Title            string            `json:"title"`
-	Description      string            `json:"description"`
-	ExpectedOutput   string            `json:"expectedOutput"`
-	Category         string            `json:"category"`
-	Assignee         PersonRef         `json:"assignee"`
-	Participants     []PersonRef       `json:"participants"`
-	PlannedStartDate *timeutil.Date    `json:"plannedStartDate,omitempty"`
-	PlannedStartAt   *time.Time        `json:"plannedStartAt,omitempty"`
-	DeadlineDate     *timeutil.Date    `json:"deadlineDate,omitempty"`
-	DeadlineAt       *time.Time        `json:"deadlineAt,omitempty"`
-	PostingDate      *timeutil.Date    `json:"postingDate,omitempty"`
-	PostingAt        *time.Time        `json:"postingAt,omitempty"`
-	TimeZone         string            `json:"timeZone"`
-	Progress         string            `json:"progress"`
-	MatchStatus      string            `json:"matchStatus"`
-	Version          int64             `json:"version"`
-	CreatedBy        PersonRef         `json:"createdBy"`
-	CreatedAt        time.Time         `json:"createdAt"`
-	UpdatedAt        time.Time         `json:"updatedAt"`
-	Permissions      TaskPermissions   `json:"permissions"`
-	Evidence         []TaskEvidence    `json:"evidence"`
-	Comments         []TaskComment     `json:"comments"`
-	HelpRequests     []TaskHelpRequest `json:"helpRequests"`
+	LocalPending     bool                `json:"-"`
+	ID               id.ID               `json:"id"`
+	PeriodID         id.ID               `json:"periodId"`
+	OwnerDivisionID  id.ID               `json:"ownerDivisionId"`
+	SpaceIDs         []id.ID             `json:"spaceIds"`
+	Title            string              `json:"title"`
+	Description      string              `json:"description"`
+	ExpectedOutput   string              `json:"expectedOutput"`
+	Category         string              `json:"category"`
+	Assignee         PersonRef           `json:"assignee"`
+	Participants     []PersonRef         `json:"participants"`
+	PlannedStartDate *timeutil.Date      `json:"plannedStartDate,omitempty"`
+	PlannedStartAt   *time.Time          `json:"plannedStartAt,omitempty"`
+	DeadlineDate     *timeutil.Date      `json:"deadlineDate,omitempty"`
+	DeadlineAt       *time.Time          `json:"deadlineAt,omitempty"`
+	PostingDate      *timeutil.Date      `json:"postingDate,omitempty"`
+	PostingAt        *time.Time          `json:"postingAt,omitempty"`
+	TimeZone         string              `json:"timeZone"`
+	Progress         string              `json:"progress"`
+	MatchStatus      string              `json:"matchStatus"`
+	Version          int64               `json:"version"`
+	CreatedBy        PersonRef           `json:"createdBy"`
+	CreatedAt        time.Time           `json:"createdAt"`
+	UpdatedAt        time.Time           `json:"updatedAt"`
+	Permissions      TaskPermissions     `json:"permissions"`
+	Evidence         []TaskEvidence      `json:"evidence"`
+	Comments         []TaskComment       `json:"comments"`
+	Checklist        []TaskChecklistItem `json:"checklist"`
+	HelpRequests     []TaskHelpRequest   `json:"helpRequests"`
 }
 
 // TaskWriteRequest replaces editable metadata. Owner division is fixed after
@@ -93,6 +94,21 @@ type TaskMoveRequest struct {
 }
 type TaskCommentRequest struct {
 	Body string `json:"body"`
+}
+
+// TaskChecklistItem is one step inside a task. Ticking it does not change the
+// task's progress or evidence.
+type TaskChecklistItem struct {
+	ID        id.ID      `json:"id"`
+	Body      string     `json:"body"`
+	Done      bool       `json:"done"`
+	DoneBy    *PersonRef `json:"doneBy,omitempty"`
+	DoneAt    *time.Time `json:"doneAt,omitempty"`
+	CreatedAt time.Time  `json:"createdAt"`
+}
+type TaskChecklistRequest struct {
+	Body *string `json:"body,omitempty"`
+	Done *bool   `json:"done,omitempty"`
 }
 type TaskComment struct {
 	ID        id.ID     `json:"id"`

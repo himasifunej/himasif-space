@@ -94,3 +94,14 @@ func (c *Client) Notifications(ctx context.Context) ([]api.Notification, error) 
 func (c *Client) ReadNotification(ctx context.Context, n id.ID) error {
 	return c.do(ctx, http.MethodPost, "/api/notifications/"+n.String()+"/read", nil, nil)
 }
+func (c *Client) AddTaskChecklist(ctx context.Context, t id.ID, body string) (api.TaskChecklistItem, error) {
+	var out api.TaskChecklistItem
+	err := c.do(ctx, http.MethodPost, "/api/tasks/"+t.String()+"/checklist", api.TaskChecklistRequest{Body: &body}, &out)
+	return out, err
+}
+func (c *Client) UpdateTaskChecklist(ctx context.Context, t, item id.ID, req api.TaskChecklistRequest) error {
+	return c.do(ctx, http.MethodPatch, "/api/tasks/"+t.String()+"/checklist/"+item.String(), req, nil)
+}
+func (c *Client) DeleteTaskChecklist(ctx context.Context, t, item id.ID) error {
+	return c.do(ctx, http.MethodDelete, "/api/tasks/"+t.String()+"/checklist/"+item.String(), nil, nil)
+}

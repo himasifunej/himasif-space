@@ -176,7 +176,7 @@ func (a *App) shell(c *ui.Context) {
 				if a.tasks.draft != nil && a.tasks.draft.taskID == id.Nil {
 					a.taskCreatePanel(c)
 				} else if a.workspace != nil && a.workspace.SelectedID() != id.Nil {
-					a.workspace.Inspector(c)
+					a.taskDetailModal(c)
 				}
 			}
 		})
@@ -444,12 +444,10 @@ func (a *App) header(c *ui.Context) {
 		panelWidth := float32(0)
 		if a.tasks.draft != nil && a.tasks.draft.taskID == id.Nil {
 			panelWidth = a.chrome.drawerWidth
-		} else if a.workspace != nil && a.workspace.SelectedID() != id.Nil {
-			panelWidth = a.workspace.InspectorWidth
 		}
 		if panelWidth > 0 {
 			w -= panelWidth
-		} else if (a.tasks.draft != nil && a.tasks.draft.taskID == id.Nil) || (a.workspace != nil && a.workspace.SelectedID() != id.Nil) {
+		} else if a.tasks.draft != nil && a.tasks.draft.taskID == id.Nil {
 			w -= 416
 		}
 	}

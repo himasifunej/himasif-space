@@ -743,6 +743,75 @@ func (s *Server) addTaskComment(w http.ResponseWriter, r *http.Request, p *princ
 	writeJSON(w, 201, out)
 	return nil
 }
+
+// Checklist items may be edited by whoever manages the task or reports its
+// progress (the PJ). Ticking an item never changes progress or evidence.
+func (s *Server) taskChecklist(w http.ResponseWriter, r *http.Request, p *principal) error {
+	var req api.TaskChecklistRequest
+	if r.Method != http.MethodDelete {
+		if err := readJSON(r, &req); err != nil {
+			return err
+		}
+	}
+	if req.Body != nil {
+		body, err := text(*req.Body, "isi checklist", 1, 500)
+		if err != nil {
+			return err
+		}
+		req.Body = &body
+	}
+	var item id.ID
+	if r.Method != http.MethodPost {
+		var err error
+		if item, err = pathID(r, "itemId"); err != nil {
+			return err
+		}
+	}
+	var out api.TaskChecklistItem
+	err := s.withTask(r, p, true, func(q store.Querier, _ api.Period, t *store.TaskRow) error {
+		if !t.Permissions.Manage && !t.Permissions.Progress {
+			return errForbidden
+		}
+		if t.Progress == api.TaskCancelled {
+			return conflict("Tugas ini sudah dibatalkan.")
+		}
+		now := s.now().UTC().Truncate(time.Microsecond)
+		switch r.Method {
+		case http.MethodPost:
+			if req.Body == nil {
+				return badRequest("Isi checklist wajib diisi.")
+			}
+			out = api.TaskChecklistItem{ID: id.New(), Body: *req.Body, CreatedAt: now}
+			if err := s.store.AddTaskChecklistItem(r.Context(), q, t.ID, p.User.ID, out); err != nil {
+				return err
+			}
+			return s.taskEvent(r, q, p, t, "task.checklist.add", "", nil, out)
+		case http.MethodPatch:
+			if req.Body == nil && req.Done == nil {
+				return badRequest("Tidak ada perubahan checklist.")
+			}
+			if err := s.store.UpdateTaskChecklistItem(r.Context(), q, t.ID, item, p.User.ID, req.Body, req.Done, now); err != nil {
+				return notFound(err, errNotFound)
+			}
+			out = api.TaskChecklistItem{ID: item}
+			return s.taskEvent(r, q, p, t, "task.checklist.update", "", nil, req)
+		default:
+			if err := s.store.DeleteTaskChecklistItem(r.Context(), q, t.ID, item, now); err != nil {
+				return notFound(err, errNotFound)
+			}
+			return s.taskEvent(r, q, p, t, "task.checklist.delete", "", nil, map[string]any{"id": item})
+		}
+	})
+	if err != nil {
+		return err
+	}
+	if r.Method == http.MethodDelete {
+		w.WriteHeader(http.StatusNoContent)
+		return nil
+	}
+	writeJSON(w, map[bool]int{true: 201, false: 200}[r.Method == http.MethodPost], out)
+	return nil
+}
 func (s *Server) offerTaskHelp(w http.ResponseWriter, r *http.Request, p *principal) error {
 	var req api.TaskHelpCreateRequest
 	if err := readJSON(r, &req); err != nil {

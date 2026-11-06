@@ -56,7 +56,8 @@ type tasksUIState struct {
 	filter, comment, help, evidenceURL, evidenceNote, reason string
 	cancelID                                                 id.ID
 	cancelOpen                                               bool
-	cancelReason                                             string
+	cancelReason, checklistNew                               string
+	detailSplit                                              bool
 	inspected, pendingOpen                                   id.ID
 	weekOffset                                               int
 	showCancelled                                            bool

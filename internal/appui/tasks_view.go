@@ -515,6 +515,18 @@ func (a *App) taskDetails(c *ui.Context, tid id.ID) {
 		a.taskEditor(c)
 		return
 	}
+	a.taskDetailMain(c, t)
+	if !a.tasks.detailSplit {
+		a.taskDetailSide(c, t)
+	}
+}
+
+// taskDetailMain is the task's own content: what, who, when, checklist and
+// evidence. taskDetailSide holds the conversation and history; wide windows
+// show them side by side like a card in Trello.
+func (a *App) taskDetailMain(c *ui.Context, t *api.Task) {
+	tid := t.ID
+	_ = tid
 	ui.Text(c, t.Title).FontSize(23).Bold()
 	muted(c, progressLabel(t.Progress)+" · "+matchLabel(t.MatchStatus))
 	if t.LocalPending {
@@ -538,9 +550,13 @@ func (a *App) taskDetails(c *ui.Context, tid id.ID) {
 	if t.Permissions.Progress || t.Permissions.Manage {
 		a.taskProgressActions(c, *t)
 	}
+	a.taskChecklistView(c, *t)
 	a.taskEvidenceView(c, *t)
 	a.taskHelpView(c, *t)
-	ui.Box(c).Height(1).FillWidth().Background(c.Theme().Border)
+}
+
+func (a *App) taskDetailSide(c *ui.Context, t *api.Task) {
+	tid := t.ID
 	ui.Text(c, "Percakapan tugas").Bold()
 	for _, comment := range t.Comments {
 		ui.Column(c.Key(comment.ID)).FillWidth().Gap(3).Children(func() {
@@ -578,6 +594,7 @@ func (a *App) taskDetails(c *ui.Context, tid id.ID) {
 			muted(c, taskTimestamp(e.CreatedAt, t.TimeZone)).FontSize(10)
 		})
 	}
+
 }
 func progressLabel(p string) string {
 	switch p {

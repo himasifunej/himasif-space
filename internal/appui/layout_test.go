@@ -167,7 +167,7 @@ func TestNativeCapture(t *testing.T) {
 	capture("collapsed")
 }
 
-func TestInspectorsShareRightSideAtMinimumWidth(t *testing.T) {
+func TestTaskModalAndAppearanceAreExclusiveAtMinimumWidth(t *testing.T) {
 	h := newChromeHarness(t, nil)
 	h.tt.SetSize(880, 640)
 	testAuthorizedSpace(h.app, h.api.divisions[0])
@@ -179,17 +179,17 @@ func TestInspectorsShareRightSideAtMinimumWidth(t *testing.T) {
 	h.tt.Advance(400 * time.Millisecond)
 	h.click("Tugas " + task.Title)
 	h.want("Detail tugas")
-	h.click("Penampilan")
-	h.want("Tutup penampilan")
+	h.click("Tutup detail tugas")
 	h.dontWant("Detail tugas")
 	if h.app.workspace.SelectedID() != id.Nil {
-		t.Fatal("appearance retained the task inspector")
+		t.Fatal("closing the modal kept the task selected")
 	}
+	h.click("Penampilan")
+	h.want("Tutup penampilan")
 	h.click("Tugas " + task.Title)
 	h.want("Detail tugas")
-	h.dontWant("Tutup penampilan")
 	if h.app.chrome.appearance {
-		t.Fatal("task inspector left appearance open")
+		t.Fatal("task modal left appearance open")
 	}
 	board := chromeRect(t, h.tt, "Kolom board")
 	if board.W < 200 {
