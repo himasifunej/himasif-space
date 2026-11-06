@@ -219,6 +219,7 @@ func (a *App) offlineBanner(c *ui.Context) {
 		muted(c, status).Grow(1)
 		if ui.Button(c, "Sinkronisasi").Clicked() {
 			a.chrome.settingsTab = "Sinkronisasi"
+			a.chrome.settingsDetail = true
 			a.navigate(PathPengaturan)
 		}
 	})

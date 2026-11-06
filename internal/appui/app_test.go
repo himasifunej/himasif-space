@@ -470,7 +470,7 @@ func TestPages(t *testing.T) {
 	h.click("Menu profil")
 	h.click("Pengaturan")
 	h.settle()
-	h.click("Akun")
+	h.click("Profil dan keamanan")
 	for _, s := range []string{"ani@himasif.id", "Pribadi", "Terverifikasi", "https://api.contoh.test", "0.1.0-test", "Keluar"} {
 		h.want(s)
 	}

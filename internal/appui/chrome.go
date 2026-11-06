@@ -22,6 +22,9 @@ type chromeState struct {
 	search, customAccent, preferencesErr                               string
 	members                                                            headerMembersState
 	syncOpen, pingOpen                                                 bool
+	// settingsDetail shows one settings page instead of the grouped list
+	// on narrow windows.
+	settingsDetail bool
 }
 
 func (a *App) resetWorkspace() {

@@ -309,7 +309,7 @@ func (a *App) lainnyaPage(c *ui.Context) {
 		{"Pengaturan Space", "Bot WhatsApp dan pengingat", "whatsapp", space("Pengaturan")},
 		{"Evaluasi SOP", "Temuan dan laporan", "shield", func() { a.navigate(PathEvaluasi) }},
 		{"Arsip periode", "Periode lama", "archive", func() { a.navigate(PathArsip) }},
-		{"Pengaturan", "Perangkat, akun, sinkronisasi", "settings", func() { a.navigate(PathPengaturan) }},
+		{"Pengaturan", "Perangkat, akun, sinkronisasi", "settings", func() { a.chrome.settingsDetail = false; a.navigate(PathPengaturan) }},
 		{"Penampilan", "Tema, aksen, kepadatan", "palette", func() { a.chrome.appearance = true }},
 	}
 	if a.isAdmin() {

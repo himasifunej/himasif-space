@@ -375,65 +375,6 @@ func (a *App) organizationPage(c *ui.Context, r *ui.Route) {
 	a.organizationAdminView(c)
 }
 
-func (a *App) settings(c *ui.Context, r *ui.Route) {
-	r.Title("Pengaturan")
-	tabs := []struct{ title, icon string }{{"Sinkronisasi", "refresh"}, {"Darurat", "archive"}, {"Status layanan", "clock"}, {"Perangkat", "monitor"}, {"WhatsApp", "whatsapp"}, {"Pengingat", "bell"}, {"Command", "terminal"}, {"Aktivitas", "clock"}, {"Akun", "user"}}
-	buttons := func() {
-		for _, tab := range tabs {
-			if spaceButton(c.Key(tab.title), tab.title, tab.icon, a.chrome.settingsTab == tab.title).FillWidth().Clicked() {
-				a.chrome.settingsTab = tab.title
-			}
-		}
-	}
-	content := func() {
-		switch a.chrome.settingsTab {
-		case "Sinkronisasi":
-			a.offlineView(c)
-		case "Darurat":
-			a.emergencyView(c)
-		case "Status layanan":
-			a.operationsView(c)
-		case "Perangkat":
-			if a.DeviceSettings != nil {
-				a.DeviceSettings(c)
-			}
-		case "Akun":
-			a.accountPage(c)
-		case "Pengingat":
-			a.notificationSettings(c)
-		case "Command":
-			a.commandSettings(c)
-		case "Aktivitas":
-			a.whatsappActivity(c)
-		default:
-			a.whatsappSettings(c)
-		}
-	}
-	w, _ := c.Size()
-	if w >= 1200 {
-		ui.Row(c).Fill().MinWidth(0).Children(func() {
-			ui.Column(c.Key("settings-navigation")).Width(206).Shrink(0).FillHeight().Padding(20, 12).Gap(4).Background(c.Theme().Surface).BorderWidth(0, 1, 0, 0).BorderColor(c.Theme().Border).Children(func() {
-				muted(c, "PENGATURAN").FontSize(10).Padding(4, 8, 8, 8)
-				buttons()
-			})
-			ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).FillHeight().Children(content)
-		})
-		return
-	}
-	ui.Column(c).Fill().MinWidth(0).Children(func() {
-		ui.Column(c.Key("settings-navigation")).FillWidth().Shrink(0).Label("Tab pengaturan").BorderWidth(0, 0, 1, 0).BorderColor(c.Theme().Border).Children(func() {
-			ui.Row(c).FillWidth().Wrap().Padding(8, 16).Gap(5).Children(func() {
-				for _, tab := range tabs {
-					if spaceButton(c.Key(tab.title), tab.title, tab.icon, a.chrome.settingsTab == tab.title).Shrink(0).Clicked() {
-						a.chrome.settingsTab = tab.title
-					}
-				}
-			})
-		})
-		ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).FillWidth().Children(content)
-	})
-}
-
 func (a *App) spaceSettings(c *ui.Context, shared bool) {
 	pageBody(c, "Pengaturan space", func() {
 		if shared {

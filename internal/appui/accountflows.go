@@ -529,6 +529,7 @@ func (a *App) adminProofView(c *ui.Context) {
 	if spaceButton(c, "Ke pengaturan akun admin", "settings", false).Clicked() {
 		a.account.active, a.account.owner = false, a.user.ID
 		a.chrome.settingsTab = "Akun"
+		a.chrome.settingsDetail = true
 		a.router.Push(PathPengaturan)
 	}
 }

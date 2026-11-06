@@ -55,16 +55,23 @@ func TestSettingsTabsReachableAtDesktopWidths(t *testing.T) {
 	h := newChromeHarness(t, nil)
 	h.app.router.Replace(PathPengaturan)
 	h.app.DeviceSettings = func(c *ui.Context) { ui.Text(c, "Perangkat, notifikasi, dan Ace") }
-	for _, size := range [][2]int{{1440, 900}, {880, 640}} {
+	for _, size := range [][2]int{{1440, 900}, {880, 1000}, {390, 1000}} {
 		h.tt.SetSize(size[0], size[1])
-		for _, tab := range []struct{ name, heading string }{
-			{"Sinkronisasi", "Sinkronisasi perangkat"}, {"Darurat", "Salinan darurat dan rekonsiliasi"},
-			{"Status layanan", "Status layanan"}, {"Perangkat", "Perangkat, notifikasi, dan Ace"},
-			{"WhatsApp", "WhatsApp divisi"}, {"Pengingat", "Pengingat dan ping"},
-			{"Command", "Command bot"}, {"Aktivitas", "Aktivitas WhatsApp"}, {"Akun", "Akun dan aplikasi"},
+		for _, tab := range []struct{ name, label, heading string }{
+			{"Sinkronisasi", "Offline dan sinkronisasi", "Sinkronisasi perangkat"}, {"Darurat", "Spreadsheet darurat", "Salinan darurat dan rekonsiliasi"},
+			{"Status layanan", "Status layanan", "Status layanan"}, {"Perangkat", "Notifikasi, suara, dan Ace", "Perangkat, notifikasi, dan Ace"},
+			{"WhatsApp", "Tautan dan bot WhatsApp", "WhatsApp divisi"}, {"Pengingat", "Pengingat dan ping", "Pengingat dan ping"},
+			{"Command", "Command bot", "Command bot"}, {"Aktivitas", "Aktivitas WhatsApp", "Aktivitas WhatsApp"}, {"Akun", "Profil dan keamanan", "Akun dan aplikasi"},
 		} {
 			h.tt.Frame()
-			if err := h.tt.Click(tab.name); err != nil {
+			if size[0] < 900 && h.app.chrome.settingsDetail {
+				// Narrow windows list the settings and open one at a time.
+				if err := h.tt.Click("Semua pengaturan"); err != nil {
+					t.Fatalf("%dx%d: back: %v", size[0], size[1], err)
+				}
+				h.tt.Frame()
+			}
+			if err := h.tt.Click(tab.label); err != nil {
 				t.Fatalf("%dx%d: tab %s: %v", size[0], size[1], tab.name, err)
 			}
 			h.tt.Frame()

@@ -327,7 +327,11 @@ func (a *App) deliveryNotifications(c *ui.Context) {
 	}
 }
 func (a *App) IsCurrentAccount(uid id.ID) bool { return a.screen == screenShell && a.user.ID == uid }
-func (a *App) OpenDeviceSettings()             { a.chrome.settingsTab = "Perangkat"; a.navigate(PathPengaturan) }
+func (a *App) OpenDeviceSettings() {
+	a.chrome.settingsTab = "Perangkat"
+	a.chrome.settingsDetail = true
+	a.navigate(PathPengaturan)
+}
 
 func overlayDeliveryResponses(cl *client.Client, items []api.Delivery) []api.Delivery {
 	pending, err := cl.PendingOffline()

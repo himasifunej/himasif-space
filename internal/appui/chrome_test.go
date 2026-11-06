@@ -116,7 +116,7 @@ func TestChromeProfileSettingsAndLogout(t *testing.T) {
 		t.Fatal("profile settings action did not navigate and close the menu")
 	}
 	h.want("WhatsApp divisi")
-	h.click("Akun")
+	h.click("Profil dan keamanan")
 	h.want("Akun dan aplikasi")
 	h.want("ani@himasif.id")
 	h.click("Menu profil")
