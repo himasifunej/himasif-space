@@ -149,9 +149,11 @@ func (a *App) decideWAContent(action string) {
 	})
 }
 
-func (a *App) waContentView(c *ui.Context) {
+// waContentBody is the Medhum "Inbox broadcast" tab: concepts and Drive
+// evidence the bot read from the Medhum group, to pair with content.
+func (a *App) waContentBody(c *ui.Context) {
 	a.ensureWAContent()
-	pageBody(c, "Konsep dan bukti Medhum", func() {
+	ui.Column(c.Key("wa-content")).FillWidth().MinWidth(0).Gap(16).Children(func() {
 		sp := a.selectedSpace()
 		if sp == nil || sp.Code != "medhum" {
 			return
@@ -166,9 +168,6 @@ func (a *App) waContentView(c *ui.Context) {
 			}
 			if spaceButton(c, "Tampilkan semua status", "archive", st.showAll).Clicked() {
 				st.showAll = !st.showAll
-			}
-			if spaceButton(c, "Kalender konten", "calendar", false).Clicked() {
-				a.chrome.tab = "Kalender konten"
 			}
 		})
 		muted(c, "Penyerahan konsep, hasil desain, dan publikasi dicatat terpisah. Pasangan bukti tidak menyatakan persetujuan mutu desain.")

@@ -258,10 +258,12 @@ func (a *App) submitSourceDecision() {
 		}
 	})
 }
-func (a *App) connectorsView(c *ui.Context) {
+// connectorsBody is the Medhum "Sumber dan sinkron" tab: the Humas
+// calendar sources, their previews and history.
+func (a *App) connectorsBody(c *ui.Context) {
 	a.ensureMedhum()
 	a.ensureConnectors()
-	pageBody(c, "Sumber kalender", func() {
+	ui.Column(c.Key("connectors")).FillWidth().MinWidth(0).Gap(16).Children(func() {
 		st := &a.connectors
 		muted(c, "Fetch membaca sumber ke pratinjau. Menautkan/menerapkan menentukan identitas konten tanpa menimpa status, bukti atau approval. Kolom PJ desain lama tetap informasi sampai ditetapkan Mediatek.")
 		if st.division == id.Nil {

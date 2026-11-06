@@ -172,6 +172,15 @@ func (a *App) spacePage(c *ui.Context, r *ui.Route, shared bool) {
 		title = "Medhum"
 	}
 	r.Title(title)
+	sp := a.selectedSpace()
+	medhum := sp != nil && sp.Code == "medhum"
+	if medhum {
+		// Older entry points name the tabs that are now Medhum sub-tabs.
+		if sub, ok := map[string]string{"Kalender konten": medhumTabList, "Konsep dan bukti": medhumTabInbox, "Sumber kalender": medhumTabSources}[a.chrome.tab]; ok {
+			a.ensureMedhum()
+			a.chrome.tab, a.medhum.tab = medhumSpaceTab, sub
+		}
+	}
 	ui.Column(c).Fill().MinWidth(0).Children(func() {
 		mobile := isMobile(c)
 		tabsHeight, tabsPadding := float32(58), float32(22)
@@ -186,9 +195,8 @@ func (a *App) spacePage(c *ui.Context, r *ui.Route, shared bool) {
 			}
 			row.Children(func() {
 				tabs := []struct{ title, icon string }{{"Beranda", "home"}, {"Board tugas", "board"}, {"Agenda", "calendar"}, {"Notes", "note"}, {"Anggota", "users"}, {"Pengaturan", "settings"}}
-				if sp := a.selectedSpace(); sp != nil && sp.Code == "medhum" {
-					tabs = append(tabs, struct{ title, icon string }{"Kalender konten", "calendar"})
-					tabs = append(tabs, struct{ title, icon string }{"Konsep dan bukti", "link"})
+				if medhum {
+					tabs = append([]struct{ title, icon string }{{medhumSpaceTab, "calendar"}}, tabs...)
 				}
 				for _, tab := range tabs {
 					if spaceButton(c.Key(tab.title), tab.title, tab.icon, a.chrome.tab == tab.title).Clicked() {
@@ -202,12 +210,12 @@ func (a *App) spacePage(c *ui.Context, r *ui.Route, shared bool) {
 		}
 
 		switch a.chrome.tab {
-		case "Konsep dan bukti":
-			a.waContentView(c)
-		case "Sumber kalender":
-			a.connectorsView(c)
-		case "Kalender konten":
-			a.medhumView(c)
+		case medhumSpaceTab:
+			if medhum {
+				a.medhumPage(c)
+			} else {
+				a.overviewPage(c, title, shared)
+			}
 		case "Board tugas":
 			a.spaceTasksView(c)
 		case "Agenda":

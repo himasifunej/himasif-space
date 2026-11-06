@@ -265,6 +265,7 @@ func (a *App) sidebar(c *ui.Context) {
 				active := a.selectedSpaceID() == s.ID && a.router.Path() == PathSpaces
 				if a.sidebarSpaceButton(c.Key(s.ID), s, icon, active, collapsed).Clicked() {
 					a.selectSpace(s.ID)
+					a.chrome.tab = defaultSpaceTab(s)
 					a.navigate(PathSpaces)
 				}
 			}

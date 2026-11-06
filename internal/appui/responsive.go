@@ -141,7 +141,7 @@ func (a *App) mobileTopBar(c *ui.Context) {
 			for _, s := range a.access.spaces {
 				if sidebarRow(c.Key(s.ID), s.Name, a.selectedSpaceID() == s.ID && a.router.Path() == PathSpaces).Clicked() {
 					a.selectSpace(s.ID)
-					a.chrome.tab = "Beranda"
+					a.chrome.tab = defaultSpaceTab(s)
 					a.navigate(PathSpaces)
 					a.chrome.periodOpen = false
 				}
@@ -268,7 +268,7 @@ func (a *App) openMobileTab(key string) {
 		for _, s := range a.access.spaces {
 			if s.Kind == api.SpaceShared {
 				a.selectSpace(s.ID)
-				a.chrome.tab = "Beranda"
+				a.chrome.tab = defaultSpaceTab(s)
 				break
 			}
 		}
@@ -351,4 +351,13 @@ func (a *App) lainnyaPage(c *ui.Context) {
 			muted(c, "Space · "+a.Version)
 		})
 	})
+}
+
+// defaultSpaceTab is the tab a Space opens on: Medhum opens on its content,
+// as on canvas A; division Spaces on their Beranda.
+func defaultSpaceTab(s api.Space) string {
+	if s.Code == "medhum" {
+		return medhumSpaceTab
+	}
+	return "Beranda"
 }
