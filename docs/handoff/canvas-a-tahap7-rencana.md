@@ -1,6 +1,6 @@
 # Rencana Tahap 7 canvas A: Evaluasi SOP, drawer Buat tugas, Ping, Bot WhatsApp (9 November 2026)
 
-Status: **rencana, menunggu persetujuan lewat GOA**. Belum ada kode, migrasi, atau deploy. Tahap 6 sudah live (6e18351, migrasi sampai `0027`).
+Status: **disetujui owner 9 Nov (5 butir); dikerjakan berurutan 7b, 7a, 7c, 7d**. Tanpa migrasi; deploy menunggu izin terpisah. Tahap 6 sudah live (6e18351, migrasi sampai `0027`).
 
 Pemenang yang ditandai owner di canvas: **Ping → C · Desktop** (canvas `826e909e5957`, desain 5) dan **Bot WhatsApp → A · Desktop** (canvas `121115cdae78`, desain 1). Versi HP tidak ditandai (canvas hanya menyimpan satu pemenang); {{Assumption}} versi HP mengikuti varian yang sama: Ping C · HP (desain 6), Bot WhatsApp A · HP (desain 2).
 
@@ -137,8 +137,8 @@ Tanpa migrasi, jadi tanpa backup DB wajib (backup harian tetap jalan).
 - API: kembalikan `<binary>.before-tahap7`, restart. Semua endpoint baru hanya membaca; tidak ada data yang perlu dibersihkan. Web baru di atas API lama tetap jalan (filter Ping hanya di halaman yang dimuat; Pratinjau dan grafik "Sesuai" tampil "belum tersedia").
 
 ## Yang perlu disetujui (singkat)
-- [ ] 1. Kerjakan 7a–7d seperti di atas: Ping pakai desain C, Bot WhatsApp desain A, versi HP ikut varian yang sama.
-- [ ] 2. Evaluasi SOP: grafik "Sesuai" lewat endpoint baca baru; tab Konteks/Aturan/Pengiriman/Izin pindah ke "Kebijakan".
-- [ ] 3. Bot WhatsApp: pengaturan detail pindah ke "Pengaturan lanjutan"; Pratinjau lewat server (hasilnya persis pesan asli).
-- [ ] 4. Drawer Buat tugas: chip PJ (maks. 8 + Lainnya); isian tambahan dilipat di "Detail lainnya".
-- [ ] 5. Kode + test + CI dulu; deploy minta izin lagi.
+- [x] 1. Kerjakan 7a–7d seperti di atas: Ping pakai desain C, Bot WhatsApp desain A, versi HP ikut varian yang sama.
+- [x] 2. Evaluasi SOP: grafik "Sesuai" lewat endpoint baca baru; tab Konteks/Aturan/Pengiriman/Izin pindah ke "Kebijakan".
+- [x] 3. Bot WhatsApp: pengaturan detail pindah ke "Pengaturan lanjutan"; Pratinjau lewat server (hasilnya persis pesan asli).
+- [x] 4. Drawer Buat tugas: chip PJ (maks. 8 + Lainnya); isian tambahan dilipat di "Detail lainnya".
+- [x] 5. Kode + test + CI dulu; deploy minta izin lagi.
