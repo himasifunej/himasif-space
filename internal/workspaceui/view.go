@@ -137,18 +137,7 @@ func (s *State) lane(c *ui.Context, lane Lane, width float32, dragging *bool) {
 	column := ui.Column(c).Width(width).Shrink(0).FillHeight().MinHeight(0).Gap(10).Padding(10).Radius(12).Background(t.Surface).Border(1, t.Border).Label("Kolom " + lane.String())
 	column.Children(func() {
 		ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Padding(2, 4).Children(func() {
-			color := t.TextMuted
-			switch lane {
-			case Doing:
-				color = t.Accent
-			case Review:
-				color = t.Warning
-			case Done:
-				color = t.Success
-			}
-			if s.LaneColors[lane].A != 0 {
-				color = s.LaneColors[lane]
-			}
+			color := s.laneColor(t, lane)
 			ui.Box(c).Size(7, 7).Radius(4).Background(color)
 			ui.Text(c, lane.String()).FontSize(13).Bold().Grow(1)
 			ui.Text(c, fmt.Sprint(count)).FontSize(11).TextColor(t.TextMuted)
@@ -373,68 +362,6 @@ func (s *State) drop(target ui.Element, lane Lane, before id.ID, accent ui.Color
 	if value, ok := ui.Drop[taskDrag](target); ok {
 		s.requestMove(value.ID, lane, before)
 	}
-}
-
-func (s *State) moveMenu(c *ui.Context, anchor ui.Element, task Task) {
-	t := c.Theme()
-	ui.PopoverBase(c, anchor, &s.menuOpen, func(panel ui.Element) {
-		panel.Width(230).Padding(8).Gap(3).Radius(10).Margin(6, 0, 0, 0).Background(t.Surface).Border(1, t.Border).FocusGroup(ui.Vertical)
-		ui.Text(c, "Pindahkan ke").FontSize(11).TextColor(t.TextMuted).Padding(8)
-		for lane := Todo; lane <= Done; lane++ {
-			button := ui.ButtonBase(c.Key(lane)).Label("Ke " + lane.String()).FillWidth().Padding(10).Radius(6)
-			if lane == Todo {
-				button.AutoFocus()
-			}
-			button.Children(func() { ui.Text(c, lane.String()).FontSize(12) })
-			if button.Hovered() {
-				button.Background(t.SurfaceHover)
-			}
-			button.FocusRing(button.FocusVisible())
-			if button.Clicked() {
-				s.requestMove(task.ID, lane, id.Nil)
-				s.menuOpen = false
-			}
-		}
-		ui.Box(c).Height(1).FillWidth().Background(t.Border).Margin(4, 0)
-		for _, move := range []struct {
-			label  string
-			before id.ID
-		}{
-			{"Ke urutan pertama", s.firstTask(task.Lane)},
-			{"Ke urutan terakhir", id.Nil},
-		} {
-			button := ui.ButtonBase(c.Key(move.label)).Label(move.label).FillWidth().Padding(10).Radius(6)
-			button.Children(func() { ui.Text(c, move.label).FontSize(12) })
-			if button.Hovered() {
-				button.Background(t.SurfaceHover)
-			}
-			if button.Clicked() {
-				s.requestMove(task.ID, task.Lane, move.before)
-				s.menuOpen = false
-			}
-		}
-		if s.OnAction == nil {
-			return
-		}
-		ui.Box(c).Height(1).FillWidth().Background(t.Border).Margin(4, 0)
-		for _, action := range []struct{ key, label string }{{"edit", "Ubah tugas"}, {"duplicate", "Duplikat"}, {"cancel", "Batalkan tugas"}} {
-			button := ui.ButtonBase(c.Key(action.key)).Label(action.label).FillWidth().Padding(10).Radius(6)
-			button.Children(func() {
-				text := ui.Text(c, action.label).FontSize(12)
-				if action.key == "cancel" {
-					text.TextColor(t.Danger)
-				}
-			})
-			if button.Hovered() {
-				button.Background(t.SurfaceHover)
-			}
-			button.FocusRing(button.FocusVisible())
-			if button.Clicked() {
-				s.menuOpen = false
-				s.OnAction(task.ID, action.key)
-			}
-		}
-	})
 }
 
 func (s *State) firstTask(lane Lane) id.ID {
