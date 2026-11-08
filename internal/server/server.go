@@ -167,6 +167,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/deliveries", s.handle(s.listDeliveries))
 	mux.Handle("POST /api/deliveries/{deliveryId}/response", s.handle(s.respondDelivery))
 	mux.Handle("POST /api/spaces/{spaceId}/pings", s.handle(s.sendPing))
+	mux.Handle("GET /api/spaces/{spaceId}/pings", s.handle(s.listPings))
 	mux.Handle("GET /api/spaces/{spaceId}/meetings", s.handle(s.listMeetings))
 	mux.Handle("POST /api/spaces/{spaceId}/meetings", s.handle(s.createMeeting))
 	mux.Handle("GET /api/meetings/{meetingId}", s.handle(s.getMeeting))

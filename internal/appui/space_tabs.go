@@ -607,8 +607,6 @@ func reviewInitials(name string) string {
 func (a *App) spacePingPage(c *ui.Context) {
 	settingsBody(c, "Ping", "Ingatkan anggota divisi lewat perangkat atau WhatsApp.", func() {
 		pageSection(c, "Kirim ping", "", func() { a.pingComposer(c) })
-		pageSection(c, "Riwayat ping", "", func() {
-			pageEmpty(c, "clock", "Riwayat ping belum tersedia", "Space belum menyimpan daftar ping yang sudah dikirim. Status pengiriman WhatsApp ada di Pengaturan, Aktivitas WhatsApp.")
-		})
+		pageSection(c, "Riwayat ping", "", func() { a.pingHistoryView(c) })
 	})
 }

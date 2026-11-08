@@ -118,6 +118,7 @@ type App struct {
 	emergency                 emergencyUIState
 	offlineSync               offlineUIState
 	notificationSettingsState notificationSettingsState
+	pingHistory               pingHistoryState
 	taskNotification          taskNotificationState
 	organization              organizationUIState
 	archives                  archiveAdminUIState

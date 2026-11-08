@@ -197,6 +197,7 @@ func (a *App) sendManualPing() {
 				a.notificationSettingsState.err = a.failed(err)
 			} else {
 				a.notificationSettingsState.err = "Ping dibuat. Status perangkat dan WhatsApp dicatat terpisah."
+				a.pingHistory.loaded = false
 			}
 		}
 	})

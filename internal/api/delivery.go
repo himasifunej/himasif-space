@@ -48,3 +48,23 @@ type PingRequest struct {
 	Recipients []id.ID  `json:"recipients"`
 	Channels   []string `json:"channels"`
 }
+
+// PingRecord is a sent ping as its Space's history shows it.
+type PingRecord struct {
+	ID          id.ID                 `json:"id"`
+	Message     string                `json:"message"`
+	SentAt      time.Time             `json:"sentAt"`
+	TimeZone    string                `json:"timeZone"`
+	Sender      *PersonRef            `json:"sender,omitempty"`
+	RelatedKind string                `json:"relatedKind,omitempty"`
+	RelatedID   *id.ID                `json:"relatedId,omitempty"`
+	Recipients  []PingRecipientStatus `json:"recipients"`
+}
+
+// PingRecipientStatus is one recipient's delivery of a ping on one channel.
+type PingRecipientStatus struct {
+	Recipient PersonRef  `json:"recipient"`
+	Channel   string     `json:"channel"`
+	Status    string     `json:"status"`
+	SeenAt    *time.Time `json:"seenAt,omitempty"`
+}

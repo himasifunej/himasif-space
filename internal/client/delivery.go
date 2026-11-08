@@ -5,6 +5,9 @@ import (
 	"github.com/himasifunej/himasif-space/internal/api"
 	"github.com/himasifunej/himasif-space/internal/id"
 	"net/http"
+	"net/url"
+	"strconv"
+	"time"
 )
 
 func (c *Client) Deliveries(ctx context.Context) ([]api.Delivery, error) {
@@ -40,4 +43,23 @@ func (c *Client) SetTaskNotificationPolicy(ctx context.Context, tid id.ID, req a
 }
 func (c *Client) ResetTaskNotificationPolicy(ctx context.Context, tid id.ID) error {
 	return c.do(ctx, http.MethodDelete, "/api/tasks/"+tid.String()+"/notification-policy", nil, nil)
+}
+
+// Pings lists a Space's sent pings, newest first; before (zero for the
+// newest) pages back.
+func (c *Client) Pings(ctx context.Context, sid id.ID, before time.Time, limit int) ([]api.PingRecord, error) {
+	q := url.Values{}
+	if !before.IsZero() {
+		q.Set("before", before.UTC().Format(time.RFC3339Nano))
+	}
+	if limit > 0 {
+		q.Set("limit", strconv.Itoa(limit))
+	}
+	path := "/api/spaces/" + sid.String() + "/pings"
+	if len(q) > 0 {
+		path += "?" + q.Encode()
+	}
+	var out api.List[api.PingRecord]
+	err := c.do(ctx, http.MethodGet, path, nil, &out)
+	return out.Items, err
 }

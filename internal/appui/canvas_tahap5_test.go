@@ -129,3 +129,62 @@ func TestMembersTableShowsWhatsAppStatus(t *testing.T) {
 	h.tt.Frame()
 	h.want("— · — · WA tertaut")
 }
+
+// pingHistoryTestAPI serves a Space's Riwayat ping.
+type pingHistoryTestAPI struct {
+	*fakeAPI
+	pings []api.PingRecord
+	calls int
+}
+
+func (f *pingHistoryTestAPI) Pings(context.Context, id.ID, time.Time, int) ([]api.PingRecord, error) {
+	f.calls++
+	return f.pings, nil
+}
+
+func TestPingTabShowsHistoryWithRecipientStatus(t *testing.T) {
+	h, _ := newSpaceTabsHarness(t, &fakePreferences{})
+	seen := time.Now()
+	f := &pingHistoryTestAPI{fakeAPI: h.api, pings: []api.PingRecord{{
+		ID: id.New(), Message: "Mohon perbarui progres tugas hari ini.", SentAt: time.Now(), TimeZone: "Asia/Jakarta",
+		Sender: &api.PersonRef{ID: id.New(), DisplayName: "Demo Mediatek"}, RelatedKind: "task",
+		Recipients: []api.PingRecipientStatus{
+			{Recipient: api.PersonRef{ID: id.New(), DisplayName: "Aruna"}, Channel: "device", Status: "accepted", SeenAt: &seen},
+			{Recipient: api.PersonRef{ID: id.New(), DisplayName: "Nara"}, Channel: "whatsapp", Status: "failed"},
+		},
+	}}}
+	h.app.api = f
+	h.app.chrome.tab = "Ping"
+	h.tt.Frame()
+	h.settle()
+	h.tt.Frame()
+	h.want("Mohon perbarui progres tugas hari ini.")
+	h.want("Aruna · perangkat · dilihat")
+	h.want("Nara · WA · gagal")
+	h.dontWant("Riwayat ping belum tersedia")
+	if f.calls != 1 {
+		t.Fatalf("history loaded %d times", f.calls)
+	}
+	// Sending a ping reloads the history.
+	h.app.pingHistory.loaded = false
+	h.tt.Frame()
+	h.settle()
+	if f.calls != 2 {
+		t.Fatalf("history not reloaded: %d", f.calls)
+	}
+}
+
+func TestPingRecipientLabels(t *testing.T) {
+	for _, tc := range []struct {
+		r    api.PingRecipientStatus
+		want string
+	}{
+		{api.PingRecipientStatus{Channel: "device", Status: "queued"}, "perangkat · antre"},
+		{api.PingRecipientStatus{Channel: "whatsapp", Status: "accepted"}, "WA · terkirim"},
+		{api.PingRecipientStatus{Channel: "whatsapp", Status: "unknown"}, "WA · tidak diketahui"},
+	} {
+		if got := pingRecipientLabel(tc.r); got != tc.want {
+			t.Errorf("%+v = %q, want %q", tc.r, got, tc.want)
+		}
+	}
+}
