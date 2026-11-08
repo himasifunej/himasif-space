@@ -196,37 +196,6 @@ func (a *App) overlayPendingTasks(items []api.Task) []api.Task {
 	}
 	return items
 }
-func (a *App) offlineBanner(c *ui.Context) {
-	cl := a.offlineClient()
-	if cl == nil {
-		return
-	}
-	off, syncing, last, err := cl.OfflineStatus()
-	status := "Tersinkron"
-	if off || a.conn == connOffline {
-		status = "Tidak ada koneksi"
-	}
-	if len(a.offlineSync.items) > 0 {
-		status += " · Tersimpan di perangkat — belum tersinkron"
-	}
-	if syncing || a.offlineSync.loading {
-		status = "Menyinkronkan…"
-	}
-	if !last.IsZero() {
-		status += " · terakhir " + last.Local().Format("02 Jan 15:04")
-	}
-	ui.Row(c).FillWidth().Padding(6, 16).Gap(8).Children(func() {
-		muted(c, status).Grow(1)
-		if ui.Button(c, "Sinkronisasi").Clicked() {
-			a.chrome.settingsTab = "Sinkronisasi"
-			a.chrome.settingsDetail = true
-			a.navigate(PathPengaturan)
-		}
-	})
-	if err != "" {
-		muted(c, err)
-	}
-}
 func (a *App) offlineView(c *ui.Context) {
 	settingsBody(c, "Sinkronisasi perangkat", "Tinjau perubahan yang tersimpan di perangkat dan kirim saat koneksi tersedia.", func() {
 		if a.offlineClient() == nil {

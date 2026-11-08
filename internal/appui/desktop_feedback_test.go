@@ -42,7 +42,7 @@ func TestSpaceCalendarAndOptionalClock(t *testing.T) {
 func TestFeedbackPaletteRetainsCustomAccentAndSidebarShortcut(t *testing.T) {
 	h := newChromeHarness(t, nil)
 	h.app.chrome.preferences.Accent = "#123456"
-	h.click("Penampilan")
+	openFullAppearance(h)
 	h.click("Palet Midnight")
 	if p := h.app.chrome.preferences; p.Palette != "midnight" || p.Accent != "#123456" {
 		t.Fatalf("palette replaced accent: %+v", p)
@@ -98,12 +98,12 @@ func TestDesktopFeedbackNativeCapture(t *testing.T) {
 		t.Fatalf("members not immediately below trigger: %+v %+v", trigger, person)
 	}
 	h.tt.Key(0, ui.KeyEscape)
-	h.click("Penampilan")
+	openFullAppearance(h)
 	capture("appearance")
-	scroll := chromeRect(t, h.tt, "Scroll penampilan")
+	scroll := chromeRect(t, h.tt, "Scroll tampilan")
 	h.tt.Scroll(scroll.X+scroll.W/2, scroll.Y+scroll.H/2, 0, 10000)
 	capture("appearance-board-colors")
-	h.click("Tutup penampilan")
+	h.click("Tutup panel tampilan")
 	h.app.tasks.draft = &taskDraft{owner: sp.Divisions[0].ID, title: "Poster kegiatan", output: "Desain siap posting", plannedStart: "2026-11-02", deadline: "2026-11-05", shared: map[id.ID]bool{}}
 	capture("task-drawer")
 	h.click("Jadwal tugas")

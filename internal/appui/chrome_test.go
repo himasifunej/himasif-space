@@ -84,7 +84,7 @@ func TestChromeNotificationDropdownDismissal(t *testing.T) {
 		t.Fatal("notification dropdown did not open")
 	}
 	h.want("Layanan notifikasi belum tersedia.")
-	h.click("Space · 0.1.0-test") // outside the anchored panel
+	h.click("Ruang Kerja HIMASIF") // outside the anchored panel
 	if h.app.chrome.notificationsOpen {
 		t.Fatal("outside click did not close notifications")
 	}
@@ -145,14 +145,18 @@ func TestChromeAppearanceLoadFailureIsVisible(t *testing.T) {
 	if h.app.chrome.preferencesErr == "" || h.app.chrome.preferences != DefaultPreferences() {
 		t.Fatal("failed appearance load did not retain defaults and a notice")
 	}
-	h.click("Penampilan")
+	h.click("Tampilan")
 	h.want("Preferensi perangkat tidak dapat dibaca.")
 }
 
 func TestChromeAppearancePersistsChanges(t *testing.T) {
 	store := &fakePreferences{value: DefaultPreferences()}
 	h := newChromeHarness(t, store)
-	h.click("Penampilan")
+	// The sidebar's Tampilan opens the small popover of canvas A.
+	h.click("Tampilan")
+	if !h.app.chrome.appearanceQuick || h.app.chrome.appearance {
+		t.Fatalf("Tampilan did not open the popover alone: %+v", h.app.chrome)
+	}
 	h.click("Terang")
 	if h.app.chrome.preferences.Theme != "light" || store.value.Theme != "light" || store.saves != 1 || h.app.chrome.preferencesErr != "" {
 		t.Fatalf("theme was not persisted: preferences=%+v store=%+v saves=%d error=%q", h.app.chrome.preferences, store.value, store.saves, h.app.chrome.preferencesErr)
@@ -161,19 +165,23 @@ func TestChromeAppearancePersistsChanges(t *testing.T) {
 	if store.value.Accent != "sage" || store.saves != 2 {
 		t.Fatalf("accent was not persisted: %+v; saves %d", store.value, store.saves)
 	}
+	h.click("Ringkas")
+	if !store.value.Compact || store.saves != 3 {
+		t.Fatalf("density was not persisted: %+v; saves %d", store.value, store.saves)
+	}
+	// Its link opens the full panel with palettes and the custom accent.
+	h.click("Semua pengaturan tampilan…")
+	if h.app.chrome.appearanceQuick || !h.app.chrome.appearance {
+		t.Fatalf("link did not swap the popover for the full panel: %+v", h.app.chrome)
+	}
+	h.want("Palet tema")
 	h.click("Warna aksen khusus")
 	h.tt.Type("#123456")
 	h.click("Terapkan warna")
-	if store.value.Accent != "#123456" || store.saves != 3 {
+	if store.value.Accent != "#123456" || store.saves != 4 {
 		t.Fatalf("custom accent was not persisted: %+v; saves %d", store.value, store.saves)
 	}
-	h.tt.Scroll(1100, 650, 0, 10000)
-	h.tt.Frame()
-	h.click("Tampilan ringkas")
-	if !store.value.Compact || store.saves != 4 {
-		t.Fatalf("density was not persisted: %+v; saves %d", store.value, store.saves)
-	}
-	h.click("Ciutkan sidebar")
+	h.click("Ciutkan")
 	if !store.value.SidebarCollapsed || store.saves != 5 {
 		t.Fatalf("sidebar collapse was not persisted: %+v; saves %d", store.value, store.saves)
 	}
@@ -182,7 +190,7 @@ func TestChromeAppearancePersistsChanges(t *testing.T) {
 func TestChromeAppearanceSaveFailureAndRecovery(t *testing.T) {
 	store := &fakePreferences{value: DefaultPreferences(), saveErr: errors.New("disk full")}
 	h := newChromeHarness(t, store)
-	h.click("Penampilan")
+	h.click("Tampilan")
 	h.click("Terang")
 	if h.app.chrome.preferences.Theme != "light" || store.value.Theme != "dark" || h.app.chrome.preferencesErr == "" {
 		t.Fatalf("failure did not distinguish applied and saved appearance: local=%+v stored=%+v error=%q", h.app.chrome.preferences, store.value, h.app.chrome.preferencesErr)
@@ -208,7 +216,7 @@ func TestChromeSessionStateCleared(t *testing.T) {
 			h.app.chrome.search = "private search from previous session"
 			h.app.chrome.customAccent = "#123456"
 			h.app.chrome.divisionID = h.api.divisions[0].ID
-			h.click("Penampilan")
+			openFullAppearance(h)
 			oldWorkspace := h.app.workspace
 			taskID := id.New()
 			if err := oldWorkspace.SetTasks([]workspaceui.Task{{ID: taskID, Title: "Private previous session task"}}); err != nil {

@@ -3,6 +3,7 @@ package appui
 import (
 	"context"
 	"errors"
+	"regexp"
 	"sync"
 	"testing"
 	"time"
@@ -453,8 +454,8 @@ func TestPages(t *testing.T) {
 		profile    bool
 	}{
 		{"Reminder pribadi", "Reminder belum dapat dimuat", false},
-		{"Evaluasi SOP", "Layanan evaluasi SOP belum tersedia.", true},
-		{"Arsip periode", "Informasi periode", false},
+		{"Evaluasi SOP", "Layanan evaluasi SOP belum tersedia.", false},
+		{"Arsip", "Informasi periode", false},
 		{"Space saya", "Layanan akses Space belum tersedia.", false},
 	} {
 		if tc.profile {
@@ -561,12 +562,25 @@ func TestConnectionIndicator(t *testing.T) {
 	h.tt.Advance(pingEvery)
 	h.settle()
 	h.want("Tidak ada koneksi")
+	// The topbar's sync pill shows the state and retries when clicked.
+	h.want("Offline")
 	f.mu.Lock()
 	f.unreachable = false
 	f.mu.Unlock()
-	h.click("Coba lagi")
+	h.click("Tidak ada koneksi")
 	h.tt.Frame()
 	h.want("Menyambungkan…")
 	h.settle()
 	h.want("Tersambung")
+	// Wide windows show "Tersinkron · HH.MM", narrow ones the time alone.
+	synced := false
+	for _, s := range h.tt.Texts() {
+		if regexp.MustCompile(`^(Tersinkron · )?\d\d\.\d\d$`).MatchString(s) {
+			synced = true
+		}
+	}
+	if !synced {
+		t.Errorf("sync pill shows no time: %q", h.tt.Texts())
+	}
+	h.dontWant("Ctrl B · Sidebar")
 }

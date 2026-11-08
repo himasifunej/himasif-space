@@ -146,10 +146,12 @@ type App struct {
 	busy            bool
 	loginErr        string
 
-	user       api.User
-	conn       connState
-	pinging    bool
-	lastPing   time.Time // by the view's clock
+	user     api.User
+	conn     connState
+	pinging  bool
+	lastPing time.Time // by the view's clock
+	// syncedAt is the last time the server answered, shown in the sync pill.
+	syncedAt   time.Time
 	loggingOut bool
 
 	periods        []api.Period
@@ -289,7 +291,7 @@ func (a *App) enterShell(u api.User) {
 	if a.SessionChanged != nil {
 		a.SessionChanged(u.ID)
 	}
-	a.conn = connOnline
+	a.conn, a.syncedAt = connOnline, time.Now()
 	a.notice, a.startErr, a.loginErr = "", "", ""
 	a.lastPing = time.Time{}
 	a.periods, a.periodID, a.periodsErr = nil, id.ID{}, ""
@@ -355,7 +357,7 @@ func (a *App) loadPeriods() {
 				a.periodsErr = a.failed(err)
 				return
 			}
-			a.conn = connOnline
+			a.conn, a.syncedAt = connOnline, time.Now()
 			a.periods = ps
 			if a.period() == nil {
 				a.periodID = defaultPeriod(ps)
@@ -380,7 +382,7 @@ func (a *App) loadDivisions() {
 				a.divisionsErr = a.failed(err)
 				return
 			}
-			a.conn = connOnline
+			a.conn, a.syncedAt = connOnline, time.Now()
 			a.divisions = ds
 		}
 	})
@@ -408,6 +410,7 @@ func (a *App) ping(now time.Time) {
 				return
 			}
 			a.conn = connOnline
+			a.syncedAt = now
 			if a.periodsErr != "" && !a.periodsLoading {
 				a.loadPeriods()
 			}

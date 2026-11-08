@@ -24,12 +24,12 @@ func TestShellFitsMinimumWindow(t *testing.T) {
 	for _, size := range [][2]int{{1440, 900}, {1100, 720}, {880, 640}} {
 		h.tt.SetSize(size[0], size[1])
 		h.tt.Frame()
-		sidebarToggle := "Ciutkan sidebar"
+		sidebarToggle := "Ciutkan"
 		if size[0] < tabletMaxWidth {
 			// Tablets show the icon rail, whose toggle opens the sidebar.
 			sidebarToggle = "Buka sidebar"
 		}
-		for _, label := range []string{"Menu profil", "Penampilan", sidebarToggle, "Tersambung", "Notifikasi", "Cari di Space"} {
+		for _, label := range []string{"Menu profil", "Tampilan", sidebarToggle, "Tersambung", "Notifikasi", "Cari di Space"} {
 			r, ok := h.tt.Find(label)
 			if !ok || r.X < 0 || r.Y < 0 || r.X+r.W > float32(size[0])+1 || r.Y+r.H > float32(size[1])+1 {
 				t.Errorf("%dx%d: %s out of window: %+v, exists=%v", size[0], size[1], label, r, ok)
@@ -150,11 +150,11 @@ func TestNativeCapture(t *testing.T) {
 	h.click("Notifikasi")
 	capture("notifications")
 	h.click("Notifikasi")
-	h.click("Penampilan")
+	h.click("Tampilan")
 	capture("appearance")
 	h.click("Terang")
 	capture("overview-light")
-	h.click("Tutup penampilan")
+	h.click("Tutup tampilan")
 	h.app.chrome.tab = "Board tugas"
 	taskID := id.New()
 	h.app.tasks = tasksUIState{scope: h.app.selectedSpaceID(), loaded: true, items: []api.Task{
@@ -191,8 +191,8 @@ func TestTaskModalAndAppearanceAreExclusiveAtMinimumWidth(t *testing.T) {
 	if h.app.workspace.SelectedID() != id.Nil {
 		t.Fatal("closing the modal kept the task selected")
 	}
-	h.click("Penampilan")
-	h.want("Tutup penampilan")
+	openFullAppearance(h)
+	h.want("Tutup panel tampilan")
 	h.click("Tugas " + task.Title)
 	h.want("Detail tugas")
 	if h.app.chrome.appearance {
@@ -239,7 +239,7 @@ func TestPhoneShellUsesBottomTabsAndFullScreenPanels(t *testing.T) {
 	h.app.router.Push(PathJobdesk)
 	h.tt.Advance(400 * time.Millisecond)
 	h.tt.Frame()
-	if h.tt.HasText("Ciutkan sidebar") || h.tt.HasText("Cari di Space") {
+	if h.tt.HasText("Ciutkan") || h.tt.HasText("Cari di Space") {
 		t.Fatal("phone layout still shows the desktop sidebar or header search")
 	}
 	for _, label := range []string{"Beranda", "Jobdesk", "Board", "Medhum", "Lainnya", "Notifikasi", "Menu profil"} {

@@ -46,7 +46,6 @@ func (a *App) mobileShell(c *ui.Context) {
 	w, h := c.Size()
 	ui.Column(c.Key("mobile-shell")).Fill().Children(func() {
 		a.mobileTopBar(c)
-		a.offlineBanner(c)
 		a.router.View(c, func(r *ui.Route) { a.page(c, r) }).Grow(1).MinHeight(0).FillWidth().MinWidth(0)
 		a.mobileNav(c)
 	})
@@ -156,18 +155,22 @@ func (a *App) mobileTopBar(c *ui.Context) {
 			}
 		})
 		ui.Box(c).Grow(1)
-		color := t.Success
-		switch a.conn {
-		case connOffline:
-			color = t.Danger
-		case connConnecting:
-			color = t.Warning
+		// The phone canvas keeps the sync state to a dot; a tap syncs, and
+		// opens the queue when changes wait or conflict.
+		sync := a.syncState(t)
+		dot := ui.ButtonBase(c.Key("mobile-sync")).Label(sync.label).Tooltip(sync.text).Size(28, 44).Center()
+		dot.FocusRing(dot.FocusVisible()).Children(func() {
+			ui.Box(c).Size(8, 8).Radius(4).Background(sync.color)
+		})
+		if dot.Clicked() {
+			a.ping(c.Now())
+			a.refreshOffline(true)
+			if sync.review || sync.queued > 0 {
+				a.chrome.settingsTab = "Sinkronisasi"
+				a.chrome.settingsDetail = true
+				a.navigate(PathPengaturan)
+			}
 		}
-		status := map[connState]string{connOffline: "Tidak ada koneksi", connConnecting: "Menyambungkan…"}[a.conn]
-		if status == "" {
-			status = "Tersambung"
-		}
-		ui.Box(c.Key("mobile-sync")).Label(status).Size(8, 8).Radius(4).Background(color).Margin(0, 6, 0, 0)
 		bell := ui.ButtonBase(c.Key("mobile-bell")).Label("Notifikasi").Size(44, 44).Radius(10).Center().TextColor(t.TextMuted)
 		bell.FocusRing(bell.FocusVisible()).Children(func() { ui.Icon(c, spaceIcon("bell")).Size(20, 20) })
 		if bell.Clicked() {
@@ -304,13 +307,13 @@ func (a *App) lainnyaPage(c *ui.Context) {
 			a.chrome.pingOpen = true
 		}},
 		{"Agenda", "Rapat dan kehadiran", "calendar", space("Agenda")},
-		{"Notes", "Catatan dan template", "note", space("Notes")},
+		{"Catatan", "Catatan dan template", "note", space("Catatan")},
 		{"Anggota", "Role dan undangan", "users", space("Anggota")},
-		{"Pengaturan Space", "Bot WhatsApp dan pengingat", "whatsapp", space("Pengaturan")},
+		{"Bot WhatsApp", "Bot WhatsApp dan pengingat", "whatsapp", space("Bot WhatsApp")},
 		{"Evaluasi SOP", "Temuan dan laporan", "shield", func() { a.navigate(PathEvaluasi) }},
 		{"Arsip periode", "Periode lama", "archive", func() { a.navigate(PathArsip) }},
 		{"Pengaturan", "Perangkat, akun, sinkronisasi", "settings", func() { a.chrome.settingsDetail = false; a.navigate(PathPengaturan) }},
-		{"Penampilan", "Tema, aksen, kepadatan", "palette", func() { a.chrome.appearance = true }},
+		{"Tampilan", "Tema, aksen, kepadatan", "palette", func() { a.chrome.appearance = true }},
 	}
 	if a.isAdmin() {
 		entries = append(entries, entry{"Organisasi", "Periode dan kadiv", "shield", func() { a.navigate(PathOrganisasi) }})

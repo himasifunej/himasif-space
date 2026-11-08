@@ -6,8 +6,8 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/himasifunej/himasif-space/internal/api"
 	"github.com/himasifunej/himasif-space/internal/id"
+	"github.com/himasifunej/himasif-space/internal/workspaceui"
 	"slices"
-	"strings"
 )
 
 type headerMembersState struct {
@@ -17,7 +17,9 @@ type headerMembersState struct {
 	items           []api.PersonRef
 }
 
-func (a *App) headerMembers(c *ui.Context) {
+// headerMembers is the canvas' member chip: up to three overlapping
+// avatars and "N anggota" (the count alone when the topbar is narrow).
+func (a *App) headerMembers(c *ui.Context, showText bool) {
 	sp := a.selectedSpace()
 	if a.router.Path() != PathSpaces || sp == nil || !slices.Contains(sp.Capabilities, api.CapMembersRead) {
 		return
@@ -31,22 +33,28 @@ func (a *App) headerMembers(c *ui.Context) {
 		a.loadHeaderMembers()
 	}
 	t := c.Theme()
-	b := ui.ButtonBase(c.Key("space-members")).Label("Anggota Space").Tooltip("Anggota Space").Row().Gap(4).Padding(5, 8).MinHeight(36).Radius(9).AlignItems(ui.Center)
-	if b.Hovered() {
+	b := ui.ButtonBase(c.Key("space-members")).Label("Anggota Space").Tooltip("Anggota Space").Row().Gap(6).Shrink(0).Padding(3, 8, 3, 4).MinHeight(34).Radius(20).Border(1, t.Border).AlignItems(ui.Center)
+	if b.Hovered() || a.chrome.membersOpen {
 		b.Background(t.SurfaceHover)
 	}
 	b.FocusRing(b.FocusVisible()).Children(func() {
-		for i, person := range m.items {
-			if i == 3 {
-				break
-			}
-			ui.Box(c.Key(person.ID)).Size(27, 27).Radius(14).Center().Background(t.SurfaceHover).Border(1, t.Border).Children(func() { ui.Text(c, personInitials(person.DisplayName)).FontSize(10).Bold() })
+		shown := min(len(m.items), 3)
+		if shown == 0 {
+			ui.Icon(c, spaceIcon("users")).Size(16, 16).Margin(0, 0, 0, 4)
+		} else {
+			// Avatars overlap by 7 px, each ringed in the surface color.
+			ui.Box(c).Size(26+float32(shown-1)*19, 26).Shrink(0).Children(func() {
+				for i := 0; i < shown; i++ {
+					person := m.items[i]
+					avatar(c.Key(person.ID), person.DisplayName, 26).Absolute().Left(float32(i)*19).Top(0).Border(2, t.Surface)
+				}
+			})
 		}
-		if len(m.items) == 0 {
-			ui.Icon(c, spaceIcon("users")).Size(18, 18)
+		text := fmt.Sprintf("%d anggota", len(m.items))
+		if !showText {
+			text = fmt.Sprint(len(m.items))
 		}
-		ui.Text(c, fmt.Sprint(len(m.items))).FontSize(11).TextColor(t.TextMuted)
-		ui.Icon(c, spaceIcon("down")).Size(12, 12)
+		ui.Text(c, text).FontSize(12).TextColor(t.TextMuted).MaxLines(1)
 	})
 	if b.Clicked() {
 		a.chrome.membersOpen = !a.chrome.membersOpen
@@ -55,7 +63,7 @@ func (a *App) headerMembers(c *ui.Context) {
 		a.chrome.profileOpen = false
 	}
 	popover(c, b, &a.chrome.membersOpen, 280, func() {
-		ui.Text(c, "Anggota Space").Bold()
+		ui.Text(c, "Anggota "+sp.Name).FontSize(12).TextColor(t.TextMuted).Padding(4, 8, 6, 8)
 		if m.loading {
 			muted(c, "Memuat anggota…")
 		}
@@ -68,13 +76,17 @@ func (a *App) headerMembers(c *ui.Context) {
 		ui.Scroll(c).FillWidth().MaxHeight(280).Children(func() {
 			ui.Column(c).FillWidth().Gap(4).Children(func() {
 				for _, person := range m.items {
-					ui.Row(c.Key(person.ID)).Padding(8).Gap(10).AlignItems(ui.Center).Children(func() {
-						ui.Box(c).Size(28, 28).Radius(14).Center().Background(t.SurfaceHover).Children(func() { ui.Text(c, personInitials(person.DisplayName)).FontSize(10) })
-						ui.Text(c, person.DisplayName).FontSize(12).Grow(1).MinWidth(0)
+					ui.Row(c.Key(person.ID)).Padding(6, 8).Gap(10).AlignItems(ui.Center).Children(func() {
+						avatar(c, person.DisplayName, 26)
+						ui.Text(c, person.DisplayName).FontSize(13).Grow(1).MinWidth(0).MaxLines(1)
 					})
 				}
 			})
 		})
+		if canPing(sp) && spaceButton(c, "Ping semua anggota", "send", false).FillWidth().Clicked() {
+			a.chrome.membersOpen = false
+			a.chrome.pingOpen = true
+		}
 	})
 }
 
@@ -106,13 +118,6 @@ func (a *App) loadHeaderMembers() {
 	})
 }
 
-func personInitials(name string) string {
-	out := ""
-	for _, part := range strings.Fields(name) {
-		out += strings.ToUpper(string([]rune(part)[0]))
-		if len([]rune(out)) == 2 {
-			break
-		}
-	}
-	return out
-}
+// personInitials is the avatar text of a person: "[DUMMY] Aruna Desain"
+// gives "AD".
+func personInitials(name string) string { return workspaceui.Initials(name) }
