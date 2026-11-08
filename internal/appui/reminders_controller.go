@@ -175,7 +175,7 @@ func (a *App) closeReminder() {
 }
 
 func (a *App) beginReminder() {
-	if a.reminderWriteBlocked() || !a.reminders.prefsLoaded {
+	if a.reminderCreateBlocked() || !a.reminders.prefsLoaded {
 		return
 	}
 	a.clearReminderSelection()
@@ -258,6 +258,13 @@ func (a *App) loadReminderDetails() {
 
 func (a *App) reminderWriteBlocked() bool {
 	return a.screen != screenShell || a.isAdmin() || !a.reminders.loaded || a.reminders.loading || a.reminders.busy || a.reminders.detailsLoading || a.reminders.detailsErr != "" || a.conn != connOnline
+}
+
+// reminderCreateBlocked is reminderWriteBlocked without the selected
+// reminder's details: the list opens on its first reminder, and loading
+// that one must not hold up starting a new one.
+func (a *App) reminderCreateBlocked() bool {
+	return a.screen != screenShell || a.isAdmin() || !a.reminders.loaded || a.reminders.loading || a.reminders.busy || a.conn != connOnline
 }
 
 func (a *App) ownsSelectedReminder() bool {

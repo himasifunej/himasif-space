@@ -42,7 +42,7 @@ func (a *App) remindersView(c *ui.Context) {
 			if spaceIconButton(c, "Muat ulang reminder", "refresh").Disabled(a.reminders.busy || a.reminders.loading).Clicked() {
 				a.loadReminders()
 			}
-			if primarySpaceButton(c, "Reminder baru", "plus").Shrink(0).Disabled(a.reminderWriteBlocked() || !a.reminders.loaded || !a.reminders.prefsLoaded).Clicked() {
+			if primarySpaceButton(c, "Reminder baru", "plus").Shrink(0).Disabled(a.reminderCreateBlocked() || !a.reminders.loaded || !a.reminders.prefsLoaded).Clicked() {
 				a.beginReminder()
 			}
 		})
