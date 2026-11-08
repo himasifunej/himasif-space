@@ -455,7 +455,7 @@ func TestPages(t *testing.T) {
 	}{
 		{"Reminder pribadi", "Reminder belum dapat dimuat", false},
 		{"Evaluasi SOP", "Layanan evaluasi SOP belum tersedia.", false},
-		{"Arsip", "Informasi periode", false},
+		{"Arsip", "Periode yang ditutup menjadi hanya-baca. Pengurus baru perlu izin kadiv periode aktif.", false},
 		{"Space saya", "Layanan akses Space belum tersedia.", false},
 	} {
 		if tc.profile {

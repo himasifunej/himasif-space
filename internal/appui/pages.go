@@ -225,44 +225,6 @@ func (a *App) notesPage(c *ui.Context) {
 	a.notesView(c)
 }
 
-func (a *App) archivePage(c *ui.Context, r *ui.Route) {
-	r.Title("Arsip periode")
-	pageBody(c, "Arsip periode", func() {
-		muted(c, "Ruang untuk melihat perjalanan kepengurusan sebelumnya.")
-		if len(a.archiveManagedDivisions()) > 0 {
-			if spaceButton(c, "Kelola izin arsip", "shield", false).Clicked() {
-				a.navigate(PathArchiveAccess)
-			}
-		}
-		pageNotice(c, "lock", "Informasi periode", "Daftar di bawah hanya berisi metadata periode yang telah ditutup. Akses arsip pekerjaan tetap memerlukan izin.")
-		if a.periodsErr != "" {
-			pageNotice(c, "alert", "Periode belum dapat dimuat", a.periodsErr)
-			if spaceButton(c, "Muat ulang periode", "refresh", false).Disabled(a.periodsLoading).Clicked() {
-				a.loadPeriods()
-			}
-			return
-		}
-		closed := 0
-		for _, period := range a.periods {
-			if period.Status == api.PeriodClosed {
-				closed++
-				pagePeriodCard(c, period)
-				if spaceButton(c, "Lihat ruang "+period.Label, "archive", false).Clicked() {
-					a.changePeriod(period.ID)
-					a.navigate(PathSpaces)
-				}
-			}
-		}
-		if closed == 0 {
-			if a.periodsLoading {
-				pageUnavailable(c, "refresh", "Memuat periode…", "Mengambil daftar kepengurusan.")
-			} else {
-				pageUnavailable(c, "archive", "Belum ada periode ditutup", "Periode yang telah ditutup akan tercantum di sini.")
-			}
-		}
-	})
-}
-
 func (a *App) organizationPage(c *ui.Context, r *ui.Route) {
 	r.Title("Pengaturan organisasi")
 	a.organizationAdminView(c)
