@@ -107,6 +107,16 @@ alter table task_spaces add constraint task_spaces_number unique (space_id, numb
 2. 6b di PC: kode + `0027` + test, commit; CI.
 3. Deploy dari aws-vps (bisa satu kali untuk keduanya, atau 6b dulu karena tanpa risiko).
 
+## Hasil pengerjaan (PC Tiyo, 9 Nov)
+| Commit | Isi |
+|---|---|
+| ea3b9f2 (+ gofmt bed21f2, test 1aec71f) | 6a: migrasi `0026`, `store.TaskSpaces` jadi selisih + penghitung per Space, `api.Task.Numbers`, #T di kartu/detail, cari `#T12`/`T12`/`12` |
+| 138a6b3 | 6b: migrasi `0027`, `PUT/GET/DELETE /api/tasks/{id}/attachments/{aid}[/file]`, `api.Task.Attachments`, bagian "Berkas" di detail, hitungan di kartu |
+
+CI PR draft #10 (run 42508291069, Postgres) hijau: fmt, vet, semua test termasuk `task_numbers_test.go` (per Space, sunting, lepas/tautkan ulang, 20 tugas paralel, backfill dari skema 0025) dan `task_attachments_test.go` (izin, tipe, ukuran, jumlah, kuota, hapus, unduh). Lokal (Windows, tanpa Postgres): semua lolos kecuali `internal/filestore` (cek izin 0700 tidak berlaku di NTFS).
+
+Catatan perilaku: pemilih berkas tugas mengunggah langsung (tanpa salinan perangkat seperti catatan); bila gagal, berkas tetap di memori dengan ID unggah yang sama untuk "Unggah ulang". Nomor di pesan ping/WA belum ditambahkan (keputusan owner).
+
 ## Langkah deploy (sesi aws-vps)
 Sama dengan Tahap 5 (`canvas-a-tahap5-rencana.md`, bagian "Langkah deploy"), dengan perbedaan berikut.
 1. **Backup** wajib dengan nama `before-0026-<waktu>.dump`, cek `pg_restore -l`. Tambahkan juga salinan direktori lampiran (`tar` dari `SPACE_ATTACHMENT_DIR`, izin 0600) sebelum 6b, walaupun blob lama tidak disentuh.
