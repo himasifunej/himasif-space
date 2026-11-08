@@ -67,6 +67,7 @@ func (a *App) reminderClockField(c *ui.Context, value *string) {
 				}
 			})
 			x, y, over := face.PointerPosition()
+			holdTouchPan(face)
 			_, _, dragging := face.Dragged()
 			if (face.Clicked() || dragging) && over {
 				angle := math.Atan2(float64(x-105), float64(105-y))

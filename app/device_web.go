@@ -24,6 +24,7 @@ type webNotifications struct {
 func attachDevice(win *mygo.Window, app *appui.App) {
 	notifications := &webNotifications{app: app, win: win}
 	app.Notifications = notifications
+	appui.HoldTouchPan = func() { js.Global().Set("space_pan_hold", true) }
 	app.SessionChanged = func(uid id.ID) {
 		notifications.mu.Lock()
 		notifications.active = uid

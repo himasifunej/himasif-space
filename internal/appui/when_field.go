@@ -216,6 +216,7 @@ func analogClock(c *ui.Context, key string, value *string, minutes *bool) {
 		}
 	})
 	x, y, over := face.PointerPosition()
+	holdTouchPan(face)
 	_, _, dragging := face.Dragged()
 	if (face.Clicked() || dragging) && over {
 		angle := math.Atan2(float64(x-size/2), float64(size/2-y))

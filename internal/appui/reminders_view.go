@@ -60,6 +60,7 @@ func (a *App) remindersView(c *ui.Context) {
 				})
 				if panelOpen {
 					edge := ui.Box(c.Key("reminder-resize")).Label("Ubah lebar daftar reminder").Tooltip("Tarik untuk mengubah lebar · panah kiri/kanan").Absolute().Right(0).Top(0).Width(6).FillHeight().Cursor(ui.CursorResizeEW).Focusable()
+					holdTouchPan(edge)
 					dx, _, held := edge.Dragged()
 					if held && dx != 0 {
 						a.reminders.listWidth = min(max(shownWidth+dx, 220), maxListWidth)

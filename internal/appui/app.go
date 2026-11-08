@@ -517,3 +517,14 @@ func errorText(err error) string {
 	}
 	return "Terjadi kesalahan. Coba lagi."
 }
+
+// HoldTouchPan, set on the web, keeps the finger pressing an element that
+// it drags (a clock face, a resize edge) from scrolling the page instead.
+var HoldTouchPan func()
+
+// holdTouchPan keeps a touch on e a drag of e, not a scroll, while e is pressed.
+func holdTouchPan(e ui.Element) {
+	if HoldTouchPan != nil && e.Pressed() {
+		HoldTouchPan()
+	}
+}
