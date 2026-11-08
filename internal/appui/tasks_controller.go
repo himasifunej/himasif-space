@@ -238,7 +238,7 @@ func (a *App) projectTasks() {
 		if t.Progress == api.TaskCancelled && !a.tasks.showCancelled {
 			continue
 		}
-		if q != "" && !strings.Contains(strings.ToLower(t.Title+" "+t.Category+" "+t.Assignee.DisplayName), q) {
+		if q != "" && !a.taskMatches(t, q) {
 			continue
 		}
 		if a.tasks.mineOnly && !a.taskIsMine(t) {
@@ -255,7 +255,7 @@ func (a *App) projectTasks() {
 		}
 		card.Due = taskShortDate(t)
 		card.Late = taskLate(t, now)
-		card.Ref = taskRef(t.ID)
+		card.Ref = a.taskCode(t)
 		if t.Assignee.DisplayName != "" {
 			card.AssigneeColor = personColor(t.Assignee.DisplayName)
 		}
@@ -646,8 +646,57 @@ func taskLabels(category string) []string {
 	return out
 }
 
-// taskRef is a short code for a task: the last four characters of its ID.
-// The API has no task numbers, so this stands in for the canvas's #T12.
+// taskNumber is t's number (#T12) shown here: its number in the open Space,
+// else in its division Space, else any; 0 from a server before Tahap 6a.
+func (a *App) taskNumber(t api.Task) int64 {
+	if len(t.Numbers) == 0 {
+		return 0
+	}
+	if n := t.Numbers[a.selectedSpaceID().String()]; n > 0 {
+		return n
+	}
+	var any int64
+	for _, sid := range t.SpaceIDs {
+		n := t.Numbers[sid.String()]
+		if n == 0 {
+			continue
+		}
+		for _, s := range a.access.spaces {
+			if s.ID == sid && s.Kind == api.SpaceDivision {
+				return n
+			}
+		}
+		if any == 0 {
+			any = n
+		}
+	}
+	return any
+}
+
+// taskCode is the canvas' "#T12"; before Tahap 6a, the short ID code.
+func (a *App) taskCode(t api.Task) string {
+	if n := a.taskNumber(t); n > 0 {
+		return fmt.Sprintf("#T%d", n)
+	}
+	return taskRef(t.ID)
+}
+
+// taskMatches tells whether a search matches t: its title, label or PJ,
+// or its number written as "#T12", "T12" or "12".
+func (a *App) taskMatches(t api.Task, q string) bool {
+	if strings.Contains(strings.ToLower(t.Title+" "+t.Category+" "+t.Assignee.DisplayName), q) {
+		return true
+	}
+	num := strings.TrimPrefix(strings.TrimPrefix(q, "#"), "t")
+	if num == "" || strings.Trim(num, "0123456789") != "" {
+		return false
+	}
+	n := a.taskNumber(t)
+	return n > 0 && fmt.Sprint(n) == strings.TrimLeft(num, "0")
+}
+
+// taskRef is a short code for a task: the last four characters of its ID,
+// shown where a server has no task numbers yet.
 func taskRef(tid id.ID) string {
 	s := strings.ReplaceAll(tid.String(), "-", "")
 	if len(s) < 4 {

@@ -268,7 +268,7 @@ func (a *App) taskDetailMain(c *ui.Context, t *api.Task) {
 		// The phone's inspector has no modal header: status and code here.
 		ui.Row(c.Key("status-row")).FillWidth().Gap(10).AlignItems(ui.Center).Children(func() {
 			a.taskStatusPill(c, task)
-			muted(c, taskRef(t.ID)).FontSize(12)
+			muted(c, a.taskCode(task)).FontSize(12)
 		})
 	}
 	ui.Text(c, t.Title).FontSize(23).Bold()
@@ -722,7 +722,7 @@ func (a *App) taskDetailModal(c *ui.Context) {
 		panel.Width(min(float32(1080), w-48)).Height(min(float32(820), h-48)).Column().Radius(14).Background(th.Surface).Border(1, th.Border).Children(func() {
 			ui.Row(c).FillWidth().Padding(12, 16).Gap(10).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(th.Border).Children(func() {
 				a.taskStatusPill(c, *t)
-				ui.Text(c, taskRef(t.ID)).FontSize(12).TextColor(th.TextMuted).Tooltip("Kode singkat tugas")
+				ui.Text(c, a.taskCode(*t)).FontSize(12).TextColor(th.TextMuted).Tooltip("Nomor tugas di Space ini")
 				crumb := "Board tugas"
 				if s := a.taskSpaceNames(*t); s != "" {
 					crumb = s + " · " + crumb

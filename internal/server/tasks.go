@@ -424,7 +424,7 @@ func (s *Server) createTask(w http.ResponseWriter, r *http.Request, p *principal
 		if t.Rank, err = s.store.TaskRank(r.Context(), q, period.ID, t.ID, id.Nil, api.TaskTodo); err != nil {
 			return err
 		}
-		if err = s.store.InsertTask(r.Context(), q, t); err != nil {
+		if err = s.store.InsertTask(r.Context(), q, &t); err != nil {
 			return err
 		}
 		if err = s.taskAccess(r.Context(), q, p, period, &t); err != nil {
@@ -500,7 +500,7 @@ func (s *Server) updateTask(w http.ResponseWriter, r *http.Request, p *principal
 		t.Assignee = assignee
 		t.PlannedStartDate, t.PlannedStartAt = req.PlannedStartDate, req.PlannedStartAt
 		t.DeadlineDate, t.DeadlineAt, t.PostingDate, t.PostingAt = req.DeadlineDate, req.DeadlineAt, req.PostingDate, req.PostingAt
-		if err = s.store.TaskSpaces(r.Context(), q, *t); err != nil {
+		if err = s.store.TaskSpaces(r.Context(), q, t); err != nil {
 			return err
 		}
 		if err = s.taskAccess(r.Context(), q, p, period, t); err != nil {

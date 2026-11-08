@@ -676,11 +676,11 @@ func (a *App) taskSearchResults(c *ui.Context, q string) int {
 	}
 	n := 0
 	for _, task := range a.tasks.items {
-		if !strings.Contains(strings.ToLower(task.Title+" "+task.Category+" "+task.Assignee.DisplayName), q) {
+		if !a.taskMatches(task, q) {
 			continue
 		}
 		n++
-		if spaceButton(c.Key(task.ID), task.Title, "task", false).FillWidth().Clicked() {
+		if spaceButton(c.Key(task.ID), a.taskCode(task)+" · "+task.Title, "task", false).FillWidth().Clicked() {
 			a.openCanonicalTask(task)
 		}
 		if n >= 6 {

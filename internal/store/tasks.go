@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/himasifunej/himasif-space/internal/api"
@@ -67,15 +69,10 @@ func (s *Store) Task(ctx context.Context, q Querier, tid id.ID, lock string) (Ta
 		}
 		t.PostingDate = &d
 	}
-	rows, err := q.Query(ctx, `select space_id from task_spaces where task_id=$1 order by space_id`, tid)
-	if err != nil {
+	if t.SpaceIDs, t.Numbers, err = taskSpaceNumbers(ctx, q, tid, ""); err != nil {
 		return t, err
 	}
-	t.SpaceIDs, err = pgx.CollectRows(rows, pgx.RowTo[id.ID])
-	if err != nil {
-		return t, err
-	}
-	rows, err = q.Query(ctx, `select u.id,u.display_name from task_participants x join users u on u.id=x.user_id where x.task_id=$1 order by u.id`, tid)
+	rows, err := q.Query(ctx, `select u.id,u.display_name from task_participants x join users u on u.id=x.user_id where x.task_id=$1 order by u.id`, tid)
 	if err != nil {
 		return t, err
 	}
@@ -169,7 +166,7 @@ func (s *Store) TaskIDs(ctx context.Context, q Querier, pid id.ID) ([]id.ID, err
 	return pgx.CollectRows(rows, pgx.RowTo[id.ID])
 }
 
-func (s *Store) InsertTask(ctx context.Context, q Querier, t TaskRow) error {
+func (s *Store) InsertTask(ctx context.Context, q Querier, t *TaskRow) error {
 	_, err := q.Exec(ctx, `insert into tasks(id,period_id,owner_division_id,title,description,expected_output,category,assignee_id,deadline_date,deadline_at,posting_date,posting_at,progress,match_status,rank,created_by,created_at,updated_at,planned_start_date,planned_start_at)
  values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`, t.ID, t.PeriodID, t.OwnerDivisionID, t.Title, t.Description, t.ExpectedOutput, t.Category, t.Assignee.ID, t.DeadlineDate, t.DeadlineAt, t.PostingDate, t.PostingAt, t.Progress, t.MatchStatus, t.Rank, t.CreatedBy.ID, t.CreatedAt, t.UpdatedAt, t.PlannedStartDate, t.PlannedStartAt)
 	if err != nil {
@@ -177,16 +174,63 @@ func (s *Store) InsertTask(ctx context.Context, q Querier, t TaskRow) error {
 	}
 	return s.TaskSpaces(ctx, q, t)
 }
-func (s *Store) TaskSpaces(ctx context.Context, q Querier, t TaskRow) error {
-	if _, e := q.Exec(ctx, `delete from task_spaces where task_id=$1`, t.ID); e != nil {
-		return e
+// TaskSpaces makes t's Space links t.SpaceIDs by difference: a kept link
+// keeps its number, a removed one is deleted (its number is not reused), a
+// new one takes its Space's next number. It fills t.Numbers.
+func (s *Store) TaskSpaces(ctx context.Context, q Querier, t *TaskRow) error {
+	have, numbers, err := taskSpaceNumbers(ctx, q, t.ID, " for update")
+	if err != nil {
+		return err
 	}
-	for _, sid := range t.SpaceIDs {
-		if _, e := q.Exec(ctx, `insert into task_spaces(task_id,space_id,period_id) values($1,$2,$3)`, t.ID, sid, t.PeriodID); e != nil {
-			return e
+	want := slices.Clone(t.SpaceIDs)
+	// Counters are locked in Space order, so two tasks gaining the same
+	// Spaces cannot deadlock.
+	slices.SortFunc(want, func(a, b id.ID) int { return strings.Compare(a.String(), b.String()) })
+	for _, sid := range have {
+		if !slices.Contains(want, sid) {
+			if _, e := q.Exec(ctx, `delete from task_spaces where task_id=$1 and space_id=$2`, t.ID, sid); e != nil {
+				return e
+			}
+			delete(numbers, sid.String())
 		}
 	}
+	for _, sid := range want {
+		if slices.Contains(have, sid) {
+			continue
+		}
+		var n int64
+		if e := q.QueryRow(ctx, `insert into space_task_counters(space_id,last_number) values($1,1)
+			on conflict(space_id) do update set last_number=space_task_counters.last_number+1 returning last_number`, sid).Scan(&n); e != nil {
+			return e
+		}
+		if _, e := q.Exec(ctx, `insert into task_spaces(task_id,space_id,period_id,number) values($1,$2,$3,$4)`, t.ID, sid, t.PeriodID, n); e != nil {
+			return e
+		}
+		numbers[sid.String()] = n
+	}
+	t.Numbers = numbers
 	return nil
+}
+
+// taskSpaceNumbers returns a task's Spaces and its number in each.
+func taskSpaceNumbers(ctx context.Context, q Querier, tid id.ID, lock string) ([]id.ID, map[string]int64, error) {
+	rows, err := q.Query(ctx, `select space_id,number from task_spaces where task_id=$1 order by space_id`+lock, tid)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+	ids := []id.ID{}
+	numbers := map[string]int64{}
+	for rows.Next() {
+		var sid id.ID
+		var n int64
+		if err := rows.Scan(&sid, &n); err != nil {
+			return nil, nil, err
+		}
+		ids = append(ids, sid)
+		numbers[sid.String()] = n
+	}
+	return ids, numbers, rows.Err()
 }
 
 // SaveTask requires a period/task write lock held by the caller. Optimistic

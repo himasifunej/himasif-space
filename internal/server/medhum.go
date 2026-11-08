@@ -379,7 +379,7 @@ func (s *Server) syncMedhumTask(r *http.Request, q store.Querier, p *principal, 
 		if t.Rank, err = s.store.TaskRank(r.Context(), q, period.ID, t.ID, id.Nil, api.TaskTodo); err != nil {
 			return err
 		}
-		if err := s.store.InsertTask(r.Context(), q, t); err != nil {
+		if err := s.store.InsertTask(r.Context(), q, &t); err != nil {
 			return err
 		}
 		if err := s.taskEvent(r, q, p, &t, "medhum.task.create", "Tugas kanonis konten Medhum", nil, t.Task); err != nil {

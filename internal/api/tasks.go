@@ -38,6 +38,9 @@ type Task struct {
 	PeriodID         id.ID               `json:"periodId"`
 	OwnerDivisionID  id.ID               `json:"ownerDivisionId"`
 	SpaceIDs         []id.ID             `json:"spaceIds"`
+	// Numbers is the task's number (#T12) in each of its Spaces, by Space
+	// ID. Absent from servers before Tahap 6a.
+	Numbers map[string]int64 `json:"numbers,omitempty"`
 	Title            string              `json:"title"`
 	Description      string              `json:"description"`
 	ExpectedOutput   string              `json:"expectedOutput"`
