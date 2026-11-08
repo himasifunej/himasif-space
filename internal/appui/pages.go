@@ -198,7 +198,7 @@ func (a *App) spacePage(c *ui.Context, r *ui.Route, shared bool) {
 		case "Board tugas":
 			a.spaceTasksView(c)
 		case "Agenda":
-			a.meetingsView(c)
+			a.taskAgenda(c)
 		case "Catatan":
 			a.notesPage(c)
 		case "Rapat":

@@ -110,7 +110,7 @@ func TestDesktopFeedbackNativeCapture(t *testing.T) {
 	capture("task-range-calendar")
 	h.click("Selesai")
 	h.app.tasks.draft = nil
-	h.app.chrome.tab = "Agenda"
+	h.app.chrome.tab = "Rapat"
 	h.app.meetings = meetingsState{space: sp.ID, loaded: true, draft: &meetingDraft{title: "Rapat koordinasi", date: "2026-11-05", start: "19:00", zone: "Asia/Jakarta", minutes: "60,15"}}
 	capture("meeting-drawer")
 	if !h.tt.HasText("Mulai rapat *") || h.tt.HasText("Jam selesai *") {
