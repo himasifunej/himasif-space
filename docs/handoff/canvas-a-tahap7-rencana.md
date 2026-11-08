@@ -117,6 +117,18 @@ Drawer sudah "Tugas baru" dengan Batal / Simpan tugas, tetapi isian kosong tanpa
 - Server (Postgres/CI): hasil pratinjau sama dengan teks yang dikirim worker untuk data yang sama (pengingat, ping, balasan, mingguan); teks tanpa isi pesan tetap menampilkan isi; tanpa izin = 403; antrean pengiriman tidak bertambah.
 - UI: tiga keadaan status, langkah berikutnya benar, Kirim cara menautkan menyalin teks, Pratinjau berubah saat mengetik, versi HP.
 
+## Hasil pengerjaan (PC Tiyo, 9 Nov)
+| Commit | Isi |
+|---|---|
+| 73179e5 | 7b drawer Buat tugas: contoh isian, chip PJ (maks. 8 + Lainnya, "Saya"), "Detail lainnya" terlipat |
+| 8c807fc | 7a Evaluasi SOP: `GET …/sop/summary`, segmen Temuan · Laporan kuartal · Kebijakan, tabel, grafik per aturan, Ekspor CSV satu langkah, HP kartu |
+| a852d1e | 7c Ping C: `filter=unseen\|failed`, bilah kirim, Belum melihat, linimasa per hari, Ping ulang dengan konfirmasi, halaman per 50, HP |
+| 5b4fef4 | 7d Bot WhatsApp A: status 3 keadaan, 4 langkah, nomor anggota, Pengaturan lanjutan tanpa istilah teknis, Pratinjau (`POST …/whatsapp/preview`) |
+
+Tangkapan cek visual (harness test, desktop dan HP): `E:\himasif-cache\shots\cap\` (drawer-new-task, sop-desktop, sop-phone, ping-c-desktop, ping-c-phone, wa-a-partial, wa-a-preview, wa-a-phone).
+
+Catatan: "Belum melihat" di Ping dihitung dari halaman yang dimuat; tombol "Perintah khusus" di Pengaturan lanjutan membuka halaman Command di Pengaturan (belum dipindah ke tab). Tidak ada migrasi.
+
 ## Urutan kerja
 1. 7b (kecil, UI saja).
 2. 7c Ping (UI + parameter `filter`).
