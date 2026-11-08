@@ -607,12 +607,3 @@ func reviewInitials(name string) string {
 	}
 	return out
 }
-
-// spacePingPage is the Ping tab: the ping composer of the header dialog,
-// as a page. The server keeps no ping history for the app to list yet.
-func (a *App) spacePingPage(c *ui.Context) {
-	settingsBody(c, "Ping", "Ingatkan anggota divisi lewat perangkat atau WhatsApp.", func() {
-		pageSection(c, "Kirim ping", "", func() { a.pingComposer(c) })
-		pageSection(c, "Riwayat ping", "", func() { a.pingHistoryView(c) })
-	})
-}

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"testing"
 
 	"github.com/himasifunej/himasif-space/internal/api"
@@ -70,5 +71,32 @@ func TestPingHistory(t *testing.T) {
 	}
 	if c, _ := o.errCode("GET", path+"?limit=0", kTok, nil); c != 400 {
 		t.Fatalf("limit=0 = %d", c)
+	}
+
+	// Tahap 7c filters. Bima saw the second ping; Aruna's first-ping
+	// delivery failed. Unseen = someone has not seen it on any channel.
+	ctx := context.Background()
+	if _, err := o.st.DB().Exec(ctx, `update delivery_recipients d set seen_at=now() from delivery_events e
+		where e.id=d.event_id and e.source_kind='ping' and e.body='Ping kedua' and d.recipient_id=$1`, bAcc.User.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := o.st.DB().Exec(ctx, `update delivery_recipients d set status='failed' from delivery_events e
+		where e.id=d.event_id and e.source_kind='ping' and e.body='Ping pertama' and d.recipient_id=$1`, aAcc.User.ID); err != nil {
+		t.Fatal(err)
+	}
+	var unseen, failedList api.List[api.PingRecord]
+	if c := o.call("GET", path+"?filter=unseen", kTok, nil, &unseen); c != 200 || len(unseen.Items) != 1 || unseen.Items[0].Message != "Ping pertama" {
+		t.Fatalf("unseen = %d %+v", c, unseen)
+	}
+	if c := o.call("GET", path+"?filter=failed", kTok, nil, &failedList); c != 200 || len(failedList.Items) != 1 || failedList.Items[0].Message != "Ping pertama" {
+		t.Fatalf("failed = %d %+v", c, failedList)
+	}
+	// Bima's own view: he saw "Ping kedua", and did not see "Ping pertama".
+	var bimaUnseen api.List[api.PingRecord]
+	if c := o.call("GET", path+"?filter=unseen", bTok, nil, &bimaUnseen); c != 200 || len(bimaUnseen.Items) != 1 || bimaUnseen.Items[0].Message != "Ping pertama" {
+		t.Fatalf("bima unseen = %d %+v", c, bimaUnseen)
+	}
+	if c, _ := o.errCode("GET", path+"?filter=semua", kTok, nil); c != 400 {
+		t.Fatalf("unknown filter = %d", c)
 	}
 }

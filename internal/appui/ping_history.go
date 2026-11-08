@@ -2,8 +2,6 @@ package appui
 
 import (
 	"context"
-	"errors"
-	"net/http"
 	"strings"
 	"time"
 
@@ -16,7 +14,7 @@ import (
 // PingHistoryAPI reads a Space's Riwayat ping. It is apart from DeliveryAPI
 // so older services (and test fakes) without it still send pings.
 type PingHistoryAPI interface {
-	Pings(ctx context.Context, space id.ID, before time.Time, limit int) ([]api.PingRecord, error)
+	Pings(ctx context.Context, space id.ID, before time.Time, limit int, filter string) ([]api.PingRecord, error)
 }
 
 // pingHistoryLimit is how many pings the Ping tab shows.
@@ -30,6 +28,15 @@ type pingHistoryState struct {
 	err     string
 	// missing is set when the server has no history endpoint yet.
 	missing bool
+	// Tahap 7c: the filter ("", "unseen", "failed"), the page shown with
+	// each page's before= cursor, whether an older page exists, and the
+	// ping whose "Ping ulang" waits for confirmation.
+	filter        string
+	page          int
+	cursors       []time.Time
+	hasMore       bool
+	resendConfirm id.ID
+	resending     bool
 }
 
 func (a *App) pingHistoryService() (PingHistoryAPI, bool) {
@@ -56,68 +63,8 @@ func (a *App) ensurePingHistory() {
 		st.loaded, st.missing = true, true
 		return
 	}
-	gen := a.gen
-	st.loading = true
-	a.async(func() func() {
-		items, err := svc.Pings(context.Background(), sid, time.Time{}, pingHistoryLimit)
-		return func() {
-			if gen != a.gen || a.pingHistory.space != sid {
-				return
-			}
-			st := &a.pingHistory
-			st.loading, st.loaded = false, true
-			var ce *client.Error
-			switch {
-			case errors.As(err, &ce) && (ce.Status == http.StatusNotFound || ce.Status == http.StatusMethodNotAllowed):
-				st.missing = true
-			case err != nil:
-				st.loaded = false
-				st.err = a.failed(err)
-			default:
-				st.items, st.missing = items, false
-			}
-		}
-	})
-}
-
-func (a *App) pingHistoryView(c *ui.Context) {
-	a.ensurePingHistory()
-	t := c.Theme()
-	st := &a.pingHistory
-	switch {
-	case st.err != "":
-		ui.Text(c, "Riwayat ping belum dapat dimuat: "+st.err).FontSize(12).TextColor(t.Danger)
-		if spaceButton(c, "Muat ulang riwayat ping", "refresh", false).Clicked() {
-			st.err = ""
-		}
-		return
-	case st.loading && !st.loaded:
-		muted(c, "Memuat riwayat ping…")
-		return
-	case st.missing:
-		pageEmpty(c, "clock", "Riwayat ping belum tersedia", "Server ini belum menyediakan riwayat ping. Status pengiriman WhatsApp ada di Pengaturan, Aktivitas WhatsApp.")
-		return
-	case len(st.items) == 0:
-		pageEmpty(c, "clock", "Belum ada ping", "Ping yang dikirim di Space ini muncul di sini, dengan status tiap penerima.")
-		return
-	}
-	ui.Column(c).FillWidth().MinWidth(0).Radius(12).Background(t.Surface).Border(1, t.Border).Clip().Children(func() {
-		for i, p := range st.items {
-			row := ui.Column(c.Key(p.ID)).FillWidth().MinWidth(0).Padding(12, 14).Gap(6)
-			if i > 0 {
-				row.BorderWidth(1, 0, 0, 0).BorderColor(t.Border)
-			}
-			row.Children(func() {
-				ui.Text(c, p.Message).FontSize(13).FontWeight(600).MaxLines(3)
-				muted(c, pingByLine(p)).FontSize(12).MaxLines(1)
-				ui.Row(c).FillWidth().MinWidth(0).Gap(6).Wrap().Children(func() {
-					for j, r := range p.Recipients {
-						ui.Text(c.Key(j), r.Recipient.DisplayName+" · "+pingRecipientLabel(r)).FontSize(11).TextColor(pingRecipientColor(t, r)).Padding(3, 8).Radius(6).Background(t.Background).MaxLines(1)
-					}
-				})
-			})
-		}
-	})
+	_ = svc
+	a.pingLoad()
 }
 
 // pingByLine is "Demo Mediatek · 08 Nov 2026 · 09.15 WIB · tugas".

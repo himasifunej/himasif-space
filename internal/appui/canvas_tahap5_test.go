@@ -139,7 +139,7 @@ type pingHistoryTestAPI struct {
 	calls int
 }
 
-func (f *pingHistoryTestAPI) Pings(context.Context, id.ID, time.Time, int) ([]api.PingRecord, error) {
+func (f *pingHistoryTestAPI) Pings(context.Context, id.ID, time.Time, int, string) ([]api.PingRecord, error) {
 	f.calls++
 	return f.pings, nil
 }
@@ -160,9 +160,12 @@ func TestPingTabShowsHistoryWithRecipientStatus(t *testing.T) {
 	h.tt.Frame()
 	h.settle()
 	h.tt.Frame()
-	h.want("Mohon perbarui progres tugas hari ini.")
-	h.want("Aruna · perangkat · dilihat")
-	h.want("Nara · WA · gagal")
+	// Tahap 7c (canvas Ping C): one line per ping, seen count, Belum melihat.
+	h.want("Demo · Mohon perbarui progres tugas hari ini.")
+	h.want("Tugas · 1/2 dilihat · ada yang gagal")
+	h.want("Belum melihat")
+	h.want("1 ping belum dilihat · WA gagal")
+	h.want("Ping ulang 1")
 	h.dontWant("Riwayat ping belum tersedia")
 	if f.calls != 1 {
 		t.Fatalf("history loaded %d times", f.calls)

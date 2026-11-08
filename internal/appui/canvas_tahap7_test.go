@@ -1,6 +1,7 @@
 package appui
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -158,6 +159,105 @@ func TestSOPHelpers(t *testing.T) {
 	for tab, seg := range map[string]string{"Temuan": "Temuan", "Laporan": "Laporan kuartal", "Izin": "Kebijakan", "Konteks": "Kebijakan"} {
 		if sopSegment(tab) != seg {
 			t.Errorf("%s → %s", tab, sopSegment(tab))
+		}
+	}
+}
+
+// pingPagesAPI serves pages of pings and records sends.
+type pingPagesAPI struct {
+	*fakeAPI
+	pages   [][]api.PingRecord
+	calls   []string
+	sent    []api.PingRequest
+	filters []string
+}
+
+func (f *pingPagesAPI) Pings(_ context.Context, _ id.ID, before time.Time, _ int, filter string) ([]api.PingRecord, error) {
+	f.calls = append(f.calls, before.Format(time.RFC3339))
+	f.filters = append(f.filters, filter)
+	if before.IsZero() {
+		return f.pages[0], nil
+	}
+	return f.pages[1], nil
+}
+
+func (f *pingPagesAPI) SendPing(_ context.Context, _ id.ID, r api.PingRequest) error {
+	f.sent = append(f.sent, r)
+	return nil
+}
+
+func (f *pingPagesAPI) Deliveries(context.Context) ([]api.Delivery, error) { return nil, nil }
+func (f *pingPagesAPI) RespondDelivery(context.Context, id.ID, api.DeliveryResponse) error {
+	return nil
+}
+
+func pingRecord(msg string, at time.Time, seen bool) api.PingRecord {
+	r := api.PingRecipientStatus{Recipient: api.PersonRef{ID: id.New(), DisplayName: "Aruna Desain"}, Channel: "device", Status: "accepted"}
+	if seen {
+		r.SeenAt = &at
+	}
+	return api.PingRecord{ID: id.New(), Message: msg, SentAt: at, TimeZone: "Asia/Jakarta", Sender: &api.PersonRef{ID: id.New(), DisplayName: "Demo Mediatek"}, Recipients: []api.PingRecipientStatus{r}}
+}
+
+// Tahap 7c: pages of 50 go back with before= the oldest ping shown and
+// forward again; the filter is sent to the server; Ping ulang asks first
+// and sends to who has not seen it.
+func TestPingPagesFilterAndResend(t *testing.T) {
+	h, _ := newSpaceTabsHarness(t, &fakePreferences{})
+	now := time.Now()
+	var first []api.PingRecord
+	for i := range pingHistoryLimit {
+		first = append(first, pingRecord(fmt.Sprintf("Ping %02d", i), now.Add(-time.Duration(i)*time.Minute), i > 0))
+	}
+	f := &pingPagesAPI{fakeAPI: h.api, pages: [][]api.PingRecord{first, {pingRecord("Ping lama", now.Add(-72*time.Hour), true)}}}
+	h.app.api = f
+	h.app.pingHistory = pingHistoryState{}
+	h.app.chrome.tab = "Ping"
+	h.tt.Frame()
+	h.settle()
+	h.tt.Frame()
+	h.want("Halaman 1 · 50 per halaman")
+	h.click("Lebih lama")
+	h.settle()
+	h.tt.Frame()
+	if len(f.calls) != 2 || f.calls[1] != first[pingHistoryLimit-1].SentAt.Format(time.RFC3339) {
+		t.Fatalf("older page cursor %v", f.calls)
+	}
+	h.want("Halaman 2 · 50 per halaman")
+	h.want("Demo · Ping lama")
+	h.click("Lebih baru")
+	h.settle()
+	h.tt.Frame()
+	if f.calls[len(f.calls)-1] != (time.Time{}).Format(time.RFC3339) {
+		t.Fatalf("newer page cursor %v", f.calls)
+	}
+	h.click("Belum dilihat")
+	h.settle()
+	if f.filters[len(f.filters)-1] != "unseen" {
+		t.Fatalf("filter not sent: %v", f.filters)
+	}
+	h.tt.Frame()
+	h.click("Ping ulang 1")
+	h.tt.Frame()
+	h.want("Ping ulang 1 orang?")
+	h.click("Ya, kirim")
+	h.settle()
+	if len(f.sent) != 1 || f.sent[0].Message != "Ping 00" || len(f.sent[0].Recipients) != 1 || f.sent[0].Channels[0] != "device" {
+		t.Fatalf("resend %+v", f.sent)
+	}
+	captureNativeUI(t, h, "ping-c-desktop")
+	h.tt.SetSize(390, 844)
+	h.tt.Advance(400 * time.Millisecond)
+	h.tt.Frame()
+	h.want("Lebih lama")
+	captureNativeUI(t, h, "ping-c-phone")
+}
+
+func TestPingDayLabels(t *testing.T) {
+	now := time.Date(2026, 11, 9, 10, 0, 0, 0, time.UTC)
+	for at, want := range map[time.Time]string{now: "Hari ini · Sen 9 Nov", now.Add(-24 * time.Hour): "Kemarin · Min 8 Nov", now.Add(-72 * time.Hour): "Jum 6 Nov"} {
+		if got := pingDayLabel(at, now, "UTC"); got != want {
+			t.Errorf("%v = %q, want %q", at, got, want)
 		}
 	}
 }

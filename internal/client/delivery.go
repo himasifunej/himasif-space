@@ -46,9 +46,12 @@ func (c *Client) ResetTaskNotificationPolicy(ctx context.Context, tid id.ID) err
 }
 
 // Pings lists a Space's sent pings, newest first; before (zero for the
-// newest) pages back.
-func (c *Client) Pings(ctx context.Context, sid id.ID, before time.Time, limit int) ([]api.PingRecord, error) {
+// newest) pages back; filter is "", "unseen" or "failed" (Tahap 7c).
+func (c *Client) Pings(ctx context.Context, sid id.ID, before time.Time, limit int, filter string) ([]api.PingRecord, error) {
 	q := url.Values{}
+	if filter != "" {
+		q.Set("filter", filter)
+	}
 	if !before.IsZero() {
 		q.Set("before", before.UTC().Format(time.RFC3339Nano))
 	}

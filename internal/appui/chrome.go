@@ -21,7 +21,7 @@ type chromeState struct {
 	appearance, periodOpen, profileOpen, notificationsOpen, searchOpen bool
 	search, customAccent, preferencesErr                               string
 	members                                                            headerMembersState
-	syncOpen, pingOpen                                                 bool
+	syncOpen, pingOpen, pingWhoOpen, pingSrcOpen                       bool
 	// appearanceQuick is the small appearance popover of the sidebar's
 	// Tampilan; appearance is the full panel.
 	appearanceQuick bool

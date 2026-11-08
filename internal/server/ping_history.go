@@ -37,6 +37,13 @@ func (s *Server) listPings(w http.ResponseWriter, r *http.Request, p *principal)
 		}
 		before = t
 	}
+	// filter (Tahap 7c): unseen = some recipient has seen it on no channel;
+	// failed = some delivery failed. Both judge only the rows the caller
+	// may see.
+	filter := r.URL.Query().Get("filter")
+	if filter != "" && filter != "unseen" && filter != "failed" {
+		return badRequest("Filter riwayat ping tidak dikenal.")
+	}
 	ctx := r.Context()
 	q := s.store.DB()
 	view, err := s.spaceView(ctx, q, p, sid)
@@ -50,7 +57,10 @@ func (s *Server) listPings(w http.ResponseWriter, r *http.Request, p *principal)
 		left join users u on u.id=a.actor_user_id
 		where e.source_kind='ping' and e.space_id=$1 and e.created_at<$2 and e.suppressed_at is null
 		and ($3 or exists(select 1 from delivery_recipients d where d.event_id=e.id and d.recipient_id=$4))
-		order by e.created_at desc,e.id desc limit $5`, sid, before, all, p.User.ID, limit)
+		and ($6='' or ($6='failed' and exists(select 1 from delivery_recipients d where d.event_id=e.id and ($3 or d.recipient_id=$4) and d.status='failed'))
+			or ($6='unseen' and exists(select 1 from delivery_recipients d where d.event_id=e.id and ($3 or d.recipient_id=$4)
+				and not exists(select 1 from delivery_recipients s2 where s2.event_id=e.id and s2.recipient_id=d.recipient_id and s2.seen_at is not null))))
+		order by e.created_at desc,e.id desc limit $5`, sid, before, all, p.User.ID, limit, filter)
 	if err != nil {
 		return err
 	}
