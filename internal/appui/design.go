@@ -56,6 +56,9 @@ func spaceTheme(dark bool, accent string, compact bool) *ui.Theme {
 		t.Spacing = 3
 	}
 	t.FontSize = 14
+	// Canvas A's typeface; app/main registers it (RegisterFonts). Where it
+	// is missing, as in tests, the system's font draws instead.
+	t.Font = FontSans
 	return t
 }
 
