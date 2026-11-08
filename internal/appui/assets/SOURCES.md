@@ -47,3 +47,20 @@ Upstream license texts are included alongside the assets, fetched on
   <https://raw.githubusercontent.com/lucide-icons/lucide/main/LICENSE>.
 - [Tabler license](LICENSE-tabler.txt), from
   <https://raw.githubusercontent.com/tabler/tabler-icons/main/LICENSE>.
+
+## Fonts
+
+Canvas A sets the interface in IBM Plex Sans and numbers, dates and key badges
+in IBM Plex Mono. `fonts/` holds unmodified files of the IBM Plex release,
+fetched on 8 November 2026 from <https://github.com/IBM/plex>
+(`packages/plex-sans` and `packages/plex-mono`, `fonts/complete/ttf` and
+`fonts/complete/woff2`):
+
+- `IBMPlexSans-Regular`, `-Medium`, `-SemiBold` (400, 500, 600) and
+  `IBMPlexMono-Regular`, `-Medium` (400, 500), each as `.ttf` and `.woff2`.
+- [`fonts/OFL.txt`](fonts/OFL.txt): the SIL Open Font License 1.1 they are
+  released under (Reserved Font Name "Plex"); the sans and mono license
+  files are identical.
+
+The desktop app embeds only the TTFs and the web app only the WOFF2s
+(`../fonts_desktop.go`, `../fonts_web.go`), about 300 KB in the WebAssembly.

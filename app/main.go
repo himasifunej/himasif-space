@@ -37,6 +37,10 @@ func main() {
 		return
 	}
 	registerDeviceScheme()
+	// Canvas A's IBM Plex; without it text keeps the system's font.
+	if err := appui.RegisterFonts(); err != nil {
+		log.Printf("fonts: %v", err)
+	}
 	api := client.New(apiURL())
 	configureOffline(api)
 	mygo.App.WhenReady(func() {

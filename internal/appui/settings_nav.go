@@ -38,6 +38,7 @@ func (a *App) settingsGroups() []settingsGroup {
 		}},
 		{"Perangkat ini", []settingsEntry{
 			{"Perangkat", "Notifikasi, suara, dan Ace", "Toast, bel, maskot, aplikasi desktop", "bell"},
+			{"Tampilan", "Tampilan dan tema", "Tema, palet, aksen, warna board", "palette"},
 			{"Sinkronisasi", "Offline dan sinkronisasi", "Antrean perubahan di perangkat ini", "refresh"},
 		}},
 		{division, []settingsEntry{
@@ -62,6 +63,8 @@ func (a *App) settings(c *ui.Context, r *ui.Route) {
 			a.offlineView(c)
 		case "Darurat":
 			a.emergencyView(c)
+		case "Tampilan":
+			a.appearanceSettings(c)
 		case "Status layanan":
 			a.operationsView(c)
 		case "Perangkat":
