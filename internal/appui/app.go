@@ -121,6 +121,7 @@ type App struct {
 	organization              organizationUIState
 	archives                  archiveAdminUIState
 	account                   accountFlowState
+	spaceTabs                 spaceTabsUIState
 
 	api    API
 	tokens TokenStore

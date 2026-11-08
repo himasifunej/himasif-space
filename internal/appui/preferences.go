@@ -14,6 +14,10 @@ type Preferences struct {
 	ColorCardsByTag  bool      `json:"colorCardsByTag,omitempty"`
 	// CardColor colors board cards by "" (their tag), "status" or "plain".
 	CardColor string `json:"cardColor,omitempty"`
+	// SpaceTabs keeps each account's Space tab bar, by "user/space" ID. It
+	// is a pointer, replaced on every change, so Preferences stays
+	// comparable.
+	SpaceTabs *SpaceTabLayouts `json:"spaceTabs,omitempty"`
 }
 
 type PreferencesStore interface {

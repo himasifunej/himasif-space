@@ -330,7 +330,7 @@ func (a *App) meetingsListView(c *ui.Context) {
 							a.beginMeeting(&m)
 						}
 						if m.NoteID != nil && spaceButton(c, "Buka notulensi", "note", false).Clicked() {
-							a.chrome.tab = "Notes"
+							a.chrome.tab = "Catatan"
 							a.ensureNotes()
 							a.openNote(*m.NoteID)
 						}
@@ -440,7 +440,7 @@ func (a *App) meetingForm(c *ui.Context) {
 			}
 		}
 		if spaceButton(c, "Buat notulensi di Notes", "plus", false).Clicked() {
-			a.chrome.tab = "Notes"
+			a.chrome.tab = "Catatan"
 			a.ensureNotes()
 			a.beginNote()
 			a.notes.templateKind = api.TemplateMeeting

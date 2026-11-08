@@ -166,7 +166,7 @@ func TestNativeCapture(t *testing.T) {
 	h.click("Tugas Desain Lesson Learned")
 	capture("board-inspector")
 	h.app.workspace.Close()
-	h.app.chrome.tab = "Pengaturan"
+	h.app.chrome.tab = "Bot WhatsApp"
 	capture("whatsapp")
 	h.tt.SetSize(880, 640)
 	capture("minimum-window")

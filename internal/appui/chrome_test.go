@@ -203,7 +203,7 @@ func TestChromeSessionStateCleared(t *testing.T) {
 		t.Run(ending, func(t *testing.T) {
 			preferences := Preferences{Theme: "light", Accent: "rose", Compact: true}
 			h := newChromeHarness(t, &fakePreferences{value: preferences})
-			h.app.chrome.tab = "Notes"
+			h.app.chrome.tab = "Catatan"
 			h.app.chrome.settingsTab = "Akun"
 			h.app.chrome.search = "private search from previous session"
 			h.app.chrome.customAccent = "#123456"

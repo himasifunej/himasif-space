@@ -181,30 +181,9 @@ func (a *App) spacePage(c *ui.Context, r *ui.Route, shared bool) {
 			a.chrome.tab, a.medhum.tab = medhumSpaceTab, sub
 		}
 	}
+	a.resolveSpaceTab(sp)
 	ui.Column(c).Fill().MinWidth(0).Children(func() {
-		mobile := isMobile(c)
-		tabsHeight, tabsPadding := float32(58), float32(22)
-		if mobile {
-			tabsHeight, tabsPadding = 50, 12
-		}
-		ui.ScrollHorizontal(c.Key("space-tabs")).FillWidth().Height(tabsHeight).Shrink(0).Background(c.Theme().Background).BorderWidth(0, 0, 1, 0).BorderColor(c.Theme().Border).Children(func() {
-			row := ui.Row(c).Padding(8, tabsPadding).Gap(5).AlignItems(ui.Center)
-			if !mobile {
-				// Phones scroll one line of tabs instead of stacking rows.
-				row.FillWidth().Wrap()
-			}
-			row.Children(func() {
-				tabs := []struct{ title, icon string }{{"Beranda", "home"}, {"Board tugas", "board"}, {"Agenda", "calendar"}, {"Notes", "note"}, {"Anggota", "users"}, {"Pengaturan", "settings"}}
-				if medhum {
-					tabs = append([]struct{ title, icon string }{{medhumSpaceTab, "calendar"}}, tabs...)
-				}
-				for _, tab := range tabs {
-					if spaceButton(c.Key(tab.title), tab.title, tab.icon, a.chrome.tab == tab.title).Clicked() {
-						a.chrome.tab = tab.title
-					}
-				}
-			})
-		})
+		a.spaceTabBar(c, sp)
 		if s := a.selectedSpace(); s != nil && s.ReadOnly {
 			pageNotice(c, "lock", "Hanya baca", "Periode atau akses arsip ini tidak mengizinkan perubahan.")
 		}
@@ -220,12 +199,18 @@ func (a *App) spacePage(c *ui.Context, r *ui.Route, shared bool) {
 			a.spaceTasksView(c)
 		case "Agenda":
 			a.meetingsView(c)
-		case "Notes":
+		case "Catatan":
 			a.notesPage(c)
+		case "Rapat":
+			a.meetingsView(c)
+		case "Tinjauan":
+			a.spaceReviewPage(c)
+		case "Ping":
+			a.spacePingPage(c)
 		case "Anggota":
 			a.membersPage(c)
-		case "Pengaturan":
-			a.spaceSettings(c, shared)
+		case "Bot WhatsApp":
+			a.whatsappSettings(c)
 		default:
 			a.overviewPage(c, title, shared)
 		}
@@ -313,8 +298,8 @@ func (a *App) overviewPage(c *ui.Context, title string, shared bool) {
 					second.Children(func() {
 						pageSection(c, "Catatan bersama", "Simpan hasil rapat dan arah pekerjaan.", func() {
 							a.homeNotes(c)
-							if spaceButton(c, "Buka notes", "arrow", false).Clicked() {
-								a.chrome.tab = "Notes"
+							if spaceButton(c, "Buka catatan", "arrow", false).Clicked() {
+								a.chrome.tab = "Catatan"
 							}
 						})
 					})
@@ -385,6 +370,7 @@ func (a *App) spaceSettings(c *ui.Context, shared bool) {
 		}
 		if spaceButton(c, "Kelola anggota dan akses", "users", false).Clicked() {
 			a.chrome.tab = "Anggota"
+			a.navigate(PathSpaces)
 		}
 		if spaceButton(c, "Lihat pengaturan WhatsApp", "whatsapp", false).Clicked() {
 			a.chrome.settingsTab = "WhatsApp"
@@ -568,7 +554,7 @@ func (a *App) homeNotes(c *ui.Context) {
 			break
 		}
 		if spaceButton(c.Key(n.ID), n.Title, "note", false).FillWidth().Clicked() {
-			a.chrome.tab = "Notes"
+			a.chrome.tab = "Catatan"
 		}
 	}
 	if len(a.notes.items) == 0 {
