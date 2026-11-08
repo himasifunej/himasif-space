@@ -63,7 +63,9 @@ func (a *App) appearancePopover(c *ui.Context, anchor ui.Element) {
 			}
 		})
 		heading("Aksen")
-		a.accentDots(c, 28)
+		// Canvas A's four: the default, sage, sky and clay; the full panel
+		// also has lavender and a custom colour.
+		a.accentDots(c, 28, quickAccents...)
 		heading("Kepadatan")
 		ui.Row(c).Padding(3).Gap(2).Radius(9).Border(1, t.Border).Children(func() {
 			for _, d := range []struct {
@@ -112,14 +114,24 @@ func (a *App) appearancePopover(c *ui.Context, anchor ui.Element) {
 	}).AttachTo(anchor, ui.AnchorBottomRight, ui.AnchorBottomLeft)
 }
 
-// accentDots are the preset accents as round swatches.
-func (a *App) accentDots(c *ui.Context, size float32) {
+// quickAccents are the popover's presets; allAccents the full panel's.
+var (
+	quickAccents = []string{"sand", "sage", "blue", "rose"}
+	allAccents   = []string{"sand", "sage", "blue", "lavender", "rose"}
+)
+
+// accentNames name the presets for people (tooltips).
+var accentNames = map[string]string{"sand": "Pasir (bawaan)", "sage": "Sage", "blue": "Langit", "lavender": "Lavender", "rose": "Tanah liat"}
+
+// accentDots are preset accents as round swatches.
+func (a *App) accentDots(c *ui.Context, size float32, accents ...string) {
 	t := c.Theme()
 	p := &a.chrome.preferences
 	ui.Row(c).Gap(10).Children(func() {
-		for _, accent := range []string{"sand", "sage", "blue", "lavender", "rose"} {
-			b := ui.ButtonBase(c.Key(accent)).Label("Aksen "+accent).Tooltip(accent).Size(size, size).Center().Radius(size/2).Background(spaceAccentFor(accent, t.Dark)).Border(2, ui.RGBA(0, 0, 0, 0))
-			if p.Accent == accent {
+		for _, accent := range accents {
+			on := p.Accent == accent || p.Accent == "" && accent == "sand"
+			b := ui.ButtonBase(c.Key(accent)).Label("Aksen "+accent).Tooltip(accentNames[accent]).Size(size, size).Center().Radius(size/2).Background(spaceAccentFor(accent, t.Dark)).Border(2, ui.RGBA(0, 0, 0, 0))
+			if on {
 				b.BorderColor(t.Text)
 			}
 			b.FocusRing(b.FocusVisible())
@@ -173,7 +185,7 @@ func (a *App) appearanceOptions(c *ui.Context) {
 	})
 	a.paletteChoices(c)
 	ui.Text(c, "Warna aksen").Bold()
-	a.accentDots(c, 33)
+	a.accentDots(c, 33, allAccents...)
 	taskInput(c, "accent-custom", "Warna aksen khusus", &a.chrome.customAccent)
 	if spaceButton(c, "Terapkan warna", "palette", false).FillWidth().Clicked() {
 		value := strings.ToLower(strings.TrimSpace(a.chrome.customAccent))

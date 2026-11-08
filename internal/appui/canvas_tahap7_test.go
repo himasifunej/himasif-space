@@ -361,3 +361,24 @@ func TestWAFriendlyTokens(t *testing.T) {
 		t.Fatalf("friendly %q", waFriendly(in))
 	}
 }
+
+// The Tampilan popover offers canvas A's four accents; the full panel all
+// five and a custom colour.
+func TestAppearancePopoverFourAccents(t *testing.T) {
+	h := newChromeHarness(t, nil)
+	h.click("Tampilan")
+	for _, a := range quickAccents {
+		if _, ok := h.tt.Find("Aksen " + a); !ok {
+			t.Fatalf("popover lacks %s", a)
+		}
+	}
+	if _, ok := h.tt.Find("Aksen lavender"); ok {
+		t.Fatal("popover shows a fifth accent")
+	}
+	captureNativeUI(t, h, "appearance-popover")
+	h.click("Semua pengaturan tampilan…")
+	h.tt.Frame()
+	if _, ok := h.tt.Find("Aksen lavender"); !ok {
+		t.Fatal("full panel lacks lavender")
+	}
+}
