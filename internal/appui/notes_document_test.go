@@ -196,11 +196,24 @@ func TestNoteDocumentExtractionCopiesOnlyChosenTextAndNeverEditsReader(t *testin
 	var text, target string
 	e.OnExtract = func(selected, kind string) { text, target = selected, kind }
 	tt := newNoteDocumentTester(e, 1000, 900)
-	// Since pilot.10 whole-block extraction sits behind "Atur blok", which
-	// only editors get; a reader extracts per row or item.
-	if _, found := tt.Find("Atur blok 1"); found {
-		t.Fatal("a reader received the block tools")
+	// A reader gets no block tools ("Atur blok", "Hapus blok"), but may
+	// turn one whole block into a reminder (owner decision 9 Nov); a task
+	// only with the right to create tasks (ExtractTask).
+	for _, label := range []string{"Atur blok 1", "Hapus blok", "Jadikan tugas dari blok 1"} {
+		if _, found := tt.Find(label); found {
+			t.Fatalf("a reader received %q", label)
+		}
 	}
+	revealDocumentControl(t, tt, "Jadikan reminder dari blok 1", 1000, 900)
+	if err := tt.Click("Jadikan reminder dari blok 1"); err != nil {
+		t.Fatal(err)
+	}
+	if text != noteBlockText(content[0]) || target != api.NoteLinkReminder || e.TakeChanged() {
+		t.Fatalf("block extraction = %q %q", text, target)
+	}
+	e.ExtractTask = true
+	tt.Frame()
+	revealDocumentControl(t, tt, "Jadikan tugas dari blok 1", 1000, 900)
 	revealDocumentControl(t, tt, "Jadikan reminder dari baris 1 blok 2", 1000, 900)
 	if err := tt.Click("Jadikan reminder dari baris 1 blok 2"); err != nil {
 		t.Fatal(err)

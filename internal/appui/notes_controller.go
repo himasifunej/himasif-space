@@ -58,6 +58,9 @@ type noteConversion struct {
 	memberOpen                                             bool
 	target                                                 id.ID
 	linkPending, uncertain                                 bool
+	// reader: started by someone who cannot edit the note; the target is
+	// made but never linked to the note.
+	reader bool
 }
 
 type noteDraftKey struct{ user, note id.ID }
@@ -1057,9 +1060,24 @@ func (a *App) deleteNoteTemplate(tid id.ID) {
 	})
 }
 
+// noteCanExtractTask: making a task from a note needs the right to manage
+// tasks of the note's division, for editors and readers alike.
+func (a *App) noteCanExtractTask() bool {
+	n := a.notes.note
+	return n != nil && a.spacePermissionsForDivision(n.OwnerDivisionID, api.CapTasksManage)
+}
+
+// beginNoteConversion opens the form that turns a block into a task or a
+// reminder. Readers (no Manage) may make a personal reminder, and a task
+// only with the right to create tasks; theirs is never linked to the note,
+// since the server allows note links only to the note's managers.
 func (a *App) beginNoteConversion(kind, text string) {
 	n := a.notes.note
-	if n == nil || !n.Permissions.Manage || a.notesWriteBlocked() || (kind != api.NoteLinkTask && kind != api.NoteLinkReminder) {
+	if n == nil || a.isAdmin() || a.notesWriteBlocked() || (kind != api.NoteLinkTask && kind != api.NoteLinkReminder) {
+		return
+	}
+	reader := !n.Permissions.Manage
+	if reader && kind == api.NoteLinkTask && !a.noteCanExtractTask() {
 		return
 	}
 	if a.notes.conversion != nil && (a.notes.conversion.target != id.Nil || a.notes.conversion.uncertain) {
@@ -1069,7 +1087,7 @@ func (a *App) beginNoteConversion(kind, text string) {
 	if p := a.period(); p != nil && p.TimeZone != "" {
 		zone = p.TimeZone
 	}
-	c := &noteConversion{kind: kind, text: text, zone: zone}
+	c := &noteConversion{kind: kind, text: text, zone: zone, reader: reader}
 	a.notes.conversion = c
 	if kind != api.NoteLinkTask {
 		return
@@ -1107,10 +1125,13 @@ func (a *App) beginNoteConversion(kind, text string) {
 
 func (a *App) saveNoteConversion() {
 	c, n := a.notes.conversion, a.notes.note
-	if c == nil || n == nil || !n.Permissions.Manage || a.notesWriteBlocked() || c.uncertain {
+	if c == nil || n == nil || (!n.Permissions.Manage && !c.reader) || a.notesWriteBlocked() || c.uncertain {
 		return
 	}
 	if c.target != id.Nil {
+		if c.reader {
+			return
+		}
 		a.retryNoteConversionLink()
 		return
 	}
@@ -1172,7 +1193,7 @@ func (a *App) saveNoteConversion() {
 		target, err := create()
 		return func() {
 			if gen != a.gen || seq != a.notes.seq || detail != a.notes.detailSeq || space != a.selectedSpaceID() || a.notes.selected != nid || a.notes.conversion != c {
-				if err == nil && target != id.Nil && sourceDraft != nil && draftStore != nil {
+				if err == nil && target != id.Nil && sourceDraft != nil && draftStore != nil && !c.reader {
 					sourceDraft.PendingLinks = append(sourceDraft.PendingLinks, api.NoteLinkRequest{TargetType: c.kind, TargetID: target})
 					a.persistDetachedNoteDraft(draftStore, disk, owner, sourceDraft)
 				}
@@ -1190,6 +1211,10 @@ func (a *App) saveNoteConversion() {
 					c.uncertain = true
 					c.err += " Hasil pembuatan belum dapat dipastikan. Periksa daftar tujuan sebelum membuat ulang."
 				}
+				return
+			}
+			if c.reader {
+				c.target = target
 				return
 			}
 			c.target, c.linkPending = target, true

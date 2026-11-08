@@ -206,7 +206,8 @@ func (a *App) noteDetail(c *ui.Context) {
 			if a.notes.editor != nil {
 				a.notes.editor.SetEditable(a.notesCanEdit() && a.notes.compare == nil)
 				a.notes.editor.OnExtract = nil
-				if n.Permissions.Manage && !a.notesWriteBlocked() && a.notes.compare == nil {
+				a.notes.editor.ExtractTask = a.noteCanExtractTask()
+				if !a.notesWriteBlocked() && a.notes.compare == nil && !a.isAdmin() {
 					a.notes.editor.OnExtract = func(text, target string) { a.beginNoteConversion(target, text) }
 				}
 				a.notes.editor.View(c)
@@ -567,6 +568,17 @@ func (a *App) noteConversionView(c *ui.Context) {
 		ui.Text(c, conversion.text).FontSize(12).FillWidth().MinWidth(0).Selectable()
 		if conversion.err != "" {
 			ui.Text(c, conversion.err).FontSize(12).TextColor(c.Theme().Danger).FillWidth().MinWidth(0)
+		}
+		if conversion.target != id.Nil && conversion.reader {
+			what := "Reminder pribadi"
+			if task {
+				what = "Tugas"
+			}
+			pageNotice(c, "check", what+" sudah dibuat", "Tidak ditautkan ke catatan ini karena kamu pembaca catatan. Cuplikan blok disalin ke catatannya.")
+			if spaceButton(c, "Selesai", "check", false).FillWidth().Clicked() {
+				a.notes.conversion = nil
+			}
+			return
 		}
 		if conversion.target != id.Nil {
 			pageNotice(c, "check", "Objek sudah dibuat", "Pembuatan tidak perlu diulang. Pencatatan hubungan ke catatan memiliki status tersendiri.")

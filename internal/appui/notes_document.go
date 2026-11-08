@@ -23,21 +23,24 @@ type noteDocumentPage struct{ items, rows, columns int }
 // noteDocumentEditor owns a working document, never the canonical API value.
 // Locks, saving, account isolation and recovery are the containing page's job.
 type noteDocumentEditor struct {
-	OnExtract  func(text string, target string)
-	blocks     []api.NoteBlock
-	editable   bool
-	changed    bool
-	selected   int
-	blockPage  int
-	item       int
-	row        int
-	column     int
-	span       int
-	spanPage   int
-	addOpen    bool
-	advanced   bool
-	focusBlock int
-	pages      map[int]*noteDocumentPage
+	OnExtract func(text string, target string)
+	// ExtractTask allows "Jadikan tugas"; a reader without the right to
+	// create tasks gets only "Jadikan reminder" (owner decision 9 Nov).
+	ExtractTask bool
+	blocks      []api.NoteBlock
+	editable    bool
+	changed     bool
+	selected    int
+	blockPage   int
+	item        int
+	row         int
+	column      int
+	span        int
+	spanPage    int
+	addOpen     bool
+	advanced    bool
+	focusBlock  int
+	pages       map[int]*noteDocumentPage
 }
 
 func newNoteDocumentEditor(content []api.NoteBlock) *noteDocumentEditor {
@@ -461,7 +464,9 @@ func (e *noteDocumentEditor) blockView(c *ui.Context, index int) {
 		default:
 			muted(c, "Isi blok dipertahankan. Jenis ini belum dapat diedit di aplikasi ini.")
 		}
-		if e.OnExtract != nil && b.Type != api.BlockDivider && e.advanced && e.selected == index {
+		// Editors extract a whole block from "Atur blok"; readers, who get no
+		// block tools, see it under every block (owner decision 9 Nov).
+		if e.OnExtract != nil && b.Type != api.BlockDivider && (!e.editable || e.advanced && e.selected == index) {
 			e.extractView(c, noteBlockText(b), fmt.Sprintf("blok %d", index+1))
 		}
 		if e.editable {
@@ -506,7 +511,7 @@ func (e *noteDocumentEditor) extractView(c *ui.Context, text, source string) {
 		return
 	}
 	ui.Row(c).FillWidth().MinWidth(0).Wrap().Gap(6).Children(func() {
-		if spaceIconButton(c, "Jadikan tugas dari "+source, "task").Clicked() {
+		if e.ExtractTask && spaceIconButton(c, "Jadikan tugas dari "+source, "task").Clicked() {
 			e.OnExtract(text, api.NoteLinkTask)
 		}
 		if spaceIconButton(c, "Jadikan reminder dari "+source, "bell").Clicked() {
