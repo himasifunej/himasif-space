@@ -117,6 +117,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/periods/{periodId}/divisions/{divisionId}/sop/findings/{findingId}/transfer", s.handle(s.sopTransferFinding))
 	mux.Handle("GET /api/periods/{periodId}/divisions/{divisionId}/sop/findings/{findingId}/history", s.handle(s.sopFindingHistory))
 	mux.Handle("GET /api/periods/{periodId}/divisions/{divisionId}/sop/report", s.handle(s.sopReport))
+	mux.Handle("GET /api/periods/{periodId}/divisions/{divisionId}/sop/summary", s.handle(s.sopSummary))
 	mux.Handle("GET /api/periods/{periodId}/divisions/{divisionId}/sop/deliveries", s.handle(s.sopDeliveries))
 	mux.Handle("GET /api/periods/{periodId}/divisions/{divisionId}/sop/schedule-readiness", s.handle(s.sopReadiness))
 	mux.Handle("GET /api/periods/{periodId}/divisions/{divisionId}/sop/deliveries/{runId}", s.handle(s.sopDelivery))

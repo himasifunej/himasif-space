@@ -155,3 +155,11 @@ func (c *Client) SOPReadiness(ctx context.Context, pid, did id.ID, cid *id.ID) (
 	err := c.do(ctx, "GET", path, nil, &out)
 	return out, err
 }
+
+// SOPSummary is the Evaluasi SOP chart of a quarter (?quarter=) or range
+// (?from=&to=), per rule (Tahap 7a).
+func (c *Client) SOPSummary(ctx context.Context, pid, did id.ID, filter url.Values) (api.SOPSummary, error) {
+	var out api.SOPSummary
+	err := c.do(ctx, "GET", sopPath(pid, did)+"/summary?"+filter.Encode(), nil, &out)
+	return out, err
+}

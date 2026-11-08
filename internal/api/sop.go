@@ -273,3 +273,28 @@ type SOPReadiness struct {
 	Weekly        SOPScheduleReadiness  `json:"weekly"`
 	Followup      *SOPScheduleReadiness `json:"followup,omitempty"`
 }
+
+// SOPRuleSummary is one rule of an Evaluasi SOP summary (Tahap 7a).
+// Compliant counts contents on time or within the limit; the finding
+// states count the findings of the range.
+type SOPRuleSummary struct {
+	Rule          string `json:"rule"`
+	Evaluated     int    `json:"evaluated"`
+	Compliant     int    `json:"compliant"`
+	Insufficient  int    `json:"insufficient"`
+	NotApplicable int    `json:"notApplicable"`
+	NeedsReview   int    `json:"needsReview"`
+	Confirmed     int    `json:"confirmed"`
+	Dismissed     int    `json:"dismissed"`
+	Corrected     int    `json:"corrected"`
+}
+
+// SOPSummary is the Evaluasi SOP chart of a range (a quarter of the policy).
+type SOPSummary struct {
+	Label         string           `json:"label"`
+	StartsOn      timeutil.Date    `json:"startsOn"`
+	EndsOn        timeutil.Date    `json:"endsOn"`
+	PolicyEnabled bool             `json:"policyEnabled"`
+	Contents      int              `json:"contents"`
+	Rules         []SOPRuleSummary `json:"rules"`
+}

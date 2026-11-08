@@ -51,6 +51,10 @@ type sopUIState struct {
 	grantUser                                  id.ID
 	grantReview                                bool
 	grantReason                                string
+	// The chart of Evaluasi SOP (Tahap 7a).
+	summary                                *api.SOPSummary
+	summaryQuarter, summaryKey, summaryErr string
+	summaryLoading                         bool
 }
 
 func (a *App) sopCurrent(gen int, seq uint64) bool {
@@ -374,69 +378,89 @@ func (a *App) sopDecision(action string) {
 }
 func (a *App) sopView(c *ui.Context) {
 	a.ensureSOP()
-	pageBody(c, "Evaluasi SOP", func() {
-		a.periodLine(c)
-		st := &a.evaluation
-		if a.period() == nil {
-			muted(c, "Pilih periode terlebih dahulu.")
-			return
+	ui.Scroll(c).Fill().Children(func() {
+		body := ui.Column(c).FillWidth().MinWidth(0).Padding(24).Gap(16)
+		if isMobile(c) {
+			body.Padding(16).Gap(12)
 		}
-		if st.err != "" {
-			pageNotice(c, "alert", "Permintaan belum selesai", st.err)
-		}
-		if a.offlineMode() {
-			pageNotice(c, "info", "Sedang offline", "Evaluasi dan keputusan memerlukan koneksi untuk memeriksa bukti dan izin terbaru.")
-		}
-		ui.Row(c).Wrap().Gap(8).Children(func() {
-			for _, scope := range st.scopes {
-				if spaceButton(c.Key(scope.DivisionID.String()), scope.DivisionName, "shield", scope.DivisionID == st.division).Disabled(st.loading || st.busy).Clicked() {
-					a.selectSOPScope(scope.DivisionID)
-				}
+		body.Children(func() {
+			st := &a.evaluation
+			ac := a.sopAccess()
+			a.sopHead(c, ac)
+			if a.period() == nil {
+				muted(c, "Pilih periode terlebih dahulu.")
+				return
 			}
-			if spaceButton(c, "Muat ulang izin dan data", "refresh", false).Disabled(st.loading || st.busy || a.offlineMode()).Clicked() {
-				a.loadSOPScopes()
+			if st.err != "" {
+				pageNotice(c, "alert", "Permintaan belum selesai", st.err)
+			}
+			if a.offlineMode() {
+				pageNotice(c, "info", "Sedang offline", "Evaluasi dan keputusan memerlukan koneksi untuk memeriksa bukti dan izin terbaru.")
+			}
+			if len(st.scopes) > 1 || ac == nil {
+				ui.Row(c).Wrap().Gap(8).Children(func() {
+					for _, scope := range st.scopes {
+						if spaceButton(c.Key(scope.DivisionID.String()), scope.DivisionName, "shield", scope.DivisionID == st.division).Disabled(st.loading || st.busy).Clicked() {
+							a.selectSOPScope(scope.DivisionID)
+							st.summaryQuarter, st.summary = "", nil
+						}
+					}
+					if spaceButton(c, "Muat ulang izin dan data", "refresh", false).Disabled(st.loading || st.busy || a.offlineMode()).Clicked() {
+						a.loadSOPScopes()
+					}
+				})
+			}
+			if st.loading && ac == nil {
+				muted(c, "Memuat evaluasi…")
+			}
+			if ac == nil {
+				if st.scopesLoaded {
+					pageNotice(c, "shield", "Akses evaluasi belum tersedia", "Kadiv dapat memberikan izin SOP sesuai divisi. Izin ini terpisah dari kecocokan hasil dan akses Notes.")
+				}
+				return
+			}
+			if st.policy.Version == 0 && !st.loading {
+				pageNotice(c, "info", "Kebijakan belum ditetapkan", "Kadiv perlu menyimpan versi dokumen dan konfigurasi (Kebijakan → Aturan) sebelum evaluasi/laporan digunakan.")
+			}
+			if ac.ReadOnly {
+				pageNotice(c, "lock", "Periode hanya baca", "Riwayat tetap tersedia; keputusan dan konfigurasi tidak dapat diubah.")
+			}
+			switch sopSegment(st.tab) {
+			case "Laporan kuartal":
+				a.sopReportView(c)
+			case "Kebijakan":
+				a.sopPolicyTabsRow(c, *ac)
+				switch st.tab {
+				case "Konteks":
+					a.sopContextForm(c, *ac)
+				case "Izin":
+					a.sopGrantsForm(c, *ac)
+				case "Pengiriman":
+					a.sopDeliveriesView(c)
+				default:
+					a.sopPolicyForm(c, *ac)
+				}
+			default:
+				disabled := st.loading || st.busy || a.offlineMode()
+				split := ui.Column(c.Key("sop-split")).FillWidth().MinWidth(0).Gap(16)
+				wide := !isMobile(c) && split.Bounds().W >= 1060
+				if wide {
+					split.Row().AlignItems(ui.Start)
+				}
+				split.Children(func() {
+					left := ui.Column(c).FillWidth().MinWidth(0).Gap(12)
+					if wide {
+						left.Grow(1).Basis(0)
+					}
+					left.Children(func() { a.sopFindingsView(c, *ac) })
+					chart := ui.Column(c).FillWidth().MinWidth(0)
+					if wide {
+						chart.Width(380).Shrink(0)
+					}
+					chart.Children(func() { a.sopChartCard(c, disabled) })
+				})
 			}
 		})
-		if st.loading {
-			muted(c, "Memuat evaluasi…")
-		}
-		ac := a.sopAccess()
-		if ac == nil {
-			if st.scopesLoaded {
-				pageNotice(c, "shield", "Akses evaluasi belum tersedia", "Kadiv dapat memberikan izin SOP sesuai divisi. Izin ini terpisah dari kecocokan hasil dan akses Notes.")
-			}
-			return
-		}
-		if st.policy.Version == 0 && !st.loading {
-			pageNotice(c, "info", "Kebijakan belum ditetapkan", "Kadiv perlu menyimpan versi dokumen dan konfigurasi sebelum evaluasi/laporan digunakan.")
-		}
-		if ac.ReadOnly {
-			pageNotice(c, "lock", "Periode hanya baca", "Riwayat tetap tersedia; keputusan dan konfigurasi tidak dapat diubah.")
-		}
-		ui.Row(c).Wrap().Gap(6).Children(func() {
-			for _, tab := range []string{"Temuan", "Konteks", "Aturan", "Laporan", "Pengiriman", "Izin"} {
-				if tab == "Izin" && !ac.CanConfigure {
-					continue
-				}
-				if spaceButton(c.Key(tab), tab, "", st.tab == tab).Clicked() {
-					st.tab = tab
-				}
-			}
-		})
-		switch st.tab {
-		case "Aturan":
-			a.sopPolicyForm(c, *ac)
-		case "Konteks":
-			a.sopContextForm(c, *ac)
-		case "Izin":
-			a.sopGrantsForm(c, *ac)
-		case "Laporan":
-			a.sopReportView(c)
-		case "Pengiriman":
-			a.sopDeliveriesView(c)
-		default:
-			a.sopFindingsView(c, *ac)
-		}
 	})
 }
 func sopStateLabel(state string) string {
@@ -468,41 +492,47 @@ func (a *App) sopPersonName(uid id.ID) string {
 func (a *App) sopFindingsView(c *ui.Context, ac api.SOPAccess) {
 	st := &a.evaluation
 	disabled := st.loading || st.busy || a.offlineMode()
-	pageNotice(c, "shield", "Temuan awal memerlukan tinjauan", "Pencocokan hasil, persetujuan mutu dan pengesahan SOP merupakan tindakan terpisah.")
-	ui.Row(c).Wrap().Gap(8).Children(func() {
-		ui.TextInput(c, &st.from).Label("Mulai · YYYY-MM-DD").Placeholder("Mulai · YYYY-MM-DD").Width(200)
-		ui.TextInput(c, &st.to).Label("Sampai · YYYY-MM-DD").Placeholder("Sampai · YYYY-MM-DD").Width(200)
-		ui.TextInput(c, &st.rule).Label("Poin SOP · opsional").Placeholder("Poin SOP · opsional").Width(180)
-	})
-	ui.Row(c).Wrap().Gap(5).Children(func() {
+	// One compact filter row: chips apply at once; dates and the rule apply
+	// with Terapkan.
+	ui.Row(c).FillWidth().Wrap().Gap(8).AlignItems(ui.Center).Children(func() {
 		for _, state := range []string{"", "needs_review", "confirmed", "dismissed", "corrected"} {
-			label := sopStateLabel(state)
+			label := sopStateCanvasLabel(state)
 			if state == "" {
 				label = "Semua status"
 			}
-			if spaceButton(c.Key("status"+state), label, "", st.state == state).Clicked() {
+			if spaceButton(c.Key("status"+state), label, "", st.state == state).Padding(4, 10).MinHeight(30).Disabled(disabled).Clicked() && st.state != state {
 				st.state = state
+				a.loadSOPPage(false)
 			}
 		}
 	})
-	ui.Row(c).Wrap().Gap(5).Children(func() {
-		if spaceButton(c, "Semua penanggung jawab", "users", st.filterPerson == id.Nil).Clicked() {
-			st.filterPerson = id.Nil
+	ui.Row(c).FillWidth().Wrap().Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.TextInput(c, &st.from).Label("Mulai · YYYY-MM-DD").Placeholder("Mulai · YYYY-MM-DD").Width(170)
+		ui.TextInput(c, &st.to).Label("Sampai · YYYY-MM-DD").Placeholder("Sampai · YYYY-MM-DD").Width(170)
+		ui.TextInput(c, &st.rule).Label("Poin SOP · opsional").Placeholder("Poin SOP · opsional").Width(160)
+		if spaceButton(c, "Terapkan filter", "search", false).Disabled(disabled).Clicked() {
+			a.loadSOPPage(false)
 		}
-		for _, person := range st.people {
-			if spaceButton(c.Key("person"+person.ID.String()), person.DisplayName, "", st.filterPerson == person.ID).Clicked() {
-				st.filterPerson = person.ID
+		if ac.CanReview {
+			if spaceButton(c, "Catat temuan manual", "plus", false).Disabled(disabled || st.policy.Version == 0).Clicked() {
+				st.manualDraft = newSOPManualDraft(st.policy.Version)
+				st.tab = "Konteks"
 			}
 		}
 	})
-	if spaceButton(c, "Terapkan filter", "search", false).Disabled(disabled).Clicked() {
-		a.loadSOPPage(false)
-	}
-	if ac.CanReview {
-		if spaceButton(c, "Catat bukti/temuan manual", "plus", false).Disabled(disabled || st.policy.Version == 0).Clicked() {
-			st.manualDraft = newSOPManualDraft(st.policy.Version)
-			st.tab = "Konteks"
-		}
+	if len(st.people) > 0 {
+		ui.Row(c).FillWidth().Wrap().Gap(6).Children(func() {
+			if spaceButton(c, "Semua penanggung jawab", "users", st.filterPerson == id.Nil).Padding(4, 10).MinHeight(30).Disabled(disabled).Clicked() && st.filterPerson != id.Nil {
+				st.filterPerson = id.Nil
+				a.loadSOPPage(false)
+			}
+			for _, person := range st.people {
+				if spaceButton(c.Key("person"+person.ID.String()), person.DisplayName, "", st.filterPerson == person.ID).Padding(4, 10).MinHeight(30).Disabled(disabled).Clicked() && st.filterPerson != person.ID {
+					st.filterPerson = person.ID
+					a.loadSOPPage(false)
+				}
+			}
+		})
 	}
 	if st.detailLoading {
 		muted(c, "Memuat bukti dan riwayat terbaru…")
@@ -510,27 +540,13 @@ func (a *App) sopFindingsView(c *ui.Context, ac api.SOPAccess) {
 	if st.selected != nil {
 		a.sopFindingDetail(c, ac, disabled || st.detailLoading)
 	}
-	for _, finding := range st.items {
-		finding := finding
-		ui.Column(c.Key(finding.ID.String())).FillWidth().Padding(14).Gap(6).Border(1, c.Theme().Border).Radius(10).Children(func() {
-			ui.Text(c, finding.ContentTitle+" · "+finding.Rule).Bold()
-			muted(c, finding.EventOn.String()+" · "+finding.PersonName+" · "+sopStateLabel(finding.State))
-			ui.Text(c, sopMeasurementLabel(finding.Latest.Observation.Measurement))
-			if finding.NeedsRecheck {
-				muted(c, "Sumber berubah; keputusan perlu diperiksa ulang.")
-			}
-			if spaceButton(c, "Periksa bukti dan keputusan", "search", false).Disabled(disabled).Clicked() {
-				a.selectSOPFinding(finding.ID)
-			}
-		})
-	}
+	a.sopFindingsTable(c, disabled)
 	if st.more {
 		if spaceButton(c, "Muat halaman berikutnya", "plus", false).Disabled(disabled).Clicked() {
 			a.loadSOPPage(true)
 		}
-	} else if !st.loading && len(st.items) == 0 {
-		muted(c, "Tidak ada temuan pada filter ini.")
 	}
+	muted(c, "Pencocokan hasil, persetujuan mutu dan pengesahan SOP merupakan tindakan terpisah.").FontSize(11)
 }
 func (a *App) sopObservationView(c *ui.Context, label string, o api.SOPObservation) {
 	pageSection(c, label, o.DocumentVersion, func() {

@@ -64,28 +64,9 @@ func (s *Server) sopReport(w http.ResponseWriter, r *http.Request, p *principal)
 		if err != nil {
 			return err
 		}
-		label := "Rentang pilihan"
-		if quarter := r.URL.Query().Get("quarter"); quarter != "" {
-			found := false
-			for _, rangeQ := range policy.Settings.Quarters {
-				if strings.EqualFold(rangeQ.Label, quarter) {
-					from, to := rangeQ.StartsOn, rangeQ.EndsOn
-					filter.From = &from
-					filter.To = &to
-					label = rangeQ.Label
-					found = true
-					break
-				}
-			}
-			if !found {
-				return badRequest("Quarter belum dikonfigurasi; tidak memakai batas kalender asumsi.")
-			}
-		}
-		if filter.From == nil || filter.To == nil {
-			return badRequest("Tentukan awal/akhir rentang atau label quarter yang dikonfigurasi.")
-		}
-		if filter.From.Before(sc.period.StartsOn) || filter.To.Compare(sc.period.EndsOn) > 0 {
-			return badRequest("Rentang laporan berada di luar periode ini.")
+		label, filter, err := sopRange(r, sc, policy, filter)
+		if err != nil {
+			return err
 		}
 		report, err = s.makeSOPReport(r.Context(), q, sc, policy, label, filter)
 		return err
