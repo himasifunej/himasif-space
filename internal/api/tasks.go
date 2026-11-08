@@ -33,14 +33,14 @@ type TaskPermissions struct {
 // Task is one canonical object projected into authorized spaces and jobdesk.
 // Exactly one of DeadlineDate/DeadlineAt is present; date-only stays date-only.
 type Task struct {
-	LocalPending     bool                `json:"-"`
-	ID               id.ID               `json:"id"`
-	PeriodID         id.ID               `json:"periodId"`
-	OwnerDivisionID  id.ID               `json:"ownerDivisionId"`
-	SpaceIDs         []id.ID             `json:"spaceIds"`
+	LocalPending    bool    `json:"-"`
+	ID              id.ID   `json:"id"`
+	PeriodID        id.ID   `json:"periodId"`
+	OwnerDivisionID id.ID   `json:"ownerDivisionId"`
+	SpaceIDs        []id.ID `json:"spaceIds"`
 	// Numbers is the task's number (#T12) in each of its Spaces, by Space
 	// ID. Absent from servers before Tahap 6a.
-	Numbers map[string]int64 `json:"numbers,omitempty"`
+	Numbers          map[string]int64    `json:"numbers,omitempty"`
 	Title            string              `json:"title"`
 	Description      string              `json:"description"`
 	ExpectedOutput   string              `json:"expectedOutput"`

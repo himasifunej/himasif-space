@@ -174,6 +174,7 @@ func (s *Store) InsertTask(ctx context.Context, q Querier, t *TaskRow) error {
 	}
 	return s.TaskSpaces(ctx, q, t)
 }
+
 // TaskSpaces makes t's Space links t.SpaceIDs by difference: a kept link
 // keeps its number, a removed one is deleted (its number is not reused), a
 // new one takes its Space's next number. It fills t.Numbers.
