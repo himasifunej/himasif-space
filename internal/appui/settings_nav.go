@@ -41,6 +41,7 @@ func (a *App) settingsGroups() []settingsGroup {
 			{"Sinkronisasi", "Offline dan sinkronisasi", "Antrean perubahan di perangkat ini", "refresh"},
 		}},
 		{division, []settingsEntry{
+			{"Space", "Identitas space", "Jenis, akses, dan logo divisi", "grid"},
 			{"WhatsApp", "Tautan dan bot WhatsApp", "Kode !link, perangkat bot, grup", "whatsapp"},
 			{"Pengingat", "Pengingat dan ping", "Jadwal pengingat bawaan, kirim ping", "clock"},
 			{"Command", "Command bot", "Pemicu dan template balasan", "terminal"},
@@ -79,6 +80,9 @@ func (a *App) settings(c *ui.Context, r *ui.Route) {
 			a.commandSettings(c)
 		case "Aktivitas":
 			a.whatsappActivity(c)
+		case "Space":
+			sp := a.selectedSpace()
+			a.spaceSettings(c, sp != nil && sp.Kind == api.SpaceShared)
 		default:
 			a.whatsappSettings(c)
 		}
