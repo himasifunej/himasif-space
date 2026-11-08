@@ -82,7 +82,7 @@ func (a *App) sopTransferForm(c *ui.Context, disabled bool) {
 				}
 			}
 		})
-		if ui.TextInput(c, &d.rule).Label("Nomor aturan tujuan · 7.1 sampai 7.25").FillWidth().Changed() {
+		if ui.TextInput(c, &d.rule).Label("Nomor aturan tujuan · 7.1 sampai 7.25").Placeholder("Nomor aturan tujuan · 7.1 sampai 7.25").FillWidth().Changed() {
 			d.preview = nil
 			d.accepted = false
 		}

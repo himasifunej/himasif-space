@@ -572,10 +572,11 @@ func TestConnectionIndicator(t *testing.T) {
 	h.want("Menyambungkan…")
 	h.settle()
 	h.want("Tersambung")
-	// Wide windows show "Tersinkron · HH.MM", narrow ones the time alone.
-	synced := false
+	// Wide windows show "Tersinkron · HH.MM"; a narrow topbar (canvas A ·
+	// Tablet, with its search as an icon) shows the dot alone.
+	synced := h.tt.HasText("Buka pencarian")
 	for _, s := range h.tt.Texts() {
-		if regexp.MustCompile(`^(Tersinkron · )?\d\d\.\d\d$`).MatchString(s) {
+		if regexp.MustCompile(`^Tersinkron · \d\d\.\d\d$`).MatchString(s) {
 			synced = true
 		}
 	}

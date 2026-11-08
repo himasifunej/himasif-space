@@ -254,7 +254,7 @@ func (a *App) taskNotificationControls(c *ui.Context, t api.Task) {
 		v     *string
 	}{{"Hari sebelum deadline", &st.days}, {"Jam lokal", &st.hour}, {"Menit", &st.minute}, {"Overdue setiap N hari", &st.overdue}} {
 		ui.Field(c.Key(f.label), f.label, func() {
-			ui.TextInput(c, f.v).Label(f.label).FillWidth().Disabled(st.busy || a.conn != connOnline)
+			ui.TextInput(c, f.v).Label(f.label).Placeholder(f.label).FillWidth().Disabled(st.busy || a.conn != connOnline)
 		})
 	}
 	if st.err != "" {

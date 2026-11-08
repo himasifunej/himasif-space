@@ -470,9 +470,9 @@ func (a *App) sopFindingsView(c *ui.Context, ac api.SOPAccess) {
 	disabled := st.loading || st.busy || a.offlineMode()
 	pageNotice(c, "shield", "Temuan awal memerlukan tinjauan", "Pencocokan hasil, persetujuan mutu dan pengesahan SOP merupakan tindakan terpisah.")
 	ui.Row(c).Wrap().Gap(8).Children(func() {
-		ui.TextInput(c, &st.from).Label("Mulai · YYYY-MM-DD").Width(200)
-		ui.TextInput(c, &st.to).Label("Sampai · YYYY-MM-DD").Width(200)
-		ui.TextInput(c, &st.rule).Label("Poin SOP · opsional").Width(180)
+		ui.TextInput(c, &st.from).Label("Mulai · YYYY-MM-DD").Placeholder("Mulai · YYYY-MM-DD").Width(200)
+		ui.TextInput(c, &st.to).Label("Sampai · YYYY-MM-DD").Placeholder("Sampai · YYYY-MM-DD").Width(200)
+		ui.TextInput(c, &st.rule).Label("Poin SOP · opsional").Placeholder("Poin SOP · opsional").Width(180)
 	})
 	ui.Row(c).Wrap().Gap(5).Children(func() {
 		for _, state := range []string{"", "needs_review", "confirmed", "dismissed", "corrected"} {
@@ -671,10 +671,10 @@ func (a *App) sopReportView(c *ui.Context) {
 			}
 		}
 	})
-	if ui.TextInput(c, &st.reportFrom).Label("Awal rentang · YYYY-MM-DD").FillWidth().Changed() {
+	if ui.TextInput(c, &st.reportFrom).Label("Awal rentang · YYYY-MM-DD").Placeholder("Awal rentang · YYYY-MM-DD").FillWidth().Changed() {
 		st.quarter = ""
 	}
-	if ui.TextInput(c, &st.reportTo).Label("Akhir rentang · YYYY-MM-DD").FillWidth().Changed() {
+	if ui.TextInput(c, &st.reportTo).Label("Akhir rentang · YYYY-MM-DD").Placeholder("Akhir rentang · YYYY-MM-DD").FillWidth().Changed() {
 		st.quarter = ""
 	}
 	if spaceButton(c, "Buat laporan", "archive", false).Disabled(disabled || cl == nil || st.policy.Version == 0).Clicked() {

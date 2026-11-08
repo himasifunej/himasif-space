@@ -101,7 +101,7 @@ func (a *App) sopPolicyForm(c *ui.Context, ac api.SOPAccess) {
 	disabled := st.busy || st.loading || ac.ReadOnly || a.offlineMode()
 	info(c, [][2]string{{"Dokumen", st.policy.DocumentVersion}, {"Otomatisasi aktif", waYesNo(st.policy.Enabled)}, {"Pemenuhan lewat bot diminta", waYesNo(st.policy.Settings.BotFollowupCountsRequested)}, {"Disetujui Litbang pada versi ini", waYesNo(st.policy.BotFollowupCountsApproved)}})
 	if ac.CanConfigure {
-		ui.TextInput(c, &d.document).Label("Versi dokumen SOP").FillWidth()
+		ui.TextInput(c, &d.document).Label("Versi dokumen SOP").Placeholder("Versi dokumen SOP").FillWidth()
 		muted(c, "Jam posting/cutoff untuk aturan berbasis jam ditetapkan melalui kalender konten sesuai kewenangan Humas dan Mediatek.")
 		if spaceButton(c, "Otomatisasi aktif: "+waYesNo(d.enabled), "check", d.enabled).Disabled(disabled).Clicked() {
 			d.enabled = !d.enabled
@@ -115,9 +115,9 @@ func (a *App) sopPolicyForm(c *ui.Context, ac api.SOPAccess) {
 			}
 		}
 		if ac.DivisionSlug == "humas" {
-			ui.TextInput(c, &d.followup).Label("Jam follow-up H-4 · HH:MM; kosong untuk nonaktif").FillWidth()
-			ui.TextInput(c, &d.urgentFrom).Label("Awal rentang hitung dadakan · YYYY-MM-DD").FillWidth()
-			ui.TextInput(c, &d.urgentTo).Label("Akhir rentang hitung dadakan · YYYY-MM-DD").FillWidth()
+			ui.TextInput(c, &d.followup).Label("Jam follow-up H-4 · HH:MM; kosong untuk nonaktif").Placeholder("Jam follow-up H-4 · HH:MM; kosong untuk nonaktif").FillWidth()
+			ui.TextInput(c, &d.urgentFrom).Label("Awal rentang hitung dadakan · YYYY-MM-DD").Placeholder("Awal rentang hitung dadakan · YYYY-MM-DD").FillWidth()
+			ui.TextInput(c, &d.urgentTo).Label("Akhir rentang hitung dadakan · YYYY-MM-DD").Placeholder("Akhir rentang hitung dadakan · YYYY-MM-DD").FillWidth()
 			muted(c, "Batas SOP: lima konten nonpengecualian. Rentang tidak ditentukan otomatis.")
 			if spaceButton(c, "Ajukan pemenuhan follow-up lewat bot", "check", d.botCounts).Disabled(disabled).Clicked() {
 				d.botCounts = !d.botCounts
@@ -132,7 +132,7 @@ func (a *App) sopPolicyForm(c *ui.Context, ac api.SOPAccess) {
 					}
 				}
 			})
-			ui.TextInput(c, &d.weekly).Label("Jam rekap · HH:MM").FillWidth()
+			ui.TextInput(c, &d.weekly).Label("Jam rekap · HH:MM").Placeholder("Jam rekap · HH:MM").FillWidth()
 			if spaceButton(c, "Nonaktifkan rekap terjadwal", "close", false).Disabled(disabled).Clicked() {
 				d.weekday = -1
 				d.weekly = ""
@@ -142,9 +142,9 @@ func (a *App) sopPolicyForm(c *ui.Context, ac api.SOPAccess) {
 			remove := -1
 			for index, q := range d.quarters {
 				ui.Row(c.Key(index)).Wrap().Gap(6).Children(func() {
-					ui.TextInput(c, &q.label).Label("Label").Width(160)
-					ui.TextInput(c, &q.from).Label("Mulai · YYYY-MM-DD").Width(200)
-					ui.TextInput(c, &q.to).Label("Sampai · YYYY-MM-DD").Width(200)
+					ui.TextInput(c, &q.label).Label("Label").Placeholder("Label").Width(160)
+					ui.TextInput(c, &q.from).Label("Mulai · YYYY-MM-DD").Placeholder("Mulai · YYYY-MM-DD").Width(200)
+					ui.TextInput(c, &q.to).Label("Sampai · YYYY-MM-DD").Placeholder("Sampai · YYYY-MM-DD").Width(200)
 					if spaceButton(c, "Hapus rentang", "close", false).Disabled(disabled).Clicked() {
 						remove = index
 					}
@@ -258,10 +258,10 @@ func sopEvidenceForm(c *ui.Context, label string, d *sopEvidenceDraft, disabled 
 			d.verified = !d.verified
 		}
 		ui.Row(c).Wrap().Gap(6).Children(func() {
-			ui.TextInput(c, &d.date).Label("Tanggal · YYYY-MM-DD").Width(210)
-			ui.TextInput(c, &d.clock).Label("Jam · opsional").Width(180)
+			ui.TextInput(c, &d.date).Label("Tanggal · YYYY-MM-DD").Placeholder("Tanggal · YYYY-MM-DD").Width(210)
+			ui.TextInput(c, &d.clock).Label("Jam · opsional").Placeholder("Jam · opsional").Width(180)
 		})
-		ui.TextInput(c, &d.url).Label("Tautan bukti · bila tersedia").FillWidth()
+		ui.TextInput(c, &d.url).Label("Tautan bukti · bila tersedia").Placeholder("Tautan bukti · bila tersedia").FillWidth()
 		ui.TextArea(c, &d.note).Label("Keterangan bukti / kesepakatan").FillWidth().Height(80)
 	})
 }
@@ -429,7 +429,7 @@ func (a *App) sopManualForm(c *ui.Context, ac api.SOPAccess) {
 			d.content = content.ID
 		}
 	}
-	if ui.TextInput(c, &d.rule).Label("Poin SOP · 7.1 sampai 7.25").FillWidth().Changed() {
+	if ui.TextInput(c, &d.rule).Label("Poin SOP · 7.1 sampai 7.25").Placeholder("Poin SOP · 7.1 sampai 7.25").FillWidth().Changed() {
 		d.findingVersion = 0
 	}
 	ui.Row(c).Wrap().Gap(5).Children(func() {

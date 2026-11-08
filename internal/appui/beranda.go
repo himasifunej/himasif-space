@@ -360,8 +360,10 @@ func homePanel(c *ui.Context, title, note string, span float32, wide bool, fn fu
 
 func (a *App) homeKPIs(c *ui.Context, s homeStats, phone bool) {
 	t := c.Theme()
+	// Canvas A · Tablet sets the four KPIs 2×2: four across a tablet cut
+	// their details short.
 	cols := 4
-	if phone {
+	if phone || viewportMode(c) == layoutTablet {
 		cols = 2
 	}
 	rate, rateDetail := "—", "Belum ada penyerahan "+rangePhrase(a.home.rng)

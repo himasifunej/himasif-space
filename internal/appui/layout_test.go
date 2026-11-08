@@ -29,7 +29,12 @@ func TestShellFitsMinimumWindow(t *testing.T) {
 			// Tablets show the icon rail, whose toggle opens the sidebar.
 			sidebarToggle = "Buka sidebar"
 		}
-		for _, label := range []string{"Menu profil", "Tampilan", sidebarToggle, "Tersambung", "Notifikasi", "Cari di Space"} {
+		search := "Cari di Space"
+		if _, ok := h.tt.Find(search); !ok {
+			// A narrow topbar has the search behind an icon button.
+			search = "Buka pencarian"
+		}
+		for _, label := range []string{"Menu profil", "Tampilan", sidebarToggle, "Tersambung", "Notifikasi", search} {
 			r, ok := h.tt.Find(label)
 			if !ok || r.X < 0 || r.Y < 0 || r.X+r.W > float32(size[0])+1 || r.Y+r.H > float32(size[1])+1 {
 				t.Errorf("%dx%d: %s out of window: %+v, exists=%v", size[0], size[1], label, r, ok)

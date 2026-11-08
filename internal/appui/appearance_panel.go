@@ -118,7 +118,7 @@ func (a *App) accentDots(c *ui.Context, size float32) {
 	p := &a.chrome.preferences
 	ui.Row(c).Gap(10).Children(func() {
 		for _, accent := range []string{"sand", "sage", "blue", "lavender", "rose"} {
-			b := ui.ButtonBase(c.Key(accent)).Label("Aksen "+accent).Tooltip(accent).Size(size, size).Center().Radius(size/2).Background(spaceAccent(accent)).Border(2, ui.RGBA(0, 0, 0, 0))
+			b := ui.ButtonBase(c.Key(accent)).Label("Aksen "+accent).Tooltip(accent).Size(size, size).Center().Radius(size/2).Background(spaceAccentFor(accent, t.Dark)).Border(2, ui.RGBA(0, 0, 0, 0))
 			if p.Accent == accent {
 				b.BorderColor(t.Text)
 			}

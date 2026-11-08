@@ -343,7 +343,7 @@ func (a *App) waContentDetail(c *ui.Context, sp api.Space, disabled bool) {
 		}
 		if authority {
 			if item.Kind != "correction" {
-				ui.TextInput(c, &st.filter).Label("Cari konten tujuan").FillWidth()
+				ui.TextInput(c, &st.filter).Label("Cari konten tujuan").Placeholder("Cari konten tujuan").FillWidth()
 				for _, content := range st.contents {
 					if st.filter != "" && !strings.Contains(strings.ToLower(content.Title), strings.ToLower(st.filter)) {
 						continue

@@ -47,30 +47,43 @@ func (a *App) header(c *ui.Context) {
 	case w < 1100:
 		searchWidth = 200
 	}
+	// Narrow (canvas A · Tablet, or a drawer beside the page): no
+	// breadcrumb, the pill a dot, search and Ping as icon buttons, so the
+	// title is not cut.
+	narrow := w < 900
 	bar := ui.Row(c.Key("topbar")).FillWidth().Height(60).Shrink(0).Padding(0, 28).Gap(12).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border)
-	if w < 900 {
+	if narrow {
 		bar.Padding(0, 16).Gap(8)
 	}
 	bar.Children(func() {
 		ui.Column(c).Shrink(1).MinWidth(0).Gap(1).Children(func() {
-			if crumb != "" {
+			if crumb != "" && !narrow {
 				ui.Text(c, crumb).FontSize(11).TextColor(faint(t)).MaxLines(1)
 			}
 			ui.Text(c, title).FontSize(20).FontWeight(600).MaxLines(1)
 		})
-		a.syncPill(c, w < 900)
+		a.syncPill(c, narrow)
 		ui.Box(c).Grow(1).MinWidth(0)
-		a.headerSearch(c, searchWidth)
+		if narrow {
+			a.headerSearchButton(c)
+		} else {
+			a.headerSearch(c, searchWidth)
+		}
 		a.headerMembers(c, w >= 900)
 		a.headerBell(c)
 		if canPing(a.selectedSpace()) && path == PathSpaces {
-			ping := ui.ButtonBase(c).Label("Ping").Tooltip("Kirim ping ke anggota").Row().AlignItems(ui.Center).Gap(8).Height(36).Shrink(0).Padding(0, 12).Radius(8).Border(1, t.Border).TextColor(t.Text)
+			ping := ui.ButtonBase(c).Label("Ping").Tooltip("Kirim ping ke anggota").Row().AlignItems(ui.Center).Justify(ui.Center).Gap(8).Height(36).Shrink(0).Padding(0, 12).Radius(8).Border(1, t.Border).TextColor(t.Text)
+			if narrow {
+				ping.Width(36).Padding(0)
+			}
 			if ping.Hovered() || a.chrome.pingOpen {
 				ping.Background(t.SurfaceHover)
 			}
 			ping.FocusRing(ping.FocusVisible()).Children(func() {
 				ui.Icon(c, chromeIcon("ping")).Size(16, 16)
-				ui.Text(c, "Ping")
+				if !narrow {
+					ui.Text(c, "Ping")
+				}
 			})
 			if ping.Clicked() {
 				a.chrome.pingOpen = true
@@ -102,6 +115,32 @@ func (a *App) headerSearch(c *ui.Context, width float32) {
 			}
 		})
 		popover(c, anchor, &a.chrome.searchOpen, max(width, 280), func() { a.searchResults(c) })
+	})
+}
+
+// headerSearchButton is the narrow topbar's search: an icon button whose
+// popover holds the search field and its results.
+func (a *App) headerSearchButton(c *ui.Context) {
+	t := c.Theme()
+	shortcut := c.Shortcut(ui.Ctrl, ui.KeyK) || c.Shortcut(ui.Cmd, ui.KeyK)
+	b := ui.ButtonBase(c.Key("search-button")).Label("Buka pencarian").Tooltip("Cari · Ctrl K").Size(34, 34).Shrink(0).Center().Radius(8).Border(1, t.Border).TextColor(t.TextMuted)
+	if b.Hovered() || a.chrome.searchOpen {
+		b.Background(t.SurfaceHover).TextColor(t.Text)
+	}
+	b.FocusRing(b.FocusVisible()).Children(func() { ui.Icon(c, chromeIcon("search")).Size(16, 16) })
+	focus := shortcut || b.Clicked()
+	if focus {
+		a.chrome.searchOpen = true
+		a.chrome.membersOpen = false
+		a.chrome.notificationsOpen = false
+		a.chrome.profileOpen = false
+	}
+	popover(c, b, &a.chrome.searchOpen, 300, func() {
+		input := ui.TextInput(c.Key("global-search"), &a.chrome.search).Label("Cari di Space").Placeholder("Cari tugas, catatan, anggota").FillWidth()
+		if focus {
+			input.Focus()
+		}
+		a.searchResults(c)
 	})
 }
 
@@ -230,6 +269,11 @@ func (a *App) syncPill(c *ui.Context, compact bool) {
 		ui.Box(c).Size(7, 7).Radius(3.5).Background(s.color).Shrink(0)
 		text := s.text
 		if compact {
+			// Synced: the dot alone, as canvas A · Tablet; the tooltip
+			// keeps the time. Otherwise the part that needs attention.
+			if strings.HasPrefix(text, "Tersinkron") {
+				return
+			}
 			if i := strings.LastIndex(text, " · "); i >= 0 {
 				text = text[i+len(" · "):]
 			}

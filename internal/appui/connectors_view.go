@@ -331,7 +331,7 @@ func (a *App) connectorsBody(c *ui.Context) {
 func (a *App) connectorCreateForm(c *ui.Context) {
 	st := &a.connectors
 	ui.Column(c).FillWidth().Gap(9).Padding(14).Border(1, c.Theme().Border).Radius(8).Children(func() {
-		ui.TextInput(c, &st.name).Label("Nama sumber").FillWidth()
+		ui.TextInput(c, &st.name).Label("Nama sumber").Placeholder("Nama sumber").FillWidth()
 		ui.Row(c).Gap(6).Children(func() {
 			for _, kind := range []string{"sheets", "trello"} {
 				kind := kind
@@ -340,13 +340,13 @@ func (a *App) connectorCreateForm(c *ui.Context) {
 				}
 			}
 		})
-		ui.TextInput(c, &st.interval).Label("Interval polling · detik (minimal 300)").FillWidth()
+		ui.TextInput(c, &st.interval).Label("Interval polling · detik (minimal 300)").Placeholder("Interval polling · detik (minimal 300)").FillWidth()
 		if st.kind == "sheets" {
 			for _, f := range []struct {
 				label string
 				v     *string
 			}{{"Link spreadsheet", &st.sheet}, {"Nama tab", &st.tab}, {"Baris header", &st.header}, {"Kolom ID stabil · opsional", &st.key}, {"Kolom judul", &st.title}, {"Kolom tanggal posting", &st.posting}, {"Kolom PJ Humas", &st.pj}, {"Kolom PJ Mediatek lama · informasi", &st.design}, {"Kolom kartu Trello · opsional", &st.trello}} {
-				ui.TextInput(c.Key(f.label), f.v).Label(f.label).FillWidth()
+				ui.TextInput(c.Key(f.label), f.v).Label(f.label).Placeholder(f.label).FillWidth()
 			}
 			muted(c, "Nomor kolom: A=1, B=2, C=3. Gunakan 0 untuk kolom opsional yang tidak dipakai. Kredensial dikonfigurasi pada server, tidak dimasukkan ke formulir ini.")
 		} else {
@@ -357,7 +357,7 @@ func (a *App) connectorCreateForm(c *ui.Context) {
 				label string
 				value *string
 			}{{"Kolom space_progress · opsional", &st.mirrorProgress}, {"Kolom space_match_status · opsional", &st.mirrorMatch}, {"Kolom space_evidence_url · opsional", &st.mirrorEvidence}} {
-				ui.TextInput(c.Key(f.label), f.value).Label(f.label).FillWidth()
+				ui.TextInput(c.Key(f.label), f.value).Label(f.label).Placeholder(f.label).FillWidth()
 			}
 			ui.Row(c).Gap(6).Children(func() {
 				for _, stage := range []string{"design", "humas"} {
@@ -398,7 +398,7 @@ func (a *App) connectorPreview(c *ui.Context) {
 			st.humas = person.UserID
 		}
 	}
-	ui.TextInput(c, &st.reason).Label("Alasan keputusan / perubahan").FillWidth()
+	ui.TextInput(c, &st.reason).Label("Alasan keputusan / perubahan").Placeholder("Alasan keputusan / perubahan").FillWidth()
 	label := "Perubahan berikutnya ditinjau manual"
 	if st.followUpdates {
 		label = "Ikuti perubahan pada bidang milik sumber"
