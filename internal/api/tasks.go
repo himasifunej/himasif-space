@@ -64,7 +64,10 @@ type Task struct {
 	Evidence         []TaskEvidence      `json:"evidence"`
 	Comments         []TaskComment       `json:"comments"`
 	Checklist        []TaskChecklistItem `json:"checklist"`
-	HelpRequests     []TaskHelpRequest   `json:"helpRequests"`
+	// Attachments are the task's files, oldest first. Absent from servers
+	// before Tahap 6b.
+	Attachments  []TaskAttachment  `json:"attachments,omitempty"`
+	HelpRequests []TaskHelpRequest `json:"helpRequests"`
 }
 
 // TaskWriteRequest replaces editable metadata. Owner division is fixed after
@@ -178,4 +181,16 @@ type TaskFilter struct {
 	AssigneeID id.ID
 	Progress   string
 	DueBefore  *timeutil.Date
+}
+
+// TaskAttachment is a file attached to a task (Tahap 6b). URL is the
+// download path; the file itself is never public.
+type TaskAttachment struct {
+	ID          id.ID     `json:"id"`
+	Name        string    `json:"name"`
+	ContentType string    `json:"contentType"`
+	SizeBytes   int64     `json:"sizeBytes"`
+	URL         string    `json:"url"`
+	AddedBy     PersonRef `json:"addedBy"`
+	CreatedAt   time.Time `json:"createdAt"`
 }

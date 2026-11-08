@@ -39,6 +39,7 @@ var detailIcons = func() map[string]*ui.SVG {
 		"checklist": `<rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8.5 12 2.5 2.5 4.5-5"/>`,
 		"userplus":  `<circle cx="9" cy="8" r="3.5"/><path d="M3 20a6 6 0 0 1 12 0M19 8v6M16 11h6"/>`,
 		"clip":      `<path d="m21 11-8.5 8.5a5 5 0 0 1-7-7L14 4a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L15 7"/>`,
+		"download":  `<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>`,
 		"help":      `<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5v.7M12 17h.01"/>`,
 		"lines":     `<path d="M4 6h16M4 12h16M4 18h10"/>`,
 		"comment":   `<path d="M4 5h16v11H9l-5 4Z"/>`,
@@ -315,6 +316,7 @@ func (a *App) taskDetailMain(c *ui.Context, t *api.Task) {
 	})
 	a.taskChecklistView(c, task)
 	a.taskEvidenceView(c, task)
+	a.taskFilesView(c, task)
 	a.taskHelpView(c, task)
 	a.taskReopenView(c, task)
 	if t.Permissions.Manage && a.notificationClient() != nil {

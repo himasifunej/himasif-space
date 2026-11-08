@@ -21,7 +21,8 @@ func attachmentUploadPath(r *http.Request) bool {
 		return false
 	}
 	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
-	if len(parts) != 6 || parts[0] != "api" || parts[1] != "notes" || parts[3] != "attachments" || parts[5] != "file" {
+	// Notes' and tasks' uploads (Tahap 6b) take the attachment size limit.
+	if len(parts) != 6 || parts[0] != "api" || (parts[1] != "notes" && parts[1] != "tasks") || parts[3] != "attachments" || parts[5] != "file" {
 		return false
 	}
 	if _, err := id.Parse(parts[2]); err != nil {

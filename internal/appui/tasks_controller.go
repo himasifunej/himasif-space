@@ -64,6 +64,7 @@ type tasksUIState struct {
 	mineOnly, filterOpen                    bool
 	statusOpen, moreOpen, labelOpen, pjOpen bool
 	evidenceOpen, helpOpen, reminderOpen    bool
+	files                                   taskFileState
 	labelDraft, pjReason, descDraft         string
 	checklistRef                            ui.Handle
 	// inModal is set while the desktop modal builds the detail, whose
@@ -265,7 +266,7 @@ func (a *App) projectTasks() {
 				card.ChecklistDone++
 			}
 		}
-		card.Attachments = len(t.Evidence)
+		card.Attachments = len(t.Attachments) + len(t.Evidence)
 		tasks = append(tasks, card)
 	}
 	for i, color := range a.chrome.preferences.LaneColors {

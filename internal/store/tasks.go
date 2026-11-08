@@ -113,6 +113,9 @@ func (s *Store) Task(ctx context.Context, q Querier, tid id.ID, lock string) (Ta
 	if err != nil {
 		return t, err
 	}
+	if t.Attachments, err = s.TaskAttachments(ctx, q, tid); err != nil {
+		return t, err
+	}
 	if t.Checklist == nil {
 		t.Checklist = []api.TaskChecklistItem{}
 	}
