@@ -543,11 +543,11 @@ func (a *App) spaceReviewRow(c *ui.Context, task api.Task, divider, wide bool) {
 				if e.URL != "" {
 					ui.Link(c, "Buka tautan", e.URL).FontSize(12).TextColor(t.Accent).Padding(8, 4)
 				}
-				if spaceButton(c.Key("open"), "Buka tugas", "arrow", false).Label("Buka tugas "+task.Title).Clicked() {
+				if spaceButton(c.Key("open"), "Buka tugas", "arrow", false).Label("Buka tugas " + task.Title).Clicked() {
 					a.openCanonicalTask(task)
 				}
 				if a.canReviewInRow(task, e) {
-					if primarySpaceButton(c.Key("match"), "Cocok", "check").Label("Cocok "+task.Title).Disabled(a.taskWriteBlocked()).Clicked() {
+					if primarySpaceButton(c.Key("match"), "Cocok", "check").Label("Cocok " + task.Title).Disabled(a.taskWriteBlocked()).Clicked() {
 						a.reviewFromRow(task, e, true, reviewDefaultReason)
 					}
 					if spaceButton(c.Key("reject"), "Tidak cocok", "close", a.spaceTabs.rejecting == e.ID).Label("Tidak cocok "+task.Title).Border(1, t.Border).Disabled(a.taskWriteBlocked()).Clicked() {
