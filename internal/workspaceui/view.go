@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/himasifunej/himasif-space/internal/id"
@@ -415,19 +416,47 @@ func section(c *ui.Context, label, value string) {
 		ui.Text(c, value).FontSize(12).TextColor(c.Theme().TextMuted)
 	})
 }
-func initials(name string) string {
-	words := strings.Fields(name)
-	result := ""
-	for _, word := range words {
-		r := []rune(word)
-		if len(r) > 0 {
-			result += string(r[0])
-		}
-		if len([]rune(result)) == 2 {
+func initials(name string) string { return Initials(name) }
+
+// Initials returns up to two capital letters for an avatar: the first
+// letter or digit of the first two words. Leading tags in brackets, as the
+// "[DUMMY] " of demo accounts, and words without letters or digits are
+// skipped, so "[DUMMY] Aruna Desain" gives "AD", not "[A".
+func Initials(name string) string {
+	rest := strings.TrimSpace(name)
+	for rest != "" {
+		closing := map[byte]byte{'[': ']', '(': ')', '{': '}', '<': '>'}[rest[0]]
+		end := strings.IndexByte(rest, closing)
+		if closing == 0 || end < 0 {
 			break
 		}
+		rest = strings.TrimSpace(rest[end+1:])
 	}
-	return strings.ToUpper(result)
+	pick := func(s string, max int) string {
+		var out []rune
+		for _, word := range strings.Fields(s) {
+			for _, r := range word {
+				if unicode.IsLetter(r) || unicode.IsDigit(r) {
+					out = append(out, unicode.ToUpper(r))
+					break
+				}
+			}
+			if len(out) == max {
+				break
+			}
+		}
+		return string(out)
+	}
+	if out := pick(rest, 2); out != "" {
+		return out
+	}
+	// A name that is only a tag still gets a letter.
+	return pick(strings.Map(func(r rune) rune {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			return r
+		}
+		return ' '
+	}, name), 1)
 }
 
 func (s *State) hasLane(l Lane) bool {
