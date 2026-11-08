@@ -280,6 +280,24 @@ func TestSpacesAndDirectories(t *testing.T) {
 	if c := o.call("GET", o.scope(o.period.ID, "mediatek")+"/members", mTok, nil, &ms); c != 200 || len(ms.Items) != 2 {
 		t.Fatalf("members = %d %+v", c, ms)
 	}
+	// WhatsApp status: present for every member, true only once linked;
+	// the number is never part of the response.
+	for _, m := range ms.Items {
+		if m.WhatsAppLinked == nil || *m.WhatsAppLinked {
+			t.Fatalf("whatsapp before linking: %+v", m)
+		}
+	}
+	linkedUser := ms.Items[0].UserID
+	if _, err := o.st.DB().Exec(context.Background(), `insert into wa_identities(period_id,division_id,user_id,jid,verified_by,verified_at) values($1,$2,$3,'6281200000001@s.whatsapp.net',$3,now())`, o.period.ID, ms.Items[0].DivisionID, linkedUser); err != nil {
+		t.Fatal(err)
+	}
+	ms = api.List[api.Member]{}
+	o.call("GET", o.scope(o.period.ID, "mediatek")+"/members", mTok, nil, &ms)
+	for _, m := range ms.Items {
+		if m.WhatsAppLinked == nil || *m.WhatsAppLinked != (m.UserID == linkedUser) {
+			t.Fatalf("whatsapp after linking %s: %+v", linkedUser, m)
+		}
+	}
 	for _, path := range []string{"/invitations", "/archives"} {
 		if c, _ := o.errCode("GET", o.scope(o.period.ID, "mediatek")+path, mTok, nil); c != 403 {
 			t.Errorf("member GET %s = %d", path, c)

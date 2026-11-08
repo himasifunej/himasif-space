@@ -74,10 +74,17 @@ func (s *Server) listMembers(w http.ResponseWriter, r *http.Request, p *principa
 		if err != nil {
 			return err
 		}
+		linked, err := s.store.WhatsAppLinkedUsers(r.Context(), q, sc.period.ID)
+		if err != nil {
+			return err
+		}
 		byID := rolesByID(roles)
 		out := []api.Member{}
 		for _, m := range ms {
-			out = append(out, memberAPI(m, byID, sc.closed()))
+			v := memberAPI(m, byID, sc.closed())
+			ok := linked[m.UserID]
+			v.WhatsAppLinked = &ok
+			out = append(out, v)
 		}
 		writeJSON(w, http.StatusOK, api.List[api.Member]{Items: out})
 		return nil

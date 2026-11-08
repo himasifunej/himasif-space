@@ -118,6 +118,10 @@ type Member struct {
 	Groups        []string `json:"groups"`
 	CustomRoleIDs []id.ID  `json:"customRoleIds"`
 	Capabilities  []string `json:"capabilities"`
+	// WhatsAppLinked tells whether the member linked a WhatsApp number for
+	// this period. The number itself is never sent. Absent (nil) from a
+	// server that predates it, and from single-member responses.
+	WhatsAppLinked *bool `json:"whatsappLinked,omitempty"`
 }
 
 // Invitation is an invitation as its managers see it, without its token.

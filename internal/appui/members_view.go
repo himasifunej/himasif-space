@@ -266,7 +266,15 @@ func (a *App) memberRow(c *ui.Context, member api.Member) {
 		ui.Box(c).Width(memberColumns[0].width).Shrink(0).Children(func() { memberBadge(c, memberRoleBadge(member)) })
 		ui.Text(c, memberGroups(member)).FontSize(13).TextColor(t.TextMuted).Width(memberColumns[1].width).Shrink(0).MaxLines(1)
 		ui.Text(c, a.memberLoadText(member)).Font(FontMono).FontSize(12).Width(memberColumns[2].width).Shrink(0)
-		ui.Text(c, "—").FontSize(12).TextColor(faint(t)).Tooltip("Status tautan WhatsApp per anggota belum tersedia").Width(memberColumns[3].width).Shrink(0)
+		wa := ui.Text(c, memberWhatsApp(member)).FontSize(12).Width(memberColumns[3].width).Shrink(0).MaxLines(1)
+		switch {
+		case member.WhatsAppLinked == nil:
+			wa.TextColor(faint(t)).Tooltip("Status tautan WhatsApp belum tersedia dari server")
+		case *member.WhatsAppLinked:
+			wa.TextColor(t.Success)
+		default:
+			wa.TextColor(t.TextMuted)
+		}
 		ui.Row(c).Width(memberColumns[4].width).Shrink(0).Gap(4).Justify(ui.End).Children(func() { a.memberActions(c, member) })
 	})
 }
@@ -278,7 +286,11 @@ func (a *App) memberCard(c *ui.Context, member api.Member) {
 			avatar(c, member.DisplayName, 28)
 			ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
 				ui.Text(c, member.DisplayName).FontSize(14).FontWeight(600).MaxLines(1)
-				ui.Text(c, memberGroups(member)+" · "+a.memberLoadText(member)).FontSize(12).TextColor(t.TextMuted).MaxLines(1)
+				line := memberGroups(member) + " · " + a.memberLoadText(member)
+				if member.WhatsAppLinked != nil {
+					line += " · WA " + strings.ToLower(memberWhatsApp(member))
+				}
+				ui.Text(c, line).FontSize(12).TextColor(t.TextMuted).MaxLines(1)
 			})
 			memberBadge(c, memberRoleBadge(member)).Shrink(0)
 		})
@@ -430,4 +442,16 @@ func (a *App) memberInvitations(c *ui.Context) {
 			})
 		}
 	})
+}
+
+// memberWhatsApp is the table's WhatsApp cell: "Tertaut" or "Belum", or
+// "—" while the server does not tell.
+func memberWhatsApp(member api.Member) string {
+	switch {
+	case member.WhatsAppLinked == nil:
+		return "—"
+	case *member.WhatsAppLinked:
+		return "Tertaut"
+	}
+	return "Belum"
 }

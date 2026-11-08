@@ -55,3 +55,22 @@ func (s *Store) WAGroups(ctx context.Context, q Querier, cid id.ID) ([]api.WAGro
 	}
 	return out, rows.Err()
 }
+
+// WhatsAppLinkedUsers returns the users who linked a WhatsApp number in a
+// period: the same rule delivery uses to find a member's number.
+func (s *Store) WhatsAppLinkedUsers(ctx context.Context, q Querier, pid id.ID) (map[id.ID]bool, error) {
+	rows, err := q.Query(ctx, `select distinct user_id from wa_identities where period_id=$1`, pid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[id.ID]bool{}
+	for rows.Next() {
+		var uid id.ID
+		if err := rows.Scan(&uid); err != nil {
+			return nil, err
+		}
+		out[uid] = true
+	}
+	return out, rows.Err()
+}

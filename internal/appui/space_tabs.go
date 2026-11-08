@@ -1,6 +1,7 @@
 package appui
 
 import (
+	"context"
 	"slices"
 	"strconv"
 	"strings"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/himasifunej/himasif-space/internal/api"
+	"github.com/himasifunej/himasif-space/internal/id"
 )
 
 // SpaceTabPreference is one account's tab bar for one Space: the order of
@@ -75,7 +77,15 @@ type spaceTabsUIState struct {
 	menuOpen bool
 	// reviewFilter is the Tinjauan page's filter: a task match status.
 	reviewFilter string
+	// rejecting is the evidence whose "Tidak cocok" reason is being typed
+	// in its Tinjauan row; rejectReason is that reason.
+	rejecting    id.ID
+	rejectReason string
 }
+
+// reviewDefaultReason is the reason a "Cocok" from the Tinjauan row sends:
+// the API requires one, and a match needs no explanation.
+const reviewDefaultReason = "Dicocokkan dari tab Tinjauan"
 
 // spaceTabFixed reports whether a tab cannot be hidden: the space's home.
 func spaceTabFixed(key string) bool { return key == "beranda" || key == "konten" }
@@ -418,8 +428,8 @@ func (a *App) spaceTabMenu(c *ui.Context, sp *api.Space, tabs []spaceTabDef, mob
 }
 
 // spaceReviewPage is Tinjauan: results handed in on this Space's tasks, to
-// match with their task. Matching itself, with its required reason, stays
-// in the task's detail.
+// match with their task. A reviewer matches right in the row, as the canvas
+// does: Cocok at once, Tidak cocok after a required reason.
 func (a *App) spaceReviewPage(c *ui.Context) {
 	a.ensureTasks(false)
 	t := c.Theme()
@@ -528,19 +538,54 @@ func (a *App) spaceReviewRow(c *ui.Context, task api.Task, divider, wide bool) {
 				}
 			})
 		})
-		ui.Row(c).Gap(8).Shrink(0).Children(func() {
-			if e.URL != "" {
-				ui.Link(c, "Buka tautan", e.URL).FontSize(12).TextColor(t.Accent).Padding(8, 4)
-			}
-			label := "Buka tugas"
-			if task.MatchStatus == api.MatchPending && task.Permissions.Review {
-				label = "Cocokkan di tugas"
-			}
-			if spaceButton(c.Key("open"), label, "arrow", task.MatchStatus == api.MatchPending).Clicked() {
-				a.openCanonicalTask(task)
+		ui.Column(c).Gap(8).Shrink(0).Children(func() {
+			ui.Row(c).Gap(8).Wrap().Children(func() {
+				if e.URL != "" {
+					ui.Link(c, "Buka tautan", e.URL).FontSize(12).TextColor(t.Accent).Padding(8, 4)
+				}
+				if spaceButton(c.Key("open"), "Buka tugas", "arrow", false).Label("Buka tugas "+task.Title).Clicked() {
+					a.openCanonicalTask(task)
+				}
+				if a.canReviewInRow(task, e) {
+					if primarySpaceButton(c.Key("match"), "Cocok", "check").Label("Cocok "+task.Title).Disabled(a.taskWriteBlocked()).Clicked() {
+						a.reviewFromRow(task, e, true, reviewDefaultReason)
+					}
+					if spaceButton(c.Key("reject"), "Tidak cocok", "close", a.spaceTabs.rejecting == e.ID).Label("Tidak cocok "+task.Title).Border(1, t.Border).Disabled(a.taskWriteBlocked()).Clicked() {
+						a.spaceTabs.rejecting, a.spaceTabs.rejectReason = e.ID, ""
+					}
+				}
+			})
+			if a.spaceTabs.rejecting == e.ID && a.canReviewInRow(task, e) {
+				ui.Column(c.Key("reject-form")).FillWidth().MinWidth(0).Gap(8).Children(func() {
+					taskInput(c, "reject-reason-"+e.ID.String(), "Alasan tidak cocok *", &a.spaceTabs.rejectReason)
+					ui.Row(c).Gap(8).Children(func() {
+						if spaceButton(c.Key("reject-send"), "Tandai tidak cocok", "close", true).Disabled(a.taskWriteBlocked() || strings.TrimSpace(a.spaceTabs.rejectReason) == "").Clicked() {
+							a.reviewFromRow(task, e, false, strings.TrimSpace(a.spaceTabs.rejectReason))
+						}
+						if spaceButton(c.Key("reject-cancel"), "Batal", "", false).Clicked() {
+							a.spaceTabs.rejecting, a.spaceTabs.rejectReason = id.Nil, ""
+						}
+					})
+				})
 			}
 		})
 	})
+}
+
+// canReviewInRow reports whether the Tinjauan row may match its latest
+// evidence: the reviewer's permission, a pending match, a live task.
+func (a *App) canReviewInRow(task api.Task, e api.TaskEvidence) bool {
+	return task.Permissions.Review && e.MatchStatus == api.MatchPending && task.Progress != api.TaskCancelled
+}
+
+// reviewFromRow sends a Tinjauan row's Cocok or Tidak cocok, the same
+// request as the task detail's "Bukti sesuai" / "Bukti tidak sesuai".
+func (a *App) reviewFromRow(task api.Task, e api.TaskEvidence, matched bool, reason string) {
+	a.spaceTabs.rejecting, a.spaceTabs.rejectReason = id.Nil, ""
+	a.mutateTask("Pencocokan bukti", func(s TasksAPI) error {
+		_, err := s.ReviewTaskEvidence(context.Background(), task.ID, e.ID, api.TaskEvidenceReviewRequest{Matched: matched, Reason: reason, ExpectedVersion: task.Version})
+		return err
+	}, nil)
 }
 
 func reviewInitials(name string) string {
