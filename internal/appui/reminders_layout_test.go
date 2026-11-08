@@ -43,7 +43,7 @@ func TestReminderNativeFormAndReadOnlyRecipient(t *testing.T) {
 	h.app.router.Replace(PathReminder)
 	h.tt.Advance(400 * time.Millisecond)
 	h.tt.Frame()
-	h.click("Buat reminder")
+	h.click("Reminder baru")
 	h.tt.Frame()
 	h.click("Judul reminder *")
 	h.tt.Type("Ingat notulensi rapat")

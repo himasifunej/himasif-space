@@ -112,6 +112,7 @@ type App struct {
 	reminders                 remindersUIState
 	notes                     notesUIState
 	meetings                  meetingsState
+	agenda                    agendaState
 	deliveries                deliveriesState
 	operations                operationsUIState
 	emergency                 emergencyUIState
