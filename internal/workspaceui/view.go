@@ -11,6 +11,9 @@ import (
 )
 
 var closeIcon = ui.MustParseSVG([]byte(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m6 6 12 12M18 6 6 18"/></svg>`))
+var plusIcon = ui.MustParseSVG([]byte(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>`))
+var clipIcon = ui.MustParseSVG([]byte(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m21 11-8.5 8.5a5 5 0 0 1-7-7L14 4a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L15 7"/></svg>`))
+var checkboxIcon = ui.MustParseSVG([]byte(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>`))
 var moreIcon = ui.MustParseSVG([]byte(`<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>`))
 
 // View builds a native board and, when selected, an in-layout task inspector.
@@ -42,12 +45,26 @@ func (s *State) view(c *ui.Context, inlineInspector bool) ui.Element {
 	root := ui.Row(c).Grow(1).FillHeight().MinWidth(0).Gap(0)
 	root.Children(func() {
 		ui.Column(c.Key("board-area")).Transition(ui.ElementTransition{Duration: 260 * time.Millisecond, Size: true, Position: true}).Grow(1).MinWidth(0).FillHeight().Gap(16).Padding(pad).Children(func() {
-			ui.Row(c).FillWidth().AlignItems(ui.Center).Children(func() {
-				ui.Column(c).Grow(1).Gap(4).Children(func() {
+			head := ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(12)
+			// A narrow board (phone, or a drawer beside it) stacks the
+			// toolbar under the title instead of squeezing the title.
+			if s.Toolbar != nil && (phone || s.boardWidth > 0 && s.boardWidth < 820) {
+				head.Column().AlignItems(ui.Start)
+			}
+			head.Children(func() {
+				ui.Column(c).Grow(1).MinWidth(min(float32(220), vw/2)).Gap(4).Children(func() {
 					ui.Text(c, "Board tugas").FontSize(titleSize).Bold()
-					ui.Text(c, "Semua pekerjaan, satu alur bersama.").FontSize(12).TextColor(t.TextMuted)
+					subtitle := s.Subtitle
+					if subtitle == "" {
+						subtitle = "Semua pekerjaan, satu alur bersama."
+					}
+					ui.Text(c, subtitle).FontSize(12).TextColor(t.TextMuted)
 				})
-				ui.Text(c, fmt.Sprintf("%d tugas", len(s.tasks))).FontSize(12).TextColor(t.TextMuted)
+				if s.Toolbar != nil {
+					s.Toolbar(c)
+				} else {
+					ui.Text(c, fmt.Sprintf("%d tugas", len(s.tasks))).FontSize(12).TextColor(t.TextMuted)
+				}
 			})
 
 			scroll := ui.ScrollHorizontal(c.Key("board-scroll")).Grow(1).MinHeight(0).FillWidth().TrackScroll(&s.boardScroll).Label("Kolom board")
@@ -117,9 +134,9 @@ func (s *State) lane(c *ui.Context, lane Lane, width float32, dragging *bool) {
 			count++
 		}
 	}
-	column := ui.Column(c).Width(width).Shrink(0).FillHeight().MinHeight(0).Gap(12).Padding(8).Radius(10).Background(t.SurfacePressed).Border(1, t.Border).Label("Kolom " + lane.String())
+	column := ui.Column(c).Width(width).Shrink(0).FillHeight().MinHeight(0).Gap(10).Padding(10).Radius(12).Background(t.Surface).Border(1, t.Border).Label("Kolom " + lane.String())
 	column.Children(func() {
-		ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Padding(2).Children(func() {
+		ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Padding(2, 4).Children(func() {
 			color := t.TextMuted
 			switch lane {
 			case Doing:
@@ -134,7 +151,7 @@ func (s *State) lane(c *ui.Context, lane Lane, width float32, dragging *bool) {
 			}
 			ui.Box(c).Size(7, 7).Radius(4).Background(color)
 			ui.Text(c, lane.String()).FontSize(13).Bold().Grow(1)
-			ui.Text(c, fmt.Sprint(count)).FontSize(11).TextColor(t.TextMuted).Padding(3, 7).Background(t.Surface).Radius(5)
+			ui.Text(c, fmt.Sprint(count)).FontSize(11).TextColor(t.TextMuted)
 		})
 		ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().TrackScroll(&s.lanes[lane]).Children(func() {
 			ui.Column(c).FillWidth().Gap(10).Padding(1).Children(func() {
@@ -143,23 +160,40 @@ func (s *State) lane(c *ui.Context, lane Lane, width float32, dragging *bool) {
 						s.card(c.Key(task.ID), task, dragging)
 					}
 				}
-				end := ui.Column(c.Key("lane-end")).FillWidth().MinHeight(82).Padding(18).Radius(10).Label("Akhir " + lane.String())
-				if count == 0 {
-					end.MinHeight(240).Border(1, t.Border).Background(t.Background).Justify(ui.Center).AlignItems(ui.Center)
+				// The slot shows where a dragged card lands, as on the canvas.
+				end := ui.Column(c.Key("lane-end")).FillWidth().MinHeight(96).Padding(12).Radius(10).Label("Akhir " + lane.String())
+				if s.OnMove != nil || count == 0 {
+					end.Border(1.5, t.Border).BorderStyle(ui.BorderDashed).Justify(ui.Center).AlignItems(ui.Center).Gap(2)
 				}
 				end.Children(func() {
-					if count == 0 {
+					switch {
+					case count == 0:
 						ui.Text(c, "Belum ada tugas").FontSize(12).TextColor(t.TextMuted)
 						if s.OnMove != nil {
-							ui.Text(c, "Tarik tugas ke lajur ini").FontSize(11).TextColor(t.TextMuted)
+							ui.Text(c, "Tarik kartu ke kolom ini").FontSize(12).TextColor(t.TextMuted)
 						}
+					case s.OnMove != nil:
+						ui.Text(c, "Lepas kartu di sini").FontSize(12).TextColor(t.TextMuted)
 					}
 				})
 				if s.OnMove != nil {
 					if _, over := ui.DragOver[taskDrag](end); over {
-						end.Border(1, t.Accent)
+						end.BorderColor(t.Accent)
 					}
 					s.drop(end, lane, id.Nil, t.Accent)
+				}
+				if s.OnAdd != nil && lane <= Done {
+					add := ui.ButtonBase(c.Key("lane-add")).Label("Tambah tugas di "+lane.String()).FillWidth().Row().AlignItems(ui.Center).Gap(8).Padding(8, 10).Radius(8).TextColor(t.TextMuted)
+					if add.Hovered() {
+						add.Background(t.SurfaceHover).TextColor(t.Text)
+					}
+					add.FocusRing(add.FocusVisible()).Children(func() {
+						ui.Icon(c, plusIcon).Size(15, 15)
+						ui.Text(c, "Tambah tugas").FontSize(13)
+					})
+					if add.Clicked() {
+						s.OnAdd(lane)
+					}
 				}
 			})
 		})
@@ -169,17 +203,12 @@ func (s *State) lane(c *ui.Context, lane Lane, width float32, dragging *bool) {
 	}
 }
 
+// chipInk is dark text on the light tag colors, as on the canvas.
+var chipInk = ui.Hex("#24221c")
+
 func (s *State) card(c *ui.Context, task Task, dragging *bool) {
 	t := c.Theme()
-	categoryInk := t.Accent
-	if !t.Dark {
-		categoryInk = t.TextMuted
-	}
-	card := ui.ButtonBase(c).Label("Tugas "+task.Title).FillWidth().MinWidth(0).Padding(15).Radius(11).Background(t.Surface).Border(1, t.Border)
-	if task.Color.A != 0 {
-		card.BorderWidth(1, 1, 1, 3).BorderColor(task.Color)
-		categoryInk = task.Color
-	}
+	card := ui.ButtonBase(c).Label("Tugas "+task.Title).FillWidth().MinWidth(0).Padding(12, 12, 12, 14).Radius(10).Background(t.SurfacePressed).Border(1, t.Border)
 	card.FocusRing(card.FocusVisible())
 	if card.Hovered() {
 		card.Background(t.SurfaceHover)
@@ -192,27 +221,37 @@ func (s *State) card(c *ui.Context, task Task, dragging *bool) {
 	}
 	if card.Dragging() {
 		*dragging = true
-		card.Background(t.SurfacePressed)
+		card.Background(t.Surface)
+	}
+	labels := task.Labels
+	if len(labels) == 0 && task.Category != "" {
+		labels = []Label{{Name: task.Category, Color: task.Color}}
 	}
 	card.Children(func() {
-		ui.Column(c).FillWidth().Gap(11).Children(func() {
-			ui.Row(c).FillWidth().AlignItems(ui.Center).Children(func() {
-				if task.Category != "" {
-					chip := ui.Text(c, task.Category).FontSize(10).Bold().Padding(3, 7).Radius(5)
-					if task.Color.A != 0 {
-						chip.Background(task.Color).TextColor(ui.Hex("#24221c"))
-					} else {
-						chip.TextColor(categoryInk).Background(t.Background)
+		if task.Color.A != 0 {
+			// Only the left edge carries the color; the rest keeps the
+			// card's own border.
+			ui.Box(c.Key("accent")).Absolute().Left(0).Top(0).Bottom(0).Width(3).Radius(10, 0, 0, 10).Background(task.Color)
+		}
+		ui.Column(c).FillWidth().MinWidth(0).Gap(8).Children(func() {
+			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(4).Children(func() {
+				ui.Row(c).Grow(1).MinWidth(0).Wrap().Gap(4).Children(func() {
+					for i, l := range labels {
+						chip := ui.Text(c.Key(i), l.Name).FontSize(10).Bold().Padding(2, 7).Radius(5).MaxLines(1)
+						if l.Color.A != 0 {
+							chip.Background(l.Color).TextColor(chipInk)
+						} else {
+							chip.Background(t.Background).TextColor(t.TextMuted)
+						}
 					}
-				}
-				ui.Box(c).Grow(1)
+				})
 				if s.OnMove != nil && !task.ReadOnly {
-					more := ui.ButtonBase(c.Key("move-menu")).Label("Pindahkan "+task.Title).Size(28, 24).Radius(5)
+					more := ui.ButtonBase(c.Key("move-menu")).Label("Pindahkan "+task.Title).Size(26, 22).Radius(6).Center()
 					more.FocusRing(more.FocusVisible())
 					if more.Hovered() {
 						more.Background(t.SurfaceHover)
 					}
-					more.Children(func() { ui.Icon(c, moreIcon).Size(18, 18).TextColor(t.TextMuted) })
+					more.Children(func() { ui.Icon(c, moreIcon).Size(16, 16).TextColor(t.TextMuted) })
 					if more.Clicked() {
 						s.menuOpen = s.menuID != task.ID || !s.menuOpen
 						s.menuID = task.ID
@@ -222,23 +261,65 @@ func (s *State) card(c *ui.Context, task Task, dragging *bool) {
 					}
 				}
 			})
-			ui.Text(c, task.Title).Bold().FontSize(14).MaxLines(3)
-			if task.Description != "" {
-				ui.Text(c, task.Description).FontSize(12).TextColor(t.TextMuted).MaxLines(2)
-			}
-			if task.Space != "" {
-				ui.Text(c, task.Space).FontSize(10).TextColor(t.TextMuted)
-			}
+			ui.Text(c, task.Title).FontWeight(600).FontSize(14).MaxLines(3)
 			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(8).Children(func() {
-				deadline := task.Deadline
-				if deadline == "" {
-					deadline = "Tanpa tenggat"
-				}
-				ui.Text(c, deadline).FontSize(11).TextColor(t.TextMuted).Grow(1)
 				if task.Assignee != "" {
-					ui.Text(c, initials(task.Assignee)).FontSize(10).Bold().Padding(6).Radius(14).Background(t.Background).Tooltip(task.Assignee)
+					avatar := ui.Box(c).Size(20, 20).Radius(10).Center().Shrink(0).Tooltip(task.Assignee)
+					if task.AssigneeColor.A != 0 {
+						avatar.Background(task.AssigneeColor)
+					} else {
+						avatar.Background(t.Background)
+					}
+					avatar.Children(func() {
+						ink := chipInk
+						if task.AssigneeColor.A == 0 {
+							ink = t.Text
+						}
+						ui.Text(c, initials(task.Assignee)).FontSize(9).Bold().TextColor(ink)
+					})
+					ui.Text(c, firstName(task.Assignee)).FontSize(12).TextColor(t.TextMuted).MaxLines(1).MinWidth(0)
+				}
+				ui.Box(c).Grow(1)
+				due := task.Due
+				if due == "" {
+					due = task.Deadline
+				}
+				if due == "" {
+					due = "Tanpa tenggat"
+				}
+				if task.Late {
+					due += " · lewat"
+				}
+				d := ui.Text(c, due).FontSize(12).MaxLines(1).Shrink(0)
+				if task.Late {
+					d.TextColor(t.Danger)
+				} else {
+					d.TextColor(t.TextMuted)
 				}
 			})
+			if task.Ref != "" || task.Attachments > 0 || task.ChecklistTotal > 0 {
+				ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(10).Children(func() {
+					if task.Ref != "" {
+						ui.Text(c, task.Ref).FontSize(11).TextColor(t.TextMuted)
+					}
+					if task.Attachments > 0 {
+						ui.Row(c.Key("attach")).Gap(3).AlignItems(ui.Center).Tooltip("Bukti dan lampiran").Children(func() {
+							ui.Icon(c, clipIcon).Size(12, 12).TextColor(t.TextMuted)
+							ui.Text(c, fmt.Sprint(task.Attachments)).FontSize(11).TextColor(t.TextMuted)
+						})
+					}
+					if task.ChecklistTotal > 0 {
+						ui.Row(c.Key("check")).Gap(3).AlignItems(ui.Center).Tooltip("Checklist").Children(func() {
+							ink := t.TextMuted
+							if task.ChecklistDone == task.ChecklistTotal {
+								ink = t.Success
+							}
+							ui.Icon(c, checkboxIcon).Size(12, 12).TextColor(ink)
+							ui.Text(c, fmt.Sprintf("%d/%d", task.ChecklistDone, task.ChecklistTotal)).FontSize(11).TextColor(ink)
+						})
+					}
+				})
+			}
 		})
 	})
 	if card.Clicked() {
@@ -252,6 +333,23 @@ func (s *State) card(c *ui.Context, task Task, dragging *bool) {
 		}
 		s.drop(card, task.Lane, before, t.Accent)
 	}
+}
+
+// firstName is the first word of a name after any bracketed tag, as the
+// canvas shows "Aruna" for "Aruna Desain".
+func firstName(name string) string {
+	rest := strings.TrimSpace(name)
+	for strings.HasPrefix(rest, "[") {
+		end := strings.IndexByte(rest, ']')
+		if end < 0 {
+			break
+		}
+		rest = strings.TrimSpace(rest[end+1:])
+	}
+	if f := strings.Fields(rest); len(f) > 0 {
+		return f[0]
+	}
+	return name
 }
 
 func (s *State) nextTask(task Task) id.ID {

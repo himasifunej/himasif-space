@@ -267,13 +267,13 @@ func TestChromeBoardRouteDistinguishesUnloadedAndConfirmedSnapshots(t *testing.T
 	h.app.tasks = tasksUIState{scope: h.app.selectedSpaceID(), loaded: true, items: []api.Task{}}
 	h.tt.Frame()
 	h.want("Kolom Belum mulai")
-	h.want("0 tugas")
+	h.want("Tarik kartu ke kolom ini")
 	h.dontWant("Tugas belum dapat dimuat")
 	task := api.Task{ID: id.New(), Title: "Desain dari snapshot terkonfirmasi", Progress: api.TaskTodo, Assignee: api.PersonRef{DisplayName: "Ani Wulandari"}, Description: "Tautan hasil masih memerlukan tinjauan."}
 	h.app.tasks.items = []api.Task{task}
 	h.tt.Frame()
 	h.want(task.Title)
-	h.want("1 tugas")
+	h.want("Lepas kartu di sini")
 	h.dontWant("Board kosong")
 	before := chromeRect(t, h.tt, "Kolom board")
 	h.click("Tugas " + task.Title)

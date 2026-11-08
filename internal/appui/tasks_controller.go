@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/egoist/mygo/ui"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
+
+	"github.com/egoist/mygo/ui"
 
 	"github.com/himasifunej/himasif-space/internal/api"
 	"github.com/himasifunej/himasif-space/internal/client"
@@ -58,16 +60,27 @@ type tasksUIState struct {
 	cancelOpen                                               bool
 	cancelReason, checklistNew                               string
 	detailSplit                                              bool
-	inspected, pendingOpen                                   id.ID
-	weekOffset                                               int
-	showCancelled                                            bool
-	inspectorSeq, historySeq                                 uint64
-	history                                                  []api.TaskEvent
-	historyLoaded, historyBusy                               bool
-	historyErr                                               string
-	notifications                                            []api.Notification
-	notificationsLoaded, notificationsBusy                   bool
-	notificationsErr                                         string
+	// Board toolbar and the detail modal's popovers and folded parts.
+	mineOnly, filterOpen                    bool
+	statusOpen, moreOpen, labelOpen, pjOpen bool
+	evidenceOpen, helpOpen, reminderOpen    bool
+	labelDraft, pjReason, descDraft         string
+	checklistRef                            ui.Handle
+	// inModal is set while the desktop modal builds the detail, whose
+	// header already has the status pill; evidenceFor opens the evidence
+	// form when a drag to Diserahkan opens the task.
+	inModal                                bool
+	evidenceFor                            id.ID
+	inspected, pendingOpen                 id.ID
+	weekOffset                             int
+	showCancelled                          bool
+	inspectorSeq, historySeq               uint64
+	history                                []api.TaskEvent
+	historyLoaded, historyBusy             bool
+	historyErr                             string
+	notifications                          []api.Notification
+	notificationsLoaded, notificationsBusy bool
+	notificationsErr                       string
 }
 
 func (a *App) tasksContextChanged() {
@@ -220,6 +233,7 @@ func (a *App) projectTasks() {
 	}
 	tasks := make([]workspaceui.Task, 0, len(a.tasks.items))
 	q := strings.ToLower(strings.TrimSpace(a.tasks.filter))
+	now := time.Now()
 	for _, t := range a.tasks.items {
 		if t.Progress == api.TaskCancelled && !a.tasks.showCancelled {
 			continue
@@ -227,11 +241,32 @@ func (a *App) projectTasks() {
 		if q != "" && !strings.Contains(strings.ToLower(t.Title+" "+t.Category+" "+t.Assignee.DisplayName), q) {
 			continue
 		}
+		if a.tasks.mineOnly && !a.taskIsMine(t) {
+			continue
+		}
 		title := t.Title
 		if t.LocalPending {
 			title += " · perangkat, belum cloud"
 		}
-		tasks = append(tasks, workspaceui.Task{ID: t.ID, Title: title, Description: t.Description, ExpectedOutput: t.ExpectedOutput, Category: t.Category, Color: a.taskCardColor(t.Category, taskLane(t)), Assignee: t.Assignee.DisplayName, Deadline: taskDate(t.DeadlineDate, t.DeadlineAt, t.TimeZone), Posting: taskDate(t.PostingDate, t.PostingAt, t.TimeZone), Space: a.taskSpaceNames(t), Lane: taskLane(t), ReadOnly: !t.Permissions.Manage && (!t.Permissions.Progress || t.Progress == api.TaskDone || t.Progress == api.TaskCancelled)})
+		lane := taskLane(t)
+		card := workspaceui.Task{ID: t.ID, Title: title, Description: t.Description, ExpectedOutput: t.ExpectedOutput, Category: t.Category, Color: a.taskCardColor(t.Category, t.Assignee.DisplayName, lane), Assignee: t.Assignee.DisplayName, Deadline: taskDate(t.DeadlineDate, t.DeadlineAt, t.TimeZone), Posting: taskDate(t.PostingDate, t.PostingAt, t.TimeZone), Space: a.taskSpaceNames(t), Lane: lane, ReadOnly: !t.Permissions.Manage && (!t.Permissions.Progress || t.Progress == api.TaskDone || t.Progress == api.TaskCancelled)}
+		for _, l := range taskLabels(t.Category) {
+			card.Labels = append(card.Labels, workspaceui.Label{Name: l, Color: tagColor(l)})
+		}
+		card.Due = taskShortDate(t)
+		card.Late = taskLate(t, now)
+		card.Ref = taskRef(t.ID)
+		if t.Assignee.DisplayName != "" {
+			card.AssigneeColor = personColor(t.Assignee.DisplayName)
+		}
+		card.ChecklistTotal = len(t.Checklist)
+		for _, item := range t.Checklist {
+			if item.Done {
+				card.ChecklistDone++
+			}
+		}
+		card.Attachments = len(t.Evidence)
+		tasks = append(tasks, card)
 	}
 	for i, color := range a.chrome.preferences.LaneColors {
 		if color != "" {
@@ -244,6 +279,14 @@ func (a *App) projectTasks() {
 	a.workspace.OnMove = a.moveTask
 	a.workspace.Details = a.taskDetails
 	a.workspace.OnAction = a.taskAction
+	a.workspace.Toolbar, a.workspace.Subtitle, a.workspace.OnAdd = nil, "", nil
+	if !a.tasks.personal {
+		a.workspace.Toolbar = a.boardToolbar
+		a.workspace.Subtitle = "Geser kartu antar kolom. Klik kartu untuk detail."
+		if len(a.manageableDivisions()) > 0 && !a.offlineMode() {
+			a.workspace.OnAdd = func(workspaceui.Lane) { a.beginTask() }
+		}
+	}
 	if a.tasks.busy || a.tasks.loading || (a.conn == connOffline && !a.offlineAvailable()) {
 		a.workspace.OnMove = nil
 	}
@@ -295,18 +338,22 @@ func (a *App) moveTask(m workspaceui.MoveRequest) {
 	}
 	if m.Destination == workspaceui.Review && t.Progress != api.TaskSubmitted {
 		a.workspace.Open(t.ID)
-		a.tasks.notice = "Tambahkan tautan atau catatan hasil di panel kanan untuk menyerahkan tugas."
+		a.tasks.evidenceFor = t.ID
+		if a.tasks.inspected == t.ID {
+			a.tasks.evidenceOpen = true
+		}
+		a.tasks.notice = "Isi tautan atau catatan hasil pada detail tugas untuk menyerahkannya."
 		return
 	}
 	if m.Destination == workspaceui.Done && t.Progress != api.TaskDone {
 		a.workspace.Open(t.ID)
-		a.tasks.notice = "Selesaikan melalui pencocokan bukti pada panel kanan."
+		a.tasks.notice = "Selesaikan melalui pencocokan bukti pada detail tugas."
 		return
 	}
 	reason := strings.TrimSpace(a.tasks.reason)
 	if (t.Progress == api.TaskDone && m.Destination != workspaceui.Done || t.Progress == api.TaskCancelled && m.Destination != workspaceui.Cancelled) && reason == "" {
 		a.workspace.Open(t.ID)
-		a.tasks.notice = "Tulis alasan pada panel kanan sebelum membuka kembali tugas."
+		a.tasks.notice = "Tulis alasan pada detail tugas sebelum membuka kembali tugas."
 		return
 	}
 	if a.offlineMode() {
@@ -566,4 +613,69 @@ func (a *App) confirmCancelTask() {
 	a.tasks.reason = reason
 	a.moveTask(workspaceui.MoveRequest{TaskID: a.tasks.cancelID, Destination: workspaceui.Cancelled})
 	a.tasks.reason = ""
+}
+
+// taskIsMine reports a task the signed-in user leads or helps on, for the
+// board's "Saya saja" filter.
+func (a *App) taskIsMine(t api.Task) bool {
+	if a.user.ID == id.Nil {
+		return false
+	}
+	if t.Assignee.ID == a.user.ID {
+		return true
+	}
+	for _, p := range t.Participants {
+		if p.ID == a.user.ID {
+			return true
+		}
+	}
+	return false
+}
+
+// taskLabels splits a task's category into its labels. The API keeps one
+// category text, so several labels are written "Desain, Urgent".
+func taskLabels(category string) []string {
+	var out []string
+	for _, part := range strings.Split(category, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" || slices.Contains(out, part) {
+			continue
+		}
+		out = append(out, part)
+	}
+	return out
+}
+
+// taskRef is a short code for a task: the last four characters of its ID.
+// The API has no task numbers, so this stands in for the canvas's #T12.
+func taskRef(tid id.ID) string {
+	s := strings.ReplaceAll(tid.String(), "-", "")
+	if len(s) < 4 {
+		return ""
+	}
+	return "#" + strings.ToUpper(s[len(s)-4:])
+}
+
+// taskShortDate is the card's deadline: "5 Nov", with the clock when set.
+func taskShortDate(t api.Task) string {
+	if t.DeadlineDate != nil {
+		return fmt.Sprintf("%d %s", t.DeadlineDate.Day, shortMonth(int(t.DeadlineDate.Month)))
+	}
+	if t.DeadlineAt != nil {
+		loc, _ := timeutil.LoadZone(t.TimeZone)
+		if loc == nil {
+			loc = time.UTC
+		}
+		at := t.DeadlineAt.In(loc)
+		return fmt.Sprintf("%d %s", at.Day(), shortMonth(int(at.Month())))
+	}
+	return ""
+}
+
+func shortMonth(m int) string {
+	names := []string{"Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"}
+	if m < 1 || m > 12 {
+		return ""
+	}
+	return names[m-1]
 }

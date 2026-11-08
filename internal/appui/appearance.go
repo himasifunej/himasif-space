@@ -130,9 +130,10 @@ func tagColor(category string) ui.Color {
 	return ui.Hex(colors[int(h.Sum32())%len(colors)])
 }
 
-// taskCardColor follows the board's color mode: the task's tag by default,
-// its status, or none. Tags keep one color everywhere a task appears.
-func (a *App) taskCardColor(category string, lane workspaceui.Lane) ui.Color {
+// taskCardColor follows the board's color mode: the task's first label by
+// default, its status, its PJ, or none. Labels and people keep one color
+// everywhere a task appears.
+func (a *App) taskCardColor(category, assignee string, lane workspaceui.Lane) ui.Color {
 	switch a.chrome.preferences.CardColor {
 	case "plain":
 		return ui.Color{}
@@ -141,18 +142,42 @@ func (a *App) taskCardColor(category string, lane workspaceui.Lane) ui.Color {
 			return spaceAccent(color)
 		}
 		return ui.Hex([]string{"#8f8878", "#a2bbd2", "#d7c3a0", "#a8c2ac", "#6d6c60"}[lane])
+	case "pj":
+		if assignee != "" {
+			return personColor(assignee)
+		}
+		return ui.Color{}
 	}
-	if category != "" {
-		return tagColor(category)
+	if labels := taskLabels(category); len(labels) > 0 {
+		return tagColor(labels[0])
 	}
 	return ui.Color{}
 }
 
+// cardColorChoices is the board's segmented "Warna: label · Status · PJ ·
+// Polos" control, also shown in Tampilan.
 func (a *App) cardColorChoices(c *ui.Context) {
 	p := &a.chrome.preferences
-	ui.Row(c.Key("card-colors")).Gap(4).AlignItems(ui.Center).Children(func() {
-		for _, mode := range []struct{ key, label string }{{"", "Warna: label"}, {"status", "Status"}, {"plain", "Polos"}} {
-			if spaceButton(c.Key("card-"+mode.key), mode.label, "", p.CardColor == mode.key).Padding(6, 10).MinHeight(32).Clicked() {
+	t := c.Theme()
+	ui.Row(c.Key("card-colors")).Gap(2).Padding(3).Radius(9).Border(1, t.Border).AlignItems(ui.Center).Shrink(0).Children(func() {
+		for _, mode := range []struct{ key, label string }{{"", "Warna: label"}, {"status", "Status"}, {"pj", "PJ"}, {"plain", "Polos"}} {
+			on := p.CardColor == mode.key
+			b := ui.ButtonBase(c.Key("card-"+mode.key)).Label("Warna kartu: "+mode.label).Height(30).Padding(0, 12).Radius(7).Center()
+			switch {
+			case on:
+				b.Background(t.Accent).TextColor(t.AccentText)
+			case b.Hovered():
+				b.Background(t.SurfaceHover).TextColor(t.Text)
+			default:
+				b.TextColor(t.TextMuted)
+			}
+			b.FocusRing(b.FocusVisible()).Children(func() {
+				label := ui.Text(c, mode.label).FontSize(13)
+				if on {
+					label.FontWeight(600)
+				}
+			})
+			if b.Clicked() {
 				p.CardColor = mode.key
 				a.savePreferences(c)
 				a.projectTasks()
