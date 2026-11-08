@@ -1,6 +1,6 @@
 # Rencana Tahap 6 canvas A: nomor tugas #T dan lampiran berkas tugas (9 November 2026)
 
-Status: **rencana, menunggu persetujuan lewat GOA**. Belum ada kode backend, migrasi, push, atau deploy untuk tahap ini. Tahap 5 sudah live (a74074b, migrasi sampai `0025`).
+Status: **disetujui owner 9 Nov** (lingkup kode + test + CI; deploy menunggu persetujuan terpisah). Keputusan di bagian "Yang perlu disetujui". Tahap 5 sudah live (a74074b, migrasi sampai `0025`).
 
 ## Ringkasan
 | # | Pekerjaan | Backend | Migrasi DB |
@@ -131,10 +131,11 @@ Sama dengan Tahap 5 (`canvas-a-tahap5-rencana.md`, bagian "Langkah deploy"), den
      lalu start binary lama; (c) restore penuh dari `before-0026` hanya dengan persetujuan owner (menghapus data sesudah backup).
 
 ## Yang perlu disetujui
-- [ ] 6a: nomor **per Space** (tugas di dua Space punya dua nomor), backfill urut waktu dibuat, nomor tidak dipakai ulang. Alternatif: satu nomor per tugas per divisi pemilik.
-- [ ] 6a: data `[DUMMY]` ikut bernomor (atau dibersihkan dulu oleh owner).
-- [ ] 6a: nomor juga ditulis di pesan ping/WA tentang tugas (ya/tidak).
-- [ ] 6b: batas 20 MB per berkas, 20 lampiran per tugas, kuota 2 GB per periode, daftar tipe di atas.
-- [ ] 6b: izin unggah PJ/peserta + pengelola; hapus pengunggah atau pengelola.
-- [ ] Migrasi `0026` dan `0027` ke DB pilot dengan backup dulu, API dihentikan saat `0026`.
-- [ ] Push branch, CI lewat PR draft #10, deploy dari aws-vps.
+Keputusan owner 9 November 2026 (lewat GOA):
+- [x] 6a: nomor **per Space**, backfill urut `created_at`, nomor tidak dipakai ulang.
+- [x] 6a: data `[DUMMY]` ikut bernomor.
+- [ ] 6a: nomor di pesan ping/WA: **tidak dulu** (belum diputuskan).
+- [x] 6b: 20 MB per berkas, 20 lampiran per tugas, kuota 2 GB per periode, tipe sesuai daftar di atas.
+- [x] 6b: unggah oleh PJ/peserta/pengelola; hapus oleh pengunggah atau pengelola.
+- [x] Lingkup sekarang: kode + test + CI (PR draft #10, tetap draft).
+- [ ] Migrasi `0026`/`0027` ke DB pilot dan deploy dari aws-vps: menunggu persetujuan terpisah.
