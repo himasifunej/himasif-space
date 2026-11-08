@@ -61,3 +61,11 @@ func (c *Client) WAOutbox(ctx context.Context, cid id.ID) ([]api.WAOutboxItem, e
 	err := c.do(ctx, "GET", waPath(cid)+"/outbox", nil, &out)
 	return out, err
 }
+
+// PreviewWA renders a draft of the bot's texts as the bot would send them,
+// with example data (Tahap 7d). It stores and sends nothing.
+func (c *Client) PreviewWA(ctx context.Context, pid, did id.ID, req api.WAPreviewRequest) (api.WAPreview, error) {
+	var out api.WAPreview
+	err := c.do(ctx, "POST", divisionPath(pid, did)+"/whatsapp/preview", req, &out)
+	return out, err
+}

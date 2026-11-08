@@ -93,3 +93,21 @@ type WAOutboxItem struct {
 	CreatedAt         time.Time  `json:"createdAt"`
 	UpdatedAt         time.Time  `json:"updatedAt"`
 }
+
+// WAPreviewRequest is a draft of the bot's texts to preview (Tahap 7d).
+// Kind: reminder, overdue, ping, reply, weekly or followup.
+type WAPreviewRequest struct {
+	Kind        string            `json:"kind"`
+	DisplayName string            `json:"displayName"`
+	Language    string            `json:"language"`
+	Greeting    string            `json:"greeting"`
+	Templates   map[string]string `json:"templates"`
+}
+
+// WAPreview is the text the bot would send for the draft, made from
+// example data (Example is always true).
+type WAPreview struct {
+	Kind    string `json:"kind"`
+	Text    string `json:"text"`
+	Example bool   `json:"example"`
+}

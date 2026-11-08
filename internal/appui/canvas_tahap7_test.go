@@ -3,6 +3,7 @@ package appui
 import (
 	"context"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -259,5 +260,104 @@ func TestPingDayLabels(t *testing.T) {
 		if got := pingDayLabel(at, now, "UTC"); got != want {
 			t.Errorf("%v = %q, want %q", at, got, want)
 		}
+	}
+}
+
+// waHarness opens Bot WhatsApp for a kadiv with the given connection
+// status, group and linked members.
+func waHarness(t *testing.T, w, hgt int, status string, group bool, linked []bool) *harness {
+	t.Helper()
+	h, sp := newSpaceTabsHarness(t, &fakePreferences{})
+	h.tt.SetSize(w, hgt)
+	caps := append(slices.Clone(sp.Capabilities), api.CapWhatsAppManage, api.CapTasksManage)
+	sp.Capabilities = caps
+	sp.Roles[0].Capabilities = caps
+	h.app.access.spaces = []api.Space{sp}
+	did := sp.Divisions[0].ID
+	h.app.chrome.tab = "Bot WhatsApp"
+	h.tt.Frame()
+	st := &h.app.whatsapp
+	st.division, st.loaded, st.loading = did, true, false
+	if status != "" {
+		conn := &api.WAConnection{ID: id.New(), DisplayName: "Bot Mediatek", Language: "id", Status: status, Templates: map[string]string{"reminder": "{greeting}\n{body}"}}
+		if group {
+			conn.Groups = []api.WAGroup{{Name: "Mediatek 2025/2026", SpaceID: sp.ID}}
+		}
+		st.connection = conn
+		st.session.Status = status
+		st.templates[0] = waFriendly(conn.Templates["reminder"])
+	}
+	var members []api.Member
+	for i, l := range linked {
+		v := l
+		members = append(members, api.Member{UserID: id.New(), DisplayName: []string{"Demo Mediatek", "Aruna Desain", "Nara Tekno", "Raka Video", "Sinta Pendamping"}[i], WhatsAppLinked: &v})
+	}
+	h.app.access.members = memberManagementState{division: did, loaded: true, members: members}
+	h.tt.Advance(400 * time.Millisecond)
+	h.tt.Frame()
+	return h
+}
+
+// Tahap 7d: canvas Bot WhatsApp A: one status sentence for each state,
+// four steps, the members' numbers; texts without "{body}" jargon.
+func TestBotWhatsAppStates(t *testing.T) {
+	h := waHarness(t, 1440, 900, "", false, nil)
+	h.want("Bot belum terhubung")
+	h.want("Langkah penyiapan")
+	h.want("0 dari 4 selesai")
+	h.want("Hubungkan WhatsApp")
+
+	h = waHarness(t, 1440, 900, "connected", true, []bool{true, true, false, false, true})
+	h.want("Bot aktif, 2 anggota belum menautkan")
+	h.want("Nara dan Raka belum menerima pengingat pribadi.")
+	h.want("3/5 tertaut")
+	h.want("3 dari 5 anggota sudah menautkan.")
+	h.want("Kirim cara menautkan")
+	captureNativeUI(t, h, "wa-a-partial")
+
+	h = waHarness(t, 1440, 900, "connected", true, []bool{true, true, true, true, true})
+	h.want("Bot berjalan normal")
+	h.want("4 dari 4 selesai")
+	h.dontWant("Kirim cara menautkan")
+}
+
+func TestBotWhatsAppAdvancedAndPreview(t *testing.T) {
+	h := waHarness(t, 1440, 1400, "connected", true, []bool{true, true, true, true, true})
+	h.click("Pengaturan lanjutan")
+	h.tt.Frame()
+	for _, want := range []string{"Nama bot", "Sapaan", "Pengingat tenggat", "Balasan perintah di grup", "Ringkasan mingguan SOP"} {
+		h.want(want)
+	}
+	if got := h.app.whatsapp.templates[0]; got != "[Sapaan]\n[Isi pesan]" {
+		t.Fatalf("template shown as %q", got)
+	}
+	if got := h.app.waTemplatesForServer()["reminder"]; got != "{greeting}\n{body}" {
+		t.Fatalf("template saved as %q", got)
+	}
+	// A preview shows the server's text as a WhatsApp message.
+	pv := "reminder|tpl-reminder"
+	key := fmt.Sprintf("%v", h.app.waPreviewDraft(pv))
+	h.app.whatsapp.previews = map[string]*waPreviewState{pv: {open: true, asked: key, pending: key, pendingAt: time.Now().Add(-time.Second), text: "Halo Mediatek!\nPengingat: #T12 Poster open recruitment"}}
+	h.tt.Frame()
+	h.want("Contoh di grup WhatsApp")
+	h.want("Halo Mediatek!\nPengingat: #T12 Poster open recruitment")
+	h.want("Tutup pratinjau")
+	captureNativeUI(t, h, "wa-a-preview")
+}
+
+func TestBotWhatsAppPhone(t *testing.T) {
+	h := waHarness(t, 390, 844, "connected", true, []bool{true, false})
+	h.want("Bot aktif, 1 anggota belum menautkan")
+	h.want("Langkah penyiapan")
+	captureNativeUI(t, h, "wa-a-phone")
+}
+
+func TestWAFriendlyTokens(t *testing.T) {
+	in := "{greeting} {name}: {title}\n{body}"
+	if got := waServerTemplate(waFriendly(in)); got != in {
+		t.Fatalf("round trip %q", got)
+	}
+	if waFriendly(in) != "[Sapaan] [Nama bot]: [Judul]\n[Isi pesan]" {
+		t.Fatalf("friendly %q", waFriendly(in))
 	}
 }

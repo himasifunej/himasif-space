@@ -127,6 +127,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/periods/{periodId}/divisions/{divisionId}/whatsapp", s.handle(s.listWA))
 	mux.Handle("POST /api/periods/{periodId}/divisions/{divisionId}/whatsapp", s.handle(s.createWA))
 	mux.Handle("POST /api/periods/{periodId}/divisions/{divisionId}/whatsapp-link", s.handle(s.createWALink))
+	mux.Handle("POST /api/periods/{periodId}/divisions/{divisionId}/whatsapp/preview", s.handle(s.previewWA))
 	mux.Handle("PUT /api/whatsapp/{connectionId}", s.handle(s.updateWA))
 	mux.Handle("GET /api/whatsapp/{connectionId}/state", s.handle(s.waSession))
 	mux.Handle("POST /api/whatsapp/{connectionId}/action", s.handle(s.waAction))
