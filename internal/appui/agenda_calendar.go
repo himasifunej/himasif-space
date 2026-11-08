@@ -358,6 +358,14 @@ func (a *App) agendaGrid(c *ui.Context, events []agendaEvent, days []timeutil.Da
 							return
 						}
 						list := agendaEventsOn(events, day)
+						if phone && monthView {
+							// A phone's month cell is too small for strips
+							// and "+n lainnya": like the canvas, up to three
+							// dots on the items' colors; the list below the
+							// grid is what opens them.
+							agendaDots(c, list)
+							return
+						}
 						limit := 3
 						if !monthView {
 							limit = 12
@@ -372,6 +380,26 @@ func (a *App) agendaGrid(c *ui.Context, events []agendaEvent, days []timeutil.Da
 					})
 				}
 			})
+		}
+	})
+}
+
+// agendaDotLimit is how many dots a phone's month cell shows at most.
+const agendaDotLimit = 3
+
+// agendaDots draws a day's items as small dots on their colors, at most
+// agendaDotLimit of them.
+func agendaDots(c *ui.Context, list []agendaEvent) {
+	if len(list) == 0 {
+		return
+	}
+	t := c.Theme()
+	ui.Row(c).Gap(3).AlignItems(ui.Center).Children(func() {
+		for i, e := range list {
+			if i == agendaDotLimit {
+				break
+			}
+			ui.Box(c.Key(i)).Width(6).Height(6).Radius(3).Background(agendaColor(t, e))
 		}
 	})
 }

@@ -260,8 +260,9 @@ func (a *App) reminderPanel(c *ui.Context) {
 			})
 		})
 		if (creating || owner) && a.reminders.draft != nil {
-			ui.Row(c).FillWidth().Padding(12, 18).BorderWidth(1, 0, 0, 0).BorderColor(c.Theme().Border).Children(func() {
-				if spaceButton(c, "Simpan reminder", "check", true).FillWidth().Disabled(a.reminderWriteBlocked() || a.reminders.detailsLoading || a.reminders.detailsErr != "").Clicked() {
+			// The canvas' footer: Simpan on the accent, at the right.
+			ui.Row(c).FillWidth().Padding(12, 18).Justify(ui.End).BorderWidth(1, 0, 0, 0).BorderColor(c.Theme().Border).Children(func() {
+				if primarySpaceButton(c, "Simpan reminder", "check").Shrink(0).Disabled(a.reminderWriteBlocked() || a.reminders.detailsLoading || a.reminders.detailsErr != "").Clicked() {
 					a.saveReminder()
 				}
 			})
@@ -275,9 +276,10 @@ func (a *App) reminderEditor(c *ui.Context) {
 		return
 	}
 	ui.Column(c).FillWidth().MinWidth(0).Gap(13).Disabled(a.reminderWriteBlocked() || a.reminders.detailsLoading || a.reminders.detailsErr != "").Children(func() {
+		// Canvas order: Judul, Waktu, then Catatan.
 		taskInput(c, "reminder-title", "Judul reminder *", &d.title)
-		taskLongInput(c, "reminder-notes", "Catatan reminder", &d.notes)
 		a.whenField(c, "reminder-when", "Waktu reminder", &d.date, &d.clock, true)
+		taskLongInput(c, "reminder-notes", "Catatan reminder", &d.notes)
 		taskInput(c, "reminder-zone", "Zona waktu reminder", &d.zone)
 		muted(c, "Zona IANA, misalnya Asia/Jakarta. Tidak mengikuti perubahan periode.").FontSize(11)
 	})

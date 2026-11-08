@@ -170,14 +170,16 @@ func (a *App) memberRoles(c *ui.Context) {
 	m := &a.access.members
 	pageSection(c, "Role kustom", "Role tambahan hanya memberi kewenangan operasional. Role 45 tidak dapat mengatur akses.", func() {
 		for _, r := range m.roles {
-			ui.Row(c.Key(r.ID)).FillWidth().Gap(6).Children(func() {
-				ui.Text(c, r.Name).Grow(1)
-				if spaceButton(c, "Edit role "+r.Name, "settings", false).Disabled(m.busy).Clicked() {
+			// Icon buttons (the name stays their label and tooltip) so the
+			// row fits a phone instead of running past its edge.
+			ui.Row(c.Key(r.ID)).FillWidth().MinWidth(0).Gap(6).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, r.Name).Grow(1).MinWidth(0).MaxLines(2)
+				if spaceIconButton(c, "Edit role "+r.Name, "settings").Disabled(m.busy).Clicked() {
 					m.roleEditing = r.ID
 					m.roleName = r.Name
 					m.roleCaps = slices.Clone(r.Capabilities)
 				}
-				if spaceButton(c, "Hapus role "+r.Name, "close", false).Disabled(m.busy).Clicked() {
+				if spaceIconButton(c, "Hapus role "+r.Name, "close").Disabled(m.busy).Clicked() {
 					m.confirmAction = "delete-role"
 					m.confirmID = r.ID
 				}
