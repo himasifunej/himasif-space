@@ -40,13 +40,16 @@ func TestTaskNumbersPerSpace(t *testing.T) {
 		t.Fatalf("edit = %d %v", c, edited.Numbers)
 	}
 	// Leaving Medhum drops that number; coming back takes a new one.
+	// (Fresh decode targets: json.Unmarshal adds to an existing map.)
 	req.SpaceIDs, req.ExpectedVersion = nil, edited.Version
-	if c := o.call("PATCH", taskPath(shared), o.kadiv, req, &edited); c != 200 || len(edited.Numbers) != 1 || taskNumber(edited, div) != 2 {
-		t.Fatalf("unlink = %d %v", c, edited.Numbers)
+	var unlinked api.Task
+	if c := o.call("PATCH", taskPath(shared), o.kadiv, req, &unlinked); c != 200 || len(unlinked.Numbers) != 1 || taskNumber(unlinked, div) != 2 {
+		t.Fatalf("unlink = %d %v", c, unlinked.Numbers)
 	}
-	req.SpaceIDs, req.ExpectedVersion = []id.ID{medhum}, edited.Version
-	if c := o.call("PATCH", taskPath(shared), o.kadiv, req, &edited); c != 200 || taskNumber(edited, medhum) != 2 || taskNumber(edited, div) != 2 {
-		t.Fatalf("relink = %d %v", c, edited.Numbers)
+	req.SpaceIDs, req.ExpectedVersion = []id.ID{medhum}, unlinked.Version
+	var relinked api.Task
+	if c := o.call("PATCH", taskPath(shared), o.kadiv, req, &relinked); c != 200 || taskNumber(relinked, medhum) != 2 || taskNumber(relinked, div) != 2 {
+		t.Fatalf("relink = %d %v", c, relinked.Numbers)
 	}
 	// The Space list carries the numbers too.
 	var list api.List[api.Task]
