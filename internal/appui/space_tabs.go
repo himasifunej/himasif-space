@@ -280,10 +280,7 @@ func (a *App) resolveSpaceTab(sp *api.Space) {
 func (a *App) spaceTabBar(c *ui.Context, sp *api.Space) {
 	t := c.Theme()
 	mobile := isMobile(c)
-	pad := float32(24)
-	if mobile {
-		pad = 12
-	}
+	pad := float32(12)
 	all := a.spaceTabsAll(sp)
 	tabs := a.spaceTabsVisible(sp)
 	ui.Row(c.Key("space-tab-bar")).FillWidth().Height(46).Shrink(0).Background(t.Background).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).AlignItems(ui.Center).Children(func() {
@@ -316,7 +313,7 @@ func (a *App) spaceTabButton(c *ui.Context, sp *api.Space, tabs []spaceTabDef, i
 	t := c.Theme()
 	tab := tabs[index]
 	on := a.chrome.tab == tab.title
-	b := ui.ButtonBase(c.Key("space-tab-"+tab.key)).Label(tab.title).Row().AlignItems(ui.Center).Gap(6).Height(38).Padding(0, 10).Radius(8, 8, 0, 0).Shrink(0).TextColor(t.TextMuted)
+	b := ui.ButtonBase(c.Key("space-tab-"+tab.key)).Label(tab.title).Row().AlignItems(ui.Center).Gap(5).Height(38).Padding(0, 8).Radius(8, 8, 0, 0).Shrink(0).TextColor(t.TextMuted)
 	hovered := b.Hovered()
 	if on {
 		b.TextColor(t.Text)
