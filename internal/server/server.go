@@ -248,6 +248,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/reminders", s.handle(s.createReminder))
 	mux.Handle("GET /api/reminders/preferences", s.handle(s.getReminderPreferences))
 	mux.Handle("PUT /api/reminders/preferences", s.handle(s.putReminderPreferences))
+	mux.Handle("GET /api/me/ui-preferences", s.handle(s.getUIPreferences))
+	mux.Handle("PUT /api/me/ui-preferences", s.handle(s.putUIPreferences))
 	mux.Handle("GET /api/reminders/{reminderId}", s.handle(s.getReminder))
 	mux.Handle("PUT /api/reminders/{reminderId}", s.handle(s.updateReminder))
 	mux.Handle("DELETE /api/reminders/{reminderId}", s.handle(s.deleteReminder))

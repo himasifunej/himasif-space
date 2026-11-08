@@ -2,10 +2,12 @@ package appui
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/himasifunej/himasif-space/internal/api"
+	"github.com/himasifunej/himasif-space/internal/client"
 	"github.com/himasifunej/himasif-space/internal/id"
 )
 
@@ -186,5 +188,92 @@ func TestPingRecipientLabels(t *testing.T) {
 		if got := pingRecipientLabel(tc.r); got != tc.want {
 			t.Errorf("%+v = %q, want %q", tc.r, got, tc.want)
 		}
+	}
+}
+
+// uiPrefsTestAPI keeps an account's tab bars as the server would.
+type uiPrefsTestAPI struct {
+	*fakeAPI
+	stored api.UIPreferences
+	puts   []api.UIPreferences
+	err    error
+}
+
+func (f *uiPrefsTestAPI) UIPreferences(context.Context) (api.UIPreferences, error) {
+	return f.stored, f.err
+}
+
+func (f *uiPrefsTestAPI) SetUIPreferences(_ context.Context, p api.UIPreferences) (api.UIPreferences, error) {
+	if f.err != nil {
+		return api.UIPreferences{}, f.err
+	}
+	f.puts = append(f.puts, p)
+	f.stored = p
+	return p, nil
+}
+
+// useUIPrefs points the harness at f and forgets what the first frames
+// learnt from the plain fake.
+func useUIPrefs(h *harness, f *uiPrefsTestAPI) {
+	h.app.api = f
+	h.app.uiPrefs = uiPreferencesSync{}
+	h.tt.Frame()
+	h.settle()
+	h.tt.Frame()
+}
+
+func TestSpaceTabsComeFromTheAccount(t *testing.T) {
+	store := &fakePreferences{}
+	h, sp := newSpaceTabsHarness(t, store)
+	order := []string{"board", "beranda", "agenda", "catatan", "rapat", "tinjauan", "ping", "anggota", "bot"}
+	f := &uiPrefsTestAPI{fakeAPI: h.api, stored: api.UIPreferences{SpaceTabs: map[string]api.SpaceTabPreference{sp.ID.String(): {Order: order, Hidden: []string{"rapat"}}}}}
+	useUIPrefs(h, f)
+	want := []string{"Board tugas", "Beranda", "Agenda", "Catatan", "Tinjauan", "Ping", "Anggota", "Bot WhatsApp"}
+	if got := spaceTabTitles(h.app.spaceTabsVisible(&sp)); !slices.Equal(got, want) {
+		t.Fatalf("tabs %q, want the account's %q", got, want)
+	}
+	if store.saves == 0 {
+		t.Fatal("the account's bars were not kept on the device")
+	}
+	if len(f.puts) != 0 {
+		t.Fatalf("reading the account's bars wrote them back: %+v", f.puts)
+	}
+	h.click("Atur tab")
+	h.want("Urutan dan tab yang tampil disimpan untuk akunmu dan ikut ke perangkat lain. Beranda selalu tampil.")
+	// A change on this device goes to the account.
+	h.click("Tampilkan Rapat")
+	h.tt.Frame()
+	h.settle()
+	if len(f.puts) != 1 || len(f.puts[0].SpaceTabs[sp.ID.String()].Hidden) != 0 || f.puts[0].SpaceTabs[sp.ID.String()].Order[0] != "board" {
+		t.Fatalf("change not sent: %+v", f.puts)
+	}
+}
+
+func TestSpaceTabsDeviceBarsSeedAnEmptyAccount(t *testing.T) {
+	h, sp := newSpaceTabsHarness(t, &fakePreferences{})
+	key := h.app.user.ID.String() + "/" + sp.ID.String()
+	layouts := SpaceTabLayouts{key: {Hidden: []string{"ping"}}, id.New().String() + "/" + sp.ID.String(): {Hidden: []string{"rapat"}}}
+	h.app.chrome.preferences.SpaceTabs = &layouts
+	f := &uiPrefsTestAPI{fakeAPI: h.api, stored: api.UIPreferences{SpaceTabs: map[string]api.SpaceTabPreference{}}}
+	useUIPrefs(h, f)
+	if len(f.puts) != 1 || len(f.puts[0].SpaceTabs) != 1 || f.puts[0].SpaceTabs[sp.ID.String()].Hidden[0] != "ping" {
+		t.Fatalf("device bars not sent once, or another account's sent: %+v", f.puts)
+	}
+}
+
+func TestSpaceTabsStayOnDeviceWithOldServer(t *testing.T) {
+	h, sp := newSpaceTabsHarness(t, &fakePreferences{})
+	f := &uiPrefsTestAPI{fakeAPI: h.api, err: &client.Error{Status: 404, Code: "not_found", Message: "tidak ada"}}
+	useUIPrefs(h, f)
+	if !h.app.uiPrefs.off {
+		t.Fatal("a server without the endpoint did not turn account sync off")
+	}
+	h.click("Atur tab")
+	h.want("Urutan dan tab yang tampil disimpan untuk akunmu di perangkat ini. Beranda selalu tampil.")
+	h.click("Tampilkan Ping")
+	h.tt.Frame()
+	h.settle()
+	if got := spaceTabTitles(h.app.spaceTabsVisible(&sp)); slices.Contains(got, "Ping") {
+		t.Fatalf("device change lost: %q", got)
 	}
 }

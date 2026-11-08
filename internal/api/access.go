@@ -297,3 +297,17 @@ type AdminHandoverRequest struct {
 	VerificationToken string `json:"verificationToken,omitempty"`
 	Custodian         string `json:"custodian"`
 }
+
+// SpaceTabPreference is one Space's tab bar for an account: the order of
+// its tabs by key, and the ones it hides.
+type SpaceTabPreference struct {
+	Order  []string `json:"order,omitempty"`
+	Hidden []string `json:"hidden,omitempty"`
+}
+
+// UIPreferences are the interface choices that follow an account across
+// devices. SpaceTabs is keyed by Space ID.
+type UIPreferences struct {
+	SpaceTabs map[string]SpaceTabPreference `json:"spaceTabs"`
+	UpdatedAt *time.Time                    `json:"updatedAt,omitempty"`
+}

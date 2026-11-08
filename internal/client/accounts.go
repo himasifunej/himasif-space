@@ -58,3 +58,17 @@ func (c *Client) RequestAdminEmail(ctx context.Context, req api.AdminEmailReques
 func (c *Client) AdminHandover(ctx context.Context, req api.AdminHandoverRequest) error {
 	return c.do(ctx, http.MethodPost, "/api/auth/admin-handover", req, nil)
 }
+
+// UIPreferences returns the account's interface preferences.
+func (c *Client) UIPreferences(ctx context.Context) (api.UIPreferences, error) {
+	var out api.UIPreferences
+	err := c.do(ctx, http.MethodGet, "/api/me/ui-preferences", nil, &out)
+	return out, err
+}
+
+// SetUIPreferences replaces the account's interface preferences.
+func (c *Client) SetUIPreferences(ctx context.Context, p api.UIPreferences) (api.UIPreferences, error) {
+	var out api.UIPreferences
+	err := c.do(ctx, http.MethodPut, "/api/me/ui-preferences", p, &out)
+	return out, err
+}

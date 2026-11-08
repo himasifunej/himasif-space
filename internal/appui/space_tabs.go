@@ -223,6 +223,7 @@ func (a *App) setSpaceTabPreference(c *ui.Context, sp *api.Space, p SpaceTabPref
 	tabs[key] = p
 	a.chrome.preferences.SpaceTabs = &tabs
 	a.savePreferences(c)
+	a.spaceTabsChanged()
 }
 
 // moveSpaceTab reorders the bar of sp by a drop of from onto to.
@@ -291,6 +292,7 @@ func (a *App) spaceTabBar(c *ui.Context, sp *api.Space) {
 	t := c.Theme()
 	mobile := isMobile(c)
 	pad := float32(12)
+	a.ensureUIPreferences()
 	all := a.spaceTabsAll(sp)
 	tabs := a.spaceTabsVisible(sp)
 	ui.Row(c.Key("space-tab-bar")).FillWidth().Height(46).Shrink(0).Background(t.Background).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).AlignItems(ui.Center).Children(func() {
@@ -423,7 +425,11 @@ func (a *App) spaceTabMenu(c *ui.Context, sp *api.Space, tabs []spaceTabDef, mob
 				a.setSpaceTabHidden(c, sp, tab.key, !shown)
 			}
 		}
-		muted(c, "Urutan dan tab yang tampil disimpan untuk akunmu di perangkat ini. Beranda selalu tampil.").FontSize(11).Padding(6, 4, 0, 4)
+		note := "Urutan dan tab yang tampil disimpan untuk akunmu dan ikut ke perangkat lain. Beranda selalu tampil."
+		if a.uiPrefs.off {
+			note = "Urutan dan tab yang tampil disimpan untuk akunmu di perangkat ini. Beranda selalu tampil."
+		}
+		muted(c, note).FontSize(11).Padding(6, 4, 0, 4)
 	})
 }
 
