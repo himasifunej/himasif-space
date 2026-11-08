@@ -64,6 +64,7 @@ type tasksUIState struct {
 	mineOnly, filterOpen                    bool
 	statusOpen, moreOpen, labelOpen, pjOpen bool
 	evidenceOpen, helpOpen, reminderOpen    bool
+	detailMoreOpen                          bool
 	files                                   taskFileState
 	labelDraft, pjReason, descDraft         string
 	checklistRef                            ui.Handle
@@ -385,6 +386,7 @@ func (a *App) beginTask() {
 		return
 	}
 	a.tasks.draft = &taskDraft{owner: ds[0].ID, shared: map[id.ID]bool{}}
+	a.tasks.detailMoreOpen = false
 	if s := a.selectedSpace(); s != nil && s.Kind == api.SpaceShared {
 		a.tasks.draft.shared[s.ID] = true
 	}

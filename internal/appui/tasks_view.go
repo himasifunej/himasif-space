@@ -393,6 +393,11 @@ func (a *App) taskCreatePanel(c *ui.Context) {
 func taskInput(c *ui.Context, key, label string, value *string) {
 	ui.Field(c, label, func() { ui.TextInput(c.Key(key), value).FillWidth().Label(label) })
 }
+
+// taskInputHint is taskInput with the canvas' example text ("Contoh: …").
+func taskInputHint(c *ui.Context, key, label, hint string, value *string) {
+	ui.Field(c, label, func() { ui.TextInput(c.Key(key), value).FillWidth().Label(label).Placeholder(hint) })
+}
 func taskLongInput(c *ui.Context, key, label string, value *string) {
 	ui.Field(c, label, func() { ui.TextArea(c.Key(key), value).FillWidth().Height(76).Label(label) })
 }
@@ -425,50 +430,17 @@ func (a *App) taskEditor(c *ui.Context) {
 				}
 			})
 		}
-		taskInput(c, "task-title", "Judul tugas *", &d.title)
-		taskLongInput(c, "task-output", "Hasil yang diharapkan *", &d.output)
-		taskLongInput(c, "task-description", "Deskripsi", &d.description)
-		taskInput(c, "task-category", "Label · pisahkan dengan koma", &d.category)
-		label := "Pilih PJ utama *"
-		for _, m := range a.tasks.members[d.owner] {
-			if m.UserID == d.assignee {
-				label = m.DisplayName
-			}
-		}
-		b := spaceButton(c, label, "users", false).FillWidth()
-		if b.Clicked() {
-			a.tasks.assigneeOpen = !a.tasks.assigneeOpen
-		}
-		popover(c, b, &a.tasks.assigneeOpen, 280, func() {
-			if a.tasks.membersBusy[d.owner] {
-				muted(c, "Memuat anggota…")
-			}
-			if e := a.tasks.memberErrors[d.owner]; e != "" {
-				ui.Text(c, e).TextColor(c.Theme().Danger)
-			}
-			ui.Scroll(c).MaxHeight(240).FillWidth().Children(func() {
-				ui.Column(c).FillWidth().Gap(3).Children(func() {
-					for _, m := range a.tasks.members[d.owner] {
-						if spaceButton(c.Key(m.UserID), m.DisplayName, "user", d.assignee == m.UserID).FillWidth().Clicked() {
-							d.assignee = m.UserID
-							a.tasks.assigneeOpen = false
-						}
-					}
-				})
-			})
-		})
+		// Canvas A "Tugas baru": Judul, Hasil, PJ as chips, Jadwal; the rest
+		// folds under "Detail lainnya", open when any of it is filled.
+		taskInputHint(c, "task-title", "Judul tugas *", "Contoh: Desain poster open recruitment", &d.title)
+		taskInputHint(c, "task-output", "Hasil yang diharapkan *", "Contoh: Poster 1080×1350 di folder Drive", &d.output)
+		a.taskAssigneeChips(c, d)
 		zone := timeutil.DefaultZoneName
 		if p := a.period(); p != nil {
 			zone = p.TimeZone
 		}
-		muted(c, "Jadwal pengerjaan · "+zone)
 		a.rangeWhenField(c, "task-schedule", d)
-		// Posting is its own schedule; the H-2 design deadline follows it.
-		a.whenField(c, "task-posting", "Jadwal posting", &d.posting, &d.postingTime, false)
-		if d.posting == "" {
-			d.postingTime = ""
-		}
-		muted(c, "Tanpa jam tetap berupa tanggal, tanpa menambahkan jam otomatis. Tenggat dan posting disimpan terpisah.")
+		muted(c, "Jadwal pengerjaan · "+zone).FontSize(11)
 		var shared []api.Space
 		for _, s := range a.access.spaces {
 			if s.Kind != api.SpaceShared || s.ReadOnly {
@@ -480,15 +452,46 @@ func (a *App) taskEditor(c *ui.Context) {
 				}
 			}
 		}
-		if len(shared) > 0 {
-			ui.Text(c, "Bagikan juga ke").FontSize(12).Bold()
-			for _, s := range shared {
-				on := d.shared[s.ID]
-				if spaceButton(c.Key(s.ID), s.Name, "grid", on).FillWidth().Clicked() {
-					d.shared[s.ID] = !on
-				}
+		filled := strings.TrimSpace(d.description) != "" || strings.TrimSpace(d.category) != "" || d.posting != ""
+		for _, on := range d.shared {
+			filled = filled || on
+		}
+		open := a.tasks.detailMoreOpen || filled
+		more := ui.ButtonBase(c.Key("task-more")).Label("Detail lainnya").Row().AlignItems(ui.Center).Gap(8).FillWidth().Padding(8, 0).TextColor(c.Theme().TextMuted)
+		if more.Hovered() {
+			more.TextColor(c.Theme().Text)
+		}
+		more.FocusRing(more.FocusVisible()).Children(func() {
+			ui.Text(c, "Detail lainnya").FontSize(13).FontWeight(600).Grow(1)
+			muted(c, "Deskripsi, label, jadwal posting, Space bersama").FontSize(11)
+			icon := "right"
+			if open {
+				icon = "down"
 			}
-			muted(c, "Space divisi pemilik selalu memuat tugas ini. Tugas internal tidak dibagikan otomatis.")
+			ui.Icon(c, spaceIcon(icon)).Size(14, 14)
+		})
+		if more.Clicked() && !filled {
+			a.tasks.detailMoreOpen = !a.tasks.detailMoreOpen
+		}
+		if open {
+			taskLongInput(c, "task-description", "Deskripsi", &d.description)
+			taskInput(c, "task-category", "Label · pisahkan dengan koma", &d.category)
+			// Posting is its own schedule; the H-2 design deadline follows it.
+			a.whenField(c, "task-posting", "Jadwal posting", &d.posting, &d.postingTime, false)
+			if d.posting == "" {
+				d.postingTime = ""
+			}
+			muted(c, "Tanpa jam tetap berupa tanggal, tanpa menambahkan jam otomatis. Tenggat dan posting disimpan terpisah.")
+			if len(shared) > 0 {
+				ui.Text(c, "Bagikan juga ke").FontSize(12).Bold()
+				for _, s := range shared {
+					on := d.shared[s.ID]
+					if spaceButton(c.Key(s.ID), s.Name, "grid", on).FillWidth().Clicked() {
+						d.shared[s.ID] = !on
+					}
+				}
+				muted(c, "Space divisi pemilik selalu memuat tugas ini. Tugas internal tidak dibagikan otomatis.")
+			}
 		}
 		if d.taskID != id.Nil {
 			taskInput(c, "task-change-reason", "Alasan perubahan PJ/tenggat", &d.reason)
@@ -837,5 +840,83 @@ func (a *App) cancelTaskDialog(c *ui.Context) {
 				}
 			})
 		})
+	})
+}
+
+// taskAssigneeMax is how many member chips the PJ row shows before
+// "Lainnya…" opens the full list.
+const taskAssigneeMax = 8
+
+// taskAssigneeChips is canvas A's PJ row: the owner division's members as
+// avatar chips ("Saya" for the account itself), at most eight, then
+// "Lainnya…" with the full list; the chosen one is outlined on the accent.
+func (a *App) taskAssigneeChips(c *ui.Context, d *taskDraft) {
+	t := c.Theme()
+	members := a.tasks.members[d.owner]
+	ui.Text(c, "PJ *").FontSize(12).Bold()
+	if a.tasks.membersBusy[d.owner] && len(members) == 0 {
+		muted(c, "Memuat anggota…")
+	}
+	if e := a.tasks.memberErrors[d.owner]; e != "" {
+		ui.Text(c, e).FontSize(12).TextColor(t.Danger)
+	}
+	shown := members
+	if len(shown) > taskAssigneeMax {
+		shown = slices.Clone(members[:taskAssigneeMax])
+		for _, m := range members[taskAssigneeMax:] {
+			if m.UserID == d.assignee {
+				shown[taskAssigneeMax-1] = m
+			}
+		}
+	}
+	ui.Row(c.Key("pj-chips")).FillWidth().Wrap().Gap(8).Children(func() {
+		for _, m := range shown {
+			name := strings.Fields(m.DisplayName)
+			short := m.DisplayName
+			if len(name) > 0 {
+				short = name[0]
+				if strings.HasPrefix(short, "[") && len(name) > 1 {
+					short = name[1]
+				}
+			}
+			if m.UserID == a.user.ID {
+				short = "Saya"
+			}
+			on := d.assignee == m.UserID
+			b := ui.ButtonBase(c.Key(m.UserID)).Label("PJ: "+m.DisplayName).Tooltip(m.DisplayName).Row().AlignItems(ui.Center).Gap(8).Height(32).Padding(0, 12, 0, 4).Radius(16).Border(1, t.Border).TextColor(t.TextMuted)
+			if on {
+				b.BorderColor(t.Accent).Background(spaceMix(t.Surface, t.Accent, .12)).TextColor(t.Text)
+			} else if b.Hovered() {
+				b.Background(t.SurfaceHover).TextColor(t.Text)
+			}
+			b.FocusRing(b.FocusVisible()).Children(func() {
+				avatar(c, m.DisplayName, 24)
+				txt := ui.Text(c, short).FontSize(13).MaxLines(1)
+				if on {
+					txt.FontWeight(600)
+				}
+			})
+			if b.Clicked() {
+				d.assignee = m.UserID
+			}
+		}
+		if len(members) > taskAssigneeMax {
+			b := spaceButton(c.Key("pj-more"), "Lainnya…", "users", a.tasks.assigneeOpen)
+			if b.Clicked() {
+				a.tasks.assigneeOpen = !a.tasks.assigneeOpen
+			}
+			popover(c, b, &a.tasks.assigneeOpen, 280, func() {
+				ui.Scroll(c).MaxHeight(240).FillWidth().Children(func() {
+					ui.Column(c).FillWidth().Gap(3).Children(func() {
+						for _, m := range members {
+							if spaceButton(c.Key(m.UserID), m.DisplayName, "user", d.assignee == m.UserID).FillWidth().Clicked() {
+								d.assignee = m.UserID
+								a.tasks.assigneeOpen = false
+							}
+						}
+					})
+				})
+			})
+		}
 	})
 }
