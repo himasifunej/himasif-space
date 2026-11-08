@@ -17,7 +17,7 @@ func (a *App) page(c *ui.Context, r *ui.Route) {
 	switch {
 	case r.Match(PathJobdesk):
 		r.Title("Jobdesk saya")
-		a.personalTasksView(c)
+		a.jobdeskView(c)
 	case r.Match(PathReminder):
 		r.Title("Reminder pribadi")
 		a.remindersView(c)
@@ -214,98 +214,6 @@ func (a *App) spacePage(c *ui.Context, r *ui.Route, shared bool) {
 		default:
 			a.overviewPage(c, title, shared)
 		}
-	})
-}
-
-func (a *App) overviewPage(c *ui.Context, title string, shared bool) {
-	t := c.Theme()
-	ui.Scroll(c).Fill().Children(func() {
-		body := ui.Column(c).FillWidth().MinWidth(0).Padding(26).Gap(24)
-		if isMobile(c) {
-			body.Padding(16).Gap(16)
-		}
-		wide := body.Bounds().W >= 720
-		body.Children(func() {
-			heading := ui.Column(c).FillWidth().MinWidth(0).Gap(20)
-			if wide {
-				heading.Row().AlignItems(ui.Start)
-			}
-			heading.Children(func() {
-				titles := ui.Column(c).MinWidth(0).Gap(8)
-				if wide {
-					titles.Grow(1)
-				} else {
-					titles.FillWidth()
-				}
-				titles.Children(func() {
-					if p := a.period(); p != nil {
-						ui.Text(c, "HIMASIF · "+p.Label).FontSize(10).TextColor(t.TextMuted)
-					}
-					heading := ui.Text(c, "Ruang "+title+" kita.").FontSize(29).Bold()
-					if isMobile(c) {
-						heading.FontSize(22)
-					}
-					muted(c, "Biar setiap ide punya tempat, dan setiap tugas tetap dalam alurnya.")
-				})
-				ui.Column(c).Gap(6).Children(func() {
-					if spaceButton(c, "Buka board", "board", true).Clicked() {
-						a.chrome.tab = "Board tugas"
-					}
-					if spaceButton(c, "Lihat agenda", "calendar", false).Clicked() {
-						a.chrome.tab = "Agenda"
-					}
-				})
-			})
-			a.tasksOverview(c)
-			if canPing(a.selectedSpace()) {
-				pageSection(c, "Ping cepat", "Ingatkan anggota lewat perangkat dan WhatsApp.", func() {
-					if primarySpaceButton(c, "Kirim ping", "send").Clicked() {
-						a.chrome.pingOpen = true
-					}
-				})
-			}
-			if shared {
-				pageNotice(c, "link", "Ruang kolaborasi", "Akses ruang bersama tidak membuka pekerjaan internal divisi lain.")
-			}
-
-			ui.Column(c).FillWidth().Gap(16).Children(func() {
-
-				sections := ui.Column(c).FillWidth().MinWidth(0).Gap(16)
-				if wide {
-					sections.Row().AlignItems(ui.Stretch)
-				}
-				sections.Children(func() {
-					first := ui.Column(c).MinWidth(0)
-					if wide {
-						first.Grow(1)
-					} else {
-						first.FillWidth()
-					}
-					first.Children(func() {
-						pageSection(c, "Agenda terdekat", "Rapat yang akan datang di ruang ini.", func() {
-							a.homeAgenda(c)
-							if spaceButton(c, "Lihat agenda", "arrow", false).Clicked() {
-								a.chrome.tab = "Agenda"
-							}
-						})
-					})
-					second := ui.Column(c).MinWidth(0)
-					if wide {
-						second.Grow(1)
-					} else {
-						second.FillWidth()
-					}
-					second.Children(func() {
-						pageSection(c, "Catatan bersama", "Simpan hasil rapat dan arah pekerjaan.", func() {
-							a.homeNotes(c)
-							if spaceButton(c, "Buka catatan", "arrow", false).Clicked() {
-								a.chrome.tab = "Catatan"
-							}
-						})
-					})
-				})
-			})
-		})
 	})
 }
 

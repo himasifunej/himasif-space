@@ -185,16 +185,16 @@ func TestTaskModalAndAppearanceAreExclusiveAtMinimumWidth(t *testing.T) {
 
 	h.tt.Advance(400 * time.Millisecond)
 	h.click("Tugas " + task.Title)
-	h.want("Detail tugas")
+	h.want("Tutup detail tugas")
 	h.click("Tutup detail tugas")
-	h.dontWant("Detail tugas")
+	h.dontWant("Tutup detail tugas")
 	if h.app.workspace.SelectedID() != id.Nil {
 		t.Fatal("closing the modal kept the task selected")
 	}
 	openFullAppearance(h)
 	h.want("Tutup panel tampilan")
 	h.click("Tugas " + task.Title)
-	h.want("Detail tugas")
+	h.want("Tutup detail tugas")
 	if h.app.chrome.appearance {
 		t.Fatal("task modal left appearance open")
 	}

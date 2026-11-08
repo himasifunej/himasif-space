@@ -123,6 +123,8 @@ type App struct {
 	archives                  archiveAdminUIState
 	account                   accountFlowState
 	spaceTabs                 spaceTabsUIState
+	jobdesk                   jobdeskUIState
+	home                      homeUIState
 
 	api    API
 	tokens TokenStore

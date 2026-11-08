@@ -19,46 +19,50 @@ func (a *App) spaceTasksView(c *ui.Context)    { a.ensureTasks(false); a.taskBoa
 func (a *App) taskBoardView(c *ui.Context, personal bool) {
 	ui.Column(c).Grow(1).MinHeight(0).FillWidth().MinWidth(0).Gap(0).Children(func() {
 		phone := isMobile(c)
-		bar := ui.Row(c).FillWidth().Padding(12, 22).Gap(10).AlignItems(ui.Center)
-		if phone {
-			bar.Padding(8, 12).Gap(6)
-		}
-		bar.Children(func() {
-			label := "Tugas Space"
-			if personal {
-				label = "Jobdesk saya"
-			}
-			if !phone {
-				// The phone's top bar already names the page.
-				ui.Text(c, label).FontSize(14).Bold().Grow(1)
-			}
-			filter := ui.TextInput(c.Key("task-filter"), &a.tasks.filter).Label("Filter tugas").Placeholder("Judul, kategori, atau PJ…").Grow(1).MinWidth(90)
-			if !phone {
-				filter.MaxWidth(220)
-			}
-			if filter.Changed() {
-				a.projectTasks()
-			}
-			var cancelled ui.Element
+		// The space board's own header carries its toolbar (boardToolbar);
+		// the Jobdesk page keeps its bar.
+		if personal {
+			bar := ui.Row(c).FillWidth().Padding(12, 22).Gap(10).AlignItems(ui.Center)
 			if phone {
-				cancelled = spaceIconButton(c, "Dibatalkan", "archive").Size(44, 44)
-				if a.tasks.showCancelled {
-					cancelled.Background(c.Theme().SurfaceHover)
+				bar.Padding(8, 12).Gap(6)
+			}
+			bar.Children(func() {
+				label := "Tugas Space"
+				if personal {
+					label = "Jobdesk saya"
 				}
-			} else {
-				cancelled = spaceButton(c, "Dibatalkan", "archive", a.tasks.showCancelled)
-			}
-			if cancelled.Clicked() {
-				a.tasks.showCancelled = !a.tasks.showCancelled
-				a.projectTasks()
-			}
-			if !phone && !personal {
-				a.cardColorChoices(c)
-			}
-			if spaceIconButton(c, "Muat ulang tugas", "refresh").Disabled(a.tasks.loading || a.tasks.busy).Clicked() {
-				a.loadTasks()
-			}
-		})
+				if !phone {
+					// The phone's top bar already names the page.
+					ui.Text(c, label).FontSize(14).Bold().Grow(1)
+				}
+				filter := ui.TextInput(c.Key("task-filter"), &a.tasks.filter).Label("Filter tugas").Placeholder("Judul, kategori, atau PJ…").Grow(1).MinWidth(90)
+				if !phone {
+					filter.MaxWidth(220)
+				}
+				if filter.Changed() {
+					a.projectTasks()
+				}
+				var cancelled ui.Element
+				if phone {
+					cancelled = spaceIconButton(c, "Dibatalkan", "archive").Size(44, 44)
+					if a.tasks.showCancelled {
+						cancelled.Background(c.Theme().SurfaceHover)
+					}
+				} else {
+					cancelled = spaceButton(c, "Dibatalkan", "archive", a.tasks.showCancelled)
+				}
+				if cancelled.Clicked() {
+					a.tasks.showCancelled = !a.tasks.showCancelled
+					a.projectTasks()
+				}
+				if !phone && !personal {
+					a.cardColorChoices(c)
+				}
+				if spaceIconButton(c, "Muat ulang tugas", "refresh").Disabled(a.tasks.loading || a.tasks.busy).Clicked() {
+					a.loadTasks()
+				}
+			})
+		}
 		a.taskFeedback(c)
 		if !a.tasks.loaded {
 			ui.Column(c).Fill().Padding(26).Children(func() {
@@ -361,14 +365,29 @@ func taskLate(t api.Task, now time.Time) bool {
 	return taskDue(t).Before(now)
 }
 func (a *App) taskCreatePanel(c *ui.Context) {
+	t := c.Theme()
 	workspaceui.Drawer(c.Key("create-task-drawer"), &a.chrome.drawerWidth, func() {
-		ui.Row(c).FillWidth().Padding(18).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "Delegasikan tugas").Bold().Grow(1)
+		ui.Row(c).FillWidth().Padding(16, 20).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
+			ui.Text(c, "Tugas baru").FontSize(17).Bold().Grow(1)
 			if spaceIconButton(c, "Tutup tugas baru", "close").Disabled(a.tasks.busy).Clicked() {
 				a.tasks.draft = nil
 			}
 		})
 		ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Label("Area scroll form tugas").Children(func() { ui.Column(c).FillWidth().Padding(20).Gap(14).Children(func() { a.taskEditor(c) }) })
+		ui.Column(c).FillWidth().Padding(14, 20).Gap(8).BorderWidth(1, 0, 0, 0).BorderColor(t.Border).Children(func() {
+			if a.tasks.err != "" {
+				ui.Text(c, a.tasks.err).FontSize(12).TextColor(t.Danger)
+			}
+			ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Box(c).Grow(1)
+				if spaceButton(c, "Batal", "", false).Disabled(a.tasks.busy).Clicked() {
+					a.tasks.draft = nil
+				}
+				if primarySpaceButton(c, "Simpan tugas", "check").Disabled(a.taskWriteBlocked()).Clicked() {
+					a.saveTask()
+				}
+			})
+		})
 	})
 }
 func taskInput(c *ui.Context, key, label string, value *string) {
@@ -409,7 +428,7 @@ func (a *App) taskEditor(c *ui.Context) {
 		taskInput(c, "task-title", "Judul tugas *", &d.title)
 		taskLongInput(c, "task-output", "Hasil yang diharapkan *", &d.output)
 		taskLongInput(c, "task-description", "Deskripsi", &d.description)
-		taskInput(c, "task-category", "Kategori", &d.category)
+		taskInput(c, "task-category", "Label · pisahkan dengan koma", &d.category)
 		label := "Pilih PJ utama *"
 		for _, m := range a.tasks.members[d.owner] {
 			if m.UserID == d.assignee {
@@ -474,7 +493,7 @@ func (a *App) taskEditor(c *ui.Context) {
 		if d.taskID != id.Nil {
 			taskInput(c, "task-change-reason", "Alasan perubahan PJ/tenggat", &d.reason)
 		}
-		if spaceButton(c, "Simpan tugas", "check", true).FillWidth().Clicked() {
+		if d.taskID != id.Nil && spaceButton(c, "Simpan tugas", "check", true).FillWidth().Clicked() {
 			a.saveTask()
 		}
 		if d.taskID != id.Nil {
@@ -507,6 +526,11 @@ func (a *App) taskDetails(c *ui.Context, tid id.ID) {
 		a.tasks.historyBusy = false
 		a.tasks.historyLoaded = false
 		a.tasks.historyErr = ""
+		a.tasks.descDraft = t.Description
+		a.tasks.labelDraft, a.tasks.pjReason, a.tasks.checklistNew = "", "", ""
+		a.tasks.statusOpen, a.tasks.moreOpen, a.tasks.labelOpen, a.tasks.pjOpen = false, false, false, false
+		a.tasks.evidenceOpen, a.tasks.helpOpen, a.tasks.reminderOpen = a.tasks.evidenceFor == tid, false, false
+		a.tasks.evidenceFor = id.Nil
 		if a.tasks.draft != nil && a.tasks.draft.taskID != tid {
 			a.tasks.draft = nil
 		}
@@ -521,81 +545,6 @@ func (a *App) taskDetails(c *ui.Context, tid id.ID) {
 	}
 }
 
-// taskDetailMain is the task's own content: what, who, when, checklist and
-// evidence. taskDetailSide holds the conversation and history; wide windows
-// show them side by side like a card in Trello.
-func (a *App) taskDetailMain(c *ui.Context, t *api.Task) {
-	tid := t.ID
-	_ = tid
-	ui.Text(c, t.Title).FontSize(23).Bold()
-	muted(c, progressLabel(t.Progress)+" · "+matchLabel(t.MatchStatus))
-	if t.LocalPending {
-		muted(c, "Tersimpan di perangkat — belum tersinkron. Isi resmi server belum berubah.")
-	}
-	if t.Description != "" {
-		ui.Text(c, t.Description).FontSize(13)
-	}
-	info(c, [][2]string{{"PJ utama", t.Assignee.DisplayName}, {"Mulai pengerjaan", taskDate(t.PlannedStartDate, t.PlannedStartAt, t.TimeZone)}, {"Tenggat tugas", taskDate(t.DeadlineDate, t.DeadlineAt, t.TimeZone)}, {"Posting", taskDate(t.PostingDate, t.PostingAt, t.TimeZone)}, {"Space", a.taskSpaceNames(*t)}})
-	ui.Text(c, "Hasil yang diharapkan").Bold()
-	ui.Text(c, t.ExpectedOutput).FontSize(13)
-	if len(t.Participants) > 0 {
-		ui.Text(c, "Delegasi tambahan").Bold()
-		for _, p := range t.Participants {
-			muted(c, p.DisplayName)
-		}
-	}
-	if t.Permissions.Manage && spaceButton(c, "Ubah tugas / delegasi", "edit", false).Disabled(a.taskWriteBlocked()).FillWidth().Clicked() {
-		a.editTask(*t)
-	}
-	if t.Permissions.Progress || t.Permissions.Manage {
-		a.taskProgressActions(c, *t)
-	}
-	a.taskChecklistView(c, *t)
-	a.taskEvidenceView(c, *t)
-	a.taskHelpView(c, *t)
-}
-
-func (a *App) taskDetailSide(c *ui.Context, t *api.Task) {
-	tid := t.ID
-	ui.Text(c, "Percakapan tugas").Bold()
-	for _, comment := range t.Comments {
-		ui.Column(c.Key(comment.ID)).FillWidth().Gap(3).Children(func() {
-			ui.Text(c, comment.Author.DisplayName).FontSize(12).Bold()
-			ui.Text(c, comment.Body).FontSize(12)
-			muted(c, taskTimestamp(comment.CreatedAt, t.TimeZone)).FontSize(10)
-		})
-	}
-	if t.Permissions.Comment {
-		taskLongInput(c, "task-comment", "Komentar", &a.tasks.comment)
-		if spaceButton(c, "Kirim komentar", "send", false).Disabled(a.taskWriteBlocked() || strings.TrimSpace(a.tasks.comment) == "").Clicked() {
-			body := a.tasks.comment
-			a.mutateTask("Komentar", func(s TasksAPI) error {
-				_, err := s.AddTaskComment(context.Background(), tid, api.TaskCommentRequest{Body: body})
-				return err
-			}, func() { a.tasks.comment = "" })
-		}
-	}
-	a.taskNotificationControls(c, *t)
-	ui.Text(c, "Riwayat perubahan").Bold()
-	if !a.tasks.historyLoaded {
-		if spaceButton(c, "Muat riwayat", "refresh", false).Disabled(a.tasks.historyBusy).Clicked() {
-			a.loadTaskHistory(tid)
-		}
-	}
-	if a.tasks.historyErr != "" {
-		ui.Text(c, a.tasks.historyErr).FontSize(12).TextColor(c.Theme().Danger)
-	}
-	for _, e := range a.tasks.history {
-		ui.Column(c.Key(e.ID)).FillWidth().Gap(3).Children(func() {
-			ui.Text(c, e.Actor.DisplayName+" · "+taskEventLabel(e.Action)).FontSize(12)
-			if e.Reason != "" {
-				muted(c, e.Reason)
-			}
-			muted(c, taskTimestamp(e.CreatedAt, t.TimeZone)).FontSize(10)
-		})
-	}
-
-}
 func progressLabel(p string) string {
 	switch p {
 	case api.TaskTodo:
@@ -630,141 +579,6 @@ func taskTimestamp(t time.Time, zone string) string {
 		loc = time.UTC
 	}
 	return t.In(loc).Format("02 Jan 2006 · 15:04 MST")
-}
-func (a *App) taskProgressActions(c *ui.Context, t api.Task) {
-	if a.offlineMode() {
-		if a.offlineAvailable() && t.Permissions.Progress && (t.Progress == api.TaskTodo || t.Progress == api.TaskDoing) {
-			next := api.TaskDoing
-			label := "Mulai kerjakan · simpan di perangkat"
-			if t.Progress == api.TaskDoing {
-				next = api.TaskTodo
-				label = "Belum mulai · simpan di perangkat"
-			}
-			if spaceButton(c, label, "task", false).Disabled(a.tasks.busy).Clicked() {
-				a.queueProgress(t, next)
-			}
-		}
-		muted(c, "Penyerahan, tinjauan hasil, delegasi dan perubahan deadline memerlukan koneksi.")
-		return
-	}
-
-	ui.Column(c).FillWidth().Gap(8).Disabled(a.taskWriteBlocked()).Children(func() {
-		if t.Progress == api.TaskTodo || t.Progress == api.TaskDoing {
-			label := "Mulai kerjakan"
-			next := api.TaskDoing
-			if t.Progress == api.TaskDoing {
-				label = "Kembalikan ke belum mulai"
-				next = api.TaskTodo
-			}
-			if spaceButton(c, label, "task", false).FillWidth().Clicked() {
-				a.mutateTask("Progres", func(s TasksAPI) error {
-					_, e := s.MoveTask(context.Background(), t.ID, api.TaskMoveRequest{Progress: next, ExpectedVersion: t.Version})
-					return e
-				}, nil)
-			}
-		}
-		if t.Permissions.Manage {
-			taskInput(c, "task-reason", "Alasan pembukaan ulang / pembatalan", &a.tasks.reason)
-			if t.Progress == api.TaskDone || t.Progress == api.TaskCancelled {
-				if spaceButton(c, "Buka kembali tugas", "refresh", false).FillWidth().Disabled(strings.TrimSpace(a.tasks.reason) == "").Clicked() {
-					reason := a.tasks.reason
-					a.mutateTask("Pembukaan tugas", func(s TasksAPI) error {
-						_, e := s.MoveTask(context.Background(), t.ID, api.TaskMoveRequest{Progress: api.TaskTodo, ExpectedVersion: t.Version, Reason: reason})
-						return e
-					}, nil)
-				}
-			} else if spaceButton(c, "Batalkan tugas", "close", false).FillWidth().Disabled(strings.TrimSpace(a.tasks.reason) == "").Clicked() {
-				reason := a.tasks.reason
-				a.mutateTask("Pembatalan tugas", func(s TasksAPI) error {
-					_, e := s.MoveTask(context.Background(), t.ID, api.TaskMoveRequest{Progress: api.TaskCancelled, ExpectedVersion: t.Version, Reason: reason})
-					return e
-				}, nil)
-			}
-		}
-	})
-}
-func (a *App) taskEvidenceView(c *ui.Context, t api.Task) {
-	ui.Box(c).Height(1).FillWidth().Background(c.Theme().Border)
-	ui.Text(c, "Bukti pekerjaan").Bold()
-	muted(c, "Tinjauan mencocokkan hasil dengan tugas. Waktu penyerahan asli tetap tersimpan.")
-	if t.Permissions.Review && len(t.Evidence) > 0 {
-		taskInput(c, "review-reason", "Alasan pencocokan / koreksi *", &a.tasks.reason)
-	}
-	for i, e := range t.Evidence {
-		ui.Column(c.Key(e.ID)).FillWidth().Gap(6).Padding(10).Radius(8).Border(1, c.Theme().Border).Children(func() {
-			ui.Text(c, matchLabel(e.MatchStatus)).Bold().FontSize(12)
-			if e.URL != "" {
-				ui.Text(c, e.URL).FontSize(11)
-				ui.Link(c, "Buka tautan hasil", e.URL).FontSize(12).TextColor(c.Theme().Accent)
-			}
-			if e.Note != "" {
-				ui.Text(c, e.Note).FontSize(12)
-			}
-			muted(c, e.SubmittedBy.DisplayName+" · "+taskTimestamp(e.SubmittedAt, t.TimeZone)).FontSize(10)
-			if e.ReviewReason != "" {
-				muted(c, "Alasan: "+e.ReviewReason)
-			}
-			if t.Permissions.Review && i == len(t.Evidence)-1 && t.Progress != api.TaskCancelled {
-				if spaceButton(c, "Bukti sesuai", "check", false).Disabled(a.taskWriteBlocked() || strings.TrimSpace(a.tasks.reason) == "" || e.MatchStatus == api.MatchVerified).FillWidth().Clicked() {
-					reason := a.tasks.reason
-					a.mutateTask("Pencocokan bukti", func(s TasksAPI) error {
-						_, err := s.ReviewTaskEvidence(context.Background(), t.ID, e.ID, api.TaskEvidenceReviewRequest{Matched: true, Reason: reason, ExpectedVersion: t.Version})
-						return err
-					}, nil)
-				}
-
-				if spaceButton(c, "Bukti tidak sesuai", "close", false).Disabled(a.taskWriteBlocked() || strings.TrimSpace(a.tasks.reason) == "" || e.MatchStatus == api.MatchRejected).FillWidth().Clicked() {
-					reason := a.tasks.reason
-					a.mutateTask("Pencocokan bukti", func(s TasksAPI) error {
-						_, err := s.ReviewTaskEvidence(context.Background(), t.ID, e.ID, api.TaskEvidenceReviewRequest{Matched: false, Reason: reason, ExpectedVersion: t.Version})
-						return err
-					}, nil)
-				}
-			}
-		})
-	}
-	if (t.Permissions.Progress || t.Permissions.Manage) && t.Progress != api.TaskCancelled && t.Progress != api.TaskDone && t.MatchStatus != api.MatchPending {
-		taskInput(c, "evidence-url", "Tautan hasil (https://…)", &a.tasks.evidenceURL)
-		taskLongInput(c, "evidence-note", "Catatan hasil", &a.tasks.evidenceNote)
-		if spaceButton(c, "Serahkan hasil", "send", true).FillWidth().Disabled(a.taskWriteBlocked() || (strings.TrimSpace(a.tasks.evidenceURL) == "" && strings.TrimSpace(a.tasks.evidenceNote) == "")).Clicked() {
-			req := api.TaskEvidenceRequest{URL: a.tasks.evidenceURL, Note: a.tasks.evidenceNote, ExpectedVersion: t.Version}
-			a.mutateTask("Penyerahan hasil", func(s TasksAPI) error { _, err := s.SubmitTaskEvidence(context.Background(), t.ID, req); return err }, func() { a.tasks.evidenceURL = ""; a.tasks.evidenceNote = "" })
-		}
-	}
-}
-func (a *App) taskHelpView(c *ui.Context, t api.Task) {
-	ui.Text(c, "Bantu pekerjaan ini").Bold()
-	for _, h := range t.HelpRequests {
-		ui.Column(c.Key(h.ID)).FillWidth().Gap(5).Children(func() {
-			ui.Text(c, h.User.DisplayName+" · "+taskHelpLabel(h.Status)).FontSize(12)
-			if h.Message != "" {
-				muted(c, h.Message)
-			}
-			if t.Permissions.Manage && h.Status == "pending" {
-				ui.Row(c).Gap(6).Children(func() {
-					for _, decision := range []struct {
-						label    string
-						approved bool
-					}{{"Terima bantuan", true}, {"Tolak bantuan", false}} {
-						if spaceButton(c, decision.label, "users", false).Disabled(a.taskWriteBlocked()).Clicked() {
-							req := api.TaskHelpDecisionRequest{Approved: decision.approved, ExpectedVersion: t.Version}
-							a.mutateTask("Keputusan bantuan", func(s TasksAPI) error { _, err := s.DecideTaskHelp(context.Background(), t.ID, h.ID, req); return err }, nil)
-						}
-					}
-				})
-			}
-		})
-	}
-	if t.Permissions.Help {
-		taskInput(c, "task-help", "Pesan penawaran bantuan", &a.tasks.help)
-		if spaceButton(c, "Tawarkan diri", "users", false).Disabled(a.taskWriteBlocked()).FillWidth().Clicked() {
-			message := a.tasks.help
-			a.mutateTask("Penawaran bantuan", func(s TasksAPI) error {
-				_, err := s.RequestTaskHelp(context.Background(), t.ID, api.TaskHelpCreateRequest{Message: message})
-				return err
-			}, func() { a.tasks.help = "" })
-		}
-	}
 }
 func (a *App) taskNotifications(c *ui.Context) {
 	if !a.tasks.notificationsLoaded && !a.tasks.notificationsBusy && a.tasks.notificationsErr == "" {
