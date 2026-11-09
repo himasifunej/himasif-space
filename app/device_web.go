@@ -5,7 +5,6 @@ package main
 import (
 	"errors"
 	"github.com/egoist/mygo"
-	"github.com/egoist/mygo/ui"
 	"github.com/himasifunej/himasif-space/internal/api"
 	"github.com/himasifunej/himasif-space/internal/appui"
 	"github.com/himasifunej/himasif-space/internal/id"
@@ -35,18 +34,101 @@ func attachDevice(win *mygo.Window, app *appui.App) {
 			n.Call("close")
 		}
 	}
-	app.DeviceSettings = func(c *ui.Context) {
-		ui.Column(c).Padding(24).Gap(12).Children(func() {
-			ui.Text(c, "Notifikasi browser").Bold()
-			ui.Text(c, "Notifikasi browser bekerja selama aplikasi terbuka. Tray, autostart, dan Ace tersedia di aplikasi desktop.")
-			if ui.Button(c, "Izinkan notifikasi browser").Clicked() {
-				n := js.Global().Get("Notification")
-				if n.Type() != js.TypeUndefined {
-					n.Call("requestPermission")
-				}
-			}
-		})
+	settings := &appui.BrowserNotifications{
+		Permission: browserNotificationPermission,
+		Request:    func() { requestBrowserNotifications(win) },
+		Test:       notifications.test,
 	}
+	app.DeviceSettings = settings.View
+	watchBrowserNotificationPermission(win)
+}
+
+// browserNotificationPermission reads Notification.permission as it is now;
+// nothing about it is remembered, so a change made in the browser's site
+// settings shows on the next frame.
+func browserNotificationPermission() (perm string) {
+	defer func() {
+		if recover() != nil {
+			perm = appui.BrowserPermissionUnsupported
+		}
+	}()
+	n := js.Global().Get("Notification")
+	if n.Type() != js.TypeFunction {
+		return appui.BrowserPermissionUnsupported
+	}
+	switch p := n.Get("permission").String(); p {
+	case appui.BrowserPermissionGranted, appui.BrowserPermissionDenied, appui.BrowserPermissionDefault:
+		return p
+	}
+	return appui.BrowserPermissionUnsupported
+}
+
+// redraw draws the window again, from a browser callback.
+func redraw(win *mygo.Window) js.Func {
+	return js.FuncOf(func(js.Value, []js.Value) any {
+		win.Update(func() {})
+		return nil
+	})
+}
+
+func requestBrowserNotifications(win *mygo.Window) {
+	defer func() { recover() }()
+	n := js.Global().Get("Notification")
+	if n.Type() != js.TypeFunction {
+		return
+	}
+	// Promise in current browsers; older Safari takes a callback instead.
+	done := redraw(win)
+	if p := n.Call("requestPermission", done); p.Type() == js.TypeObject && p.Get("then").Type() == js.TypeFunction {
+		p.Call("then", done, done)
+	}
+}
+
+// watchBrowserNotificationPermission draws the page again when the
+// permission changes: through the Permissions API where the browser has
+// it, and on returning to the tab, after a change in site settings.
+func watchBrowserNotificationPermission(win *mygo.Window) {
+	defer func() { recover() }()
+	update := redraw(win)
+	js.Global().Call("addEventListener", "focus", update)
+	js.Global().Get("document").Call("addEventListener", "visibilitychange", update)
+	perms := js.Global().Get("navigator").Get("permissions")
+	if perms.Type() != js.TypeObject || perms.Get("query").Type() != js.TypeFunction {
+		return
+	}
+	p := perms.Call("query", map[string]any{"name": "notifications"})
+	var watch js.Func
+	watch = js.FuncOf(func(_ js.Value, args []js.Value) any {
+		if len(args) > 0 && args[0].Type() == js.TypeObject {
+			args[0].Call("addEventListener", "change", update)
+		}
+		win.Update(func() {})
+		return nil
+	})
+	p.Call("then", watch, js.FuncOf(func(js.Value, []js.Value) any { return nil }))
+}
+
+// test shows a notification now, from the Perangkat page.
+func (n *webNotifications) test() (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = errors.New("Browser menolak menampilkan notifikasi uji: " + jsError(r).Error())
+		}
+	}()
+	constructor := js.Global().Get("Notification")
+	if constructor.Type() != js.TypeFunction || constructor.Get("permission").String() != "granted" {
+		return errors.New("Izin notifikasi browser belum diberikan.")
+	}
+	toast := constructor.New("Notifikasi uji Space", map[string]any{"body": "Notifikasi browser berfungsi di perangkat ini.", "tag": "space-test"})
+	var click js.Func
+	click = js.FuncOf(func(js.Value, []js.Value) any {
+		js.Global().Call("focus")
+		toast.Call("close")
+		click.Release()
+		return nil
+	})
+	toast.Set("onclick", click)
+	return nil
 }
 func (n *webNotifications) Notify(uid id.ID, d api.Delivery) (err error) {
 	defer func() {
