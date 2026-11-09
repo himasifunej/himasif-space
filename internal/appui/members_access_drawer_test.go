@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/himasifunej/himasif-space/internal/api"
 	"github.com/himasifunej/himasif-space/internal/authz"
@@ -53,6 +54,11 @@ func (f *memberAccessFixture) UpdateMember(_ context.Context, _, _, uid id.ID, r
 	f.record("update")
 	f.mu.Lock()
 	f.update = req
+	for i := range f.members {
+		if f.members[i].UserID == uid && req.Role != nil {
+			f.members[i].Role, f.members[i].Groups = *req.Role, slices.Clone(req.Groups)
+		}
+	}
 	f.mu.Unlock()
 	return api.Member{UserID: uid}, nil
 }
@@ -100,6 +106,8 @@ func memberAccessHarness(t *testing.T, w, h int) (*harness, *memberAccessFixture
 	f.spaces = []api.Space{sp}
 	hs.app.selectSpace(sp.ID)
 	hs.app.access.members = memberManagementState{division: d.ID, loaded: true, access: f.access, members: slices.Clone(f.members), roles: slices.Clone(f.roles)}
+	// The Space's tasks are loaded, none of them Nara's.
+	hs.app.tasks = tasksUIState{scope: sp.ID, loaded: true, items: []api.Task{{ID: id.New(), Title: "Poster", Assignee: api.PersonRef{ID: aruna.UserID, DisplayName: aruna.DisplayName}, Progress: api.TaskDoing}}}
 	hs.app.router.Push(PathSpaces)
 	hs.app.chrome.tab = "Anggota"
 	hs.tt.Frame()
@@ -194,9 +202,10 @@ func TestMemberAccessDrawerSavesAndReplaces45(t *testing.T) {
 	if update.Role == nil || *update.Role != api.RoleCompanion || !sameSet(update.Groups, []string{api.GroupTekno, api.GroupDesain}) || appoint.UserID != nara.UserID || appoint.Capabilities != nil {
 		t.Fatalf("update %+v appoint %+v", update, appoint)
 	}
-	if h.app.access.members.editing != id.Nil || !strings.Contains(h.app.access.members.notice, "Akses Nara Tekno disimpan") {
-		t.Fatalf("after save: editing %v notice %q", h.app.access.members.editing, h.app.access.members.notice)
+	if h.app.access.members.editing != id.Nil {
+		t.Fatal("the drawer stayed open after saving")
 	}
+	h.want("Akses Nara Tekno disimpan.") // a toast
 }
 
 // A save that fails half way says what was saved and what was not.
@@ -230,6 +239,7 @@ func TestMemberAccessDrawerRemoval(t *testing.T) {
 	h.click("Keluarkan Nara…")
 	h.tt.Frame()
 	h.want("Keluarkan Nara Tekno dari Media dan Teknologi?")
+	h.want("Nara tidak punya tugas aktif.")
 	h.click("Keluarkan anggota")
 	h.settle()
 	f.mu.Lock()
@@ -313,5 +323,105 @@ func TestMemberAccessDrawerAsksBeforeDiscarding(t *testing.T) {
 	defer f.mu.Unlock()
 	if len(f.calls) != 0 {
 		t.Fatalf("calls = %v", f.calls)
+	}
+}
+
+// Stage A3: a member who is still the PJ of active tasks cannot be removed;
+// "Lihat tugas" opens the board filtered to them. While tasks load,
+// removal waits.
+func TestMemberRemovalBlockedByActiveTasks(t *testing.T) {
+	h, f, _, nara := memberAccessHarness(t, 1440, 1500)
+	h.app.tasks.items = append(h.app.tasks.items,
+		api.Task{ID: id.New(), Title: "Foto acara", Assignee: api.PersonRef{ID: nara.UserID, DisplayName: nara.DisplayName}, Progress: api.TaskTodo},
+		api.Task{ID: id.New(), Title: "Video recap", Assignee: api.PersonRef{ID: nara.UserID, DisplayName: nara.DisplayName}, Progress: api.TaskSubmitted},
+		api.Task{ID: id.New(), Title: "Selesai", Assignee: api.PersonRef{ID: nara.UserID, DisplayName: nara.DisplayName}, Progress: api.TaskDone})
+	h.click("Ubah akses Nara Tekno")
+	h.click("Keluarkan Nara…")
+	h.tt.Frame()
+	h.want("Nara masih PJ 2 tugas aktif.")
+	if _, _, allowed := h.app.memberRemoveState(nara); allowed {
+		t.Fatal("removal allowed with active tasks")
+	}
+	h.click("Keluarkan anggota") // disabled: nothing happens
+	h.settle()
+	f.mu.Lock()
+	if len(f.calls) != 0 {
+		t.Fatalf("calls = %v", f.calls)
+	}
+	f.mu.Unlock()
+	h.click("Lihat tugas Nara")
+	h.tt.Frame()
+	if h.app.chrome.tab != "Board tugas" || h.app.tasks.filter != "Nara Tekno" || h.app.access.members.editing != id.Nil {
+		t.Fatalf("tab %q filter %q editing %v", h.app.chrome.tab, h.app.tasks.filter, h.app.access.members.editing)
+	}
+
+	// Tasks not loaded yet: removal waits.
+	h.app.tasks.loaded = false
+	if _, loaded, allowed := h.app.memberRemoveState(nara); loaded || allowed {
+		t.Fatal("removal allowed before tasks load")
+	}
+}
+
+// After "Simpan akses" the rows stay where they were, and the confirmation
+// is a toast that does not move the table. A reload or another sort
+// sorts again.
+func TestMemberRowsStayAfterSave(t *testing.T) {
+	h, f, _, _ := memberAccessHarness(t, 1440, 1500)
+	// Aruna as a plain member: once Nara is Pendamping, sorting by role
+	// would put Nara above Aruna.
+	f.mu.Lock()
+	f.members[1].Roles = nil
+	f.mu.Unlock()
+	h.app.access.members.members[1].Roles = nil
+	order := func() string {
+		names := []string{}
+		for _, m := range h.app.visibleMembers(time.Now()) {
+			names = append(names, m.DisplayName)
+		}
+		return strings.Join(names, ",")
+	}
+	before := order()
+	if before != "Demo Mediatek,Aruna Desain,Nara Tekno" {
+		t.Fatalf("start order %s", before)
+	}
+	row, _ := h.tt.Find("Ubah akses Nara Tekno")
+	h.click("Ubah akses Nara Tekno")
+	h.click("Role dasar Pendamping kadiv")
+	h.click("Simpan akses")
+	// While the table reloads it stays on screen.
+	if !h.app.access.members.loaded || len(h.app.access.members.members) != 3 {
+		t.Fatal("the table emptied while reloading")
+	}
+	h.settle()
+	h.tt.Frame()
+	if got := order(); got != before {
+		t.Fatalf("rows moved after save: %s", got)
+	}
+	if after, _ := h.tt.Find("Ubah akses Nara Tekno"); after.Y != row.Y {
+		t.Fatalf("Nara's row moved from y=%v to y=%v", row.Y, after.Y)
+	}
+	if m := h.app.memberByID(h.app.access.members.members[2].UserID); m == nil {
+		t.Fatal("members missing")
+	}
+	h.click("Muat ulang anggota")
+	h.settle()
+	if got := order(); got != "Demo Mediatek,Nara Tekno,Aruna Desain" {
+		t.Fatalf("after reload the table is not sorted again: %s", got)
+	}
+	if len(h.app.access.members.pinned) != 0 {
+		t.Fatal("reload kept the pinned order")
+	}
+}
+
+// Changing the sort releases the pinned order.
+func TestMemberSortReleasesPinnedOrder(t *testing.T) {
+	h, _, _, _ := memberAccessHarness(t, 1440, 1500)
+	h.app.pinMemberOrder()
+	if len(h.app.access.members.pinned) != 3 {
+		t.Fatalf("pinned %v", h.app.access.members.pinned)
+	}
+	h.click("Urutkan: Peran")
+	if len(h.app.access.members.pinned) != 0 {
+		t.Fatal("another sort kept the pinned order")
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 
@@ -118,6 +119,7 @@ func (a *App) membersPage(c *ui.Context) {
 						return
 					}
 					if spaceIconButton(c, "Muat ulang anggota", "refresh").Disabled(m.busy || m.loading).Clicked() {
+						m.pinned = nil // a reload sorts the table again
 						a.loadMembers(d)
 					}
 					if a.archiveDivisionAllowed(d) {
@@ -154,7 +156,7 @@ func (a *App) membersPage(c *ui.Context) {
 					}
 				})
 			}
-			if m.loading {
+			if m.loading && !m.loaded {
 				muted(c, "Memuat anggota dan kewenangan…")
 				return
 			}
@@ -162,7 +164,9 @@ func (a *App) membersPage(c *ui.Context) {
 				pageNotice(c, "alert", "Permintaan belum berhasil", m.err)
 			}
 			if m.notice != "" {
-				pageNotice(c, "check", "Perubahan tersimpan", m.notice)
+				// A toast, so the table below does not move.
+				c.AddToast(ui.Toast{Title: "Perubahan tersimpan", Description: m.notice, Type: "success", Timeout: 5 * time.Second})
+				m.notice = ""
 			}
 			if !m.loaded {
 				return

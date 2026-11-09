@@ -545,8 +545,8 @@ func (a *App) memberAccessSummaryView(c *ui.Context, member api.Member, first st
 	})
 }
 
-// memberRemoveBox is "Keluarkan dari …" in red. A 45 is removed from the
-// 45 first; the confirmation names what happens.
+// memberRemoveBox is "Keluarkan dari …" in red, at the end of the drawer.
+// A 45 is removed from the 45 first; the confirmation is a dialog.
 func (a *App) memberRemoveBox(c *ui.Context, member api.Member, first, division string) {
 	t := c.Theme()
 	m := &a.access.members
@@ -556,34 +556,76 @@ func (a *App) memberRemoveBox(c *ui.Context, member api.Member, first, division 
 			ui.Text(c, first+" masih 45. Matikan sakelar 45 dan simpan dulu, lalu keluarkan.").FontSize(13).TextColor(t.TextMuted).LineHeight(1.5)
 			return
 		}
-		active, _, ok := a.memberWork(member.UserID, time.Now())
-		if !m.removeAsk {
-			ui.Text(c, "Akses divisi dicabut. Riwayat kerja dan komentarnya tetap ada.").FontSize(13).TextColor(t.TextMuted).LineHeight(1.5)
-			if spaceButton(c, "Keluarkan "+first+"…", "close", false).TextColor(t.Danger).Border(1, spaceMix(t.Danger, t.Surface, .55)).Disabled(m.busy).Clicked() {
-				m.removeAsk = true
+		ui.Text(c, "Akses divisi dicabut. Tugas aktifnya perlu dialihkan dulu.").FontSize(13).TextColor(t.TextMuted).LineHeight(1.5)
+		if spaceButton(c, "Keluarkan "+first+"…", "close", false).TextColor(t.Danger).Border(1, spaceMix(t.Danger, t.Surface, .55)).Disabled(m.busy).Clicked() {
+			m.removeAsk = true
+		}
+	})
+	if m.removeAsk {
+		a.memberRemoveDialog(c, member, first, division)
+	}
+}
+
+// memberRemoveState is what the removal dialog may do: removal waits
+// while the Space's tasks are loading, and is refused while the member is
+// still the PJ of an active task (owner decision for stage A3; moving
+// tasks in bulk comes later).
+func (a *App) memberRemoveState(member api.Member) (active int, loaded, allowed bool) {
+	active, _, loaded = a.memberWork(member.UserID, time.Now())
+	return active, loaded, loaded && active == 0 && !slices.Contains(member.Roles, api.Role45)
+}
+
+// showMemberTasks closes the drawer and opens the board filtered to the
+// member, to give their tasks another PJ.
+func (a *App) showMemberTasks(member api.Member) {
+	a.closeMemberAccess()
+	a.tasks.filter = member.DisplayName
+	a.chrome.tab = "Board tugas"
+	a.projectTasks()
+}
+
+func (a *App) memberRemoveDialog(c *ui.Context, member api.Member, first, division string) {
+	t := c.Theme()
+	m := &a.access.members
+	active, loaded, allowed := a.memberRemoveState(member)
+	ui.DialogBase(c.Key("remove-member"), &m.removeAsk, func(backdrop, panel ui.Element) {
+		backdrop.Background(ui.RGBA(0, 0, 0, 0.35))
+		panel.Width(min(float32(440), mustWidth(c)-32)).Padding(20).Gap(12).Radius(14).Background(t.Surface).Border(1, t.Border).Label("Dialog keluarkan anggota").Children(func() {
+			ui.Text(c, "Keluarkan "+member.DisplayName+" dari "+division+"?").FontSize(16).Bold()
+			for _, l := range []string{"Akses ke board, catatan dan Bot WhatsApp divisi dicabut segera.", "Riwayat komentar dan hasil kerjanya tetap ada."} {
+				ui.Text(c.Key(l), "· "+l).FontSize(13).TextColor(t.TextMuted).LineHeight(1.5)
 			}
-			return
-		}
-		ui.Text(c, "Keluarkan "+member.DisplayName+" dari "+division+"?").FontSize(13).Bold()
-		lines := []string{"Akses ke board, catatan dan Bot WhatsApp divisi dicabut segera.", "Riwayat komentar dan hasil kerjanya tetap ada."}
-		if ok && active > 0 {
-			lines = append(lines, fmt.Sprintf("%d tugas aktifnya tetap atas namanya; alihkan PJ-nya di board.", active))
-		}
-		for _, l := range lines {
-			ui.Text(c.Key(l), "· "+l).FontSize(13).TextColor(t.TextMuted).LineHeight(1.5)
-		}
-		ui.Row(c).FillWidth().Gap(8).Justify(ui.End).Children(func() {
-			if spaceButton(c, "Batal keluarkan", "", false).Disabled(m.busy).Clicked() {
-				m.removeAsk = false
-			}
-			b := spaceButton(c, "Keluarkan anggota", "close", true).Disabled(m.busy)
-			b.Background(t.Danger).TextColor(ui.RGBA(255, 255, 255, 1))
-			if b.Clicked() {
-				uid := member.UserID
-				a.memberWrite(api.CapMembersManage, member.DisplayName+" dikeluarkan dari "+division+".", func(s WorkspaceAPI, p, d id.ID) error {
-					return s.RemoveMember(context.Background(), p, d, uid)
+			switch {
+			case !loaded:
+				ui.Text(c, "Menghitung tugas aktif "+first+"…").FontSize(13).TextColor(t.TextMuted)
+			case active > 0:
+				ui.Column(c.Key("tasks-left")).FillWidth().MinWidth(0).Gap(8).Padding(12, 14).Radius(10).Background(spaceMix(t.Warning, t.Surface, .88)).Border(1, spaceMix(t.Warning, t.Surface, .5)).Children(func() {
+					ui.Text(c, fmt.Sprintf("%s masih PJ %d tugas aktif.", first, active)).FontSize(13).Bold()
+					ui.Text(c, "Alihkan PJ tugas-tugas itu ke anggota lain dulu, lalu keluarkan "+first+".").FontSize(13).TextColor(t.TextMuted).LineHeight(1.5)
+					if spaceButton(c, "Lihat tugas "+first, "board", false).Border(1, t.Border).Clicked() {
+						m.removeAsk = false
+						a.showMemberTasks(member)
+					}
 				})
+			default:
+				ui.Text(c, first+" tidak punya tugas aktif.").FontSize(13).TextColor(t.TextMuted)
 			}
+			ui.Row(c).FillWidth().Gap(8).Justify(ui.End).Children(func() {
+				if spaceButton(c, "Batal keluarkan", "", false).Disabled(m.busy).Clicked() {
+					m.removeAsk = false
+				}
+				b := spaceButton(c, "Keluarkan anggota", "close", true).Disabled(m.busy || !allowed)
+				if allowed {
+					b.Background(t.Danger).TextColor(ui.RGBA(255, 255, 255, 1))
+				}
+				if b.Clicked() && allowed {
+					uid := member.UserID
+					m.removeAsk = false
+					a.memberWrite(api.CapMembersManage, member.DisplayName+" dikeluarkan dari "+division+".", func(s WorkspaceAPI, p, d id.ID) error {
+						return s.RemoveMember(context.Background(), p, d, uid)
+					})
+				}
+			})
 		})
 	})
 }

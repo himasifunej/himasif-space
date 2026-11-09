@@ -42,6 +42,10 @@ type memberManagementState struct {
 	inviteOpen            bool
 	// query, filter and sort are the table's toolbar (stage A1).
 	query, filter, sort string
+	// pinned keeps the rows where they were after a save, so a row whose
+	// role changed does not jump (stage A3); the refresh button or another
+	// sort order lets the table sort again.
+	pinned []id.ID
 }
 
 func (a *App) memberDivision() id.ID {
@@ -59,8 +63,15 @@ func (a *App) loadMembers(d id.ID) {
 	if !ok || !a.spacePermissionsForDivision(d, api.CapMembersRead) {
 		return
 	}
-	oldseq := a.access.members.seq
-	a.access.members = memberManagementState{division: d, loading: true, seq: oldseq + 1}
+	old := a.access.members
+	a.access.members = memberManagementState{division: d, loading: true, seq: old.seq + 1}
+	if old.division == d && old.loaded {
+		// Reloading the same division keeps the table, its toolbar and its
+		// row order on screen until the new data arrives.
+		n := &a.access.members
+		n.loaded, n.access, n.members, n.roles, n.invitations = true, old.access, old.members, old.roles, old.invitations
+		n.query, n.filter, n.sort, n.pinned = old.query, old.filter, old.sort, old.pinned
+	}
 	seq, gen, p, sid := a.access.members.seq, a.gen, a.periodID, a.selectedSpaceID()
 	a.async(func() func() {
 		ac, err := svc.DivisionAccess(context.Background(), p, d)
@@ -123,6 +134,7 @@ func (a *App) memberWrite(cap, label string, work func(WorkspaceAPI, id.ID, id.I
 			var step *memberStepError
 			if errors.As(err, &step) {
 				msg := step.done + " " + a.accessFailure(step.err)
+				a.pinMemberOrder()
 				a.loadMembers(d)
 				a.access.members.err = msg
 				a.loadSpaces()
@@ -132,6 +144,7 @@ func (a *App) memberWrite(cap, label string, work func(WorkspaceAPI, id.ID, id.I
 				a.access.members.err = a.accessFailure(err)
 				return
 			}
+			a.pinMemberOrder()
 			a.loadMembers(d)
 			a.access.members.notice = label
 			a.loadSpaces()

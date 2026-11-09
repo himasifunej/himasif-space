@@ -205,7 +205,14 @@ func (a *App) toasts(c *ui.Context) {
 		for _, toast := range toasts {
 			parts := ui.ToastBase(c, toast)
 			parts.Root.Width(min(float32(330), w-32)).Row().AlignItems(ui.Center).Padding(14).Gap(10).Radius(10).Background(t.Surface).Border(1, t.Border).Shadow(0, 4, 16, 0, ui.RGBA(0, 0, 0, .2)).Children(func() {
-				ui.Icon(c, spaceIcon("info")).Size(18, 18).TextColor(t.Accent)
+				icon, color := "info", t.Accent
+				switch toast.Type {
+				case "success":
+					icon, color = "check", t.Success
+				case "error":
+					icon, color = "alert", t.Danger
+				}
+				ui.Icon(c, spaceIcon(icon)).Size(18, 18).TextColor(color)
 				ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
 					ui.Text(c, toast.Title).Bold()
 					if toast.Description != "" {
