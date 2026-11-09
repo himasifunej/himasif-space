@@ -485,9 +485,19 @@ func (a *App) period() *api.Period {
 	return nil
 }
 
-// defaultPeriod returns the active period, else the one being prepared,
-// else the first.
+// defaultPeriod returns the period the account belongs to — active, being
+// prepared, then closed — else the active period, else the one being
+// prepared, else the first. During a change of period the new one is
+// active before its people are invited; its old people keep opening their
+// own period.
 func defaultPeriod(ps []api.Period) id.ID {
+	for _, status := range []string{api.PeriodActive, api.PeriodPreparing, api.PeriodClosed} {
+		for _, p := range ps {
+			if p.Member && p.Status == status {
+				return p.ID
+			}
+		}
+	}
 	for _, status := range []string{api.PeriodActive, api.PeriodPreparing} {
 		for _, p := range ps {
 			if p.Status == status {

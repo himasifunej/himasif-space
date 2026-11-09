@@ -441,6 +441,24 @@ func TestDefaultPeriod(t *testing.T) {
 	if got := defaultPeriod(ps[:1]); got != ps[0].ID {
 		t.Error("with closed periods only, the first is not chosen")
 	}
+	// The change of period: 2026/2027 is active before its people are
+	// invited, and the old pengurus must not land in an empty period.
+	next, cur := api.Period{ID: id.New(), Status: api.PeriodActive}, api.Period{ID: id.New(), Status: api.PeriodActive, Member: true}
+	if got := defaultPeriod([]api.Period{next, cur}); got != cur.ID {
+		t.Error("an active period the account belongs to is not preferred")
+	}
+	cur.Status = api.PeriodClosed
+	if got := defaultPeriod([]api.Period{next, cur}); got != cur.ID {
+		t.Error("someone in no active period does not land on the period they were in")
+	}
+	next.Member = true
+	if got := defaultPeriod([]api.Period{next, cur}); got != next.ID {
+		t.Error("the active period the account belongs to is not preferred over its closed one")
+	}
+	// Servers before the flag: as before, the active one.
+	if got := defaultPeriod([]api.Period{{ID: next.ID, Status: api.PeriodActive}, {ID: cur.ID, Status: api.PeriodClosed}}); got != next.ID {
+		t.Error("without membership flags the active period is not chosen")
+	}
 }
 
 func TestPages(t *testing.T) {
