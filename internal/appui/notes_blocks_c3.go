@@ -48,7 +48,10 @@ type noteBlockDrag struct {
 
 type noteMenuEntry struct {
 	key, label, hint, icon, glyph, group, words string
-	make                                        func(e *noteDocumentEditor) []api.NoteBlock
+	// short is the shortcut shown on the right of the menu: a Markdown
+	// marker typed at the start of an empty line, or a "/" filter word.
+	short string
+	make  func(e *noteDocumentEditor) []api.NoteBlock
 }
 
 const (
@@ -68,9 +71,9 @@ func noteMenuEntries() []noteMenuEntry {
 		return api.NoteBlock{Type: kind, Items: []api.NoteListItem{noteEmptyItem()}}
 	}
 	return []noteMenuEntry{
-		{key: "action", label: "Action item", hint: "Checklist tugas hasil rapat", icon: "task", group: noteMenuNotulen, words: "tugas todo pj checklist", make: one(list(api.BlockChecklist))},
-		{key: "decision", label: "Keputusan", hint: "Kotak hijau untuk hasil rapat", icon: "check", group: noteMenuNotulen, words: "callout putusan hasil", make: one(api.NoteBlock{Type: api.BlockCallout, Variant: api.CalloutDecision, Spans: []api.Span{{}}})},
-		{key: "attendance", label: "Kehadiran", hint: "Hadir, izin, absen peserta", icon: "users", group: noteMenuNotulen, words: "hadir izin absen peserta presensi", make: func(e *noteDocumentEditor) []api.NoteBlock {
+		{key: "action", short: "/tugas", label: "Action item", hint: "Checklist tugas hasil rapat", icon: "task", group: noteMenuNotulen, words: "tugas todo pj checklist", make: one(list(api.BlockChecklist))},
+		{key: "decision", short: "/kep", label: "Keputusan", hint: "Kotak hijau untuk hasil rapat", icon: "check", group: noteMenuNotulen, words: "callout putusan hasil", make: one(api.NoteBlock{Type: api.BlockCallout, Variant: api.CalloutDecision, Spans: []api.Span{{}}})},
+		{key: "attendance", short: "/hadir", label: "Kehadiran", hint: "Hadir, izin, absen peserta", icon: "users", group: noteMenuNotulen, words: "hadir izin absen peserta presensi", make: func(e *noteDocumentEditor) []api.NoteBlock {
 			items := []api.NoteListItem{}
 			if e.Attendance != nil {
 				for _, line := range e.Attendance() {
@@ -83,18 +86,19 @@ func noteMenuEntries() []noteMenuEntry {
 			return []api.NoteBlock{{Type: api.BlockHeading, Level: 3, Text: "Kehadiran"}, {Type: api.BlockBulletedList, Items: items}}
 		}},
 		{key: "text", label: "Teks", hint: "Paragraf biasa", glyph: "¶", group: noteMenuBasic, words: "paragraf tulisan", make: one(api.NoteBlock{Type: api.BlockParagraph, Spans: []api.Span{{}}})},
-		{key: "h2", label: "Judul bagian", hint: "Judul besar", glyph: "H2", group: noteMenuBasic, words: "heading judul h2", make: one(api.NoteBlock{Type: api.BlockHeading, Level: 2})},
-		{key: "h3", label: "Subjudul", hint: "Judul kecil", glyph: "H3", group: noteMenuBasic, words: "heading subjudul h3", make: one(api.NoteBlock{Type: api.BlockHeading, Level: 3})},
-		{key: "bullet", label: "Daftar poin", hint: "Daftar dengan titik", glyph: "•", group: noteMenuBasic, words: "list bullet poin", make: one(list(api.BlockBulletedList))},
-		{key: "numbered", label: "Daftar bernomor", hint: "Agenda, urutan", glyph: "1.", group: noteMenuBasic, words: "list nomor agenda urutan", make: one(list(api.BlockNumberedList))},
-		{key: "checklist", label: "Checklist", hint: "Daftar centang", glyph: "☐", group: noteMenuBasic, words: "todo centang", make: one(list(api.BlockChecklist))},
+		{key: "h1", short: "#", label: "Judul 1", hint: "Judul terbesar", glyph: "H1", group: noteMenuBasic, words: "heading judul h1", make: one(api.NoteBlock{Type: api.BlockHeading, Level: 1})},
+		{key: "h2", short: "##", label: "Judul 2", hint: "Judul bagian", glyph: "H2", group: noteMenuBasic, words: "heading judul bagian h2", make: one(api.NoteBlock{Type: api.BlockHeading, Level: 2})},
+		{key: "h3", short: "###", label: "Judul 3", hint: "Subjudul", glyph: "H3", group: noteMenuBasic, words: "heading subjudul judul h3", make: one(api.NoteBlock{Type: api.BlockHeading, Level: 3})},
+		{key: "bullet", short: "-", label: "Daftar poin", hint: "Daftar dengan titik", glyph: "•", group: noteMenuBasic, words: "list bullet poin", make: one(list(api.BlockBulletedList))},
+		{key: "numbered", short: "1.", label: "Daftar bernomor", hint: "Agenda, urutan", glyph: "1.", group: noteMenuBasic, words: "list nomor agenda urutan", make: one(list(api.BlockNumberedList))},
+		{key: "checklist", short: "[]", label: "Checklist", hint: "Daftar centang", glyph: "☐", group: noteMenuBasic, words: "todo centang", make: one(list(api.BlockChecklist))},
 		{key: "toggle", label: "Toggle", hint: "Judul yang bisa dilipat", glyph: "▸", group: noteMenuBasic, words: "lipat buka tutup", make: one(api.NoteBlock{Type: api.BlockToggle, Children: []api.NoteBlock{{Type: api.BlockParagraph, Spans: []api.Span{{}}}}})},
 		{key: "callout", label: "Callout", hint: "Catatan penting berlatar", glyph: "!", group: noteMenuBasic, words: "info penting sorot", make: one(api.NoteBlock{Type: api.BlockCallout, Variant: api.CalloutInfo, Spans: []api.Span{{}}})},
 		{key: "table", label: "Tabel", hint: "Jadwal dalam baris dan kolom", glyph: "⊞", group: noteMenuBasic, words: "jadwal tabel kolom", make: func(*noteDocumentEditor) []api.NoteBlock {
 			columns := []string{"Tanggal", "Jam", "Kegiatan", "PJ", "Keterangan"}
 			return []api.NoteBlock{{Type: api.BlockTable, Columns: columns, Rows: [][][]api.Span{noteEmptyRow(len(columns))}}}
 		}},
-		{key: "divider", label: "Pemisah", hint: "Garis antar bagian", glyph: "—", group: noteMenuBasic, words: "garis divider", make: one(api.NoteBlock{Type: api.BlockDivider})},
+		{key: "divider", short: "---", label: "Pemisah", hint: "Garis antar bagian", glyph: "—", group: noteMenuBasic, words: "garis divider", make: one(api.NoteBlock{Type: api.BlockDivider})},
 	}
 }
 
@@ -330,7 +334,7 @@ func (e *noteDocumentEditor) documentView(c *ui.Context, outer ui.Element) {
 		}
 		if e.editable && end >= len(e.blocks) {
 			t := c.Theme()
-			b := ui.ButtonBase(c.Key("add-end")).Label("Tambah blok").Row().FillWidth().MinHeight(36).Padding(0, 8, 0, 52).Gap(8).AlignItems(ui.Center).Radius(6).TextColor(faint(t)).Disabled(len(e.blocks) >= api.NoteMaxBlocks)
+			b := ui.ButtonBase(c.Key("add-end")).Label("Tambah blok").Row().Justify(ui.Start).FillWidth().MinHeight(36).Padding(0, 8, 0, 52).Gap(8).AlignItems(ui.Center).Radius(6).TextColor(faint(t)).Disabled(len(e.blocks) >= api.NoteMaxBlocks)
 			if b.Hovered() {
 				b.Background(t.SurfaceHover)
 			}
@@ -551,6 +555,11 @@ func (e *noteDocumentEditor) paragraphInput(c *ui.Context, index int, label, pla
 		e.blocks[index] = api.NoteBlock{Type: api.BlockHeading, Level: len(value) - 1}
 		e.focusOn(index, -1)
 		return
+	case paragraph && value == "---":
+		e.blocks[index] = api.NoteBlock{Type: api.BlockDivider}
+		at := e.insertBlocks(index, false, []api.NoteBlock{{Type: api.BlockParagraph, Spans: []api.Span{{}}}})
+		e.focusOn(at, -1)
+		return
 	case paragraph && (value == "- " || value == "* " || value == "1. " || value == "[] " || value == "[ ] "):
 		kind := api.BlockBulletedList
 		if value == "1. " {
@@ -577,7 +586,7 @@ func (e *noteDocumentEditor) blockMenu(c *ui.Context, anchor ui.Element) {
 	t := c.Theme()
 	matches := noteMenuMatches(e.menu.query)
 	e.menu.index = min(e.menu.index, max(len(matches)-1, 0))
-	width := float32(300)
+	width := float32(260)
 	if e.Compact {
 		width = max(anchor.Bounds().W, 280)
 	}
@@ -634,16 +643,24 @@ func noteMenuMark(c *ui.Context, m noteMenuEntry, size float32) {
 
 func (e *noteDocumentEditor) menuRow(c *ui.Context, m noteMenuEntry, active bool) {
 	t := c.Theme()
-	b := ui.ButtonBase(c.Key(m.key)).Label(m.label).Row().FillWidth().MinWidth(0).Padding(5, 8).Gap(10).AlignItems(ui.Center).Radius(6)
+	// Gaya enowX: one compact line, the shortcut on the right; the hint
+	// is the tooltip.
+	b := ui.ButtonBase(c.Key(m.key)).Label(m.label).Tooltip(m.hint).Row().FillWidth().MinWidth(0).Height(30).Padding(0, 8).Gap(8).AlignItems(ui.Center).Radius(6)
 	if active || b.Hovered() {
 		b.Background(t.SurfaceHover)
 	}
 	b.FocusRing(b.FocusVisible()).Children(func() {
-		noteMenuMark(c, m, 30)
-		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-			ui.Text(c, m.label).FontSize(13).FontWeight(500).MaxLines(1)
-			ui.Text(c, m.hint).FontSize(11).TextColor(t.TextMuted).MaxLines(1)
+		ui.Box(c).Width(20).Shrink(0).Center().Children(func() {
+			if m.icon != "" {
+				ui.Icon(c, spaceIcon(m.icon)).Size(15, 15).TextColor(t.TextMuted)
+			} else {
+				ui.Text(c, m.glyph).FontSize(12).Bold().TextColor(t.TextMuted)
+			}
 		})
+		ui.Text(c, m.label).FontSize(13).MaxLines(1).Grow(1).MinWidth(0)
+		if m.short != "" {
+			ui.Text(c, m.short).Font(FontMono).FontSize(11).TextColor(faint(t)).Shrink(0)
+		}
 	})
 	if b.Clicked() {
 		e.applyMenu(m)
@@ -878,4 +895,32 @@ func (e *noteDocumentEditor) MobileBar(c *ui.Context) {
 			tool("bar-tools", "Pilihan blok", "more", "", !valid, func() { e.advanced = !e.advanced })
 		})
 	})
+}
+
+type noteHeading struct {
+	index, level int
+	text         string
+}
+
+// Headings are the document's top-level headings, for "Di halaman ini".
+func (e *noteDocumentEditor) Headings() []noteHeading {
+	out := []noteHeading{}
+	for i, b := range e.blocks {
+		if b.Type == api.BlockHeading && strings.TrimSpace(b.Text) != "" {
+			out = append(out, noteHeading{index: i, level: max(1, min(b.Level, 3)), text: b.Text})
+		}
+	}
+	return out
+}
+
+// Reveal shows the page holding a block and selects it (the notulis'
+// caret goes into it).
+func (e *noteDocumentEditor) Reveal(index int) {
+	if index < 0 || index >= len(e.blocks) {
+		return
+	}
+	e.selectBlock(index)
+	if e.editable {
+		e.focusOn(index, -1)
+	}
 }

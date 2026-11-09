@@ -74,7 +74,7 @@ func TestNoteSlashMenuTurnsLineIntoBlock(t *testing.T) {
 	c3Click(t, tt, "Paragraf 2")
 	tt.Type("/kep")
 	c3Frames(tt)
-	if !e.menu.open || e.menu.block != 1 || e.menu.query != "kep" || !tt.HasText("Keputusan") || !tt.HasText("Kotak hijau untuk hasil rapat") {
+	if !e.menu.open || e.menu.block != 1 || e.menu.query != "kep" || !tt.HasText("Keputusan") || !tt.HasText("/kep") {
 		t.Fatalf("menu %+v; texts %q", e.menu, tt.Texts())
 	}
 	tt.Key(0, ui.KeyEnter)
@@ -206,7 +206,7 @@ func TestNoteCalloutAndToggleAreCreatedAndSaved(t *testing.T) {
 	}
 	c3Click(t, tt, "Buka toggle 1")
 	c3Click(t, tt, "Tambah blok di bawah blok 1")
-	c3Click(t, tt, "Judul bagian")
+	c3Click(t, tt, "Judul 2")
 	got := e.Content()
 	if got[0].Type != api.BlockToggle || got[0].Text != "Pembahasan" || len(got[0].Children) != 2 || noteSpansText(got[0].Children[0].Spans) != "Detail diskusi" || got[1].Type != api.BlockHeading {
 		t.Fatalf("content = %+v", got)

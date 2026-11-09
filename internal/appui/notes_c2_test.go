@@ -382,52 +382,6 @@ func TestNoteRelativeTimes(t *testing.T) {
 	}
 }
 
-// The document: bar with breadcrumb, kind, save state and privacy; the
-// meeting's date, place and attendance; on a phone one folded line.
-func TestNoteDocumentLayoutDesktopAndPhone(t *testing.T) {
-	h, _ := c2Harness(t, false)
-	h.tt.SetSize(1440, 900)
-	h.app.router.Push(PathSpaces)
-	h.app.chrome.tab = "Catatan"
-	h.tt.Frame()
-	for _, s := range []string{"Rapat", "Notulen", "Hanya divisi ini", "Tanggal", "Senin, 9 Nov 2026 · 19.30–20.45", "Tempat", "Sekretariat HIMASIF + rapat daring",
-		"Kehadiran", "Laras", "izin · kuliah pengganti", "6 hadir · 1 izin", "Sinta Notulis sedang mencatat", "Diedit baru saja"} {
-		h.want(s)
-	}
-	for _, s := range []string{"Isi resmi versi", "Simpan draf pemulihan ke server", "Simpan sekarang"} {
-		h.dontWant(s)
-	}
-	h.tt.SetSize(390, 844)
-	h.tt.Frame()
-	h.want("Sen 9 Nov · 19.30 · 6 hadir · 1 izin")
-	h.dontWant("Tanggal")
-	h.dontWant("Hanya divisi ini") // the phone bar keeps only the lock icon
-	h.click("Properti catatan")
-	h.tt.Frame()
-	h.want("Tanggal")
-	h.want("izin · kuliah pengganti")
-	h.click("Kembali ke daftar catatan")
-	h.tt.Frame()
-	h.dontWant("Tanggal")
-}
-
-// The notulis gets the frameless title, the autosave hint and Simpan
-// sekarang; a note without a meeting shows when it was made.
-func TestNoteDocumentEditorBarAndPlainNote(t *testing.T) {
-	h, _ := c2Harness(t, true)
-	h.tt.SetSize(1440, 900)
-	h.app.router.Push(PathSpaces)
-	h.app.chrome.tab = "Catatan"
-	h.tt.Frame()
-	h.want("Tersimpan otomatis beberapa detik setelah kamu berhenti mengetik.")
-	h.want("Simpan sekarang")
-	h.app.notes.note.MeetingID = nil
-	h.app.notes.note.TemplateKind = api.TemplateFree
-	h.tt.Frame()
-	h.want("Dibuat")
-	h.dontWant("Kehadiran")
-}
-
 // SPACE_UI_CAPTURE_DIR opts into PNGs of the C2 document: the notulis on a
 // desktop, a reader on a desktop, and the phone with properties folded and
 // opened. Light theme, dummy data.

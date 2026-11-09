@@ -129,6 +129,11 @@ type notesUIState struct {
 	remoteBy     string
 	propsOpen    bool // phone: the folded meeting properties are open
 	releaseAfter bool // "Selesai mencatat" waits for the save in flight
+	// Gaya C: the right panel (tab; 0 default, 1 open, 2 closed), the
+	// phone sheet, the "⋯" menu and the attachment form.
+	panelTab                        string
+	panelPref                       int8
+	sheetOpen, moreOpen, attachOpen bool
 }
 
 func (a *App) notesService() (NotesAPI, bool) {
