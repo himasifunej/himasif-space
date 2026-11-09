@@ -126,7 +126,7 @@ func TestMembersTableNativeCapture(t *testing.T) {
 		{UserID: id.New(), DisplayName: "Laras Foto", Role: api.RoleMember, Groups: []string{api.GroupVideo}, WhatsAppLinked: &yes},
 	}
 	h.app.access.members = memberManagementState{division: d.ID, loaded: true, access: api.Access{DivisionID: d.ID, Roles: roles, Capabilities: caps}, members: members,
-		roles:       []api.CustomRole{{ID: editor, Name: "Editor web"}},
+		roles:       []api.CustomRole{{ID: editor, Name: "Editor web", Capabilities: []string{api.CapNotesManage, api.CapSOPRead}}, {ID: id.New(), Name: "Penjadwal konten", Capabilities: []string{api.CapPingSend}}},
 		invitations: []api.Invitation{{ID: id.New(), Email: "calon.anggota@contoh.ac.id", Status: api.InvitationPending, CreatedAt: time.Now(), ExpiresAt: time.Now().Add(7 * 24 * time.Hour)}}}
 	past := time.Now().Add(-26 * time.Hour)
 	tasks := []api.Task{}
@@ -163,6 +163,22 @@ func TestMembersTableNativeCapture(t *testing.T) {
 	h.app.access.members.query = ""
 	h.tt.SetSize(390, 844)
 	shot("anggota-a1-hp")
+
+	// Stage A2: the table at 1280 px keeps names whole, and "Ubah akses"
+	// opens the drawer (desktop) or the sheet (phone).
+	h.tt.SetSize(1280, 800)
+	shot("anggota-a2-1280")
+	h.tt.SetSize(1440, 900)
+	h.app.openMemberAccess(members[3])
+	h.app.access.members.role = api.RoleCompanion
+	shot("anggota-a2-drawer")
+	h.app.access.members.on45 = true
+	h.app.access.members.replaceAsk = true
+	shot("anggota-a2-ganti-45")
+	h.app.access.members.replaceAsk = false
+	h.app.access.members.on45 = false
+	h.tt.SetSize(390, 844)
+	shot("anggota-a2-hp-sheet")
 }
 
 // The page shows the new head, chips and an empty state for a search that

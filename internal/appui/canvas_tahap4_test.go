@@ -67,9 +67,9 @@ func TestMemberRoleBadgeAndLoad(t *testing.T) {
 	}
 }
 
-// The Anggota tab is a table with Ping and Ubah role per row; the old
-// per-member actions open from Ubah role for a kadiv.
-func TestMembersTableOpensOldActionsFromUbahRole(t *testing.T) {
+// The Anggota tab is a table with Ping and Ubah akses per row; a kadiv's
+// per-member actions open in the access drawer (stage A2).
+func TestMembersTableOpensAccessDrawer(t *testing.T) {
 	h := newChromeHarness(t, nil)
 	h.tt.SetSize(1440, 900)
 	d := h.api.divisions[0]
@@ -84,11 +84,11 @@ func TestMembersTableOpensOldActionsFromUbahRole(t *testing.T) {
 	for _, s := range []string{"Anggota", "Aruna Desain", "Undangan tertunda", "rina@student.unej.ac.id", "Kewenangan role", "Undang anggota"} {
 		h.want(s)
 	}
-	h.dontWant("Hapus anggota Aruna Desain")
-	h.click("Ubah role Aruna Desain")
+	h.dontWant("Keluarkan Aruna…")
+	h.click("Ubah akses Aruna Desain")
 	h.tt.Frame()
-	h.want("Hapus anggota Aruna Desain")
-	h.want("Tunjuk 45 Aruna Desain")
+	h.want("Keluarkan Aruna…")
+	h.want("Wakil operasional (45) Aruna Desain")
 }
 
 func TestArchiveShowsHandoverOnlyForAdmin(t *testing.T) {
