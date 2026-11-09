@@ -31,6 +31,24 @@ func (s *Store) Tx(ctx context.Context, fn func(q Querier) error) error {
 }
 
 // Periods returns every period, the latest first.
+// MemberPeriodIDs returns the periods in which uid has a membership that
+// was not removed, closed periods included.
+func (s *Store) MemberPeriodIDs(ctx context.Context, uid id.ID) (map[id.ID]bool, error) {
+	rows, err := s.pool.Query(ctx, `select distinct period_id from memberships where user_id = $1 and removed_at is null`, uid)
+	if err != nil {
+		return nil, err
+	}
+	ids, err := pgx.CollectRows(rows, pgx.RowTo[id.ID])
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[id.ID]bool, len(ids))
+	for _, pid := range ids {
+		out[pid] = true
+	}
+	return out, nil
+}
+
 func (s *Store) Periods(ctx context.Context) ([]api.Period, error) {
 	rows, err := s.pool.Query(ctx, `select id, label, starts_on, ends_on, time_zone, status from periods order by starts_on desc`)
 	if err != nil {

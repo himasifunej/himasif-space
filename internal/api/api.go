@@ -93,6 +93,10 @@ type Period struct {
 	EndsOn   timeutil.Date `json:"endsOn"`
 	TimeZone string        `json:"timeZone"`
 	Status   string        `json:"status"`
+	// Member says the caller has a membership in this period, as listed by
+	// GET /api/periods; the app opens such a period first. Absent from
+	// older servers.
+	Member bool `json:"member,omitempty"`
 }
 
 // Division is a division whose identity lasts across periods.

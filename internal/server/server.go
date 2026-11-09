@@ -388,11 +388,19 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, status, h)
 }
 
-func (s *Server) periods(w http.ResponseWriter, r *http.Request, _ *principal) {
+func (s *Server) periods(w http.ResponseWriter, r *http.Request, p *principal) {
 	ps, err := s.store.Periods(r.Context())
 	if err != nil {
 		s.internal(w, r, err)
 		return
+	}
+	mine, err := s.store.MemberPeriodIDs(r.Context(), p.User.ID)
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	for i := range ps {
+		ps[i].Member = mine[ps[i].ID]
 	}
 	writeJSON(w, http.StatusOK, api.List[api.Period]{Items: nonNil(ps)})
 }
