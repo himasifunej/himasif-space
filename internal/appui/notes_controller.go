@@ -119,6 +119,16 @@ type notesUIState struct {
 	draftBusy, leaseBusy, editing                                                        bool
 	leaseService                                                                         NotesAPI
 	disk                                                                                 *noteDiskOrder
+	// Autosave (stage C2, owner decision 9 Nov): saving runs beside busy so
+	// the editor stays editable while the official copy is written.
+	saving                       bool
+	saveErr                      string
+	savedAt, saveFailedAt, since time.Time // since: first unsaved change
+	// remoteAt/remoteBy: a reader saw a newer official version arrive.
+	remoteAt     time.Time
+	remoteBy     string
+	propsOpen    bool // phone: the folded meeting properties are open
+	releaseAfter bool // "Selesai mencatat" waits for the save in flight
 }
 
 func (a *App) notesService() (NotesAPI, bool) {
@@ -293,6 +303,8 @@ func (a *App) closeNote() {
 	a.notes.baseVersion, a.notes.conflict = 0, false
 	a.notes.revision, a.notes.localRevision, a.notes.serverRevision = 0, 0, 0
 	a.notes.deleteConfirm, a.notes.takeoverConfirm = false, false
+	a.notes.saving, a.notes.saveErr, a.notes.propsOpen, a.notes.releaseAfter = false, "", false, false
+	a.notes.savedAt, a.notes.saveFailedAt, a.notes.since, a.notes.remoteAt, a.notes.remoteBy = time.Time{}, time.Time{}, time.Time{}, time.Time{}, ""
 }
 
 func (a *App) loadNoteDetail(preserve bool) {
@@ -351,7 +363,21 @@ func (a *App) loadNoteDetail(preserve bool) {
 				}
 			}
 			a.conn = connOnline
+			prev := a.notes.note
+			same := preserve && prev != nil && prev.ID == n.ID
+			// A refresh that left before this session's own autosave came
+			// back carries an older version; keep the newer official copy.
+			stale := same && n.Version < prev.Version
 			canonical := cloneNote(n)
+			if stale {
+				canonical.Title, canonical.Content, canonical.Version, canonical.UpdatedAt = prev.Title, cloneNoteDocument(prev.Content), prev.Version, prev.UpdatedAt
+			}
+			if same && n.Version > prev.Version && (n.Lock == nil || !n.Lock.HeldByCaller) {
+				a.notes.remoteAt, a.notes.remoteBy = a.noteNow(), ""
+				if n.Lock != nil {
+					a.notes.remoteBy = n.Lock.Editor.DisplayName
+				}
+			}
 			a.notes.note = &canonical
 			a.notes.pendingFileErr = ""
 			if pendingErr != nil {
@@ -361,7 +387,7 @@ func (a *App) loadNoteDetail(preserve bool) {
 				a.notes.fileUpload = &noteFileUpload{PendingNoteFile: *pending, Saved: true}
 			}
 
-			a.replaceNote(n)
+			a.replaceNote(canonical)
 			a.notes.history, a.notes.links, a.notes.recovery = history, links, drafts
 			a.notes.historyErr, a.notes.linksErr, a.notes.draftErr = "", "", ""
 			if historyErr != nil {
@@ -379,13 +405,24 @@ func (a *App) loadNoteDetail(preserve bool) {
 			if local != nil && local.NoteID == nid && local.SpaceID == space {
 				a.notes.localRecovery = copyLocalNoteDraft(local)
 			}
-			if preserve && a.notes.dirty && a.notes.baseVersion != n.Version {
+			// Only a newer version than the one this copy started from is a
+			// conflict; the session's own autosave in flight is not.
+			if preserve && a.notes.dirty && !a.notes.saving && n.Version > a.notes.baseVersion {
 				a.notes.compare = a.noteLocalSnapshot()
 				a.notes.conflict = true
 			}
-			if !preserve || !a.notes.dirty {
+			switch {
+			case preserve && a.notes.dirty, stale, preserve && a.notes.saving:
+				// Keep the working copy; the save callback sets the baseline.
+			case preserve && a.notes.editor != nil && a.notes.baselineKnown && n.Version == a.notes.baseVersion:
+				// Same official content: leave the editor (focus, page) alone.
+			default:
 				a.notes.title = n.Title
-				a.notes.editor = newNoteDocumentEditor(n.Content)
+				if preserve && a.notes.editor != nil {
+					a.notes.editor.Replace(n.Content)
+				} else {
+					a.notes.editor = newNoteDocumentEditor(n.Content)
+				}
 				a.notes.baseVersion, a.notes.conflict = n.Version, false
 				a.notes.baselineTitle = n.Title
 				a.notes.baselineContent = cloneNoteDocument(n.Content)
@@ -485,49 +522,144 @@ func (a *App) writeNote(work func(NotesAPI) (func(), error), abandoned ...func(N
 	})
 }
 
-func (a *App) saveNote() {
+// saveNote is "Simpan sekarang": the same write as autosave, at once.
+func (a *App) saveNote() { a.commitNote(false) }
+
+// Autosave timing (plan §7): save after a quiet pause, and at least every
+// noteAutosaveMax while the notulis keeps typing. A failed save waits
+// noteAutosaveRetry before trying again; the recovery draft covers the gap.
+const (
+	noteAutosaveQuiet = 4 * time.Second
+	noteAutosaveMax   = 30 * time.Second
+	noteAutosaveRetry = 15 * time.Second
+)
+
+// noteAutosaveActive: this session holds the editor online, so typing
+// becomes the official note by itself.
+func (a *App) noteAutosaveActive() bool {
+	return a.notesCanEdit() && a.conn == connOnline && !a.offlineMode() && a.notes.compare == nil && !a.notes.conflict
+}
+
+func (a *App) noteAutosaveDue(now time.Time) bool {
+	if !a.notes.dirty || a.notes.saving || !a.noteAutosaveActive() {
+		return false
+	}
+	if a.notes.saveErr != "" && now.Sub(a.notes.saveFailedAt) < noteAutosaveRetry {
+		return false
+	}
+	return now.Sub(a.notes.changedAt) >= noteAutosaveQuiet || (!a.notes.since.IsZero() && now.Sub(a.notes.since) >= noteAutosaveMax)
+}
+
+// commitNote writes the working copy as the official note. Unlike
+// writeNote it does not set busy, so the editor stays editable, and it never
+// replaces the editor: keystrokes made while the save runs stay, and the
+// next save starts from the version this one returned.
+func (a *App) commitNote(auto bool) {
 	if a.offlineMode() {
-		a.queueNote()
+		if !auto {
+			a.queueNote()
+		}
 		return
 	}
-	if !a.notesCanEdit() || a.notes.editor == nil {
+	service, ok := a.notesService()
+	if !ok || !a.notesCanEdit() || a.notes.editor == nil || a.notes.saving {
 		return
+	}
+	fail := func(msg string) {
+		if auto {
+			a.notes.saveErr, a.notes.saveFailedAt = msg, a.noteNow()
+		} else {
+			a.notes.err = msg
+		}
 	}
 	nid, revision := a.notes.selected, a.notes.revision
 	title, content := strings.TrimSpace(a.notes.title), a.notes.editor.Content()
 	if title == "" || utf8.RuneCountInString(title) > 200 {
-		a.notes.err = "Isi judul note, maksimal 200 karakter."
+		fail("Isi judul note, maksimal 200 karakter.")
 		return
 	}
 	if err := api.ValidateNoteContentPreserving(content); err != nil {
-		a.notes.err = err.Error()
+		fail(err.Error())
 		return
 	}
 	req := api.NoteWriteRequest{Title: title, Content: content, ExpectedVersion: a.notes.baseVersion}
-	a.persistNoteLocal(nil)
-	a.writeNote(func(service NotesAPI) (func(), error) {
+	if !auto {
+		a.persistNoteLocal(nil)
+		a.notes.err, a.notes.notice = "", ""
+	}
+	gen, seq, detail, space := a.gen, a.notes.seq, a.notes.detailSeq, a.notes.space
+	a.notes.saving, a.notes.saveErr = true, ""
+	a.async(func() func() {
 		n, err := service.UpdateNote(context.Background(), nid, req)
 		return func() {
+			if gen != a.gen || seq != a.notes.seq || detail != a.notes.detailSeq || nid != a.notes.selected || space != a.selectedSpaceID() {
+				return
+			}
+			a.notes.saving = false
+			if a.notes.releaseAfter {
+				defer a.finishNoteEditingNow()
+			}
+			if err != nil {
+				a.noteSaveFailed(err)
+				return
+			}
+			a.conn = connOnline
 			canonical := cloneNote(n)
+			if canonical.Lock == nil && a.notes.note != nil {
+				canonical.Lock = a.notes.note.Lock
+			}
 			a.notes.note = &canonical
-			a.replaceNote(n)
+			a.replaceNote(canonical)
+			a.notes.baseVersion, a.notes.conflict = n.Version, false
+			a.notes.baselineTitle = n.Title
+			a.notes.baselineContent = cloneNoteDocument(n.Content)
+			a.notes.baselineKnown = true
+			a.notes.savedAt, a.notes.saveErr = a.noteNow(), ""
+			a.notes.recovery = slices.DeleteFunc(a.notes.recovery, func(d api.NoteDraft) bool { return d.CurrentSession })
 			if revision == a.notes.revision {
-				a.notes.title, a.notes.editor, a.notes.dirty = n.Title, newNoteDocumentEditor(n.Content), false
-				a.notes.baseVersion, a.notes.conflict = n.Version, false
-				a.notes.baselineTitle = n.Title
-				a.notes.baselineContent = cloneNoteDocument(n.Content)
-				a.notes.baselineKnown = true
-				a.notes.editor.SetEditable(a.notesCanEdit())
-				a.notes.recovery = slices.DeleteFunc(a.notes.recovery, func(d api.NoteDraft) bool { return d.CurrentSession })
+				a.notes.dirty, a.notes.since, a.notes.localStatus = false, time.Time{}, ""
 				if len(a.notes.pendingLinks) == 0 {
 					a.deleteNoteLocal()
 				} else {
 					a.persistNoteLocal(nil)
 				}
+			} else {
+				// Typed during the save: still unsaved, timed from now.
+				a.notes.since = a.noteNow()
 			}
-			a.notes.notice = "Note tersimpan di server."
-		}, err
+			if !auto {
+				a.notes.notice = "Catatan tersimpan."
+			}
+		}
 	})
+}
+
+// noteSaveFailed keeps the typed copy. Access and period errors close the
+// way as before; a version or lock conflict opens the side-by-side review;
+// anything else (network, server) is retried by autosave later.
+func (a *App) noteSaveFailed(err error) {
+	if client.IsUnauthenticated(err) {
+		a.failed(err)
+		return
+	}
+	var e *client.Error
+	if errors.As(err, &e) && (e.Status == http.StatusForbidden || e.Status == http.StatusNotFound || e.Code == api.CodePeriodClosed) {
+		a.noteFailure(err)
+		return
+	}
+	if errors.As(err, &e) && e.Status == http.StatusConflict && a.notes.note != nil {
+		a.notes.err = a.failed(err)
+		a.persistNoteLocal(nil)
+		if a.notes.dirty {
+			a.notes.compare = a.noteLocalSnapshot()
+			a.notes.conflict = true
+		}
+		a.notes.editing = false
+		a.loadNoteDetail(true)
+		return
+	}
+	a.notes.saveErr, a.notes.saveFailedAt = a.failed(err), a.noteNow()
+	a.persistNoteLocal(nil)
 }
 
 func (a *App) beginNoteEditing() {
@@ -599,10 +731,24 @@ func (a *App) releaseEditingNote() {
 	})
 }
 
+// finishNoteEditing ("Selesai mencatat") saves what is still unsaved as the
+// official note first, then lets go of the editor.
 func (a *App) finishNoteEditing() {
 	if a.notes.busy {
 		return
 	}
+	if a.notes.dirty && a.noteAutosaveActive() {
+		a.notes.releaseAfter = true
+		if !a.notes.saving {
+			a.commitNote(false)
+		}
+		return
+	}
+	a.finishNoteEditingNow()
+}
+
+func (a *App) finishNoteEditingNow() {
+	a.notes.releaseAfter = false
 	a.persistNoteLocal(nil)
 	a.saveNoteRecovery()
 	a.releaseEditingNote()
@@ -631,6 +777,9 @@ func (a *App) markNoteChanged() {
 		return
 	}
 	a.notes.revision++
+	if !a.notes.dirty || a.notes.since.IsZero() {
+		a.notes.since = a.noteNow()
+	}
 	a.notes.dirty, a.notes.changedAt = true, a.noteNow()
 	a.notes.localStatus = "Perubahan belum tersimpan."
 }
@@ -655,7 +804,12 @@ func (a *App) tickNotes(now time.Time) {
 	if a.notes.dirty && now.Sub(a.notes.changedAt) >= 750*time.Millisecond && a.notes.localRevision != a.notes.revision {
 		a.persistNoteLocal(nil)
 	}
-	if a.notes.dirty && now.Sub(a.notes.changedAt) >= 3*time.Second && a.notes.serverRevision != a.notes.revision && !a.notes.draftBusy && a.notes.draftErr == "" {
+	if a.noteAutosaveDue(now) {
+		a.commitNote(true)
+	}
+	// The private recovery draft is the safety net when the official copy
+	// cannot be written by autosave (no lease, conflict, a failed save).
+	if a.notes.dirty && (!a.noteAutosaveActive() || a.notes.saveErr != "") && now.Sub(a.notes.changedAt) >= 3*time.Second && a.notes.serverRevision != a.notes.revision && !a.notes.draftBusy && a.notes.draftErr == "" {
 		a.saveNoteRecovery()
 	}
 	n := a.notes.note

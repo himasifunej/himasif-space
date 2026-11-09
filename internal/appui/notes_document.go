@@ -51,6 +51,21 @@ func newNoteDocumentEditor(content []api.NoteBlock) *noteDocumentEditor {
 	return e
 }
 
+// Replace swaps in newer official content without making a new editor: the
+// view keeps its key (no jump, no lost scroll) and a reader stays on the
+// block page they were reading (stage C2, readers see autosaves live).
+func (e *noteDocumentEditor) Replace(content []api.NoteBlock) {
+	e.blocks = cloneNoteDocument(content)
+	e.pages = map[int]*noteDocumentPage{}
+	e.item, e.row, e.column, e.span, e.spanPage = 0, 0, 0, 0, 0
+	e.addOpen, e.changed = false, false
+	e.selected = min(e.selected, len(e.blocks)-1)
+	if e.selected < 0 && len(e.blocks) > 0 {
+		e.selected = 0
+	}
+	e.blockPage = max(0, min(e.blockPage, (len(e.blocks)-1)/noteBlocksPerPage))
+}
+
 func cloneNoteDocument(content []api.NoteBlock) []api.NoteBlock {
 	out := slices.Clone(content)
 	for i := range out {
