@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/himasifunej/himasif-space/internal/api"
 	"github.com/himasifunej/himasif-space/internal/authz"
@@ -53,6 +54,11 @@ func (f *memberAccessFixture) UpdateMember(_ context.Context, _, _, uid id.ID, r
 	f.record("update")
 	f.mu.Lock()
 	f.update = req
+	for i := range f.members {
+		if f.members[i].UserID == uid && req.Role != nil {
+			f.members[i].Role, f.members[i].Groups = *req.Role, slices.Clone(req.Groups)
+		}
+	}
 	f.mu.Unlock()
 	return api.Member{UserID: uid}, nil
 }
@@ -100,6 +106,8 @@ func memberAccessHarness(t *testing.T, w, h int) (*harness, *memberAccessFixture
 	f.spaces = []api.Space{sp}
 	hs.app.selectSpace(sp.ID)
 	hs.app.access.members = memberManagementState{division: d.ID, loaded: true, access: f.access, members: slices.Clone(f.members), roles: slices.Clone(f.roles)}
+	// The Space's tasks are loaded, none of them Nara's.
+	hs.app.tasks = tasksUIState{scope: sp.ID, loaded: true, items: []api.Task{{ID: id.New(), Title: "Poster", Assignee: api.PersonRef{ID: aruna.UserID, DisplayName: aruna.DisplayName}, Progress: api.TaskDoing}}}
 	hs.app.router.Push(PathSpaces)
 	hs.app.chrome.tab = "Anggota"
 	hs.tt.Frame()
@@ -194,9 +202,10 @@ func TestMemberAccessDrawerSavesAndReplaces45(t *testing.T) {
 	if update.Role == nil || *update.Role != api.RoleCompanion || !sameSet(update.Groups, []string{api.GroupTekno, api.GroupDesain}) || appoint.UserID != nara.UserID || appoint.Capabilities != nil {
 		t.Fatalf("update %+v appoint %+v", update, appoint)
 	}
-	if h.app.access.members.editing != id.Nil || !strings.Contains(h.app.access.members.notice, "Akses Nara Tekno disimpan") {
-		t.Fatalf("after save: editing %v notice %q", h.app.access.members.editing, h.app.access.members.notice)
+	if h.app.access.members.editing != id.Nil {
+		t.Fatal("the drawer stayed open after saving")
 	}
+	h.want("Akses Nara Tekno disimpan.") // a toast
 }
 
 // A save that fails half way says what was saved and what was not.
@@ -230,6 +239,7 @@ func TestMemberAccessDrawerRemoval(t *testing.T) {
 	h.click("Keluarkan Nara…")
 	h.tt.Frame()
 	h.want("Keluarkan Nara Tekno dari Media dan Teknologi?")
+	h.want("Nara tidak punya tugas aktif.")
 	h.click("Keluarkan anggota")
 	h.settle()
 	f.mu.Lock()
@@ -313,5 +323,194 @@ func TestMemberAccessDrawerAsksBeforeDiscarding(t *testing.T) {
 	defer f.mu.Unlock()
 	if len(f.calls) != 0 {
 		t.Fatalf("calls = %v", f.calls)
+	}
+}
+
+// Stage A3: a member who is still the PJ of active tasks cannot be removed;
+// "Lihat tugas" opens the board filtered to them. While tasks load,
+// removal waits.
+func TestMemberRemovalBlockedByActiveTasks(t *testing.T) {
+	h, f, _, nara := memberAccessHarness(t, 1440, 1500)
+	h.app.tasks.items = append(h.app.tasks.items,
+		api.Task{ID: id.New(), Title: "Foto acara", Assignee: api.PersonRef{ID: nara.UserID, DisplayName: nara.DisplayName}, Progress: api.TaskTodo},
+		api.Task{ID: id.New(), Title: "Video recap", Assignee: api.PersonRef{ID: nara.UserID, DisplayName: nara.DisplayName}, Progress: api.TaskSubmitted},
+		api.Task{ID: id.New(), Title: "Selesai", Assignee: api.PersonRef{ID: nara.UserID, DisplayName: nara.DisplayName}, Progress: api.TaskDone})
+	h.click("Ubah akses Nara Tekno")
+	h.click("Keluarkan Nara…")
+	h.tt.Frame()
+	// The fixture has no active-tasks endpoint (an older server): the
+	// open Space's tasks are counted, and the dialog says so.
+	h.want("Nara masih PJ 2 tugas aktif.")
+	h.want(memberLocalCountNote)
+	if h.app.memberRemoveState(nara).allowed {
+		t.Fatal("removal allowed with active tasks")
+	}
+	h.click("Keluarkan anggota") // disabled: nothing happens
+	h.settle()
+	f.mu.Lock()
+	if len(f.calls) != 0 {
+		t.Fatalf("calls = %v", f.calls)
+	}
+	f.mu.Unlock()
+	h.click("Lihat tugas Nara")
+	h.tt.Frame()
+	if h.app.chrome.tab != "Board tugas" || h.app.tasks.filter != "Nara Tekno" || h.app.access.members.editing != id.Nil {
+		t.Fatalf("tab %q filter %q editing %v", h.app.chrome.tab, h.app.tasks.filter, h.app.access.members.editing)
+	}
+
+	// Tasks not loaded yet: removal waits.
+	h.app.tasks.loaded = false
+	h.app.access.members.removeTasksFor, h.app.access.members.removeTasksLocal = nara.UserID, true
+	if r := h.app.memberRemoveState(nara); r.known || r.allowed {
+		t.Fatal("removal allowed before tasks load")
+	}
+}
+
+// memberTasksFixture is a server with the active-tasks endpoint.
+type memberTasksFixture struct {
+	*memberAccessFixture
+	tasks     api.MemberActiveTasks
+	removeErr error
+}
+
+func (f *memberTasksFixture) MemberActiveTasks(context.Context, id.ID, id.ID, id.ID) (api.MemberActiveTasks, error) {
+	f.record("active-tasks")
+	return f.tasks, nil
+}
+
+func (f *memberTasksFixture) RemoveMember(ctx context.Context, p, d, uid id.ID) error {
+	f.record("remove:" + uid.String())
+	return f.removeErr
+}
+
+// The server's count covers every Space of the division: a task only in
+// Medhum blocks the removal even though the open board shows none, and
+// "Lihat tugas di Medhum" opens Medhum's board filtered to the member.
+func TestMemberRemovalUsesServerCount(t *testing.T) {
+	h, base, _, nara := memberAccessHarness(t, 1440, 1500)
+	medhum := api.Space{ID: id.New(), PeriodID: h.app.periodID, Name: "Medhum", Code: "medhum", Kind: api.SpaceShared, Divisions: h.app.access.spaces[0].Divisions, Roles: h.app.access.spaces[0].Roles, Capabilities: h.app.access.spaces[0].Capabilities}
+	h.app.access.spaces = append(h.app.access.spaces, medhum)
+	base.spaces = slices.Clone(h.app.access.spaces)
+	f := &memberTasksFixture{memberAccessFixture: base, tasks: api.MemberActiveTasks{Count: 1, Spaces: []api.MemberTaskSpace{{SpaceID: medhum.ID, Name: "Medhum", Count: 1}}}}
+	h.app.api = f
+	if _, _, ok := h.app.memberWork(nara.UserID, time.Now()); !ok {
+		t.Fatal("tasks not loaded")
+	}
+	h.click("Ubah akses Nara Tekno")
+	h.click("Keluarkan Nara…")
+	h.settle()
+	h.want("Nara masih PJ 1 tugas aktif (Medhum 1).")
+	h.dontWant(memberLocalCountNote)
+	if h.app.memberRemoveState(nara).allowed {
+		t.Fatal("removal allowed with a Medhum task")
+	}
+	h.click("Lihat tugas di Medhum")
+	h.tt.Frame()
+	if h.app.selectedSpaceID() != medhum.ID || h.app.chrome.tab != "Board tugas" || h.app.tasks.filter != "Nara Tekno" {
+		t.Fatalf("space %v tab %q filter %q", h.app.selectedSpaceID(), h.app.chrome.tab, h.app.tasks.filter)
+	}
+}
+
+// If the server refuses the removal (a task was given to the member after
+// the dialog counted), the dialog shows the server's answer instead.
+func TestMemberRemovalRefusedByServer(t *testing.T) {
+	h, base, _, nara := memberAccessHarness(t, 1440, 1500)
+	space := h.app.access.spaces[0]
+	f := &memberTasksFixture{memberAccessFixture: base, tasks: api.MemberActiveTasks{Spaces: []api.MemberTaskSpace{}},
+		removeErr: &client.Error{Status: 409, Code: api.CodeMemberHasTasks, Message: "Nara Tekno masih PJ 2 tugas aktif.",
+			Data: map[string]any{"count": 2, "spaces": []any{map[string]any{"spaceId": space.ID.String(), "name": space.Name, "count": 2}}}}}
+	h.app.api = f
+	h.click("Ubah akses Nara Tekno")
+	h.click("Keluarkan Nara…")
+	h.settle()
+	h.want("Nara tidak punya tugas aktif.")
+	h.click("Keluarkan anggota")
+	h.settle()
+	h.tt.Frame()
+	h.want("Nara masih PJ 2 tugas aktif (" + space.Name + " 2).")
+	m := &h.app.access.members
+	if !m.removeAsk || m.editing != nara.UserID || h.app.memberRemoveState(nara).allowed || m.err != "" {
+		t.Fatalf("after refusal: ask %v editing %v err %q", m.removeAsk, m.editing, m.err)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if strings.Join(f.calls, ",") != "active-tasks,remove:"+nara.UserID.String() {
+		t.Fatalf("calls %v", f.calls)
+	}
+}
+
+func TestMemberTasksFromError(t *testing.T) {
+	if _, ok := memberTasksFromError(errors.New("x")); ok {
+		t.Fatal("plain error read as tasks")
+	}
+	if _, ok := memberTasksFromError(&client.Error{Code: api.CodeConflict}); ok {
+		t.Fatal("other conflict read as tasks")
+	}
+	if got, ok := memberTasksFromError(&client.Error{Code: api.CodeMemberHasTasks}); !ok || got.Count != 1 {
+		t.Fatalf("refusal without data = %+v %v", got, ok)
+	}
+}
+
+// After "Simpan akses" the rows stay where they were, and the confirmation
+// is a toast that does not move the table. A reload or another sort
+// sorts again.
+func TestMemberRowsStayAfterSave(t *testing.T) {
+	h, f, _, _ := memberAccessHarness(t, 1440, 1500)
+	// Aruna as a plain member: once Nara is Pendamping, sorting by role
+	// would put Nara above Aruna.
+	f.mu.Lock()
+	f.members[1].Roles = nil
+	f.mu.Unlock()
+	h.app.access.members.members[1].Roles = nil
+	order := func() string {
+		names := []string{}
+		for _, m := range h.app.visibleMembers(time.Now()) {
+			names = append(names, m.DisplayName)
+		}
+		return strings.Join(names, ",")
+	}
+	before := order()
+	if before != "Demo Mediatek,Aruna Desain,Nara Tekno" {
+		t.Fatalf("start order %s", before)
+	}
+	row, _ := h.tt.Find("Ubah akses Nara Tekno")
+	h.click("Ubah akses Nara Tekno")
+	h.click("Role dasar Pendamping kadiv")
+	h.click("Simpan akses")
+	// While the table reloads it stays on screen.
+	if !h.app.access.members.loaded || len(h.app.access.members.members) != 3 {
+		t.Fatal("the table emptied while reloading")
+	}
+	h.settle()
+	h.tt.Frame()
+	if got := order(); got != before {
+		t.Fatalf("rows moved after save: %s", got)
+	}
+	if after, _ := h.tt.Find("Ubah akses Nara Tekno"); after.Y != row.Y {
+		t.Fatalf("Nara's row moved from y=%v to y=%v", row.Y, after.Y)
+	}
+	if m := h.app.memberByID(h.app.access.members.members[2].UserID); m == nil {
+		t.Fatal("members missing")
+	}
+	h.click("Muat ulang anggota")
+	h.settle()
+	if got := order(); got != "Demo Mediatek,Nara Tekno,Aruna Desain" {
+		t.Fatalf("after reload the table is not sorted again: %s", got)
+	}
+	if len(h.app.access.members.pinned) != 0 {
+		t.Fatal("reload kept the pinned order")
+	}
+}
+
+// Changing the sort releases the pinned order.
+func TestMemberSortReleasesPinnedOrder(t *testing.T) {
+	h, _, _, _ := memberAccessHarness(t, 1440, 1500)
+	h.app.pinMemberOrder()
+	if len(h.app.access.members.pinned) != 3 {
+		t.Fatalf("pinned %v", h.app.access.members.pinned)
+	}
+	h.click("Urutkan: Peran")
+	if len(h.app.access.members.pinned) != 0 {
+		t.Fatal("another sort kept the pinned order")
 	}
 }

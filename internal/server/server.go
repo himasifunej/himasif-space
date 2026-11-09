@@ -210,6 +210,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET "+div+"/members", s.handle(s.listMembers))
 	mux.Handle("PATCH "+div+"/members/{userId}", s.handle(s.updateMember))
 	mux.Handle("DELETE "+div+"/members/{userId}", s.handle(s.removeMember))
+	mux.Handle("GET "+div+"/members/{userId}/active-tasks", s.handle(s.memberActiveTasks))
 	mux.Handle("PUT "+div+"/kadiv", s.handle(s.setKadiv))
 	mux.Handle("GET "+div+"/invitations", s.handle(s.listInvitations))
 	mux.Handle("POST "+div+"/invitations", s.handle(s.invite))

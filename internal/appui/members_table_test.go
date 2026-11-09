@@ -179,6 +179,27 @@ func TestMembersTableNativeCapture(t *testing.T) {
 	h.app.access.members.on45 = false
 	h.tt.SetSize(390, 844)
 	shot("anggota-a2-hp-sheet")
+
+	// Stage A3: removal is a dialog, refused while the member still has
+	// active tasks; saving shows a toast and leaves the rows in place.
+	h.app.closeMemberAccess()
+	h.tt.SetSize(1440, 900)
+	h.app.openMemberAccess(members[4]) // Raka: 6 here, 1 more in Medhum
+	raka := &api.MemberActiveTasks{Count: 7, Spaces: []api.MemberTaskSpace{{SpaceID: sp.ID, Name: sp.Name, Count: 6}, {SpaceID: id.New(), Name: "Medhum", Count: 1}}}
+	h.app.access.members.removeAsk, h.app.access.members.removeTasks, h.app.access.members.removeTasksFor = true, raka, members[4].UserID
+	shot("anggota-a3-keluarkan-diblokir")
+	h.app.closeMemberAccess()
+	h.app.openMemberAccess(members[6]) // Laras: none
+	h.app.access.members.removeAsk, h.app.access.members.removeTasks, h.app.access.members.removeTasksFor = true, &api.MemberActiveTasks{Spaces: []api.MemberTaskSpace{}}, members[6].UserID
+	shot("anggota-a3-keluarkan")
+	h.app.closeMemberAccess()
+	h.app.pinMemberOrder()
+	h.app.access.members.notice = "Akses Nara Tekno disimpan."
+	shot("anggota-a3-toast")
+	h.tt.SetSize(390, 844)
+	h.app.openMemberAccess(members[4])
+	h.app.access.members.removeAsk, h.app.access.members.removeTasks, h.app.access.members.removeTasksFor = true, raka, members[4].UserID
+	shot("anggota-a3-hp-keluarkan-diblokir")
 }
 
 // The page shows the new head, chips and an empty state for a search that

@@ -2,6 +2,8 @@ package appui
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -11,6 +13,7 @@ import (
 
 	"github.com/himasifunej/himasif-space/internal/api"
 	"github.com/himasifunej/himasif-space/internal/authz"
+	"github.com/himasifunej/himasif-space/internal/client"
 	"github.com/himasifunej/himasif-space/internal/id"
 )
 
@@ -545,8 +548,8 @@ func (a *App) memberAccessSummaryView(c *ui.Context, member api.Member, first st
 	})
 }
 
-// memberRemoveBox is "Keluarkan dari …" in red. A 45 is removed from the
-// 45 first; the confirmation names what happens.
+// memberRemoveBox is "Keluarkan dari …" in red, at the end of the drawer.
+// A 45 is removed from the 45 first; the confirmation is a dialog.
 func (a *App) memberRemoveBox(c *ui.Context, member api.Member, first, division string) {
 	t := c.Theme()
 	m := &a.access.members
@@ -556,34 +559,191 @@ func (a *App) memberRemoveBox(c *ui.Context, member api.Member, first, division 
 			ui.Text(c, first+" masih 45. Matikan sakelar 45 dan simpan dulu, lalu keluarkan.").FontSize(13).TextColor(t.TextMuted).LineHeight(1.5)
 			return
 		}
+		ui.Text(c, "Akses divisi dicabut. Tugas aktifnya perlu dialihkan dulu.").FontSize(13).TextColor(t.TextMuted).LineHeight(1.5)
+		if spaceButton(c, "Keluarkan "+first+"…", "close", false).TextColor(t.Danger).Border(1, spaceMix(t.Danger, t.Surface, .55)).Disabled(m.busy).Clicked() {
+			m.removeAsk = true
+			a.loadMemberRemoveTasks(member)
+		}
+	})
+	if m.removeAsk {
+		a.memberRemoveDialog(c, member, first, division)
+	}
+}
+
+// MemberTasksAPI asks the server what keeps a member from being removed.
+// It is optional: without it the dialog counts the open Space's tasks.
+type MemberTasksAPI interface {
+	MemberActiveTasks(ctx context.Context, p, d, u id.ID) (api.MemberActiveTasks, error)
+}
+
+func (a *App) memberTasksService() (MemberTasksAPI, bool) {
+	if live, ok := a.api.(*client.Client); ok {
+		return live.AccountSession(), true
+	}
+	s, ok := a.api.(MemberTasksAPI)
+	return s, ok
+}
+
+// memberTasksFromError reads the refusal of a removal for active tasks.
+func memberTasksFromError(err error) (api.MemberActiveTasks, bool) {
+	var ce *client.Error
+	if !errors.As(err, &ce) || ce.Code != api.CodeMemberHasTasks {
+		return api.MemberActiveTasks{}, false
+	}
+	var tasks api.MemberActiveTasks
+	raw, jerr := json.Marshal(ce.Data)
+	if jerr != nil || json.Unmarshal(raw, &tasks) != nil || tasks.Count < 1 {
+		// The code alone still says there are tasks.
+		return api.MemberActiveTasks{Count: 1}, true
+	}
+	return tasks, true
+}
+
+// loadMemberRemoveTasks asks the server for a member's active tasks, for
+// the removal dialog.
+func (a *App) loadMemberRemoveTasks(member api.Member) {
+	m := &a.access.members
+	m.removeTasks, m.removeTasksFor, m.removeTasksLocal, m.removeTasksLoading = nil, member.UserID, false, true
+	svc, ok := a.memberTasksService()
+	if !ok {
+		m.removeTasksLoading, m.removeTasksLocal = false, true
+		return
+	}
+	gen, p, d, seq, uid := a.gen, a.periodID, m.division, m.seq, member.UserID
+	a.async(func() func() {
+		tasks, err := svc.MemberActiveTasks(context.Background(), p, d, uid)
+		return func() {
+			m := &a.access.members
+			if gen != a.gen || p != a.periodID || d != m.division || seq != m.seq || m.removeTasksFor != uid {
+				return
+			}
+			m.removeTasksLoading = false
+			if err != nil {
+				// An older server or no connection: count the open Space's
+				// tasks; the server checks again when removing.
+				m.removeTasksLocal = true
+				return
+			}
+			m.removeTasks = &tasks
+		}
+	})
+}
+
+// memberRemoveCheck is what the removal dialog knows about a member's
+// active tasks.
+type memberRemoveCheck struct {
+	count   int
+	places  string                // " (Mediatek 2, Medhum 1)"
+	spaces  []api.MemberTaskSpace // where they are, from the server
+	known   bool                  // counted, by the server or locally
+	local   bool                  // counted from the open Space only
+	allowed bool
+}
+
+// memberRemoveState is what the removal dialog may do. The server's count
+// covers every Space of the division; without it the open Space's tasks
+// are counted. Removal waits while counting and is refused while the
+// member is still the PJ of an active task (owner decision for stage A3;
+// moving tasks in bulk comes later). The server refuses it too.
+func (a *App) memberRemoveState(member api.Member) memberRemoveCheck {
+	m := &a.access.members
+	var r memberRemoveCheck
+	switch {
+	case m.removeTasksFor == member.UserID && m.removeTasks != nil:
+		r.count, r.places, r.spaces, r.known = m.removeTasks.Count, m.removeTasks.Places(), m.removeTasks.Spaces, true
+	case m.removeTasksFor == member.UserID && m.removeTasksLocal:
 		active, _, ok := a.memberWork(member.UserID, time.Now())
-		if !m.removeAsk {
-			ui.Text(c, "Akses divisi dicabut. Riwayat kerja dan komentarnya tetap ada.").FontSize(13).TextColor(t.TextMuted).LineHeight(1.5)
-			if spaceButton(c, "Keluarkan "+first+"…", "close", false).TextColor(t.Danger).Border(1, spaceMix(t.Danger, t.Surface, .55)).Disabled(m.busy).Clicked() {
-				m.removeAsk = true
+		r.count, r.known, r.local = active, ok, true
+	}
+	r.allowed = r.known && r.count == 0 && !slices.Contains(member.Roles, api.Role45)
+	return r
+}
+
+// showMemberTasks closes the drawer and opens a Space's board (the open
+// one when space is nil) filtered to the member, to give their tasks
+// another PJ.
+func (a *App) showMemberTasks(member api.Member, space id.ID) {
+	a.closeMemberAccess()
+	if space != id.Nil && space != a.selectedSpaceID() {
+		a.selectSpace(space)
+	}
+	// Bind the task list to the Space first: binding it later would clear
+	// the filter.
+	a.ensureTasks(false)
+	a.chrome.tab = "Board tugas"
+	a.tasks.filter = member.DisplayName
+	a.projectTasks()
+}
+
+// memberCanOpenSpace reports whether the viewer may open a Space.
+func (a *App) memberCanOpenSpace(space id.ID) bool {
+	return slices.ContainsFunc(a.access.spaces, func(s api.Space) bool { return s.ID == space })
+}
+
+const memberLocalCountNote = "Dihitung dari Space ini saja; server memeriksa semua Space divisi saat mengeluarkan."
+
+func (a *App) memberRemoveDialog(c *ui.Context, member api.Member, first, division string) {
+	t := c.Theme()
+	m := &a.access.members
+	check := a.memberRemoveState(member)
+	ui.DialogBase(c.Key("remove-member"), &m.removeAsk, func(backdrop, panel ui.Element) {
+		backdrop.Background(ui.RGBA(0, 0, 0, 0.35))
+		panel.Width(min(float32(440), mustWidth(c)-32)).Padding(20).Gap(12).Radius(14).Background(t.Surface).Border(1, t.Border).Label("Dialog keluarkan anggota").Children(func() {
+			ui.Text(c, "Keluarkan "+member.DisplayName+" dari "+division+"?").FontSize(16).Bold()
+			for _, l := range []string{"Akses ke board, catatan dan Bot WhatsApp divisi dicabut segera.", "Riwayat komentar dan hasil kerjanya tetap ada."} {
+				ui.Text(c.Key(l), "· "+l).FontSize(13).TextColor(t.TextMuted).LineHeight(1.5)
 			}
-			return
-		}
-		ui.Text(c, "Keluarkan "+member.DisplayName+" dari "+division+"?").FontSize(13).Bold()
-		lines := []string{"Akses ke board, catatan dan Bot WhatsApp divisi dicabut segera.", "Riwayat komentar dan hasil kerjanya tetap ada."}
-		if ok && active > 0 {
-			lines = append(lines, fmt.Sprintf("%d tugas aktifnya tetap atas namanya; alihkan PJ-nya di board.", active))
-		}
-		for _, l := range lines {
-			ui.Text(c.Key(l), "· "+l).FontSize(13).TextColor(t.TextMuted).LineHeight(1.5)
-		}
-		ui.Row(c).FillWidth().Gap(8).Justify(ui.End).Children(func() {
-			if spaceButton(c, "Batal keluarkan", "", false).Disabled(m.busy).Clicked() {
-				m.removeAsk = false
-			}
-			b := spaceButton(c, "Keluarkan anggota", "close", true).Disabled(m.busy)
-			b.Background(t.Danger).TextColor(ui.RGBA(255, 255, 255, 1))
-			if b.Clicked() {
-				uid := member.UserID
-				a.memberWrite(api.CapMembersManage, member.DisplayName+" dikeluarkan dari "+division+".", func(s WorkspaceAPI, p, d id.ID) error {
-					return s.RemoveMember(context.Background(), p, d, uid)
+			switch {
+			case !check.known:
+				ui.Text(c, "Menghitung tugas aktif "+first+"…").FontSize(13).TextColor(t.TextMuted)
+			case check.count > 0:
+				ui.Column(c.Key("tasks-left")).FillWidth().MinWidth(0).Gap(8).Padding(12, 14).Radius(10).Background(spaceMix(t.Warning, t.Surface, .88)).Border(1, spaceMix(t.Warning, t.Surface, .5)).Children(func() {
+					ui.Text(c, fmt.Sprintf("%s masih PJ %d tugas aktif%s.", first, check.count, check.places)).FontSize(13).Bold().LineHeight(1.5)
+					ui.Text(c, "Alihkan PJ tugas-tugas itu ke anggota lain dulu, lalu keluarkan "+first+".").FontSize(13).TextColor(t.TextMuted).LineHeight(1.5)
+					shown := 0
+					for _, sp := range check.spaces {
+						if !a.memberCanOpenSpace(sp.SpaceID) {
+							continue
+						}
+						shown++
+						if spaceButton(c.Key(sp.SpaceID), "Lihat tugas di "+sp.Name, "board", false).Border(1, t.Border).Clicked() {
+							m.removeAsk = false
+							a.showMemberTasks(member, sp.SpaceID)
+						}
+					}
+					if shown == 0 && spaceButton(c, "Lihat tugas "+first, "board", false).Border(1, t.Border).Clicked() {
+						m.removeAsk = false
+						a.showMemberTasks(member, id.Nil)
+					}
+					if check.local {
+						ui.Text(c, memberLocalCountNote).FontSize(12).TextColor(faint(t)).LineHeight(1.5)
+					}
 				})
+			default:
+				ui.Text(c, first+" tidak punya tugas aktif.").FontSize(13).TextColor(t.TextMuted)
+				if check.local {
+					ui.Text(c, memberLocalCountNote).FontSize(12).TextColor(faint(t)).LineHeight(1.5)
+				}
 			}
+			ui.Row(c).FillWidth().Gap(8).Justify(ui.End).Children(func() {
+				if spaceButton(c, "Batal keluarkan", "", false).Disabled(m.busy).Clicked() {
+					m.removeAsk = false
+				}
+				text := "Keluarkan anggota"
+				if m.busy {
+					text = "Mengeluarkan…"
+				}
+				b := spaceButton(c.Key("remove-confirm"), text, "close", true).Label("Keluarkan anggota").Disabled(m.busy || !check.allowed)
+				if check.allowed {
+					b.Background(t.Danger).TextColor(ui.RGBA(255, 255, 255, 1))
+				}
+				if b.Clicked() && check.allowed && !m.busy {
+					uid := member.UserID
+					a.memberWrite(api.CapMembersManage, member.DisplayName+" dikeluarkan dari "+division+".", func(s WorkspaceAPI, p, d id.ID) error {
+						return s.RemoveMember(context.Background(), p, d, uid)
+					})
+				}
+			})
 		})
 	})
 }

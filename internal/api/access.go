@@ -1,6 +1,8 @@
 package api
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/himasifunej/himasif-space/internal/id"
@@ -122,6 +124,48 @@ type Member struct {
 	// this period. The number itself is never sent. Absent (nil) from a
 	// server that predates it, and from single-member responses.
 	WhatsAppLinked *bool `json:"whatsappLinked,omitempty"`
+}
+
+// MemberActiveTasks are the tasks a member is still the PJ of in the
+// division's Spaces of a period: todo, doing or submitted. A member with
+// any cannot be removed (stage A3); the refusal (409 member_has_tasks)
+// carries this as its data. Spaces lists, per Space of the division, how
+// many of them are there; a task in two Spaces counts in both, once in
+// Count.
+type MemberActiveTasks struct {
+	Count  int               `json:"count"`
+	Spaces []MemberTaskSpace `json:"spaces"`
+}
+
+// Places says where the tasks are, for a sentence: " (Mediatek 2, Medhum
+// 1)", or " di Medhum dan Mediatek" when a task is in two Spaces and the
+// counts per Space add up to more than Count.
+func (t MemberActiveTasks) Places() string {
+	if len(t.Spaces) == 0 {
+		return ""
+	}
+	sum := 0
+	names := make([]string, len(t.Spaces))
+	counts := make([]string, len(t.Spaces))
+	for i, sp := range t.Spaces {
+		sum += sp.Count
+		names[i] = sp.Name
+		counts[i] = fmt.Sprintf("%s %d", sp.Name, sp.Count)
+	}
+	if sum == t.Count {
+		return " (" + strings.Join(counts, ", ") + ")"
+	}
+	if len(names) == 1 {
+		return " di " + names[0]
+	}
+	return " di " + strings.Join(names[:len(names)-1], ", ") + " dan " + names[len(names)-1]
+}
+
+// MemberTaskSpace is one Space in MemberActiveTasks.
+type MemberTaskSpace struct {
+	SpaceID id.ID  `json:"spaceId"`
+	Name    string `json:"name"`
+	Count   int    `json:"count"`
 }
 
 // Invitation is an invitation as its managers see it, without its token.

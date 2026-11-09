@@ -115,7 +115,32 @@ func (a *App) visibleMembers(now time.Time) []api.Member {
 		}
 		return strings.Compare(name(x), name(y))
 	})
+	if len(m.pinned) > 0 {
+		// Pinned rows keep their places; anyone new follows, sorted.
+		pos := func(x api.Member) int {
+			if i := slices.Index(m.pinned, x.UserID); i >= 0 {
+				return i
+			}
+			return len(m.pinned)
+		}
+		slices.SortStableFunc(out, func(x, y api.Member) int { return pos(x) - pos(y) })
+	}
 	return out
+}
+
+// pinMemberOrder keeps every member's current row, before a save reloads
+// the table.
+func (a *App) pinMemberOrder() {
+	m := &a.access.members
+	if len(m.pinned) > 0 {
+		return
+	}
+	query, filter := m.query, m.filter
+	m.query, m.filter = "", memberFilterAll
+	for _, member := range a.visibleMembers(time.Now()) {
+		m.pinned = append(m.pinned, member.UserID)
+	}
+	m.query, m.filter = query, filter
 }
 
 // memberFilterCount is the number of members a chip would show.
@@ -339,6 +364,7 @@ func (a *App) memberToolbar(c *ui.Context, phone bool, now time.Time) {
 			})
 			if b.Clicked() {
 				m.sort = nextMemberSort(m.sort)
+				m.pinned = nil
 			}
 		})
 	})

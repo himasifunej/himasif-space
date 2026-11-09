@@ -513,3 +513,38 @@ func (s *Store) PutHandover(ctx context.Context, q Querier, h api.Handover, by i
 		h.PeriodID, h.SuccessorPeriodID, h.IncomingLeadership, h.AdminCustodian, h.BotManagement, h.ArchivePlan, h.RemainingWork, now, by)
 	return err
 }
+
+// MemberActiveTasks counts the tasks uid is still the PJ of in a period:
+// todo, doing or submitted, owned by the division or in one of its Spaces
+// (shared ones such as Medhum included), and lists them per Space of the
+// division.
+func (s *Store) MemberActiveTasks(ctx context.Context, q Querier, period, division, uid id.ID) (api.MemberActiveTasks, error) {
+	out := api.MemberActiveTasks{Spaces: []api.MemberTaskSpace{}}
+	const active = `t.period_id = $1 and t.assignee_id = $3 and t.progress in ('todo', 'doing', 'submitted')
+		and (t.owner_division_id = $2 or exists (select 1 from task_spaces ts join space_divisions sd on sd.space_id = ts.space_id
+			where ts.task_id = t.id and sd.division_id = $2))`
+	if err := q.QueryRow(ctx, `select count(*) from tasks t where `+active, period, division, uid).Scan(&out.Count); err != nil {
+		return out, err
+	}
+	if out.Count == 0 {
+		return out, nil
+	}
+	rows, err := q.Query(ctx, `select sp.id, sp.name, count(distinct t.id) from tasks t
+		join task_spaces ts on ts.task_id = t.id
+		join spaces sp on sp.id = ts.space_id
+		join space_divisions sd on sd.space_id = sp.id and sd.division_id = $2
+		where `+active+` group by sp.id, sp.name order by sp.name, sp.id`, period, division, uid)
+	if err != nil {
+		return out, err
+	}
+	spaces, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (api.MemberTaskSpace, error) {
+		var sp api.MemberTaskSpace
+		err := r.Scan(&sp.SpaceID, &sp.Name, &sp.Count)
+		return sp, err
+	})
+	if err != nil {
+		return out, err
+	}
+	out.Spaces = append(out.Spaces, spaces...)
+	return out, nil
+}

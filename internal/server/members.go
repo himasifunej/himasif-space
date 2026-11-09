@@ -2,6 +2,7 @@ package server
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"slices"
 
@@ -242,6 +243,14 @@ func (s *Server) removeMember(w http.ResponseWriter, r *http.Request, p *princip
 		if m.Acting45 != nil {
 			return conflict("Anggota ini masih 45; kadiv asli harus mencopotnya terlebih dahulu.")
 		}
+		// Work is never left without a PJ in the division (stage A3).
+		tasks, err := s.store.MemberActiveTasks(r.Context(), q, sc.period.ID, sc.division.ID, uid)
+		if err != nil {
+			return err
+		}
+		if tasks.Count > 0 {
+			return memberHasTasks(m.DisplayName, tasks)
+		}
 		if err := s.store.RemoveMembership(r.Context(), q, m.ID, s.now()); err != nil {
 			return err
 		}
@@ -253,6 +262,33 @@ func (s *Server) removeMember(w http.ResponseWriter, r *http.Request, p *princip
 	}
 	w.WriteHeader(http.StatusNoContent)
 	return nil
+}
+
+// memberHasTasks refuses a removal, saying how many tasks and where.
+func memberHasTasks(name string, tasks api.MemberActiveTasks) error {
+	msg := fmt.Sprintf("%s masih PJ %d tugas aktif", name, tasks.Count) + tasks.Places()
+	msg += ". Alihkan PJ tugas itu ke anggota lain dulu, lalu keluarkan."
+	return &apiError{status: http.StatusConflict, code: api.CodeMemberHasTasks, message: msg, data: tasks}
+}
+
+// memberActiveTasks tells a manager what keeps a member from being
+// removed: their active tasks in the division's Spaces.
+func (s *Server) memberActiveTasks(w http.ResponseWriter, r *http.Request, p *principal) error {
+	uid, err := pathID(r, "userId")
+	if err != nil {
+		return err
+	}
+	return s.read(r, p, api.CapMembersManage, func(q store.Querier, sc *scope) error {
+		if _, err := s.store.ActiveMembership(r.Context(), q, sc.period.ID, sc.division.ID, uid); err != nil {
+			return notFound(err, errNotFound)
+		}
+		tasks, err := s.store.MemberActiveTasks(r.Context(), q, sc.period.ID, sc.division.ID, uid)
+		if err != nil {
+			return err
+		}
+		writeJSON(w, http.StatusOK, tasks)
+		return nil
+	})
 }
 
 func (s *Server) listRoles(w http.ResponseWriter, r *http.Request, p *principal) error {
