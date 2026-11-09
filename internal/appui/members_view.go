@@ -106,8 +106,12 @@ func (a *App) membersPage(c *ui.Context) {
 					titles.Grow(1)
 				}
 				titles.Children(func() {
-					ui.Text(c, "Anggota dan role").FontSize(20).Bold()
-					ui.Text(c, "Semua anggota bisa melihat beban kerja rekan. Hanya kadiv asli yang mengatur role, undangan, dan 45.").FontSize(13).TextColor(t.TextMuted)
+					ui.Text(c, "Anggota").FontSize(20).Bold()
+					sub := "Beban kerja terlihat oleh semua anggota. Hanya kadiv yang mengatur role, undangan, dan 45."
+					if m.loaded && len(m.members) > 0 {
+						sub = fmt.Sprintf("%d anggota · %s", len(m.members), sub)
+					}
+					ui.Text(c, sub).FontSize(13).TextColor(t.TextMuted)
 				})
 				ui.Row(c).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
 					if d == id.Nil {
@@ -117,7 +121,7 @@ func (a *App) membersPage(c *ui.Context) {
 						a.loadMembers(d)
 					}
 					if a.archiveDivisionAllowed(d) {
-						if spaceButton(c, "Kelola izin arsip", "archive", false).Border(1, t.Border).Clicked() {
+						if outlineButton(c.Key("member-archive"), "Izin arsip", "", false).Tooltip("Kelola izin arsip").Clicked() {
 							a.selectArchiveDivision(d)
 							a.navigate(PathArchiveAccess)
 						}
@@ -190,114 +194,6 @@ func (a *App) membersPage(c *ui.Context) {
 	})
 }
 
-// memberColumns are the table's column widths after Nama, which grows.
-var memberColumns = []struct {
-	label string
-	width float32
-}{{"Role", 110}, {"Subdivisi", 100}, {"Beban aktif", 100}, {"WhatsApp", 90}, {"", 170}}
-
-func (a *App) memberTable(c *ui.Context, phone bool) {
-	t := c.Theme()
-	m := &a.access.members
-	if len(m.members) == 0 {
-		pageEmpty(c, "users", "Belum ada anggota", "Belum ada keanggotaan aktif dalam divisi ini.")
-		return
-	}
-	panel := ui.Column(c).FillWidth().MinWidth(0).Radius(12).Background(t.Surface).Border(1, t.Border)
-	table := !phone && panel.Bounds().W >= 720
-	panel.Children(func() {
-		if table {
-			ui.Row(c).FillWidth().Padding(8, 12).Gap(12).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
-				ui.Text(c, "NAMA").FontSize(11).TextColor(faint(t)).Grow(1).MinWidth(0)
-				for _, col := range memberColumns {
-					ui.Text(c.Key(col.label), strings.ToUpper(col.label)).FontSize(11).TextColor(faint(t)).Width(col.width).Shrink(0)
-				}
-			})
-		}
-		for i, member := range m.members {
-			row := ui.Column(c.Key(member.UserID)).FillWidth().MinWidth(0)
-			if i < len(m.members)-1 || m.editing == member.UserID {
-				row.BorderWidth(0, 0, 1, 0).BorderColor(t.Border)
-			}
-			row.Children(func() {
-				if table {
-					a.memberRow(c, member)
-				} else {
-					a.memberCard(c, member)
-				}
-				if m.editing == member.UserID && a.memberCanEdit(member) {
-					a.memberRowEditor(c, member)
-				}
-			})
-		}
-	})
-}
-
-func memberBadge(c *ui.Context, label string) ui.Element {
-	t := c.Theme()
-	b := ui.Text(c, label).FontSize(11).TextColor(t.TextMuted).Padding(2, 8).Radius(6).Border(1, t.Border).MaxLines(1)
-	if label == "Kadiv" || label == "45" {
-		b.BorderColor(t.Accent).TextColor(t.Text)
-	}
-	return b
-}
-
-func memberGroups(member api.Member) string {
-	if len(member.Groups) == 0 {
-		return "—"
-	}
-	return strings.Join(member.Groups, ", ")
-}
-
-func (a *App) memberLoadText(member api.Member) string {
-	if n, ok := a.memberLoad(member.UserID); ok {
-		return fmt.Sprintf("%d tugas", n)
-	}
-	return "—"
-}
-
-func (a *App) memberRow(c *ui.Context, member api.Member) {
-	t := c.Theme()
-	ui.Row(c).FillWidth().MinWidth(0).MinHeight(46).Padding(8, 12).Gap(12).AlignItems(ui.Center).Children(func() {
-		ui.Row(c).Grow(1).MinWidth(0).Gap(10).AlignItems(ui.Center).Children(func() {
-			avatar(c, member.DisplayName, 22)
-			ui.Text(c, member.DisplayName).FontSize(13).MaxLines(1).MinWidth(0)
-		})
-		ui.Box(c).Width(memberColumns[0].width).Shrink(0).Children(func() { memberBadge(c, memberRoleBadge(member)) })
-		ui.Text(c, memberGroups(member)).FontSize(13).TextColor(t.TextMuted).Width(memberColumns[1].width).Shrink(0).MaxLines(1)
-		ui.Text(c, a.memberLoadText(member)).Font(FontMono).FontSize(12).Width(memberColumns[2].width).Shrink(0)
-		wa := ui.Text(c, memberWhatsApp(member)).FontSize(12).Width(memberColumns[3].width).Shrink(0).MaxLines(1)
-		switch {
-		case member.WhatsAppLinked == nil:
-			wa.TextColor(faint(t)).Tooltip("Status tautan WhatsApp belum tersedia dari server")
-		case *member.WhatsAppLinked:
-			wa.TextColor(t.Success)
-		default:
-			wa.TextColor(t.TextMuted)
-		}
-		ui.Row(c).Width(memberColumns[4].width).Shrink(0).Gap(4).Justify(ui.End).Children(func() { a.memberActions(c, member) })
-	})
-}
-
-func (a *App) memberCard(c *ui.Context, member api.Member) {
-	t := c.Theme()
-	ui.Column(c).FillWidth().MinWidth(0).Padding(12, 14).Gap(8).Children(func() {
-		ui.Row(c).FillWidth().MinWidth(0).Gap(10).AlignItems(ui.Center).Children(func() {
-			avatar(c, member.DisplayName, 28)
-			ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
-				ui.Text(c, member.DisplayName).FontSize(14).FontWeight(600).MaxLines(1)
-				line := memberGroups(member) + " · " + a.memberLoadText(member)
-				if member.WhatsAppLinked != nil {
-					line += " · WA " + strings.ToLower(memberWhatsApp(member))
-				}
-				ui.Text(c, line).FontSize(12).TextColor(t.TextMuted).MaxLines(1)
-			})
-			memberBadge(c, memberRoleBadge(member)).Shrink(0)
-		})
-		ui.Row(c).FillWidth().Gap(4).Justify(ui.End).Children(func() { a.memberActions(c, member) })
-	})
-}
-
 // memberAction is a quiet text button of a row, as the canvas' "Ping".
 func memberAction(c *ui.Context, text, label string, on bool) ui.Element {
 	t := c.Theme()
@@ -320,16 +216,22 @@ func (a *App) memberActions(c *ui.Context, member api.Member) {
 	}
 	if a.memberCanEdit(member) {
 		if memberAction(c, "Ubah role", "Ubah role "+member.DisplayName, m.editing == member.UserID).Disabled(m.busy).Clicked() {
-			if m.editing == member.UserID {
-				m.editing = id.Nil
-			} else {
-				m.editing = member.UserID
-				m.role = member.Role
-				m.groups = slices.Clone(member.Groups)
-				m.roleIDs = slices.Clone(member.CustomRoleIDs)
-			}
+			a.toggleMemberEditor(member)
 		}
 	}
+}
+
+// toggleMemberEditor opens or closes the access editor under a row.
+func (a *App) toggleMemberEditor(member api.Member) {
+	m := &a.access.members
+	if m.editing == member.UserID {
+		m.editing = id.Nil
+		return
+	}
+	m.editing = member.UserID
+	m.role = member.Role
+	m.groups = slices.Clone(member.Groups)
+	m.roleIDs = slices.Clone(member.CustomRoleIDs)
 }
 
 // memberRowEditor opens under a row from "Ubah role": the base role,
@@ -442,16 +344,4 @@ func (a *App) memberInvitations(c *ui.Context) {
 			})
 		}
 	})
-}
-
-// memberWhatsApp is the table's WhatsApp cell: "Tertaut" or "Belum", or
-// "—" while the server does not tell.
-func memberWhatsApp(member api.Member) string {
-	switch {
-	case member.WhatsAppLinked == nil:
-		return "—"
-	case *member.WhatsAppLinked:
-		return "Tertaut"
-	}
-	return "Belum"
 }

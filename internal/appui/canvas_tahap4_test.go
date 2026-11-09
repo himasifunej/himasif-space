@@ -81,7 +81,7 @@ func TestMembersTableOpensOldActionsFromUbahRole(t *testing.T) {
 	h.app.router.Push(PathSpaces)
 	h.app.chrome.tab = "Anggota"
 	h.tt.Frame()
-	for _, s := range []string{"Anggota dan role", "Aruna Desain", "Undangan tertunda", "rina@student.unej.ac.id", "Kewenangan role", "Undang anggota"} {
+	for _, s := range []string{"Anggota", "Aruna Desain", "Undangan tertunda", "rina@student.unej.ac.id", "Kewenangan role", "Undang anggota"} {
 		h.want(s)
 	}
 	h.dontWant("Hapus anggota Aruna Desain")

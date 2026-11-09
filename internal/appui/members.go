@@ -32,6 +32,8 @@ type memberManagementState struct {
 	confirmAction         string
 	confirmID             id.ID
 	inviteOpen            bool
+	// query, filter and sort are the table's toolbar (stage A1).
+	query, filter, sort string
 }
 
 func (a *App) memberDivision() id.ID {

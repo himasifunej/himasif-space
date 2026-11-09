@@ -107,7 +107,7 @@ func TestReviewRowHidesActionsWithoutPermission(t *testing.T) {
 
 func TestMembersTableShowsWhatsAppStatus(t *testing.T) {
 	yes, no := true, false
-	if memberWhatsApp(api.Member{WhatsAppLinked: &yes}) != "Tertaut" || memberWhatsApp(api.Member{WhatsAppLinked: &no}) != "Belum" || memberWhatsApp(api.Member{}) != "—" {
+	if memberWhatsApp(api.Member{WhatsAppLinked: &yes}) != "Tertaut" || memberWhatsApp(api.Member{WhatsAppLinked: &no}) != "Belum tertaut" || memberWhatsApp(api.Member{}) != "—" {
 		t.Fatal("whatsapp cell labels")
 	}
 	h := newChromeHarness(t, nil)
@@ -125,11 +125,12 @@ func TestMembersTableShowsWhatsAppStatus(t *testing.T) {
 	h.app.chrome.tab = "Anggota"
 	h.tt.Frame()
 	h.want("Tertaut")
-	h.want("Belum")
+	h.want("Belum tertaut")
 	h.tt.SetSize(390, 844)
 	h.tt.Advance(400 * time.Millisecond)
 	h.tt.Frame()
-	h.want("— · — · WA tertaut")
+	h.want("Nara Tekno")
+	h.dontWant("— · — · WA tertaut")
 }
 
 // pingHistoryTestAPI serves a Space's Riwayat ping.
