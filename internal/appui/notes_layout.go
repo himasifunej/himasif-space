@@ -288,13 +288,17 @@ func (a *App) noteTitleView(c *ui.Context, phone bool) {
 		size = 24
 	}
 	if a.notesCanEdit() {
-		in := ui.TextInput(c.Key("note-title"), &a.notes.title).Label("Judul catatan").Placeholder("Tanpa judul").FillWidth().FontSize(size).Bold().Background(ui.RGBA(0, 0, 0, 0)).BorderWidth(0).Padding(0)
+		// A text area as high as the wrapped title (1 to 6 lines), so a long
+		// title wraps on a phone instead of being cut. Enter adds no line:
+		// a title is one paragraph.
+		in := ui.TextAreaBase(c.Key("note-title"), &a.notes.title).Lines(1, 6).Label("Judul catatan").Placeholder("Tanpa judul").FillWidth().MinWidth(0).FontSize(size).Bold().
+			OnTextKey(func(k ui.TextKey) bool { return k.Key == ui.KeyEnter })
 		if in.Changed() {
 			a.markNoteChanged()
 		}
 		return
 	}
-	ui.Text(c, a.notes.title).FontSize(size).Bold().FillWidth().MinWidth(0).Selectable()
+	ui.Text(c.Key("note-title-text"), a.notes.title).Label("Judul catatan").FontSize(size).Bold().FillWidth().MinWidth(0).Selectable()
 }
 
 // noteProperties lists the meeting's facts under the title. Desktop: a
@@ -433,4 +437,10 @@ func groupNoteHistory(events []api.NoteEvent) []noteHistoryEntry {
 		out = append(out, noteHistoryEntry{NoteEvent: e, count: 1, first: e.CreatedAt})
 	}
 	return out
+}
+
+// noteTitleText is the title as saved: one line (a pasted line break
+// becomes a space), trimmed.
+func noteTitleText(s string) string {
+	return strings.TrimSpace(strings.Join(strings.FieldsFunc(s, func(r rune) bool { return r == '\n' || r == '\r' }), " "))
 }

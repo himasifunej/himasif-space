@@ -5,7 +5,7 @@ Branch `feat/catatan-c2` dari `origin/main` 8c63805 (0.3.3, berisi C1 dan A2). D
 ## Yang dibangun
 - **Bilah dokumen** (desktop): remah **Rapat › judul** (Rapat membuka rapat terkait di Agenda; catatan tanpa rapat: **Catatan › judul**), label **Notulen** (template rapat) / Jadwal, status simpan, avatar orang yang sedang mencatat, chip **Hanya divisi ini** (tampilan saja, tooltip "Pengaturan berbagi menyusul"; C6), tutup.
   - Status: pembaca "Diedit baru saja / 12 menit lalu / pukul 19.42 / kemarin 19.42 / 9 Nov 19.42"; 10 detik setelah versi baru tiba "Diperbarui 19.42 oleh Sinta". Notulis "Menyimpan otomatis…" → "Menyimpan…" → "Tersimpan · baru saja"; gagal "Belum tersimpan — coba lagi" + tombol **Coba simpan lagi**.
-- **Judul besar** 30 px (HP 24 px): input tanpa bingkai untuk notulis, teks untuk pembaca.
+- **Judul besar** 30 px (HP 24 px), **membungkus ke beberapa baris** di desktop dan HP: untuk notulis text area tanpa bingkai setinggi teksnya (1–6 baris, Enter tidak menambah baris, baris baru hasil tempel disimpan sebagai spasi), untuk pembaca teks biasa. Remah di bilah dokumen sengaja tetap satu baris.
 - **Properti rapat** dari `Meeting` (daftar rapat Agenda yang sudah dimuat, tanpa endpoint baru): **Tanggal** "Senin, 9 Nov 2026 · 19.30–20.45" (zona waktu rapat), **Tempat** (lokasi, "+ rapat daring" bila ada tautan), **Kehadiran** dari `Meeting.Participants` (avatar + nama depan; izin/tidak hadir/belum dicatat pudar dengan alasan) + ringkasan "6 hadir · 1 izin". Catatan tanpa rapat: **Dibuat** tanggal + pembuat. Rapat yang tidak bisa diakses: "Data rapat tidak tersedia untuk akunmu."
 - **Kolom dokumen 720 px** di tengah; semua bagian lama (blok, draf pemulihan, komentar, lampiran, template, riwayat, hapus) ikut di kolom itu.
 - **Kunci editor tetap** (satu penyunting, Ambil alih dengan konfirmasi), kini satu strip ramping di bawah properti: "Kamu memegang editor · sampai 16.22 · Selesai mencatat" / "Sinta Notulis sedang mencatat · sampai … · Ambil alih editor". **Paging blok 8/halaman tetap.**
@@ -22,15 +22,14 @@ Branch `feat/catatan-c2` dari `origin/main` 8c63805 (0.3.3, berisi C1 dan A2). D
 
 ## Belum (sesuai lingkup)
 - Handle +/⠇, menu /, @, #tag (C3), timer (T1), privasi/Bagikan sungguhan (C6), avatar banyak pembaca (butuh presence).
-- Judul panjang di HP terpotong satu baris saat disunting (TextInput satu baris); pembaca melihatnya terbungkus.
 
 ## Berkas
 - `internal/appui/notes_layout.go` (baru): bilah dokumen, judul, properti rapat, kehadiran, status simpan, waktu relatif, `groupNoteHistory`.
 - `internal/appui/notes_controller.go`: `commitNote`, `noteAutosaveDue/Active`, `noteSaveFailed`, `finishNoteEditing` menunggu simpan, guard versi lama/simpan berjalan di `loadNoteDetail`, state autosave.
 - `internal/appui/notes_view.go`: HP daftar/isi, kolom 720, strip kunci, bilah bawah autosave, riwayat tergabung.
 - `internal/appui/notes_document.go`: `Replace`.
-- `internal/appui/notes_c2_test.go` (baru): autosave setelah jeda dan editor tetap sama, batas 30 detik, ketikan selama simpan, konflik → tinjauan, galat → coba lagi, pembaca tanpa lompat + "Diperbarui … oleh Sinta", penggabungan riwayat, waktu relatif, tata letak desktop/HP (lipat, buka, kembali), bilah notulis dan catatan tanpa rapat, screenshot.
-- Screenshot (renderer native, tema terang, data dummy) di `docs/screenshots/`: `catatan-c2-desktop-notulis.png`, `catatan-c2-desktop-pembaca.png`, `catatan-c2-hp.png`, `catatan-c2-hp-properti.png`. Dibuat ulang dengan `SPACE_UI_CAPTURE_DIR=<dir> go test ./internal/appui -run TestNotesC2NativeCapture`.
+- `internal/appui/notes_c2_test.go` (baru): autosave setelah jeda dan editor tetap sama, batas 30 detik, ketikan selama simpan, konflik → tinjauan, galat → coba lagi, pembaca tanpa lompat + "Diperbarui … oleh Sinta", penggabungan riwayat, waktu relatif, tata letak desktop/HP (lipat, buka, kembali), judul panjang membungkus (notulis dan pembaca, 390 dan 1440 px, Enter tanpa baris baru), bilah notulis dan catatan tanpa rapat, screenshot.
+- Screenshot (renderer native, tema terang, data dummy) di `docs/screenshots/`: `catatan-c2-desktop-notulis.png`, `catatan-c2-desktop-pembaca.png`, `catatan-c2-hp.png`, `catatan-c2-hp-properti.png`, `catatan-c2-hp-judul-panjang.png`, `catatan-c2-desktop-judul-panjang.png`. Dibuat ulang dengan `SPACE_UI_CAPTURE_DIR=<dir> go test ./internal/appui -run TestNotesC2NativeCapture`.
 
 ## Hasil cek (Windows, go1.27.3)
 ```

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/egoist/mygo/ui"
 	"github.com/himasifunej/himasif-space/internal/api"
 	"github.com/himasifunej/himasif-space/internal/client"
 	"github.com/himasifunej/himasif-space/internal/id"
@@ -454,8 +455,55 @@ func TestNotesC2NativeCapture(t *testing.T) {
 			shoot(h, "catatan-c2-hp")
 			h.app.notes.propsOpen = true
 			shoot(h, "catatan-c2-hp-properti")
+			h.app.notes.propsOpen = false
+			long := "Rapat koordinasi Mediatek · Minggu 10 · evaluasi poster oprec, konten Dies Natalis dan piket Bot WhatsApp"
+			h.app.notes.title, h.app.notes.note.Title = long, long
+			shoot(h, "catatan-c2-hp-judul-panjang")
+			h.tt.SetSize(1440, 900)
+			shoot(h, "catatan-c2-desktop-judul-panjang")
 			continue
 		}
 		shoot(h, "catatan-c2-desktop-pembaca")
+	}
+}
+
+// A long title wraps to more lines instead of being cut, for the notulis
+// (a text area as high as its text) and for readers, on a phone and on a
+// desktop; Enter adds no line break and a pasted one is saved as a space.
+func TestNoteTitleWrapsInsteadOfCut(t *testing.T) {
+	long := "Rapat koordinasi Mediatek · Minggu 10 · evaluasi poster oprec, konten Dies Natalis dan piket Bot WhatsApp"
+	for _, editing := range []bool{true, false} {
+		h, _ := c2Harness(t, editing)
+		h.app.notes.title = long
+		h.app.notes.note.Title = long
+		h.app.router.Push(PathSpaces)
+		h.app.chrome.tab = "Catatan"
+		for _, size := range []struct{ w, h, lines int }{{390, 844, 3}, {1440, 900, 2}} {
+			h.tt.SetSize(size.w, size.h)
+			h.tt.Frame()
+			name := "Judul catatan"
+			r, ok := h.tt.Find(name)
+			if !ok {
+				t.Fatalf("editing %v, %dpx: title not found", editing, size.w)
+			}
+			font := float32(30)
+			if size.w < mobileMaxWidth {
+				font = 24
+			}
+			if r.H < font*float32(size.lines) || r.X+r.W > float32(size.w) {
+				t.Fatalf("editing %v, %dpx: title %+v is not wrapped to %d lines within the window", editing, size.w, r, size.lines)
+			}
+		}
+		if editing {
+			h.click("Judul catatan")
+			h.tt.Key(0, ui.KeyEnter)
+			h.tt.Frame()
+			if h.app.notes.title != long {
+				t.Fatalf("Enter changed the title: %q", h.app.notes.title)
+			}
+		}
+	}
+	if got := noteTitleText(" Rapat\nkoordinasi\r\nMinggu 10 "); got != "Rapat koordinasi Minggu 10" {
+		t.Fatalf("noteTitleText = %q", got)
 	}
 }

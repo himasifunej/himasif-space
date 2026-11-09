@@ -573,7 +573,7 @@ func (a *App) commitNote(auto bool) {
 		}
 	}
 	nid, revision := a.notes.selected, a.notes.revision
-	title, content := strings.TrimSpace(a.notes.title), a.notes.editor.Content()
+	title, content := noteTitleText(a.notes.title), a.notes.editor.Content()
 	if title == "" || utf8.RuneCountInString(title) > 200 {
 		fail("Isi judul note, maksimal 200 karakter.")
 		return
