@@ -111,7 +111,7 @@ func TestMembersTableNativeCapture(t *testing.T) {
 	h.tt.SetSize(1440, 900)
 	d := h.api.divisions[0]
 	sp := testAuthorizedSpace(h.app, d)
-	caps := []string{api.CapSpaceRead, api.CapMembersRead, api.CapMembersManage, api.CapInvitationsManage, api.Cap45Manage, api.CapPingSend}
+	caps := []string{api.CapSpaceRead, api.CapMembersRead, api.CapMembersManage, api.CapInvitationsManage, api.Cap45Manage, api.CapPingSend, api.CapArchivesManage}
 	roles := []string{api.RoleKadiv}
 	h.app.access.spaces[0].Roles = []api.Access{{DivisionID: d.ID, Roles: roles, Capabilities: caps}}
 	yes, no := true, false

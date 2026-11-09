@@ -50,11 +50,19 @@ func (a *App) headerMembers(c *ui.Context, showText bool) {
 				}
 			})
 		}
-		text := fmt.Sprintf("%d anggota", len(m.items))
-		if !showText {
-			text = fmt.Sprint(len(m.items))
+		n, known := a.headerMemberCount(sp)
+		text := "Anggota"
+		switch {
+		case known && showText:
+			text = fmt.Sprintf("%d anggota", n)
+		case known:
+			text = fmt.Sprint(n)
+		case !showText:
+			text = ""
 		}
-		ui.Text(c, text).FontSize(12).TextColor(t.TextMuted).MaxLines(1)
+		if text != "" {
+			ui.Text(c, text).FontSize(12).TextColor(t.TextMuted).MaxLines(1)
+		}
 	})
 	if b.Clicked() {
 		a.chrome.membersOpen = !a.chrome.membersOpen
@@ -88,6 +96,21 @@ func (a *App) headerMembers(c *ui.Context, showText bool) {
 			a.chrome.pingOpen = true
 		}
 	})
+}
+
+// headerMemberCount is the number the member chip shows, and whether it is
+// known. In a division Space whose member table is loaded it is the
+// table's count, so the chip and the Anggota page agree; otherwise it is
+// the count of the Space's people (meeting candidates). Before either has
+// loaded, or after a failure, it is unknown: no "0 anggota".
+func (a *App) headerMemberCount(sp *api.Space) (int, bool) {
+	if m := &a.access.members; sp.Kind == api.SpaceDivision && len(sp.Divisions) == 1 && m.loaded && m.division == sp.Divisions[0].ID {
+		return len(m.members), true
+	}
+	if a.chrome.members.loaded {
+		return len(a.chrome.members.items), true
+	}
+	return 0, false
 }
 
 func (a *App) loadHeaderMembers() {

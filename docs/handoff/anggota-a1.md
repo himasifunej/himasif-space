@@ -35,5 +35,15 @@ FAIL	github.com/himasifunej/himasif-space/internal/filestore
 Kegagalan `internal/filestore` adalah cek izin direktori Unix 0700 yang tidak berlaku di Windows; berkas itu tidak disentuh tahap ini. Perlu dijalankan ulang di Linux/VPS (dengan lock memori seperti brief) sebelum digabung.
 
 ## Catatan untuk pengecekan owner
-- Di screenshot tes, Ping dan Izin arsip tidak muncul karena fixture tes tidak memberi izin ping/arsip; di akun nyata keduanya tampil sesuai izin.
+- Di screenshot tes, Ping tidak muncul karena fixture tidak memberi izin ping pada Space. Izin arsip kini tampil: fixture kadiv diberi `archives.manage`, sama seperti kadiv di server.
+
+## Perbaikan sebelum rilis 0.3.2
+- **Chip anggota di header**: sebelumnya tertulis "0 anggota" padahal tabel berisi 7.
+  - Penyebab di screenshot: fake API tes tidak punya daftar kandidat rapat, jadi chip gagal memuat dan menulis 0.
+  - Di app nyata ada dua kelemahan yang sama sumbernya. Pertama, chip menghitung kandidat rapat yang tidak memuat akun nonaktif, sedangkan tabel memuat semua keanggotaan. Kedua, selama memuat atau saat gagal, chip menulis "0 anggota".
+  - Sekarang (`headerMemberCount`): di Space divisi yang tabelnya sudah dimuat, chip memakai jumlah tabel. Kalau tabel belum dimuat, chip memakai jumlah kandidat. Kalau keduanya belum ada, chip hanya menulis "Anggota" tanpa angka.
+  - Test: `TestHeaderMemberChipMatchesTable`.
+- **Izin arsip**: tombolnya sudah ada untuk yang berhak (`archives.manage`, bukan 45, periode belum ditutup). Di screenshot tidak tampil hanya karena fixture-nya.
+  - Test: `TestMembersHeaderArchiveButton` (kadiv tampil; kadiv tanpa izin, 45 dan anggota tidak).
+  - Screenshot dibuat ulang.
 - Cek di app nyata: tabel di 1440 px dan di HP, chip "Belum tertaut" untuk anggota tanpa status WA (status `—` tidak ikut dihitung).
