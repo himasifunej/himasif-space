@@ -205,6 +205,9 @@ func (a *App) noteDetail(c *ui.Context) {
 			})
 		})
 	})
+	if a.notesCanEdit() && phone && a.notes.editor != nil && a.notes.compare == nil {
+		ui.Column(c).FillWidth().BorderWidth(1, 0, 0, 0).BorderColor(c.Theme().Border).Background(c.Theme().Surface).Children(func() { a.notes.editor.MobileBar(c) })
+	}
 	if a.notesCanEdit() {
 		ui.Row(c).FillWidth().MinWidth(0).Padding(10, 18).Gap(10).AlignItems(ui.Center).BorderWidth(1, 0, 0, 0).BorderColor(c.Theme().Border).Children(func() {
 			hint := "Tersimpan otomatis beberapa detik setelah kamu berhenti mengetik."
@@ -233,6 +236,8 @@ func (a *App) noteDocumentBody(c *ui.Context) {
 		a.notes.editor.SetEditable(a.notesCanEdit() && a.notes.compare == nil)
 		a.notes.editor.OnExtract = nil
 		a.notes.editor.ExtractTask = a.noteCanExtractTask()
+		a.notes.editor.Compact = isMobile(c)
+		a.notes.editor.Attendance = a.noteAttendanceLines
 		if !a.notesWriteBlocked() && a.notes.compare == nil && !a.isAdmin() {
 			a.notes.editor.OnExtract = func(text, target string) { a.beginNoteConversion(target, text) }
 		}

@@ -444,3 +444,24 @@ func groupNoteHistory(events []api.NoteEvent) []noteHistoryEntry {
 func noteTitleText(s string) string {
 	return strings.TrimSpace(strings.Join(strings.FieldsFunc(s, func(r rune) bool { return r == '\n' || r == '\r' }), " "))
 }
+
+// noteAttendanceLines fills a "Kehadiran" block from the note's meeting:
+// "Demo Mediatek — hadir", "Laras Foto — izin (kuliah pengganti)".
+func (a *App) noteAttendanceLines() []string {
+	m, _ := a.noteMeeting()
+	if m == nil {
+		return nil
+	}
+	out := []string{}
+	for _, p := range m.Participants {
+		status := map[string]string{"present": "hadir", "excused": "izin", "absent": "tidak hadir"}[p.AttendanceStatus]
+		if status == "" {
+			status = "belum dicatat"
+		}
+		if note := strings.TrimSpace(p.AttendanceNote); note != "" {
+			status += " (" + note + ")"
+		}
+		out = append(out, p.DisplayName+" — "+status)
+	}
+	return out
+}

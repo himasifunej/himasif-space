@@ -38,12 +38,13 @@ func TestNoteDocumentKeepsUnsupportedAndC1Blocks(t *testing.T) {
 		e.SetEditable(editable)
 		tt := newNoteDocumentTester(e, 900, 4000)
 		tt.Frame()
-		// Editors type the plain action item in an input ("Butir 1 blok 5").
-		item := "Desain poster"
+		// Editors type plain text in inputs (stage C3: callout and toggle
+		// too), found by their labels.
+		item, callout, toggle, line := "Desain poster", "Posting tiap Senin", "Pembahasan", "Detail diskusi"
 		if editable {
-			item = "Butir 1 blok 5"
+			item, callout, toggle, line = "Butir 1 blok 5", "Isi blok 3", "Judul toggle 6", "Isi toggle 6 baris 1"
 		}
-		for _, s := range []string{"Blok tidak didukung", "Keputusan", "Posting tiap Senin", "Pembahasan", "Detail diskusi", "Aruna", item} {
+		for _, s := range []string{"Blok tidak didukung", "Keputusan", callout, toggle, line, "Aruna", item} {
 			if !tt.HasText(s) {
 				t.Errorf("editable=%v: no %q in %q", editable, s, tt.Texts())
 			}
