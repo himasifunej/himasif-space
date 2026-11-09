@@ -184,12 +184,13 @@ func TestMembersTableNativeCapture(t *testing.T) {
 	// active tasks; saving shows a toast and leaves the rows in place.
 	h.app.closeMemberAccess()
 	h.tt.SetSize(1440, 900)
-	h.app.openMemberAccess(members[4]) // Raka: 6 active tasks
-	h.app.access.members.removeAsk = true
+	h.app.openMemberAccess(members[4]) // Raka: 6 here, 1 more in Medhum
+	raka := &api.MemberActiveTasks{Count: 7, Spaces: []api.MemberTaskSpace{{SpaceID: sp.ID, Name: sp.Name, Count: 6}, {SpaceID: id.New(), Name: "Medhum", Count: 1}}}
+	h.app.access.members.removeAsk, h.app.access.members.removeTasks, h.app.access.members.removeTasksFor = true, raka, members[4].UserID
 	shot("anggota-a3-keluarkan-diblokir")
 	h.app.closeMemberAccess()
 	h.app.openMemberAccess(members[6]) // Laras: none
-	h.app.access.members.removeAsk = true
+	h.app.access.members.removeAsk, h.app.access.members.removeTasks, h.app.access.members.removeTasksFor = true, &api.MemberActiveTasks{Spaces: []api.MemberTaskSpace{}}, members[6].UserID
 	shot("anggota-a3-keluarkan")
 	h.app.closeMemberAccess()
 	h.app.pinMemberOrder()
@@ -197,7 +198,7 @@ func TestMembersTableNativeCapture(t *testing.T) {
 	shot("anggota-a3-toast")
 	h.tt.SetSize(390, 844)
 	h.app.openMemberAccess(members[4])
-	h.app.access.members.removeAsk = true
+	h.app.access.members.removeAsk, h.app.access.members.removeTasks, h.app.access.members.removeTasksFor = true, raka, members[4].UserID
 	shot("anggota-a3-hp-keluarkan-diblokir")
 }
 

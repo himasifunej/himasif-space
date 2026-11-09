@@ -338,8 +338,11 @@ func TestMemberRemovalBlockedByActiveTasks(t *testing.T) {
 	h.click("Ubah akses Nara Tekno")
 	h.click("Keluarkan Nara…")
 	h.tt.Frame()
+	// The fixture has no active-tasks endpoint (an older server): the
+	// open Space's tasks are counted, and the dialog says so.
 	h.want("Nara masih PJ 2 tugas aktif.")
-	if _, _, allowed := h.app.memberRemoveState(nara); allowed {
+	h.want(memberLocalCountNote)
+	if h.app.memberRemoveState(nara).allowed {
 		t.Fatal("removal allowed with active tasks")
 	}
 	h.click("Keluarkan anggota") // disabled: nothing happens
@@ -357,8 +360,94 @@ func TestMemberRemovalBlockedByActiveTasks(t *testing.T) {
 
 	// Tasks not loaded yet: removal waits.
 	h.app.tasks.loaded = false
-	if _, loaded, allowed := h.app.memberRemoveState(nara); loaded || allowed {
+	h.app.access.members.removeTasksFor, h.app.access.members.removeTasksLocal = nara.UserID, true
+	if r := h.app.memberRemoveState(nara); r.known || r.allowed {
 		t.Fatal("removal allowed before tasks load")
+	}
+}
+
+// memberTasksFixture is a server with the active-tasks endpoint.
+type memberTasksFixture struct {
+	*memberAccessFixture
+	tasks     api.MemberActiveTasks
+	removeErr error
+}
+
+func (f *memberTasksFixture) MemberActiveTasks(context.Context, id.ID, id.ID, id.ID) (api.MemberActiveTasks, error) {
+	f.record("active-tasks")
+	return f.tasks, nil
+}
+
+func (f *memberTasksFixture) RemoveMember(ctx context.Context, p, d, uid id.ID) error {
+	f.record("remove:" + uid.String())
+	return f.removeErr
+}
+
+// The server's count covers every Space of the division: a task only in
+// Medhum blocks the removal even though the open board shows none, and
+// "Lihat tugas di Medhum" opens Medhum's board filtered to the member.
+func TestMemberRemovalUsesServerCount(t *testing.T) {
+	h, base, _, nara := memberAccessHarness(t, 1440, 1500)
+	medhum := api.Space{ID: id.New(), PeriodID: h.app.periodID, Name: "Medhum", Code: "medhum", Kind: api.SpaceShared, Divisions: h.app.access.spaces[0].Divisions, Roles: h.app.access.spaces[0].Roles, Capabilities: h.app.access.spaces[0].Capabilities}
+	h.app.access.spaces = append(h.app.access.spaces, medhum)
+	base.spaces = slices.Clone(h.app.access.spaces)
+	f := &memberTasksFixture{memberAccessFixture: base, tasks: api.MemberActiveTasks{Count: 1, Spaces: []api.MemberTaskSpace{{SpaceID: medhum.ID, Name: "Medhum", Count: 1}}}}
+	h.app.api = f
+	if _, _, ok := h.app.memberWork(nara.UserID, time.Now()); !ok {
+		t.Fatal("tasks not loaded")
+	}
+	h.click("Ubah akses Nara Tekno")
+	h.click("Keluarkan Nara…")
+	h.settle()
+	h.want("Nara masih PJ 1 tugas aktif (Medhum 1).")
+	h.dontWant(memberLocalCountNote)
+	if h.app.memberRemoveState(nara).allowed {
+		t.Fatal("removal allowed with a Medhum task")
+	}
+	h.click("Lihat tugas di Medhum")
+	h.tt.Frame()
+	if h.app.selectedSpaceID() != medhum.ID || h.app.chrome.tab != "Board tugas" || h.app.tasks.filter != "Nara Tekno" {
+		t.Fatalf("space %v tab %q filter %q", h.app.selectedSpaceID(), h.app.chrome.tab, h.app.tasks.filter)
+	}
+}
+
+// If the server refuses the removal (a task was given to the member after
+// the dialog counted), the dialog shows the server's answer instead.
+func TestMemberRemovalRefusedByServer(t *testing.T) {
+	h, base, _, nara := memberAccessHarness(t, 1440, 1500)
+	space := h.app.access.spaces[0]
+	f := &memberTasksFixture{memberAccessFixture: base, tasks: api.MemberActiveTasks{Spaces: []api.MemberTaskSpace{}},
+		removeErr: &client.Error{Status: 409, Code: api.CodeMemberHasTasks, Message: "Nara Tekno masih PJ 2 tugas aktif.",
+			Data: map[string]any{"count": 2, "spaces": []any{map[string]any{"spaceId": space.ID.String(), "name": space.Name, "count": 2}}}}}
+	h.app.api = f
+	h.click("Ubah akses Nara Tekno")
+	h.click("Keluarkan Nara…")
+	h.settle()
+	h.want("Nara tidak punya tugas aktif.")
+	h.click("Keluarkan anggota")
+	h.settle()
+	h.tt.Frame()
+	h.want("Nara masih PJ 2 tugas aktif (" + space.Name + " 2).")
+	m := &h.app.access.members
+	if !m.removeAsk || m.editing != nara.UserID || h.app.memberRemoveState(nara).allowed || m.err != "" {
+		t.Fatalf("after refusal: ask %v editing %v err %q", m.removeAsk, m.editing, m.err)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if strings.Join(f.calls, ",") != "active-tasks,remove:"+nara.UserID.String() {
+		t.Fatalf("calls %v", f.calls)
+	}
+}
+
+func TestMemberTasksFromError(t *testing.T) {
+	if _, ok := memberTasksFromError(errors.New("x")); ok {
+		t.Fatal("plain error read as tasks")
+	}
+	if _, ok := memberTasksFromError(&client.Error{Code: api.CodeConflict}); ok {
+		t.Fatal("other conflict read as tasks")
+	}
+	if got, ok := memberTasksFromError(&client.Error{Code: api.CodeMemberHasTasks}); !ok || got.Count != 1 {
+		t.Fatalf("refusal without data = %+v %v", got, ok)
 	}
 }
 

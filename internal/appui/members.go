@@ -46,6 +46,14 @@ type memberManagementState struct {
 	// role changed does not jump (stage A3); the refresh button or another
 	// sort order lets the table sort again.
 	pinned []id.ID
+	// removeTasks is the server's count of the active tasks of the member
+	// in the removal dialog (removeTasksFor), across the division's Spaces;
+	// nil while loading or when the server cannot tell (removeTasksLocal:
+	// the dialog falls back to the open Space's tasks).
+	removeTasks        *api.MemberActiveTasks
+	removeTasksFor     id.ID
+	removeTasksLoading bool
+	removeTasksLocal   bool
 }
 
 func (a *App) memberDivision() id.ID {
@@ -138,6 +146,14 @@ func (a *App) memberWrite(cap, label string, work func(WorkspaceAPI, id.ID, id.I
 				a.loadMembers(d)
 				a.access.members.err = msg
 				a.loadSpaces()
+				return
+			}
+			// A removal the server refused for active tasks: the dialog shows
+			// the server's count and where the tasks are.
+			if tasks, ok := memberTasksFromError(err); ok {
+				m := &a.access.members
+				m.removeTasks, m.removeTasksFor, m.removeTasksLocal, m.removeTasksLoading = &tasks, m.editing, false, false
+				m.removeAsk = m.editing != id.Nil
 				return
 			}
 			if err != nil {

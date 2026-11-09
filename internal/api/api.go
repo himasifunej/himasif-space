@@ -34,6 +34,9 @@ const (
 	CodeRateLimited     = "rate_limited"
 	CodeUnavailable     = "unavailable"
 	CodeInternal        = "internal"
+	// CodeMemberHasTasks refuses removing a member who is still the PJ of
+	// active tasks; the error's data is a MemberActiveTasks.
+	CodeMemberHasTasks = "member_has_tasks"
 )
 
 // Error is the body of every failed response.

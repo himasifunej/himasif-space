@@ -52,6 +52,14 @@ func (c *Client) UpdateMember(ctx context.Context, p, d, u id.ID, req api.Update
 func (c *Client) RemoveMember(ctx context.Context, p, d, u id.ID) error {
 	return c.do(ctx, http.MethodDelete, divisionPath(p, d)+"/members/"+u.String(), nil, nil)
 }
+
+// MemberActiveTasks asks what keeps a member from being removed: their
+// active tasks in the division's Spaces.
+func (c *Client) MemberActiveTasks(ctx context.Context, p, d, u id.ID) (api.MemberActiveTasks, error) {
+	var r api.MemberActiveTasks
+	err := c.do(ctx, http.MethodGet, divisionPath(p, d)+"/members/"+u.String()+"/active-tasks", nil, &r)
+	return r, err
+}
 func (c *Client) Roles(ctx context.Context, p, d id.ID) ([]api.CustomRole, error) {
 	var r api.List[api.CustomRole]
 	err := c.do(ctx, http.MethodGet, divisionPath(p, d)+"/roles", nil, &r)
