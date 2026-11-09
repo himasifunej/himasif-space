@@ -39,7 +39,7 @@ desktop-windows:
 	$(GO) tool mygo build -platform windows/amd64 ./app
 
 server:
-	$(GO) build -o bin/space-server ./cmd/space-server
+	$(GO) build -ldflags "-X github.com/himasifunej/himasif-space/internal/server.Version=$(VERSION)" -o bin/space-server ./cmd/space-server
 
 serve: server
 	./bin/space-server -env-file $(ENV_FILE) serve
