@@ -1,5 +1,7 @@
 # Rencana Tahap 6 canvas A: nomor tugas #T dan lampiran berkas tugas (9 November 2026)
 
+> **9 Nov 2026:** langkah deploy di bawah ditulis untuk aws-vps, yang sudah pensiun. Pilot sekarang ada di tc-vps; pakai `docs/handoff/deploy-pilot.md` (build di PC, jangan di server).
+
 Status: **disetujui owner 9 Nov** (lingkup kode + test + CI; deploy menunggu persetujuan terpisah). Keputusan di bagian "Yang perlu disetujui". Tahap 5 sudah live (a74074b, migrasi sampai `0025`).
 
 ## Ringkasan

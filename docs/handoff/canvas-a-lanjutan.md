@@ -26,8 +26,9 @@ Handoff dari sesi Claude di aws-vps (3d9d996fdf80) supaya pekerjaan bisa dilanju
 3. Tahap 5 (butuh backend + migrasi DB pilot, backup dulu): tombol Cocok/Tidak cocok langsung di tab Tinjauan, riwayat ping (API belum ada), urutan/tab tersembunyi ikut akun, data WhatsApp per anggota di tabel Anggota (kolom masih "—"), nomor tugas urut #T.. (kartu masih memakai potongan ID), unggah lampiran berkas.
 4. Owner: putuskan Tampilan (to-do di catatan audit).
 
-## Build dan deploy (hanya di aws-vps)
-- Rilis web hidup di `/home/enowx/.local/opt/himasif-space-pilot/releases/0.3.0-pilot.13-212f6eaa1793/web`. Deploy = `make web`, salin `app/build/web` ke `web.new`, cadangkan `web` ke `web.before-<nama>`, tukar. Cadangan yang ada: web.before-touchpan, -chrome, -tahap2, -tahap34.
-- RAM aws-vps hanya 1,9 GB: build/test lewat `flock /tmp/space-build.lock env GOMAXPROCS=1 GOFLAGS=-p=1 GOMEMLIMIT=256MiB GOGC=50 …`, paling banyak dua sesi agen aktif, hibernate sesi yang selesai. Load sempat >40 saat tiga sesi + build jalan bersamaan.
-- Alat cek visual (Playwright headless, akun demo) ada di aws-vps: `/home/enowx/HIMASIF/.shots/canvasA/{appshot.cjs,swipe.cjs,canvas.cjs}` dan `/home/enowx/HIMASIF/.shots/proxy.py` (serve build lokal di :8799, /api diteruskan ke API pilot).
-- Di PC lain cukup kerjakan kode + test (`go test` tanpa batas RAM), push ke branch, lalu deploy dari aws-vps.
+## Build dan deploy
+Sejak 9 Nov 2026 pukul 14:04 UTC, pilot berjalan di **tc-vps**; aws-vps sudah pensiun. Alur yang berlaku ada di `docs/handoff/deploy-pilot.md`:
+- Build dikerjakan di PC (`build-local.sh`), lalu artefak diunggah dan dipasang (`deploy.sh --dry-run | --stage | --go`).
+- Jangan build di tc-vps: RAM-nya 1,9 GB dan dipakai bersama aplikasi lain.
+- Rilis web tetap di `/home/enowx/.local/opt/himasif-space-pilot/releases/0.3.0-pilot.13-212f6eaa1793/web`, dengan cadangan `web.before-<versi>`.
+- Alat cek visual Playwright dulu ada di aws-vps (`/home/enowx/HIMASIF/.shots/...`) dan tidak ikut dipindah. Uji UI sekarang dilakukan owner sendiri di pilot.

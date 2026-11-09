@@ -1,5 +1,7 @@
 # Rencana Tahap 7 canvas A: Evaluasi SOP, drawer Buat tugas, Ping, Bot WhatsApp (9 November 2026)
 
+> **9 Nov 2026:** langkah deploy di bawah ditulis untuk aws-vps, yang sudah pensiun. Pilot sekarang ada di tc-vps; pakai `docs/handoff/deploy-pilot.md` (build di PC, jangan di server).
+
 Status: **disetujui owner 9 Nov (5 butir); dikerjakan berurutan 7b, 7a, 7c, 7d**. Tanpa migrasi; deploy menunggu izin terpisah. Tahap 6 sudah live (6e18351, migrasi sampai `0027`).
 
 Pemenang yang ditandai owner di canvas: **Ping → C · Desktop** (canvas `826e909e5957`, desain 5) dan **Bot WhatsApp → A · Desktop** (canvas `121115cdae78`, desain 1). Versi HP tidak ditandai (canvas hanya menyimpan satu pemenang); {{Assumption}} versi HP mengikuti varian yang sama: Ping C · HP (desain 6), Bot WhatsApp A · HP (desain 2).

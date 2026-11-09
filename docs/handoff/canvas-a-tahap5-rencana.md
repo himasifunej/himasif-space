@@ -1,5 +1,7 @@
 # Rencana Tahap 5 canvas A (backend), 8 November 2026
 
+> **9 Nov 2026:** langkah deploy di bawah ditulis untuk aws-vps, yang sudah pensiun. Pilot sekarang ada di tc-vps; pakai `docs/handoff/deploy-pilot.md` (build di PC, jangan di server).
+
 Status: **disetujui owner 8 Nov; kode selesai di PC Tiyo** (commit 7b97290, 350e41f, 3f36e61, bf2c085). Deploy dikerjakan sesi aws-vps; lihat "Langkah deploy" di bawah.
 
 ## Ringkasan
