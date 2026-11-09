@@ -172,6 +172,11 @@ func (a *App) noteDetail(c *ui.Context) {
 				pageNotice(c, "alert", "Detail belum diperbarui", a.notes.detailErr)
 			}
 			a.noteLeaseView(c)
+			if n.MeetingID != nil && spaceButton(c, "Buka rapat terkait", "calendar", false).Clicked() {
+				a.chrome.tab = "Agenda"
+				a.ensureMeetings()
+				a.meetings.selected = *n.MeetingID
+			}
 			if a.notes.localStatus != "" {
 				muted(c, a.notes.localStatus).FontSize(12)
 			}
@@ -201,7 +206,8 @@ func (a *App) noteDetail(c *ui.Context) {
 			if a.notes.editor != nil {
 				a.notes.editor.SetEditable(a.notesCanEdit() && a.notes.compare == nil)
 				a.notes.editor.OnExtract = nil
-				if n.Permissions.Manage && !a.notesWriteBlocked() && a.notes.compare == nil {
+				a.notes.editor.ExtractTask = a.noteCanExtractTask()
+				if !a.notesWriteBlocked() && a.notes.compare == nil && !a.isAdmin() {
 					a.notes.editor.OnExtract = func(text, target string) { a.beginNoteConversion(target, text) }
 				}
 				a.notes.editor.View(c)
@@ -265,9 +271,16 @@ func (a *App) noteLeaseView(c *ui.Context) {
 			muted(c, "Melepas editor menjaga drafmu. Gunakan Simpan catatan untuk memperbarui isi resmi.").FontSize(11)
 			return
 		}
+		if a.canEditOfflineNote() {
+			if spaceButton(c, "Edit draf offline", "edit", true).FillWidth().Disabled(a.notes.busy).Clicked() {
+				a.beginNoteEditing()
+			}
+			muted(c, "Editor server akan diperiksa ulang saat sinkronisasi. Draf offline tidak mengambil alih editor orang lain.")
+			return
+		}
 		otherLive := n.Lock != nil && !n.Lock.HeldByCaller && c.Now().Before(n.Lock.ExpiresAt)
 		if !otherLive {
-			if spaceButton(c, "Ambil editor", "edit", true).FillWidth().Disabled(a.notesWriteBlocked()).Clicked() {
+			if spaceButton(c, "Ambil editor", "edit", true).FillWidth().Disabled(a.notesWriteBlocked() && !a.canEditOfflineNote()).Clicked() {
 				a.beginNoteEditing()
 			}
 			return
@@ -308,7 +321,7 @@ func (a *App) noteComparisonView(c *ui.Context) {
 		muted(c, "Draf belum menjadi isi resmi. Periksa isi server dan drafmu sebelum melanjutkan; tidak ada isi yang digabung atau ditimpa otomatis.")
 		pageSection(c, fmt.Sprintf("Isi resmi · versi %d", n.Version), n.Title, func() { readers.official.View(c) })
 		pageSection(c, fmt.Sprintf("Draf · berawal dari versi %d", draft.BaseVersion), draft.Title, func() { readers.recovered.View(c) })
-		if spaceButton(c, "Gunakan draf yang sudah ditinjau", "check", true).FillWidth().Disabled(a.notesWriteBlocked() || !n.Permissions.Manage).Clicked() {
+		if spaceButton(c, "Gunakan draf yang sudah ditinjau", "check", true).FillWidth().Disabled((a.notesWriteBlocked() && !a.canEditOfflineNote()) || !n.Permissions.Manage).Clicked() {
 			a.useComparedNoteDraft()
 		}
 		muted(c, "Tindakan ini melanjutkan draf untuk diedit, belum menyimpannya sebagai isi resmi. Ambil editor terlebih dahulu bila diperlukan.").FontSize(11)
@@ -380,7 +393,8 @@ func (a *App) noteAttachmentsView(c *ui.Context) {
 	if n == nil {
 		return
 	}
-	pageSection(c, "Lampiran", "Tautan berkas dan catatan lampiran yang belum tersedia.", func() {
+	pageSection(c, "Lampiran", "Berkas privat dan tautan sumber mengikuti izin catatan.", func() {
+		a.noteFileActions(c)
 		if len(n.Attachments) == 0 {
 			muted(c, "Belum ada lampiran.")
 		}
@@ -388,7 +402,12 @@ func (a *App) noteAttachmentsView(c *ui.Context) {
 			row := ui.Column(c.Key(attachment.ID)).FillWidth().MinWidth(0).Gap(7).Padding(10).Radius(8).Border(1, c.Theme().Border)
 			confirm := ui.Local(row, "remove", func() bool { return false })
 			row.Children(func() {
-				if attachment.Status == api.AttachmentReady && attachment.URL != "" {
+				if attachment.Stored {
+					ui.Text(c, attachment.Name).Bold()
+					if spaceButton(c, "Unduh "+attachment.Name, "archive", false).Disabled(a.notes.busy || a.offlineMode()).Clicked() {
+						a.downloadNoteFile(attachment)
+					}
+				} else if attachment.Status == api.AttachmentReady && attachment.URL != "" {
 					noteDocumentRichText(c, []api.Span{{Text: attachment.Name, Link: attachment.URL}}, true)
 				} else {
 					ui.Text(c, attachment.Name).FontSize(13).Bold().FillWidth().MinWidth(0)
@@ -550,6 +569,17 @@ func (a *App) noteConversionView(c *ui.Context) {
 		if conversion.err != "" {
 			ui.Text(c, conversion.err).FontSize(12).TextColor(c.Theme().Danger).FillWidth().MinWidth(0)
 		}
+		if conversion.target != id.Nil && conversion.reader {
+			what := "Reminder pribadi"
+			if task {
+				what = "Tugas"
+			}
+			pageNotice(c, "check", what+" sudah dibuat", "Tidak ditautkan ke catatan ini karena kamu pembaca catatan. Cuplikan blok disalin ke catatannya.")
+			if spaceButton(c, "Selesai", "check", false).FillWidth().Clicked() {
+				a.notes.conversion = nil
+			}
+			return
+		}
 		if conversion.target != id.Nil {
 			pageNotice(c, "check", "Objek sudah dibuat", "Pembuatan tidak perlu diulang. Pencatatan hubungan ke catatan memiliki status tersendiri.")
 			muted(c, "Referensi "+conversion.target.String()).FontSize(10).Selectable()
@@ -633,7 +663,7 @@ func noteTemplateKindLabel(kind string) string {
 }
 
 func noteEventLabel(action string) string {
-	labels := map[string]string{"note.create": "Catatan dibuat", "note.update": "Isi resmi diperbarui", "note.lock.takeover": "Editor diambil alih", "note.comment": "Komentar ditambahkan", "note.comment.add": "Komentar ditambahkan", "note.attachment.add": "Lampiran ditambahkan", "note.attachment.remove": "Lampiran dihapus", "note.link.add": "Hubungan pekerjaan dicatat", "note.link.remove": "Hubungan pekerjaan dihapus"}
+	labels := map[string]string{"note.create": "Catatan dibuat", "note.update": "Isi resmi diperbarui", "note.lock.takeover": "Editor diambil alih", "note.comment": "Komentar ditambahkan", "note.comment.add": "Komentar ditambahkan", "note.attachment.add": "Lampiran ditambahkan", "note.attachment.upload": "Berkas lampiran diunggah", "note.attachment.remove": "Lampiran dihapus", "note.link.add": "Hubungan pekerjaan dicatat", "note.link.remove": "Hubungan pekerjaan dihapus"}
 	if label, exists := labels[action]; exists {
 		return label
 	}

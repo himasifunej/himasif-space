@@ -1,0 +1,26 @@
+[Unit]
+Description=Encrypted Space snapshot (explicitly stops configured API and bridge units)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+EnvironmentFile=/etc/space-backup/database.env
+ExecStartPre=/usr/bin/python3 /opt/space/current/scripts/ops/space_ops.py --policy /etc/space-backup/policy.json resume
+ExecStart=/usr/bin/python3 /opt/space/current/scripts/ops/space_ops.py --policy /etc/space-backup/policy.json backup --stop-services
+ExecStopPost=/usr/bin/python3 /opt/space/current/scripts/ops/space_ops.py --policy /etc/space-backup/policy.json resume
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+CPUQuota=75%
+MemoryMax=384M
+TasksMax=64
+TimeoutStartSec=1h
+TimeoutStopSec=2min
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/mnt/space-backup/archives /var/lib/space-backup/staging

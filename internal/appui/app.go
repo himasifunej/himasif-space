@@ -88,7 +88,12 @@ const (
 // call Start once the window exists.
 type App struct {
 	// ServerURL is shown on the login and settings pages.
-	ServerURL string
+	ServerURL      string
+	PickFile       func(maxBytes int64, done func(SelectedFile, error))
+	ExportFile     func(name, mediaType string, data []byte) (string, error)
+	Notifications  NotificationSink
+	DeviceSettings func(*ui.Context)
+	SessionChanged func(id.ID)
 	// Version is the app's version, shown in the settings.
 	Version string
 	// ClientName names the app to the server at login: "desktop" or "web".
@@ -96,17 +101,32 @@ type App struct {
 	// PreferencesStore persists appearance on this device, separately from tokens.
 	PreferencesStore PreferencesStore
 	// NoteDrafts keeps account-scoped recovery copies on this device.
-	NoteDrafts        NoteDraftStore
-	preferencesLoaded bool
-	chrome            chromeState
-	workspace         *workspaceui.State
-	access            workspaceAccessState
-	tasks             tasksUIState
-	reminders         remindersUIState
-	notes             notesUIState
-	organization      organizationUIState
-	archives          archiveAdminUIState
-	account           accountFlowState
+	PendingFiles              PendingFileStore
+	NoteDrafts                NoteDraftStore
+	preferencesLoaded         bool
+	chrome                    chromeState
+	realtime                  realtimeUIState
+	workspace                 *workspaceui.State
+	access                    workspaceAccessState
+	tasks                     tasksUIState
+	reminders                 remindersUIState
+	notes                     notesUIState
+	meetings                  meetingsState
+	agenda                    agendaState
+	deliveries                deliveriesState
+	operations                operationsUIState
+	emergency                 emergencyUIState
+	offlineSync               offlineUIState
+	notificationSettingsState notificationSettingsState
+	pingHistory               pingHistoryState
+	uiPrefs                   uiPreferencesSync
+	taskNotification          taskNotificationState
+	organization              organizationUIState
+	archives                  archiveAdminUIState
+	account                   accountFlowState
+	spaceTabs                 spaceTabsUIState
+	jobdesk                   jobdeskUIState
+	home                      homeUIState
 
 	api    API
 	tokens TokenStore
@@ -132,10 +152,12 @@ type App struct {
 	busy            bool
 	loginErr        string
 
-	user       api.User
-	conn       connState
-	pinging    bool
-	lastPing   time.Time // by the view's clock
+	user     api.User
+	conn     connState
+	pinging  bool
+	lastPing time.Time // by the view's clock
+	// syncedAt is the last time the server answered, shown in the sync pill.
+	syncedAt   time.Time
 	loggingOut bool
 
 	periods        []api.Period
@@ -147,7 +169,12 @@ type App struct {
 	divisionsLoading bool
 	divisionsErr     string
 
-	router *ui.Router
+	router     *ui.Router
+	medhum     medhumState
+	connectors connectorUIState
+	whatsapp   whatsappUIState
+	waContent  waContentUIState
+	evaluation sopUIState
 }
 
 // New returns the app's state. update runs a function on the view's thread
@@ -267,7 +294,10 @@ func (a *App) enterShell(u api.User) {
 	a.resetWorkspace()
 	a.user = u
 	a.screen = screenShell
-	a.conn = connOnline
+	if a.SessionChanged != nil {
+		a.SessionChanged(u.ID)
+	}
+	a.conn, a.syncedAt = connOnline, time.Now()
 	a.notice, a.startErr, a.loginErr = "", "", ""
 	a.lastPing = time.Time{}
 	a.periods, a.periodID, a.periodsErr = nil, id.ID{}, ""
@@ -301,6 +331,9 @@ func (a *App) expire() {
 
 // toLogin forgets the session and shows the login with a notice.
 func (a *App) toLogin(notice string) {
+	if a.SessionChanged != nil {
+		a.SessionChanged(id.Nil)
+	}
 	a.accountSessionEnded()
 	a.resetWorkspace()
 	a.gen++
@@ -330,7 +363,7 @@ func (a *App) loadPeriods() {
 				a.periodsErr = a.failed(err)
 				return
 			}
-			a.conn = connOnline
+			a.conn, a.syncedAt = connOnline, time.Now()
 			a.periods = ps
 			if a.period() == nil {
 				a.periodID = defaultPeriod(ps)
@@ -355,7 +388,7 @@ func (a *App) loadDivisions() {
 				a.divisionsErr = a.failed(err)
 				return
 			}
-			a.conn = connOnline
+			a.conn, a.syncedAt = connOnline, time.Now()
 			a.divisions = ds
 		}
 	})
@@ -383,6 +416,7 @@ func (a *App) ping(now time.Time) {
 				return
 			}
 			a.conn = connOnline
+			a.syncedAt = now
 			if a.periodsErr != "" && !a.periodsLoading {
 				a.loadPeriods()
 			}
@@ -491,4 +525,15 @@ func errorText(err error) string {
 		return e.Message
 	}
 	return "Terjadi kesalahan. Coba lagi."
+}
+
+// HoldTouchPan, set on the web, keeps the finger pressing an element that
+// it drags (a clock face, a resize edge) from scrolling the page instead.
+var HoldTouchPan func()
+
+// holdTouchPan keeps a touch on e a drag of e, not a scroll, while e is pressed.
+func holdTouchPan(e ui.Element) {
+	if HoldTouchPan != nil && e.Pressed() {
+		HoldTouchPan()
+	}
 }

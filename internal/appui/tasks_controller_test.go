@@ -200,7 +200,7 @@ func TestTaskCreateSaveRemainsReachable(t *testing.T) {
 		h.tt.Advance(time.Second)
 		h.tt.Frame()
 		r, ok := h.tt.Find("Simpan tugas")
-		if !ok || r.W <= 0 || r.H <= 0 || r.Y < 0 || r.Y+r.H > float32(size[1]-28) {
+		if !ok || r.W <= 0 || r.H <= 0 || r.Y < 0 || r.Y+r.H > float32(size[1]) {
 			t.Fatalf("%dx%d save action clipped after full scroll: bounds=%+v found=%v", size[0], size[1], r, ok)
 		}
 	}

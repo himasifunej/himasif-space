@@ -1,7 +1,9 @@
 package appui
 
 import (
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/himasifunej/himasif-space/internal/api"
@@ -16,27 +18,88 @@ func (a *App) remindersView(c *ui.Context) {
 		return
 	}
 	a.ensureReminders()
+	phone := isMobile(c)
+	// Canvas A opens the split view on the first reminder (choice D, 3 Nov),
+	// once per load, so closing the panel keeps the list on its own.
+	if !phone && a.reminders.loaded && !a.reminders.autoPicked {
+		a.reminders.autoPicked = true
+		if a.reminders.selected == id.Nil && a.reminders.draft == nil {
+			if first := a.firstReminder(); first != id.Nil {
+				a.openReminder(first)
+			}
+		}
+	}
 	ui.Column(c).Grow(1).MinHeight(0).FillWidth().MinWidth(0).Gap(0).Children(func() {
-		ui.Row(c).FillWidth().MinWidth(0).Padding(12, 22).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "Reminder pribadi").FontSize(16).Bold().Grow(1).MinWidth(0)
+		head := ui.Row(c).FillWidth().MinWidth(0).Padding(24, 24, 12, 24).Gap(12).AlignItems(ui.Center)
+		if phone {
+			head.Padding(16, 16, 10, 16)
+		}
+		head.Children(func() {
+			ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
+				ui.Text(c, "Reminder pribadi").FontSize(20).Bold()
+				ui.Text(c, "Milikmu sendiri, privat secara default. Hanya dikirim ke perangkatmu, tidak pernah ke grup WhatsApp.").FontSize(13).TextColor(c.Theme().TextMuted)
+			})
 			if spaceIconButton(c, "Muat ulang reminder", "refresh").Disabled(a.reminders.busy || a.reminders.loading).Clicked() {
 				a.loadReminders()
 			}
-			if spaceButton(c, "Buat reminder", "plus", true).Disabled(a.reminderWriteBlocked() || !a.reminders.loaded || !a.reminders.prefsLoaded).Clicked() {
+			if primarySpaceButton(c, "Reminder baru", "plus").Shrink(0).Disabled(a.reminderCreateBlocked() || !a.reminders.loaded || !a.reminders.prefsLoaded).Clicked() {
 				a.beginReminder()
 			}
 		})
 		a.reminderFeedback(c)
 		ui.Row(c).Grow(1).MinHeight(0).FillWidth().MinWidth(0).AlignItems(ui.Stretch).Children(func() {
-			ui.Scroll(c).Grow(1).MinWidth(0).MinHeight(0).Label("Daftar reminder pribadi").Children(func() {
-				ui.Column(c).FillWidth().MinWidth(0).Padding(22).Gap(18).Children(func() {
-					a.reminderPrivacyPreference(c)
-					muted(c, "Reminder disimpan ke akunmu. Pengiriman notifikasi terjadwal belum tersedia.")
-					ui.TextInput(c.Key("reminder-filter"), &a.reminders.filter).FillWidth().Label("Cari reminder").Placeholder("Cari judul atau catatan…")
-					a.reminderList(c)
+			panelOpen := (a.reminders.draft != nil || a.reminders.selected != id.Nil) && !a.chrome.appearance
+			w, _ := c.Size()
+			maxListWidth := max(float32(220), min(float32(480), w-244-350))
+			if a.reminders.listWidth == 0 {
+				a.reminders.listWidth = 360
+			}
+			shownWidth := min(max(a.reminders.listWidth, 220), maxListWidth)
+			listColumn := ui.Column(c.Key("reminder-list-column")).Transition(ui.ElementTransition{Duration: 180 * time.Millisecond, Size: true, Position: true}).MinWidth(0).MinHeight(0).FillHeight()
+			if panelOpen && phone {
+				// A phone has no room for both: the panel takes the screen
+				// and closing it returns to the list.
+				listColumn.Width(0).Hidden(true)
+			} else if panelOpen {
+				listColumn.Width(shownWidth).Shrink(0)
+			} else {
+				listColumn.Grow(1)
+			}
+			listColumn.Children(func() {
+				ui.Scroll(c).Grow(1).FillWidth().MinWidth(0).MinHeight(0).Label("Daftar reminder pribadi").Children(func() {
+					ui.Column(c).FillWidth().MinWidth(0).Padding(8).Gap(10).Children(func() {
+						if panelOpen {
+							if spaceButton(c, "Privasi reminder", "lock", a.reminders.privacyOpen).FillWidth().Clicked() {
+								a.reminders.privacyOpen = !a.reminders.privacyOpen
+							}
+						}
+						if !panelOpen || a.reminders.privacyOpen {
+							a.reminderPrivacyPreference(c)
+							muted(c, "Reminder pribadi hanya dikirim ke perangkat pemilik, tanpa grup WhatsApp. Tanggal tanpa jam memakai pukul 06.00 pada zona reminder; slot yang sudah lewat sebelum dibuat tidak dikirim ulang.")
+						}
+						ui.TextInput(c.Key("reminder-filter"), &a.reminders.filter).FillWidth().Label("Cari reminder").Placeholder("Cari judul atau catatan…")
+						a.reminderList(c)
+					})
 				})
+				if panelOpen {
+					edge := ui.Box(c.Key("reminder-resize")).Label("Ubah lebar daftar reminder").Tooltip("Tarik untuk mengubah lebar · panah kiri/kanan").Absolute().Right(0).Top(0).Width(6).FillHeight().Cursor(ui.CursorResizeEW).Focusable()
+					holdTouchPan(edge)
+					dx, _, held := edge.Dragged()
+					if held && dx != 0 {
+						a.reminders.listWidth = min(max(shownWidth+dx, 220), maxListWidth)
+					}
+					if edge.Shortcut(0, ui.KeyLeft) {
+						a.reminders.listWidth = max(shownWidth-24, 220)
+					}
+					if edge.Shortcut(0, ui.KeyRight) {
+						a.reminders.listWidth = min(shownWidth+24, maxListWidth)
+					}
+					if edge.Hovered() || held || edge.FocusVisible() {
+						edge.Background(c.Theme().Accent)
+					}
+				}
 			})
-			if (a.reminders.draft != nil || a.reminders.selected != id.Nil) && !a.chrome.appearance {
+			if panelOpen {
 				a.reminderPanel(c)
 			}
 		})
@@ -48,12 +111,8 @@ func (a *App) reminderFeedback(c *ui.Context) {
 		ui.Text(c, a.reminders.err).FillWidth().MinWidth(0).Padding(8, 22).FontSize(12).TextColor(c.Theme().Danger)
 	}
 	if a.reminders.notice != "" {
-		ui.Row(c).FillWidth().MinWidth(0).Padding(8, 22).Gap(8).Children(func() {
-			ui.Text(c, a.reminders.notice).FontSize(12).TextColor(c.Theme().Accent).Grow(1).MinWidth(0)
-			if spaceIconButton(c, "Tutup informasi reminder", "close").Clicked() {
-				a.reminders.notice = ""
-			}
-		})
+		c.AddToast(ui.Toast{Title: a.reminders.notice, Type: "success", Timeout: 8 * time.Second})
+		a.reminders.notice = ""
 	}
 	if a.reminders.busy {
 		muted(c, "Menyimpan perubahan ke server…").Padding(6, 22)
@@ -126,29 +185,36 @@ func (a *App) reminderList(c *ui.Context) {
 	}
 }
 
+// reminderCard is a compact row of the list, as on canvas A: a bell, the
+// title, its time and, at the end, who can see it.
 func (a *App) reminderCard(c *ui.Context, r api.Reminder) {
 	t := c.Theme()
-	b := ui.ButtonBase(c).Label("Reminder "+r.Title).Column().AlignItems(ui.Start).FillWidth().MinWidth(0).Gap(8).Padding(15).Radius(10).Border(1, t.Border).Background(t.Surface)
-	if a.reminders.selected == r.ID || b.Hovered() {
+	b := ui.ButtonBase(c).Label("Reminder "+r.Title).Row().AlignItems(ui.Start).FillWidth().MinWidth(0).Gap(10).Padding(12, 14).Radius(10)
+	if a.reminders.selected == r.ID {
+		b.Background(accentSoft(t))
+	} else if b.Hovered() {
 		b.Background(t.SurfaceHover)
 	}
 	b.FocusRing(b.FocusVisible()).Children(func() {
-		ui.Row(c).FillWidth().MinWidth(0).Gap(10).AlignItems(ui.Start).Children(func() {
-			icon := "bell"
-			if r.Completed {
-				icon = "check"
-			}
-			ui.Icon(c, spaceIcon(icon)).Size(18, 18).Shrink(0).TextColor(t.Accent)
-			ui.Text(c, r.Title).FontSize(14).Bold().Grow(1).MinWidth(0)
-		})
-		muted(c, taskDate(r.DueOn, r.DueAt, r.TimeZone)).FontSize(12)
-		label := "Milik saya · privat"
-		if r.Relation != api.ReminderOwner {
-			label = "Dibagikan kepada saya · hanya baca"
-		} else if r.Shared {
-			label = "Milik saya · berbagi aktif"
+		icon := "bell"
+		if r.Completed {
+			icon = "check"
 		}
-		muted(c, label).FontSize(11)
+		ui.Icon(c, spaceIcon(icon)).Size(16, 16).Shrink(0).TextColor(t.TextMuted)
+		ui.Column(c).Grow(1).MinWidth(0).Gap(3).Children(func() {
+			ui.Text(c, r.Title).FontSize(13).FontWeight(600).MaxLines(1)
+			ui.Text(c, taskDate(r.DueOn, r.DueAt, r.TimeZone)).FontSize(11).TextColor(faint(t)).MaxLines(1)
+		})
+		label := "Privat"
+		switch {
+		case r.Relation != api.ReminderOwner:
+			label = "Dibagikan kepadaku"
+		case r.Shared && len(r.Recipients) > 0:
+			label = "Dibagikan · " + strconv.Itoa(len(r.Recipients))
+		case r.Shared:
+			label = "Berbagi aktif"
+		}
+		ui.Text(c, label).FontSize(11).TextColor(faint(t)).Shrink(0)
 	})
 	if b.Clicked() && !a.reminders.busy {
 		a.openReminder(r.ID)
@@ -163,7 +229,7 @@ func (a *App) reminderPanel(c *ui.Context) {
 	if creating {
 		title = "Reminder baru"
 	}
-	ui.Column(c).Width(350).Shrink(0).MinWidth(0).MinHeight(0).FillHeight().Background(c.Theme().Surface).BorderWidth(0, 0, 0, 1).BorderColor(c.Theme().Border).Label("Panel reminder").Children(func() {
+	ui.Column(c.Key("reminder-panel")).Transition(ui.ElementTransition{Duration: 180 * time.Millisecond, Size: true, Position: true}).Grow(1).MinWidth(0).MinHeight(0).FillHeight().Background(c.Theme().Surface).BorderWidth(0, 0, 0, 1).BorderColor(c.Theme().Border).Label("Panel reminder").Children(func() {
 		ui.Row(c).FillWidth().Padding(16).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, title).Bold().Grow(1).MinWidth(0)
 			if spaceIconButton(c, "Tutup reminder", "close").Disabled(a.reminders.busy).Clicked() {
@@ -194,8 +260,9 @@ func (a *App) reminderPanel(c *ui.Context) {
 			})
 		})
 		if (creating || owner) && a.reminders.draft != nil {
-			ui.Row(c).FillWidth().Padding(12, 18).BorderWidth(1, 0, 0, 0).BorderColor(c.Theme().Border).Children(func() {
-				if spaceButton(c, "Simpan reminder", "check", true).FillWidth().Disabled(a.reminderWriteBlocked() || a.reminders.detailsLoading || a.reminders.detailsErr != "").Clicked() {
+			// The canvas' footer: Simpan on the accent, at the right.
+			ui.Row(c).FillWidth().Padding(12, 18).Justify(ui.End).BorderWidth(1, 0, 0, 0).BorderColor(c.Theme().Border).Children(func() {
+				if primarySpaceButton(c, "Simpan reminder", "check").Shrink(0).Disabled(a.reminderWriteBlocked() || a.reminders.detailsLoading || a.reminders.detailsErr != "").Clicked() {
 					a.saveReminder()
 				}
 			})
@@ -209,12 +276,10 @@ func (a *App) reminderEditor(c *ui.Context) {
 		return
 	}
 	ui.Column(c).FillWidth().MinWidth(0).Gap(13).Disabled(a.reminderWriteBlocked() || a.reminders.detailsLoading || a.reminders.detailsErr != "").Children(func() {
+		// Canvas order: Judul, Waktu, then Catatan.
 		taskInput(c, "reminder-title", "Judul reminder *", &d.title)
+		a.whenField(c, "reminder-when", "Waktu reminder", &d.date, &d.clock, true)
 		taskLongInput(c, "reminder-notes", "Catatan reminder", &d.notes)
-		taskInput(c, "reminder-date", "Tanggal reminder *", &d.date)
-		muted(c, "Gunakan YYYY-MM-DD, misalnya 2026-10-31.").FontSize(11)
-		taskInput(c, "reminder-clock", "Jam reminder (opsional)", &d.clock)
-		muted(c, "Gunakan HH:MM. Kosongkan untuk menyimpan tanggal tanpa jam.").FontSize(11)
 		taskInput(c, "reminder-zone", "Zona waktu reminder", &d.zone)
 		muted(c, "Zona IANA, misalnya Asia/Jakarta. Tidak mengikuti perubahan periode.").FontSize(11)
 	})
@@ -395,4 +460,17 @@ func reminderAuditLabel(action string) string {
 		return label
 	}
 	return "Perubahan: " + action
+}
+
+// firstReminder is the first reminder the list shows: the first one not yet
+// completed, else the first completed one.
+func (a *App) firstReminder() id.ID {
+	for _, completed := range []bool{false, true} {
+		for _, r := range a.reminders.items {
+			if r.Completed == completed {
+				return r.ID
+			}
+		}
+	}
+	return id.Nil
 }

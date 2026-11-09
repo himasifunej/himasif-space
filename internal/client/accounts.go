@@ -11,7 +11,7 @@ import (
 // work begins. Switching accounts cannot redirect a queued credential operation
 // onto the next account's session. The HTTP transport remains shared.
 func (c *Client) AccountSession() *Client {
-	return &Client{BaseURL: c.BaseURL, HTTP: c.HTTP, Token: c.token()}
+	return &Client{BaseURL: c.BaseURL, HTTP: c.HTTP, Token: c.token(), Offline: c.Offline}
 }
 
 // InspectInvitation selects the new-account or existing-account invitation flow.
@@ -57,4 +57,18 @@ func (c *Client) RequestAdminEmail(ctx context.Context, req api.AdminEmailReques
 // AdminHandover changes custody of the shared admin and ends every session.
 func (c *Client) AdminHandover(ctx context.Context, req api.AdminHandoverRequest) error {
 	return c.do(ctx, http.MethodPost, "/api/auth/admin-handover", req, nil)
+}
+
+// UIPreferences returns the account's interface preferences.
+func (c *Client) UIPreferences(ctx context.Context) (api.UIPreferences, error) {
+	var out api.UIPreferences
+	err := c.do(ctx, http.MethodGet, "/api/me/ui-preferences", nil, &out)
+	return out, err
+}
+
+// SetUIPreferences replaces the account's interface preferences.
+func (c *Client) SetUIPreferences(ctx context.Context, p api.UIPreferences) (api.UIPreferences, error) {
+	var out api.UIPreferences
+	err := c.do(ctx, http.MethodPut, "/api/me/ui-preferences", p, &out)
+	return out, err
 }

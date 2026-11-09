@@ -4,6 +4,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -186,6 +187,7 @@ func TestInspectorShrinksBoardAndReadOnlyDisablesMoves(t *testing.T) {
 	if s.SelectedID() != tasks[2].ID {
 		t.Fatal("card did not open inspector")
 	}
+	tt.Advance(300 * time.Millisecond)
 	panel := rect(t, tt, "Detail tugas")
 	after := rect(t, tt, "Kolom board")
 	if !(after.W < before.W && after.X+after.W <= panel.X+1) {
@@ -236,9 +238,9 @@ func TestCustomMoveMenuAndHorizontalEdgeScroll(t *testing.T) {
 	}
 	source := rect(t, tt, "Tugas "+tasks[0].Title)
 	viewport := rect(t, tt, "Kolom board")
+	start := s.boardScroll.X
 	tt.Press(source.X+30, source.Y+45)
 	tt.Move(viewport.X+viewport.W-12, source.Y+50)
-	start := s.boardScroll.X
 	tt.Advance(160 * time.Millisecond)
 	if s.boardScroll.X <= start {
 		t.Fatalf("horizontal edge did not scroll: %v => %v (max %v)", start, s.boardScroll.X, s.boardScroll.MaxX)
@@ -307,5 +309,33 @@ func TestMixedTaskPermissionsAndCancelledInspector(t *testing.T) {
 	tt := boardTester(t, s, 1440)
 	if !tt.HasText("Dibatalkan") || !tt.HasText("Tugas dibatalkan") {
 		t.Fatal("cancelled task cannot be inspected")
+	}
+}
+
+func TestCardMenuOffersEditDuplicateAndCancel(t *testing.T) {
+	s := New()
+	tasks := fixtureTasks()
+	if err := s.SetTasks(tasks); err != nil {
+		t.Fatal(err)
+	}
+	s.OnMove = func(MoveRequest) {}
+	var got []string
+	s.OnAction = func(tid id.ID, action string) {
+		if tid != tasks[0].ID {
+			t.Fatalf("action for %v, want %v", tid, tasks[0].ID)
+		}
+		got = append(got, action)
+	}
+	tt := boardTester(t, s, 1300)
+	for _, label := range []string{"Ubah tugas", "Duplikat", "Batalkan tugas"} {
+		if err := tt.Click("Pindahkan " + tasks[0].Title); err != nil {
+			t.Fatal(err)
+		}
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !slices.Equal(got, []string{"edit", "duplicate", "cancel"}) {
+		t.Fatalf("actions = %v", got)
 	}
 }

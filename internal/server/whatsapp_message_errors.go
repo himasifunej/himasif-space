@@ -1,0 +1,32 @@
+package server
+
+// Exact generated error messages only. Names, task titles, user notes,
+// custom commands and configured templates are never translated by replacement.
+var waEnglishErrors = map[string]string{
+	"Identitas WhatsApp belum terverifikasi atau memiliki konflik. Buat kode tautan di akun Space, lalu kirim !link <kode>.":   "Your WhatsApp identity is unverified or conflicting. Create a link code in your Space account, then send !link <code>.",
+	"Gunakan !link <kode sekali pakai dari akun Space>.":                                                                       "Use !link <one-time code from your Space account>.",
+	"Kode tautan tidak berlaku. Buat kode baru dari akun Space.":                                                               "The link code is invalid or expired. Create a new code in your Space account.",
+	"Identitas chat sudah ditautkan ke akun lain; tautan tidak dipindahkan.":                                                   "This chat identity is already linked to another account. The existing link was not changed.",
+	"Command belum tersedia. Gunakan !help untuk daftar command.":                                                              "Unknown command. Use !help for the command list.",
+	"Isi ID tugas yang ditampilkan oleh !tugas.":                                                                               "Provide the task ID shown by !tugas.",
+	"ID tugas harus berupa ID lengkap dari !tugas.":                                                                            "Use the complete task ID from !tugas.",
+	"Tugas dibatalkan; buka kembali melalui Space dengan alasan.":                                                              "This task was cancelled. Reopen it in Space with a reason.",
+	"Bukti belum terverifikasi. Gunakan !done <ID> <tautan/catatan hasil> untuk mengajukan hasil; bukti tetap perlu ditinjau.": "Evidence is not verified. Use !done <ID> <result URL/note> to submit a result; it still requires review.",
+	"Catatan hasil terlalu panjang.":                                                                                           "The result note is too long.",
+	"Tautan hasil tidak valid.":                                                                                                "The result URL is invalid.",
+	"Tugas sudah selesai atau dibatalkan.":                                                                                     "The task is already complete or cancelled.",
+	"Pesan bantuan terlalu panjang.":                                                                                           "The help message is too long.",
+	"Pengajuan bantuan masih menunggu keputusan.":                                                                              "Your previous offer to help is still awaiting a decision.",
+	"Gunakan !delegasi <ID tugas> <ID akun Space> <alasan>. ID akun menghindari tebakan dari nama/nomor.":                      "Use !delegasi <task ID> <Space account ID> <reason>. Account IDs prevent guessing from a name or phone number.",
+	"ID akun tujuan tidak valid.":                                                                                              "The target account ID is invalid.",
+	"Alasan terlalu panjang.":                                                                                                  "The reason is too long.",
+	"Balas media dengan !setsticker <pemicu>, misalnya !setsticker damn.":                                                      "Reply to media with !setsticker <trigger>, for example !setsticker damn.",
+	"Media belum disiapkan; command belum disimpan.":                                                                           "Media is not prepared; the command has not been saved.",
+	"Media belum dapat disiapkan; command belum disimpan.":                                                                     "Media could not be prepared; the command has not been saved.",
+	"Koneksi sedang sibuk; konversi belum dicoba.":                                                                             "The connection is busy; conversion has not been attempted.",
+	"Media tidak tersedia atau tidak dapat dijadikan stiker. Lampirkan gambar/video singkat atau balas pesan medianya.":        "The media is unavailable or cannot be converted to a sticker. Attach a short image/video or reply to its message.",
+	"Konversi stiker belum tersedia. Command belum disimpan.":                                                                  "Sticker conversion is unavailable. The command has not been saved.",
+	"Rekap/keputusan SOP tidak diumumkan ke Medhum. Gunakan grup divisi atau laporan di Space sesuai izin.":                    "SOP reports and decisions are not posted to Medhum. Use your division group or an authorized report in Space.",
+	"Gunakan !eval <label quarter yang sudah dikonfigurasi>. Tidak ada batas quarter asumsi.":                                  "Use !eval <configured quarter label>. Quarter boundaries must be explicitly configured.",
+	"Rentang rekap tidak berada dalam periode ini.":                                                                            "The report range is outside this period.",
+}

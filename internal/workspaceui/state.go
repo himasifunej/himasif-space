@@ -48,6 +48,25 @@ type Task struct {
 	ExpectedOutput, Evidence               string
 	Lane                                   Lane
 	ReadOnly                               bool
+	// Color is the card's accent, drawn on its left edge only.
+	Color ui.Color
+	// Labels are the task's tags as chips; when empty the card shows
+	// Category as one chip.
+	Labels []Label
+	// Due is the short deadline on the card ("5 Nov"); Late marks it past.
+	Due  string
+	Late bool
+	// Ref is a short reference shown on the card, such as "#3F2A".
+	Ref           string
+	AssigneeColor ui.Color
+	// Checklist and attachment counts shown on the card's last line.
+	ChecklistDone, ChecklistTotal, Attachments int
+}
+
+// Label is one colored tag chip on a card.
+type Label struct {
+	Name  string
+	Color ui.Color
 }
 
 // MoveRequest asks the caller to move a task before BeforeID in Destination.
@@ -63,15 +82,26 @@ type taskDrag struct{ ID id.ID }
 // State owns local presentation state only. A nil OnMove makes the board
 // read-only. The caller persists moves and supplies a new snapshot on success.
 type State struct {
-	OnMove func(MoveRequest)
+	OnMove         func(MoveRequest)
+	InspectorWidth float32
+	LaneColors     [5]ui.Color
+	// OnAction receives card menu actions: "edit", "duplicate", "cancel".
+	OnAction func(id.ID, string)
 	// Details supplies a caller-owned inspector body, inside the right panel.
-	Details         func(*ui.Context, id.ID)
+	Details func(*ui.Context, id.ID)
+	// Subtitle replaces the line under the board title.
+	Subtitle string
+	// Toolbar builds controls at the right of the board title.
+	Toolbar func(*ui.Context)
+	// OnAdd, when set, shows "Tambah tugas" under each open lane.
+	OnAdd           func(Lane)
 	tasks           []Task
 	hasSnapshot     bool
 	selected        id.ID
 	menuID          id.ID
 	menuOpen        bool
 	boardScroll     ui.ScrollState
+	boardWidth      float32
 	lanes           [5]ui.ScrollState
 	inspectorScroll ui.ScrollState
 }

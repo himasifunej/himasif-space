@@ -54,7 +54,7 @@ func TestSpacesUseAuthorizedIDsAndBindings(t *testing.T) {
 	}
 	h.app.router.Push(PathSpaces)
 	h.tt.Frame()
-	h.want("Ruang Medhum kita.")
+	h.want("Beranda Medhum")
 	h.app.selectSpace(own.ID)
 	if h.app.selectedDivision() == nil || h.app.selectedDivision().ID != med.ID {
 		t.Fatal("division identity did not follow authorized Space")

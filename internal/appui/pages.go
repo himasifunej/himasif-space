@@ -7,6 +7,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/himasifunej/himasif-space/internal/api"
+	"github.com/himasifunej/himasif-space/internal/timeutil"
 	"github.com/himasifunej/himasif-space/internal/workspaceui"
 )
 
@@ -16,7 +17,7 @@ func (a *App) page(c *ui.Context, r *ui.Route) {
 	switch {
 	case r.Match(PathJobdesk):
 		r.Title("Jobdesk saya")
-		a.personalTasksView(c)
+		a.jobdeskView(c)
 	case r.Match(PathReminder):
 		r.Title("Reminder pribadi")
 		a.remindersView(c)
@@ -26,12 +27,7 @@ func (a *App) page(c *ui.Context, r *ui.Route) {
 		a.spaces(c, r)
 	case r.Match(PathEvaluasi):
 		r.Title("Evaluasi SOP")
-		pageBody(c, "Evaluasi SOP", func() {
-			a.periodLine(c)
-			muted(c, "Tinjau kejadian, cocokkan bukti, dan pahami apa yang perlu diperbaiki bersama.")
-			pageNotice(c, "shield", "Temuan perlu ditinjau", "Waktu penyerahan dan kecocokan bukti menjadi dasar evaluasi. Dugaan belum menjadi pelanggaran yang disahkan.")
-			pageUnavailable(c, "archive", "Laporan belum tersedia", "Data penyerahan dan evaluasi belum dapat dimuat. Tidak ada kesimpulan SOP yang ditampilkan.")
-		})
+		a.sopView(c)
 	case r.Match(PathArchiveAccess):
 		r.Title("Izin arsip")
 		a.archiveManagementView(c)
@@ -39,6 +35,9 @@ func (a *App) page(c *ui.Context, r *ui.Route) {
 		a.archivePage(c, r)
 	case r.Match(PathPengaturan):
 		a.settings(c, r)
+	case r.Match(PathLainnya):
+		r.Title("Lainnya")
+		a.lainnyaPage(c)
 	case r.Match(PathOrganisasi) && a.isAdmin():
 		a.organizationPage(c, r)
 	default:
@@ -56,6 +55,20 @@ func pageBody(c *ui.Context, title string, fn func()) {
 	ui.Scroll(c).Fill().Children(func() {
 		ui.Column(c).FillWidth().MinWidth(0).MaxWidth(1280).Padding(26).Gap(20).Children(func() {
 			ui.Text(c, title).FontSize(26).Bold()
+			fn()
+		})
+	})
+}
+
+// settingsBody gives each settings page the same readable header and content
+// width while allowing the page to present its own actions and state.
+func settingsBody(c *ui.Context, title, description string, fn func()) {
+	ui.Scroll(c).Fill().Label("Isi pengaturan").Children(func() {
+		ui.Column(c).FillWidth().MinWidth(0).MaxWidth(1000).Padding(26).Gap(20).Children(func() {
+			ui.Column(c).FillWidth().MinWidth(0).Gap(6).Children(func() {
+				ui.Text(c, title).FontSize(26).Bold()
+				muted(c, description)
+			})
 			fn()
 		})
 	})
@@ -159,226 +172,62 @@ func (a *App) spacePage(c *ui.Context, r *ui.Route, shared bool) {
 		title = "Medhum"
 	}
 	r.Title(title)
+	sp := a.selectedSpace()
+	medhum := sp != nil && sp.Code == "medhum"
+	if medhum {
+		// Older entry points name the tabs that are now Medhum sub-tabs.
+		if sub, ok := map[string]string{"Kalender konten": medhumTabList, "Konsep dan bukti": medhumTabInbox, "Sumber kalender": medhumTabSources}[a.chrome.tab]; ok {
+			a.ensureMedhum()
+			a.chrome.tab, a.medhum.tab = medhumSpaceTab, sub
+		}
+	}
+	a.resolveSpaceTab(sp)
 	ui.Column(c).Fill().MinWidth(0).Children(func() {
-		ui.ScrollHorizontal(c.Key("space-tabs")).FillWidth().Height(58).Shrink(0).Background(c.Theme().Background).BorderWidth(0, 0, 1, 0).BorderColor(c.Theme().Border).Children(func() {
-			ui.Row(c).FillHeight().Padding(8, 22).Gap(5).AlignItems(ui.Center).Children(func() {
-				for _, tab := range []struct{ title, icon string }{{"Beranda", "home"}, {"Board tugas", "board"}, {"Agenda", "calendar"}, {"Notes", "note"}, {"Anggota", "users"}, {"Pengaturan", "settings"}} {
-					if spaceButton(c.Key(tab.title), tab.title, tab.icon, a.chrome.tab == tab.title).Clicked() {
-						a.chrome.tab = tab.title
-					}
-				}
-			})
-		})
+		a.spaceTabBar(c, sp)
 		if s := a.selectedSpace(); s != nil && s.ReadOnly {
 			pageNotice(c, "lock", "Hanya baca", "Periode atau akses arsip ini tidak mengizinkan perubahan.")
 		}
 
 		switch a.chrome.tab {
+		case medhumSpaceTab:
+			if medhum {
+				a.medhumPage(c)
+			} else {
+				a.overviewPage(c, title, shared)
+			}
 		case "Board tugas":
 			a.spaceTasksView(c)
 		case "Agenda":
-			a.taskAgenda(c)
-		case "Notes":
+			a.agendaCalendar(c)
+		case "Catatan":
 			a.notesPage(c)
+		case "Rapat":
+			a.meetingsView(c)
+		case "Tinjauan":
+			a.spaceReviewPage(c)
+		case "Ping":
+			a.spacePingPage(c)
 		case "Anggota":
 			a.membersPage(c)
-		case "Pengaturan":
-			a.spaceSettings(c, shared)
+		case "Bot WhatsApp":
+			a.whatsappSettings(c)
 		default:
 			a.overviewPage(c, title, shared)
 		}
 	})
 }
 
-func (a *App) overviewPage(c *ui.Context, title string, shared bool) {
-	t := c.Theme()
-	ui.Scroll(c).Fill().Children(func() {
-		body := ui.Column(c).FillWidth().MinWidth(0).Padding(26).Gap(24)
-		wide := body.Bounds().W >= 720
-		body.Children(func() {
-			heading := ui.Column(c).FillWidth().MinWidth(0).Gap(20)
-			if wide {
-				heading.Row().AlignItems(ui.Start)
-			}
-			heading.Children(func() {
-				titles := ui.Column(c).MinWidth(0).Gap(8)
-				if wide {
-					titles.Grow(1)
-				} else {
-					titles.FillWidth()
-				}
-				titles.Children(func() {
-					if p := a.period(); p != nil {
-						ui.Text(c, "HIMASIF · "+p.Label).FontSize(10).TextColor(t.TextMuted)
-					}
-					ui.Text(c, "Ruang "+title+" kita.").FontSize(29).Bold()
-					muted(c, "Biar setiap ide punya tempat, dan setiap tugas tetap dalam alurnya.")
-				})
-				ui.Column(c).Gap(6).Children(func() {
-					if spaceButton(c, "Buka board", "board", true).Clicked() {
-						a.chrome.tab = "Board tugas"
-					}
-					if spaceButton(c, "Lihat agenda", "calendar", false).Clicked() {
-						a.chrome.tab = "Agenda"
-					}
-				})
-			})
-			a.tasksOverview(c)
-			if shared {
-				pageNotice(c, "link", "Ruang kolaborasi", "Akses ruang bersama tidak membuka pekerjaan internal divisi lain.")
-			}
-
-			ui.Column(c).FillWidth().Gap(16).Children(func() {
-
-				sections := ui.Column(c).FillWidth().MinWidth(0).Gap(16)
-				if wide {
-					sections.Row().AlignItems(ui.Stretch)
-				}
-				sections.Children(func() {
-					first := ui.Column(c).MinWidth(0)
-					if wide {
-						first.Grow(1)
-					} else {
-						first.FillWidth()
-					}
-					first.Children(func() {
-						pageSection(c, "Agenda terdekat", "Tenggat, rapat, dan jadwal posting.", func() {
-							pageEmpty(c, "calendar", "Agenda belum tersedia", "Jadwal bersama belum dapat dimuat.")
-							if spaceButton(c, "Lihat agenda", "arrow", false).Clicked() {
-								a.chrome.tab = "Agenda"
-							}
-						})
-					})
-					second := ui.Column(c).MinWidth(0)
-					if wide {
-						second.Grow(1)
-					} else {
-						second.FillWidth()
-					}
-					second.Children(func() {
-						pageSection(c, "Catatan bersama", "Simpan hasil rapat dan arah pekerjaan.", func() {
-							pageEmpty(c, "note", "Catatan belum tersedia", "Notes space belum dapat dimuat.")
-							if spaceButton(c, "Buka notes", "arrow", false).Clicked() {
-								a.chrome.tab = "Notes"
-							}
-						})
-					})
-				})
-			})
-		})
-	})
-}
-
 func (a *App) agendaPage(c *ui.Context) {
-	now := c.Now()
-	if p := a.period(); p != nil {
-		if zone, err := time.LoadLocation(p.TimeZone); err == nil {
-			now = now.In(zone)
-		}
-	}
-	start := now.AddDate(0, 0, -(int(now.Weekday())+6)%7)
-	t := c.Theme()
-	pageBody(c, "Selaraskan minggu kita.", func() {
-		muted(c, "Ruang untuk deadline, rapat, dan semua yang perlu diingat.")
-		pageNotice(c, "calendar", "Agenda belum tersedia", "Jadwal bersama belum dapat dimuat. Kalender di bawah hanya menunjukkan tanggal, tanpa kegiatan atau pengingat yang dijadwalkan.")
-		ui.Column(c).FillWidth().Gap(12).Children(func() {
-			ui.Text(c, fmt.Sprintf("%d %s – %d %s %d", start.Day(), monthName(start.Month()), start.AddDate(0, 0, 6).Day(), monthName(start.AddDate(0, 0, 6).Month()), start.AddDate(0, 0, 6).Year())).FillWidth().FontSize(16).Bold()
-			spaceButton(c, "Tambah agenda", "plus", false).Disabled(true)
-		})
-		ui.ScrollHorizontal(c).FillWidth().Height(380).Shrink(0).Children(func() {
-			ui.Row(c).FillHeight().Gap(1).Padding(1).Background(t.Border).Radius(10).Clip().Children(func() {
-				for offset := 0; offset < 7; offset++ {
-					day := start.AddDate(0, 0, offset)
-					ui.Column(c.Key(offset)).Width(126).FillHeight().Shrink(0).Background(t.Surface).Padding(14).Gap(10).Children(func() {
-						ui.Text(c, []string{"Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"}[offset]).FontSize(11).TextColor(t.TextMuted)
-						color := t.Text
-						if day.Day() == now.Day() && day.Month() == now.Month() {
-							color = t.Accent
-						}
-						ui.Text(c, fmt.Sprint(day.Day())).FontSize(25).Bold().TextColor(color)
-						ui.Box(c).FillWidth().Height(1).Background(t.Border)
-					})
-				}
-			})
-		})
-		muted(c, "Deadline desain dan jadwal posting ditampilkan terpisah saat data tersedia.")
-	})
+	a.meetingsView(c)
 }
 
 func (a *App) notesPage(c *ui.Context) {
 	a.notesView(c)
 }
 
-func (a *App) archivePage(c *ui.Context, r *ui.Route) {
-	r.Title("Arsip periode")
-	pageBody(c, "Arsip periode", func() {
-		muted(c, "Ruang untuk melihat perjalanan kepengurusan sebelumnya.")
-		if len(a.archiveManagedDivisions()) > 0 {
-			if spaceButton(c, "Kelola izin arsip", "shield", false).Clicked() {
-				a.navigate(PathArchiveAccess)
-			}
-		}
-		pageNotice(c, "lock", "Informasi periode", "Daftar di bawah hanya berisi metadata periode yang telah ditutup. Akses arsip pekerjaan tetap memerlukan izin.")
-		if a.periodsErr != "" {
-			pageNotice(c, "alert", "Periode belum dapat dimuat", a.periodsErr)
-			if spaceButton(c, "Muat ulang periode", "refresh", false).Disabled(a.periodsLoading).Clicked() {
-				a.loadPeriods()
-			}
-			return
-		}
-		closed := 0
-		for _, period := range a.periods {
-			if period.Status == api.PeriodClosed {
-				closed++
-				pagePeriodCard(c, period)
-				if spaceButton(c, "Lihat ruang "+period.Label, "archive", false).Clicked() {
-					a.changePeriod(period.ID)
-					a.navigate(PathSpaces)
-				}
-			}
-		}
-		if closed == 0 {
-			if a.periodsLoading {
-				pageUnavailable(c, "refresh", "Memuat periode…", "Mengambil daftar kepengurusan.")
-			} else {
-				pageUnavailable(c, "archive", "Belum ada periode ditutup", "Periode yang telah ditutup akan tercantum di sini.")
-			}
-		}
-	})
-}
-
 func (a *App) organizationPage(c *ui.Context, r *ui.Route) {
 	r.Title("Pengaturan organisasi")
 	a.organizationAdminView(c)
-}
-
-func (a *App) settings(c *ui.Context, r *ui.Route) {
-	r.Title("Pengaturan")
-	ui.Column(c).Fill().MinWidth(0).Children(func() {
-		ui.ScrollHorizontal(c).FillWidth().Height(58).Shrink(0).BorderWidth(0, 0, 1, 0).BorderColor(c.Theme().Border).Children(func() {
-			ui.Row(c).FillHeight().Padding(8, 22).Gap(5).Children(func() {
-				for _, tab := range []struct{ title, icon string }{{"WhatsApp", "whatsapp"}, {"Pengingat", "bell"}, {"Command", "terminal"}, {"Aktivitas", "clock"}, {"Akun", "user"}} {
-					if spaceButton(c.Key(tab.title), tab.title, tab.icon, a.chrome.settingsTab == tab.title).Clicked() {
-						a.chrome.settingsTab = tab.title
-					}
-				}
-			})
-		})
-		switch a.chrome.settingsTab {
-		case "Akun":
-			a.accountPage(c)
-		case "Pengingat":
-			a.reminderSettings(c)
-		case "Command":
-			a.commandSettings(c)
-		case "Aktivitas":
-			pageBody(c, "Aktivitas WhatsApp", func() {
-				pageUnavailable(c, "clock", "Riwayat pengiriman belum tersedia", "Status antre, kirim, dan gagal belum dapat diperiksa. Tidak ada pengiriman yang diklaim berhasil.")
-			})
-		default:
-			a.whatsappSettings(c)
-		}
-	})
 }
 
 func (a *App) spaceSettings(c *ui.Context, shared bool) {
@@ -391,6 +240,7 @@ func (a *App) spaceSettings(c *ui.Context, shared bool) {
 		}
 		if spaceButton(c, "Kelola anggota dan akses", "users", false).Clicked() {
 			a.chrome.tab = "Anggota"
+			a.navigate(PathSpaces)
 		}
 		if spaceButton(c, "Lihat pengaturan WhatsApp", "whatsapp", false).Clicked() {
 			a.chrome.settingsTab = "WhatsApp"
@@ -405,51 +255,10 @@ func (a *App) spaceSettings(c *ui.Context, shared bool) {
 	})
 }
 
-func (a *App) whatsappSettings(c *ui.Context) {
-	pageBody(c, "WhatsApp divisi", func() {
-		muted(c, "Pengingat yang sampai ke tempat kita biasa berkoordinasi.")
-		pageNotice(c, "info", "Layanan WhatsApp belum tersedia", "Status koneksi akun belum dapat diperiksa. Tidak ada nomor, grup, atau sesi WhatsApp yang dianggap terhubung.")
-		pageSection(c, "Akun WhatsApp", "Gunakan nomor khusus divisi atau akun kadiv sesuai kebutuhan divisi.", func() {
-			ui.Row(c).FillWidth().Gap(14).AlignItems(ui.Center).Children(func() {
-				ui.Icon(c, spaceIcon("whatsapp")).Size(36, 36).TextColor(c.Theme().Accent)
-				ui.Column(c).Grow(1).Gap(5).Children(func() {
-					ui.Text(c, "Koneksi belum dapat diperiksa").Bold()
-					muted(c, "QR akan tersedia setelah layanan koneksi dapat digunakan.")
-				})
-			})
-			spaceButton(c, "Tampilkan QR", "qr", false).Disabled(true)
-		})
-		pageSection(c, "Identitas dalam pesan", "Nama bot dan gaya pesan dapat disesuaikan oleh pengelola yang memiliki izin.", func() {
-			info(c, [][2]string{{"Label bot", "Belum dapat dimuat"}, {"Jenis akun", "Belum dapat dimuat"}, {"Gaya pesan", "Belum dapat dimuat"}})
-		})
-		pageSection(c, "Grup tujuan", "Satu koneksi divisi untuk grup yang ditetapkan.", func() {
-			pageEmpty(c, "users", "Daftar grup belum tersedia", "Tidak ada grup tujuan yang dapat dikonfirmasi.")
-			spaceButton(c, "Sinkronkan grup", "refresh", false).Disabled(true)
-		})
-		pageNotice(c, "link", "Alur Medhum", "Grup Medhum menggunakan bot Humas agar pengingat bersama tidak berganda. Pengaturan koneksi tetap mengikuti kewenangan divisi Humas.")
-	})
-}
-
-func (a *App) reminderSettings(c *ui.Context) {
-	pageBody(c, "Pengingat divisi", func() {
-		pageUnavailable(c, "bell", "Jadwal belum dapat dimuat", "Pengaturan pengingat divisi belum tersedia. Tidak ada perubahan jadwal yang disimpan.")
-		pageSection(c, "Jadwal standar Space", "Pilihan awal untuk pengingat tugas; konfigurasi divisi belum dapat dikonfirmasi.", func() {
-			info(c, [][2]string{{"Menjelang tenggat", "H-2 dan H-1"}, {"Saat tenggat", "Hari deadline"}})
-		})
-		pageSection(c, "Pengingat perangkat", "Notifikasi perangkat dan WhatsApp memiliki status pengiriman masing-masing.", func() { muted(c, "Suara, waktu pengiriman, dan pilihan kanal belum dapat diatur di halaman ini.") })
-	})
-}
-
-func (a *App) commandSettings(c *ui.Context) {
-	pageBody(c, "Command bot", func() {
-		muted(c, "Perintah kecil untuk kerja divisi dan selingan di grup.")
-		pageUnavailable(c, "terminal", "Command belum tersedia", "Daftar command dan stiker divisi belum dapat dimuat atau disimpan. Tidak ada command yang diaktifkan dari halaman ini.")
-		spaceButton(c, "Tambah command", "plus", false).Disabled(true)
-	})
-}
+func (a *App) reminderSettings(c *ui.Context) { a.notificationSettings(c) }
 
 func (a *App) accountPage(c *ui.Context) {
-	pageBody(c, "Akun dan aplikasi", func() {
+	settingsBody(c, "Akun dan aplikasi", "Kelola identitas dan keamanan, serta periksa koneksi aplikasi ini.", func() {
 		kind := "Pribadi"
 		if a.user.Kind == api.AccountOrganizationAdmin {
 			kind = "Admin organisasi"
@@ -572,4 +381,53 @@ func (a *App) unavailableBoard(c *ui.Context) {
 			})
 		})
 	})
+}
+
+func (a *App) homeAgenda(c *ui.Context) {
+	a.ensureMeetings()
+	t := c.Theme()
+	if !a.meetings.loaded {
+		muted(c, "Memuat rapat…")
+		return
+	}
+	now := c.Now()
+	shown := 0
+	for _, m := range a.meetings.items {
+		if m.Cancelled || m.StartsAt.Before(now.Add(-2*time.Hour)) || shown == 4 {
+			continue
+		}
+		shown++
+		loc, _ := timeutil.LoadZone(m.TimeZone)
+		if loc == nil {
+			loc = time.UTC
+		}
+		at := m.StartsAt.In(loc)
+		ui.Row(c.Key(m.ID)).FillWidth().Gap(12).AlignItems(ui.Center).MinHeight(40).Children(func() {
+			ui.Text(c, fmt.Sprintf("%s %d", shortDays[at.Weekday()], at.Day())).FontSize(12).TextColor(t.TextMuted).Width(52).Shrink(0)
+			ui.Text(c, m.Title).FontSize(13).Grow(1).MinWidth(0).MaxLines(1)
+			ui.Text(c, at.Format("15.04")).FontSize(11).Padding(3, 8).Radius(6).Background(t.Background).Shrink(0)
+		})
+	}
+	if shown == 0 {
+		muted(c, "Belum ada rapat terjadwal.")
+	}
+}
+
+func (a *App) homeNotes(c *ui.Context) {
+	a.ensureNotes()
+	if !a.notes.loaded {
+		muted(c, "Memuat catatan…")
+		return
+	}
+	for i, n := range a.notes.items {
+		if i == 4 {
+			break
+		}
+		if spaceButton(c.Key(n.ID), n.Title, "note", false).FillWidth().Clicked() {
+			a.chrome.tab = "Catatan"
+		}
+	}
+	if len(a.notes.items) == 0 {
+		muted(c, "Belum ada catatan.")
+	}
 }

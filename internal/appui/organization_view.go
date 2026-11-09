@@ -283,6 +283,7 @@ func (a *App) organizationHandoverView(c *ui.Context) {
 	pageSection(c, "Serah terima akun admin", "Perubahan kata sandi, email dan pengelola akun bersama dilakukan melalui pengaturan akun, terpisah dari checklist periode.", func() {
 		if spaceButton(c, "Buka serah terima akun admin", "user", false).FillWidth().Disabled(o.busy).Clicked() {
 			a.chrome.settingsTab = "Akun"
+			a.chrome.settingsDetail = true
 			a.navigate(PathPengaturan)
 		}
 	})

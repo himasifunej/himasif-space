@@ -187,6 +187,7 @@ func (a *App) loadSpaces() {
 				a.workspace = workspaceui.New()
 			}
 			a.tasksContextChanged()
+			a.applyNotificationNavigation()
 		}
 	})
 }

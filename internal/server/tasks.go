@@ -182,23 +182,60 @@ func validateTaskWrite(req *api.TaskWriteRequest) error {
 	if (req.DeadlineDate == nil) == (req.DeadlineAt == nil) {
 		return badRequest("Pilih satu tenggat: tanggal saja atau tanggal dan jam.")
 	}
+	if req.PlannedStartDate != nil && req.PlannedStartAt != nil {
+		return badRequest("Pilih tanggal mulai saja atau tanggal dan jam.")
+	}
 	if req.PostingDate != nil && req.PostingAt != nil {
 		return badRequest("Pilih satu jadwal posting: tanggal saja atau tanggal dan jam.")
 	}
-	for _, d := range []*timeutil.Date{req.DeadlineDate, req.PostingDate} {
+	for _, d := range []*timeutil.Date{req.DeadlineDate, req.PostingDate, req.PlannedStartDate} {
 		if d != nil {
 			if _, err = timeutil.ParseDate(d.String()); err != nil {
 				return badRequest("Tanggal tidak valid.")
 			}
 		}
 	}
-	for _, at := range []*time.Time{req.DeadlineAt, req.PostingAt} {
+	for _, at := range []*time.Time{req.DeadlineAt, req.PostingAt, req.PlannedStartAt} {
 		if at != nil {
 			if at.IsZero() || at.Year() < 1 || at.Year() > 9999 {
 				return badRequest("Waktu tidak valid.")
 			}
 			*at = at.UTC()
 		}
+	}
+	return nil
+}
+
+// Compare mixed date/instant values in the period timezone. A date-only
+// deadline includes its whole calendar day, without persisting a made-up hour.
+func validateTaskRange(req api.TaskWriteRequest, zone string) error {
+	if req.PlannedStartDate == nil && req.PlannedStartAt == nil {
+		return nil
+	}
+	loc, err := timeutil.LoadZone(zone)
+	if err != nil {
+		return err
+	}
+	var start, end time.Time
+	if req.PlannedStartAt != nil {
+		start = *req.PlannedStartAt
+	} else {
+		start, err = time.ParseInLocation(time.DateOnly, req.PlannedStartDate.String(), loc)
+		if err != nil {
+			return err
+		}
+	}
+	if req.DeadlineAt != nil {
+		end = *req.DeadlineAt
+	} else {
+		end, err = time.ParseInLocation(time.DateOnly, req.DeadlineDate.String(), loc)
+		if err != nil {
+			return err
+		}
+		end = end.AddDate(0, 0, 1).Add(-time.Nanosecond)
+	}
+	if start.After(end) {
+		return badRequest("Mulai pengerjaan harus sebelum atau pada tenggat tugas.")
 	}
 	return nil
 }
@@ -265,13 +302,28 @@ func (s *Server) taskEvent(r *http.Request, q store.Querier, p *principal, t *st
 }
 func (s *Server) taskNotify(r *http.Request, q store.Querier, t *store.TaskRow, title, body string, users ...id.ID) error {
 	seen := map[id.ID]bool{}
+	recipients := []id.ID{}
 	for _, uid := range users {
 		if uid == id.Nil || seen[uid] {
 			continue
 		}
 		seen[uid] = true
+		recipients = append(recipients, uid)
 		n := api.Notification{ID: id.New(), TaskID: t.ID, Title: title, Body: body, CreatedAt: s.now().UTC().Truncate(time.Microsecond)}
 		if err := s.store.AddTaskNotification(r.Context(), q, uid, n); err != nil {
+			return err
+		}
+	}
+	if len(t.SpaceIDs) > 0 && len(recipients) > 0 {
+		var sid id.ID
+		if err := q.QueryRow(r.Context(), `select ts.space_id from task_spaces ts join spaces sp on sp.id=ts.space_id where ts.task_id=$1 order by (sp.code='medhum') desc,(sp.kind='division') desc,sp.id limit 1`, t.ID).Scan(&sid); err != nil {
+			return err
+		}
+		eventID := id.New()
+		if err := s.enqueue(r.Context(), q, "task-update:"+eventID.String(), "ping", eventID, t.Version, &sid, title, body, t.TimeZone, s.now(), recipients, []string{"device", "whatsapp"}, deliveryMessage{Key: waTaskNoticeKey(title), Args: []string{body}}); err != nil {
+			return err
+		}
+		if _, err := q.Exec(r.Context(), `update delivery_events set related_kind='task',related_id=$2 where source_kind='ping' and source_id=$1`, eventID, t.ID); err != nil {
 			return err
 		}
 	}
@@ -356,6 +408,9 @@ func (s *Server) createTask(w http.ResponseWriter, r *http.Request, p *principal
 		if err = sc.require(api.CapTasksManage); err != nil {
 			return err
 		}
+		if err := validateTaskRange(req, period.TimeZone); err != nil {
+			return err
+		}
 		links, err := s.taskLinks(r.Context(), q, period.ID, req.OwnerDivisionID, sid, req.SpaceIDs)
 		if err != nil {
 			return err
@@ -365,11 +420,11 @@ func (s *Server) createTask(w http.ResponseWriter, r *http.Request, p *principal
 			return err
 		}
 		now := s.now().UTC().Truncate(time.Microsecond)
-		t := store.TaskRow{Task: api.Task{ID: id.New(), PeriodID: period.ID, OwnerDivisionID: req.OwnerDivisionID, SpaceIDs: links, Title: req.Title, Description: req.Description, ExpectedOutput: req.ExpectedOutput, Category: req.Category, Assignee: assignee, DeadlineDate: req.DeadlineDate, DeadlineAt: req.DeadlineAt, PostingDate: req.PostingDate, PostingAt: req.PostingAt, TimeZone: period.TimeZone, Progress: api.TaskTodo, MatchStatus: api.MatchNone, Version: 1, CreatedBy: taskPerson(p), CreatedAt: now, UpdatedAt: now, Participants: []api.PersonRef{}, Evidence: []api.TaskEvidence{}, Comments: []api.TaskComment{}, HelpRequests: []api.TaskHelpRequest{}}, ResumeProgress: api.TaskTodo}
+		t := store.TaskRow{Task: api.Task{ID: id.New(), PeriodID: period.ID, OwnerDivisionID: req.OwnerDivisionID, SpaceIDs: links, Title: req.Title, Description: req.Description, ExpectedOutput: req.ExpectedOutput, Category: req.Category, Assignee: assignee, PlannedStartDate: req.PlannedStartDate, PlannedStartAt: req.PlannedStartAt, DeadlineDate: req.DeadlineDate, DeadlineAt: req.DeadlineAt, PostingDate: req.PostingDate, PostingAt: req.PostingAt, TimeZone: period.TimeZone, Progress: api.TaskTodo, MatchStatus: api.MatchNone, Version: 1, CreatedBy: taskPerson(p), CreatedAt: now, UpdatedAt: now, Participants: []api.PersonRef{}, Evidence: []api.TaskEvidence{}, Comments: []api.TaskComment{}, HelpRequests: []api.TaskHelpRequest{}}, ResumeProgress: api.TaskTodo}
 		if t.Rank, err = s.store.TaskRank(r.Context(), q, period.ID, t.ID, id.Nil, api.TaskTodo); err != nil {
 			return err
 		}
-		if err = s.store.InsertTask(r.Context(), q, t); err != nil {
+		if err = s.store.InsertTask(r.Context(), q, &t); err != nil {
 			return err
 		}
 		if err = s.taskAccess(r.Context(), q, p, period, &t); err != nil {
@@ -414,6 +469,9 @@ func (s *Server) updateTask(w http.ResponseWriter, r *http.Request, p *principal
 		if !t.Permissions.Manage {
 			return errForbidden
 		}
+		if err := validateTaskRange(req, period.TimeZone); err != nil {
+			return err
+		}
 		if err := taskVersion(t, req.ExpectedVersion); err != nil {
 			return err
 		}
@@ -432,13 +490,17 @@ func (s *Server) updateTask(w http.ResponseWriter, r *http.Request, p *principal
 		if err != nil {
 			return err
 		}
+		if err := s.guardMedhumTaskUpdate(r, q, t, req); err != nil {
+			return err
+		}
 		before := t.Task
 		recipients := taskPeople(t)
 		t.Title, t.Description, t.ExpectedOutput, t.Category = req.Title, req.Description, req.ExpectedOutput, req.Category
 		t.SpaceIDs = links
 		t.Assignee = assignee
+		t.PlannedStartDate, t.PlannedStartAt = req.PlannedStartDate, req.PlannedStartAt
 		t.DeadlineDate, t.DeadlineAt, t.PostingDate, t.PostingAt = req.DeadlineDate, req.DeadlineAt, req.PostingDate, req.PostingAt
-		if err = s.store.TaskSpaces(r.Context(), q, *t); err != nil {
+		if err = s.store.TaskSpaces(r.Context(), q, t); err != nil {
 			return err
 		}
 		if err = s.taskAccess(r.Context(), q, p, period, t); err != nil {
@@ -681,6 +743,75 @@ func (s *Server) addTaskComment(w http.ResponseWriter, r *http.Request, p *princ
 	writeJSON(w, 201, out)
 	return nil
 }
+
+// Checklist items may be edited by whoever manages the task or reports its
+// progress (the PJ). Ticking an item never changes progress or evidence.
+func (s *Server) taskChecklist(w http.ResponseWriter, r *http.Request, p *principal) error {
+	var req api.TaskChecklistRequest
+	if r.Method != http.MethodDelete {
+		if err := readJSON(r, &req); err != nil {
+			return err
+		}
+	}
+	if req.Body != nil {
+		body, err := text(*req.Body, "isi checklist", 1, 500)
+		if err != nil {
+			return err
+		}
+		req.Body = &body
+	}
+	var item id.ID
+	if r.Method != http.MethodPost {
+		var err error
+		if item, err = pathID(r, "itemId"); err != nil {
+			return err
+		}
+	}
+	var out api.TaskChecklistItem
+	err := s.withTask(r, p, true, func(q store.Querier, _ api.Period, t *store.TaskRow) error {
+		if !t.Permissions.Manage && !t.Permissions.Progress {
+			return errForbidden
+		}
+		if t.Progress == api.TaskCancelled {
+			return conflict("Tugas ini sudah dibatalkan.")
+		}
+		now := s.now().UTC().Truncate(time.Microsecond)
+		switch r.Method {
+		case http.MethodPost:
+			if req.Body == nil {
+				return badRequest("Isi checklist wajib diisi.")
+			}
+			out = api.TaskChecklistItem{ID: id.New(), Body: *req.Body, CreatedAt: now}
+			if err := s.store.AddTaskChecklistItem(r.Context(), q, t.ID, p.User.ID, out); err != nil {
+				return err
+			}
+			return s.taskEvent(r, q, p, t, "task.checklist.add", "", nil, out)
+		case http.MethodPatch:
+			if req.Body == nil && req.Done == nil {
+				return badRequest("Tidak ada perubahan checklist.")
+			}
+			if err := s.store.UpdateTaskChecklistItem(r.Context(), q, t.ID, item, p.User.ID, req.Body, req.Done, now); err != nil {
+				return notFound(err, errNotFound)
+			}
+			out = api.TaskChecklistItem{ID: item}
+			return s.taskEvent(r, q, p, t, "task.checklist.update", "", nil, req)
+		default:
+			if err := s.store.DeleteTaskChecklistItem(r.Context(), q, t.ID, item, now); err != nil {
+				return notFound(err, errNotFound)
+			}
+			return s.taskEvent(r, q, p, t, "task.checklist.delete", "", nil, map[string]any{"id": item})
+		}
+	})
+	if err != nil {
+		return err
+	}
+	if r.Method == http.MethodDelete {
+		w.WriteHeader(http.StatusNoContent)
+		return nil
+	}
+	writeJSON(w, map[bool]int{true: 201, false: 200}[r.Method == http.MethodPost], out)
+	return nil
+}
 func (s *Server) offerTaskHelp(w http.ResponseWriter, r *http.Request, p *principal) error {
 	var req api.TaskHelpCreateRequest
 	if err := readJSON(r, &req); err != nil {
@@ -811,50 +942,7 @@ func (s *Server) submitTaskEvidence(w http.ResponseWriter, r *http.Request, p *p
 	}
 	var out api.TaskEvidence
 	err = s.withTask(r, p, true, func(q store.Querier, _ api.Period, t *store.TaskRow) error {
-		if !t.Permissions.Progress {
-			return errForbidden
-		}
-		if err := taskVersion(t, req.ExpectedVersion); err != nil {
-			return err
-		}
-		if t.Progress == api.TaskCancelled {
-			return conflict("Buka kembali tugas sebelum mengirim hasil.")
-		}
-		if t.MatchStatus == api.MatchPending {
-			return conflict("Bukti sebelumnya masih perlu tinjauan.")
-		}
-		if t.MatchStatus == api.MatchVerified {
-			if !t.Permissions.Manage {
-				return errForbidden
-			}
-			if req.Note == "" {
-				return badRequest("Isi catatan alasan koreksi bukti terverifikasi.")
-			}
-		}
-		before := t.Task
-		if (t.Progress == api.TaskTodo || t.Progress == api.TaskDoing) && t.MatchStatus != api.MatchPending {
-			t.ResumeProgress = t.Progress
-		}
-		out = api.TaskEvidence{ID: id.New(), SubmittedBy: taskPerson(p), URL: req.URL, Note: req.Note, MatchStatus: api.MatchPending, SubmittedAt: s.now().UTC().Truncate(time.Microsecond)}
-		if err := s.store.AddTaskEvidence(r.Context(), q, t.ID, out); err != nil {
-			return err
-		}
-		t.Progress, t.MatchStatus = api.TaskSubmitted, api.MatchPending
-		t.Evidence = append(t.Evidence, out)
-		rank, err := s.store.TaskRank(r.Context(), q, t.PeriodID, t.ID, id.Nil, t.Progress)
-		if err != nil {
-			return err
-		}
-		t.Rank = rank
-		if err = s.saveTaskMutation(r, q, p, t, "task.evidence.submit", req.Note, before); err != nil {
-			return err
-		}
-		users, err := s.taskManagers(r, q, t)
-		if err != nil {
-			return err
-		}
-		users = append(users, taskPeople(t)...)
-		return s.taskNotify(r, q, t, "Hasil dikirim — perlu tinjauan", t.Title, users...)
+		return s.applyTaskEvidence(r, q, p, t, req, s.now(), &out)
 	})
 	if err != nil {
 		return err
@@ -878,51 +966,7 @@ func (s *Server) reviewTaskEvidence(w http.ResponseWriter, r *http.Request, p *p
 	}
 	var out api.TaskEvidence
 	err = s.withTask(r, p, true, func(q store.Querier, _ api.Period, t *store.TaskRow) error {
-		if !t.Permissions.Review {
-			return errForbidden
-		}
-		if err := taskVersion(t, req.ExpectedVersion); err != nil {
-			return err
-		}
-		i := slices.IndexFunc(t.Evidence, func(x api.TaskEvidence) bool { return x.ID == eid })
-		if i < 0 {
-			return errNotFound
-		}
-		out = t.Evidence[i]
-		// A final decision can be corrected by an authorized reviewer, but never
-		// against superseded evidence while newer evidence exists.
-		if i != len(t.Evidence)-1 {
-			return conflict("Bukti telah digantikan oleh penyerahan yang lebih baru.")
-		}
-		if t.Progress == api.TaskCancelled {
-			return conflict("Buka kembali tugas sebelum meninjau bukti.")
-		}
-		before := t.Task
-		now, person := s.now().UTC().Truncate(time.Microsecond), taskPerson(p)
-		out.ReviewedAt = &now
-		out.ReviewedBy = &person
-		out.ReviewReason = reason
-		out.MatchStatus = api.MatchRejected
-		t.Progress = t.ResumeProgress
-		if req.Matched {
-			out.MatchStatus = api.MatchVerified
-			t.Progress = api.TaskDone
-		}
-		t.MatchStatus = out.MatchStatus
-		t.Evidence = append([]api.TaskEvidence(nil), t.Evidence...)
-		t.Evidence[i] = out
-		if err := s.store.ReviewTaskEvidence(r.Context(), q, t.ID, out); err != nil {
-			return err
-		}
-		rank, err := s.store.TaskRank(r.Context(), q, t.PeriodID, t.ID, id.Nil, t.Progress)
-		if err != nil {
-			return err
-		}
-		t.Rank = rank
-		if err = s.saveTaskMutation(r, q, p, t, "task.evidence.review", reason, before); err != nil {
-			return err
-		}
-		return s.taskNotify(r, q, t, "Pencocokan hasil diperbarui", t.Title, taskPeople(t)...)
+		return s.applyTaskEvidenceReview(r, q, p, t, eid, req, reason, &out)
 	})
 	if err != nil {
 		return err
@@ -994,4 +1038,108 @@ func (s *Server) readTaskNotification(w http.ResponseWriter, r *http.Request, p 
 	}
 	w.WriteHeader(204)
 	return nil
+}
+
+// applyTaskEvidence is shared by authenticated HTTP and verified WA actors.
+// The caller owns period/task/account locks and has validated the input.
+func (s *Server) applyTaskEvidence(r *http.Request, q store.Querier, p *principal, t *store.TaskRow, req api.TaskEvidenceRequest, submittedAt time.Time, out *api.TaskEvidence) error {
+	return s.applyAttributedTaskEvidence(r, q, p, t, req, submittedAt, taskPerson(p), out)
+}
+
+// Attribution is supplied only by the verified source/review path, never by an
+// arbitrary HTTP client. The auditing principal remains the current actor.
+func (s *Server) applyAttributedTaskEvidence(r *http.Request, q store.Querier, p *principal, t *store.TaskRow, req api.TaskEvidenceRequest, submittedAt time.Time, submittedBy api.PersonRef, out *api.TaskEvidence) error {
+	if !t.Permissions.Progress {
+		return errForbidden
+	}
+	if err := taskVersion(t, req.ExpectedVersion); err != nil {
+		return err
+	}
+	if t.Progress == api.TaskCancelled {
+		return conflict("Buka kembali tugas sebelum mengirim hasil.")
+	}
+	if t.MatchStatus == api.MatchPending {
+		return conflict("Bukti sebelumnya masih perlu tinjauan.")
+	}
+	if t.MatchStatus == api.MatchVerified {
+		if !t.Permissions.Manage {
+			return errForbidden
+		}
+		if req.Note == "" {
+			return badRequest("Isi catatan alasan koreksi bukti terverifikasi.")
+		}
+	}
+	before := t.Task
+	if (t.Progress == api.TaskTodo || t.Progress == api.TaskDoing) && t.MatchStatus != api.MatchPending {
+		t.ResumeProgress = t.Progress
+	}
+	*out = api.TaskEvidence{ID: id.New(), SubmittedBy: submittedBy, URL: req.URL, Note: req.Note, MatchStatus: api.MatchPending, SubmittedAt: submittedAt.UTC().Truncate(time.Microsecond), RecordedAt: s.now().UTC().Truncate(time.Microsecond)}
+	if err := s.store.AddTaskEvidence(r.Context(), q, t.ID, *out); err != nil {
+		return err
+	}
+	t.Progress, t.MatchStatus = api.TaskSubmitted, api.MatchPending
+	t.Evidence = append(t.Evidence, *out)
+	rank, err := s.store.TaskRank(r.Context(), q, t.PeriodID, t.ID, id.Nil, t.Progress)
+	if err != nil {
+		return err
+	}
+	t.Rank = rank
+	if err = s.saveTaskMutation(r, q, p, t, "task.evidence.submit", req.Note, before); err != nil {
+		return err
+	}
+	users, err := s.taskManagers(r, q, t)
+	if err != nil {
+		return err
+	}
+	users = append(users, taskPeople(t)...)
+	return s.taskNotify(r, q, t, "Hasil dikirim — perlu tinjauan", t.Title, users...)
+}
+
+// applyTaskEvidenceReview is shared with the source pairing correction path.
+func (s *Server) applyTaskEvidenceReview(r *http.Request, q store.Querier, p *principal, t *store.TaskRow, eid id.ID, req api.TaskEvidenceReviewRequest, reason string, out *api.TaskEvidence) error {
+	if !t.Permissions.Review {
+		return errForbidden
+	}
+	if err := taskVersion(t, req.ExpectedVersion); err != nil {
+		return err
+	}
+	i := slices.IndexFunc(t.Evidence, func(x api.TaskEvidence) bool { return x.ID == eid })
+	if i < 0 {
+		return errNotFound
+	}
+	*out = t.Evidence[i]
+	// A final decision can be corrected by an authorized reviewer, but never
+	// against superseded evidence while newer evidence exists.
+	if i != len(t.Evidence)-1 {
+		return conflict("Bukti telah digantikan oleh penyerahan yang lebih baru.")
+	}
+	if t.Progress == api.TaskCancelled {
+		return conflict("Buka kembali tugas sebelum meninjau bukti.")
+	}
+	before := t.Task
+	now, person := s.now().UTC().Truncate(time.Microsecond), taskPerson(p)
+	(*out).ReviewedAt = &now
+	(*out).ReviewedBy = &person
+	(*out).ReviewReason = reason
+	(*out).MatchStatus = api.MatchRejected
+	t.Progress = t.ResumeProgress
+	if req.Matched {
+		(*out).MatchStatus = api.MatchVerified
+		t.Progress = api.TaskDone
+	}
+	t.MatchStatus = (*out).MatchStatus
+	t.Evidence = append([]api.TaskEvidence(nil), t.Evidence...)
+	t.Evidence[i] = *out
+	if err := s.store.ReviewTaskEvidence(r.Context(), q, t.ID, *out); err != nil {
+		return err
+	}
+	rank, err := s.store.TaskRank(r.Context(), q, t.PeriodID, t.ID, id.Nil, t.Progress)
+	if err != nil {
+		return err
+	}
+	t.Rank = rank
+	if err = s.saveTaskMutation(r, q, p, t, "task.evidence.review", reason, before); err != nil {
+		return err
+	}
+	return s.taskNotify(r, q, t, "Pencocokan hasil diperbarui", t.Title, taskPeople(t)...)
 }

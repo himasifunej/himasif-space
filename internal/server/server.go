@@ -22,24 +22,36 @@ import (
 
 	"github.com/himasifunej/himasif-space/internal/api"
 	"github.com/himasifunej/himasif-space/internal/config"
+	"github.com/himasifunej/himasif-space/internal/integrations"
 	"github.com/himasifunej/himasif-space/internal/mail"
 	"github.com/himasifunej/himasif-space/internal/store"
+	"github.com/himasifunej/himasif-space/internal/whatsapp"
 )
 
 // Version is the server's version, set at build time with
 // -ldflags "-X github.com/himasifunej/himasif-space/internal/server.Version=…".
 var Version = "dev"
+var SourceRevision = "unknown"
+var SourceDigest = "unknown"
+var BuiltAt = "unknown"
+
+func BuildInfo() api.BuildInfo {
+	return api.BuildInfo{Version: Version, Revision: SourceRevision, SourceDigest: SourceDigest, BuiltAt: BuiltAt}
+}
 
 // maxBodyBytes bounds request bodies.
 const maxBodyBytes = 1 << 20
 
 // Server handles the API.
 type Server struct {
-	cfg    config.Config
-	store  *store.Store
-	mailer mail.Mailer
-	log    *slog.Logger
-	now    func() time.Time
+	workers  workerRegistry
+	realtime realtimeHub
+	cfg      config.Config
+	sources  *integrations.Sources
+	store    *store.Store
+	mailer   mail.Mailer
+	log      *slog.Logger
+	now      func() time.Time
 
 	loginLimit *limiter
 	// mailLimit bounds the emails sent to one address; publicLimit the
@@ -48,22 +60,30 @@ type Server struct {
 	publicLimit *limiter
 
 	// bg tracks work that outlives its request: recovery emails.
-	bg sync.WaitGroup
+	bg               sync.WaitGroup
+	wa               *whatsapp.Client
+	waTransportSlots chan struct{}
 }
 
 // New returns a server.
 func New(cfg config.Config, st *store.Store, mailer mail.Mailer, log *slog.Logger) *Server {
-	return &Server{
-		cfg:    cfg,
-		store:  st,
-		mailer: mailer,
-		log:    log,
-		now:    time.Now,
+	result := &Server{
+		wa:               whatsapp.New(cfg.WABridgeURL, cfg.WABridgeToken),
+		waTransportSlots: make(chan struct{}, 2),
+		cfg:              cfg,
+		sources:          integrations.New(),
+		store:            st,
+		mailer:           mailer,
+		log:              log,
+		now:              time.Now,
 		// Ten attempts per email and per address in a quarter of an hour.
 		loginLimit:  newLimiter(10, 15*time.Minute),
 		mailLimit:   newLimiter(5, 15*time.Minute),
 		publicLimit: newLimiter(30, 15*time.Minute),
 	}
+	result.initWorkers()
+	result.configureRuntime()
+	return result
 }
 
 // Wait waits for the work started by requests that outlives them, as
@@ -73,6 +93,88 @@ func (s *Server) Wait() { s.bg.Wait() }
 // Handler returns the server's routes, wrapped in its middleware.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
+	mux.Handle("GET /api/realtime", s.handle(s.streamChanges))
+	mux.Handle("GET /api/operations", s.handle(s.systemOperations))
+	mux.Handle("GET /api/periods/{periodId}/divisions/{divisionId}/operations", s.handle(s.divisionOperations))
+	mux.Handle("POST /api/spaces/{spaceId}/emergency-snapshots", s.handle(s.createEmergencySnapshot))
+	mux.Handle("GET /api/emergency-snapshots/{snapshotId}/csv", s.handle(s.downloadEmergencySnapshot))
+	mux.Handle("POST /api/emergency-reconciliation/{action}", s.handle(s.reconcileEmergency))
+
+	mux.Handle("GET /api/periods/{periodId}/sop-scopes", s.handle(s.sopScopes))
+	mux.Handle("GET /api/periods/{periodId}/divisions/{divisionId}/sop/policy", s.handle(s.sopPolicy))
+	mux.Handle("PUT /api/periods/{periodId}/divisions/{divisionId}/sop/policy", s.handle(s.sopPolicy))
+	mux.Handle("POST /api/periods/{periodId}/divisions/{divisionId}/sop/bot-agreement", s.handle(s.sopBotAgreement))
+	mux.Handle("GET /api/periods/{periodId}/divisions/{divisionId}/sop/evaluators", s.handle(s.sopEvaluatorGrants))
+	mux.Handle("POST /api/periods/{periodId}/divisions/{divisionId}/sop/evaluators", s.handle(s.sopEvaluatorGrants))
+	mux.Handle("POST /api/periods/{periodId}/divisions/{divisionId}/sop/evaluators/{grantId}/revoke", s.handle(s.revokeSOPEvaluator))
+	mux.Handle("GET /api/periods/{periodId}/divisions/{divisionId}/sop/contexts/{contentId}", s.handle(s.sopContext))
+	mux.Handle("PUT /api/periods/{periodId}/divisions/{divisionId}/sop/contexts/{contentId}", s.handle(s.sopContext))
+	mux.Handle("GET /api/periods/{periodId}/divisions/{divisionId}/sop/findings", s.handle(s.sopFindings))
+	mux.Handle("POST /api/periods/{periodId}/divisions/{divisionId}/sop/findings", s.handle(s.manualSOPFinding))
+	mux.Handle("GET /api/periods/{periodId}/divisions/{divisionId}/sop/findings/{findingId}", s.handle(s.sopFinding))
+	mux.Handle("POST /api/periods/{periodId}/divisions/{divisionId}/sop/findings/{findingId}/decision", s.handle(s.sopDecision))
+	mux.Handle("GET /api/periods/{periodId}/divisions/{divisionId}/sop/findings/{findingId}/transfer-preview", s.handle(s.sopTransferPreview))
+	mux.Handle("POST /api/periods/{periodId}/divisions/{divisionId}/sop/findings/{findingId}/transfer", s.handle(s.sopTransferFinding))
+	mux.Handle("GET /api/periods/{periodId}/divisions/{divisionId}/sop/findings/{findingId}/history", s.handle(s.sopFindingHistory))
+	mux.Handle("GET /api/periods/{periodId}/divisions/{divisionId}/sop/report", s.handle(s.sopReport))
+	mux.Handle("GET /api/periods/{periodId}/divisions/{divisionId}/sop/summary", s.handle(s.sopSummary))
+	mux.Handle("GET /api/periods/{periodId}/divisions/{divisionId}/sop/deliveries", s.handle(s.sopDeliveries))
+	mux.Handle("GET /api/periods/{periodId}/divisions/{divisionId}/sop/schedule-readiness", s.handle(s.sopReadiness))
+	mux.Handle("GET /api/periods/{periodId}/divisions/{divisionId}/sop/deliveries/{runId}", s.handle(s.sopDelivery))
+	mux.Handle("GET /api/periods/{periodId}/divisions/{divisionId}/sop/people", s.handle(s.sopPeople))
+	mux.Handle("GET /api/periods/{periodId}/divisions/{divisionId}/sop/contents", s.handle(s.sopContents))
+	mux.Handle("GET /api/periods/{periodId}/divisions/{divisionId}/sop/evaluator-candidates", s.handle(s.sopEvaluatorCandidates))
+	mux.Handle("GET /api/periods/{periodId}/divisions/{divisionId}/whatsapp", s.handle(s.listWA))
+	mux.Handle("POST /api/periods/{periodId}/divisions/{divisionId}/whatsapp", s.handle(s.createWA))
+	mux.Handle("POST /api/periods/{periodId}/divisions/{divisionId}/whatsapp-link", s.handle(s.createWALink))
+	mux.Handle("POST /api/periods/{periodId}/divisions/{divisionId}/whatsapp/preview", s.handle(s.previewWA))
+	mux.Handle("PUT /api/whatsapp/{connectionId}", s.handle(s.updateWA))
+	mux.Handle("GET /api/whatsapp/{connectionId}/state", s.handle(s.waSession))
+	mux.Handle("POST /api/whatsapp/{connectionId}/action", s.handle(s.waAction))
+	mux.Handle("GET /api/whatsapp/{connectionId}/available-groups", s.handle(s.waAvailableGroups))
+	mux.Handle("PUT /api/whatsapp/{connectionId}/groups", s.handle(s.saveWAGroup))
+	mux.Handle("GET /api/whatsapp/{connectionId}/commands", s.handle(s.listWACommands))
+	mux.Handle("PUT /api/whatsapp/{connectionId}/commands/{commandId}", s.handle(s.saveWACommand))
+	mux.Handle("DELETE /api/whatsapp/{connectionId}/commands/{commandId}", s.handle(s.deleteWACommand))
+	mux.Handle("GET /api/whatsapp/{connectionId}/outbox", s.handle(s.waOutbox))
+	mux.Handle("GET /api/spaces/{spaceId}/wa-parser-policy", s.handle(s.waParserPolicy))
+	mux.Handle("PUT /api/spaces/{spaceId}/wa-parser-policy", s.handle(s.waParserPolicy))
+	mux.Handle("POST /api/spaces/{spaceId}/wa-broadcast-preview", s.handle(s.waBroadcastPreview))
+	mux.Handle("GET /api/spaces/{spaceId}/wa-content-inbox", s.handle(s.waContentInbox))
+	mux.Handle("POST /api/spaces/{spaceId}/wa-content-inbox/{itemId}/decision", s.handle(s.waContentDecision))
+	mux.Handle("GET /api/spaces/{spaceId}/wa-content-inbox/{itemId}/history", s.handle(s.waContentHistory))
+	mux.Handle("GET /api/spaces/{spaceId}/medhum-policy", s.handle(s.medhumPolicy))
+	mux.Handle("PATCH /api/spaces/{spaceId}/medhum-policy", s.handle(s.medhumPolicy))
+	mux.Handle("GET /api/connectors/{connectorId}/events", s.handle(s.connectorEvents))
+	mux.Handle("POST /api/connectors/{connectorId}/mirror", s.handle(s.mirrorConnector))
+	mux.Handle("POST /api/connectors/{connectorId}/items/{itemId}/decision", s.handle(s.decideConnectorItem))
+	mux.Handle("GET /api/periods/{periodId}/divisions/{divisionId}/connectors", s.handle(s.listConnectors))
+	mux.Handle("POST /api/periods/{periodId}/divisions/{divisionId}/connectors", s.handle(s.createConnector))
+	mux.Handle("PUT /api/connectors/{connectorId}", s.handle(s.updateConnector))
+	mux.Handle("POST /api/connectors/{connectorId}/fetch", s.handle(s.fetchConnector))
+	mux.Handle("GET /api/connectors/{connectorId}/items", s.handle(s.connectorItems))
+	mux.Handle("GET /api/connectors/{connectorId}/runs", s.handle(s.connectorRuns))
+	mux.Handle("PUT /api/connectors/{connectorId}/people", s.handle(s.connectorPeople))
+	mux.Handle("GET /api/spaces/{spaceId}/contents", s.handle(s.listMedhum))
+	mux.Handle("POST /api/spaces/{spaceId}/contents", s.handle(s.createMedhum))
+	mux.Handle("GET /api/contents/{contentId}", s.handle(s.getMedhum))
+	mux.Handle("PATCH /api/contents/{contentId}", s.handle(s.updateMedhum))
+	mux.Handle("GET /api/spaces/{spaceId}/meeting-candidates", s.handle(s.meetingCandidates))
+	mux.Handle("POST /api/sync", s.handle(s.syncOffline))
+	mux.Handle("GET /api/periods/{periodId}/divisions/{divisionId}/notification-policy", s.handle(s.divisionNotificationPolicy))
+	mux.Handle("PUT /api/periods/{periodId}/divisions/{divisionId}/notification-policy", s.handle(s.divisionNotificationPolicy))
+	mux.Handle("GET /api/tasks/{taskId}/notification-policy", s.handle(s.taskNotificationPolicy))
+	mux.Handle("PUT /api/tasks/{taskId}/notification-policy", s.handle(s.taskNotificationPolicy))
+	mux.Handle("DELETE /api/tasks/{taskId}/notification-policy", s.handle(s.taskNotificationPolicy))
+	mux.Handle("GET /api/deliveries", s.handle(s.listDeliveries))
+	mux.Handle("POST /api/deliveries/{deliveryId}/response", s.handle(s.respondDelivery))
+	mux.Handle("POST /api/spaces/{spaceId}/pings", s.handle(s.sendPing))
+	mux.Handle("GET /api/spaces/{spaceId}/pings", s.handle(s.listPings))
+	mux.Handle("GET /api/spaces/{spaceId}/meetings", s.handle(s.listMeetings))
+	mux.Handle("POST /api/spaces/{spaceId}/meetings", s.handle(s.createMeeting))
+	mux.Handle("GET /api/meetings/{meetingId}", s.handle(s.getMeeting))
+	mux.Handle("PUT /api/meetings/{meetingId}", s.handle(s.updateMeeting))
+	mux.Handle("PUT /api/meetings/{meetingId}/attendance/{userId}", s.handle(s.recordAttendance))
 	mux.HandleFunc("GET /api/health", s.health)
 	mux.HandleFunc("POST /api/auth/login", s.login)
 	mux.Handle("POST /api/auth/logout", s.authed(s.logout))
@@ -131,6 +233,12 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PATCH /api/tasks/{taskId}", s.handle(s.updateTask))
 	mux.Handle("POST /api/tasks/{taskId}/move", s.handle(s.moveTask))
 	mux.Handle("POST /api/tasks/{taskId}/comments", s.handle(s.addTaskComment))
+	mux.Handle("POST /api/tasks/{taskId}/checklist", s.handle(s.taskChecklist))
+	mux.Handle("PATCH /api/tasks/{taskId}/checklist/{itemId}", s.handle(s.taskChecklist))
+	mux.Handle("DELETE /api/tasks/{taskId}/checklist/{itemId}", s.handle(s.taskChecklist))
+	mux.Handle("PUT /api/tasks/{taskId}/attachments/{attachmentId}/file", s.handle(s.uploadTaskAttachment))
+	mux.Handle("GET /api/tasks/{taskId}/attachments/{attachmentId}/file", s.handle(s.downloadTaskAttachment))
+	mux.Handle("DELETE /api/tasks/{taskId}/attachments/{attachmentId}", s.handle(s.removeTaskAttachment))
 	mux.Handle("POST /api/tasks/{taskId}/help", s.handle(s.offerTaskHelp))
 	mux.Handle("POST /api/tasks/{taskId}/help/{helpId}/decide", s.handle(s.decideTaskHelp))
 	mux.Handle("POST /api/tasks/{taskId}/evidence", s.handle(s.submitTaskEvidence))
@@ -145,6 +253,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/reminders", s.handle(s.createReminder))
 	mux.Handle("GET /api/reminders/preferences", s.handle(s.getReminderPreferences))
 	mux.Handle("PUT /api/reminders/preferences", s.handle(s.putReminderPreferences))
+	mux.Handle("GET /api/me/ui-preferences", s.handle(s.getUIPreferences))
+	mux.Handle("PUT /api/me/ui-preferences", s.handle(s.putUIPreferences))
 	mux.Handle("GET /api/reminders/{reminderId}", s.handle(s.getReminder))
 	mux.Handle("PUT /api/reminders/{reminderId}", s.handle(s.updateReminder))
 	mux.Handle("DELETE /api/reminders/{reminderId}", s.handle(s.deleteReminder))
@@ -177,6 +287,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("DELETE /api/notes/{noteId}/drafts/{draftId}", s.handle(s.deleteNoteRecoveryDraft))
 	mux.Handle("POST /api/notes/{noteId}/comments", s.handle(s.addNoteComment))
 	mux.Handle("POST /api/notes/{noteId}/attachments", s.handle(s.addNoteAttachment))
+	mux.Handle("PUT /api/notes/{noteId}/attachments/{attachmentId}/file", s.handle(s.uploadNoteAttachment))
+	mux.Handle("GET /api/notes/{noteId}/attachments/{attachmentId}/file", s.handle(s.downloadNoteAttachment))
 	mux.Handle("DELETE /api/notes/{noteId}/attachments/{attachmentId}", s.handle(s.deleteNoteAttachment))
 	mux.Handle("GET /api/notes/{noteId}/links", s.handle(s.listNoteLinks))
 	mux.Handle("POST /api/notes/{noteId}/links", s.handle(s.addNoteLink))
@@ -188,7 +300,7 @@ func (s *Server) Handler() http.Handler {
 	if s.cfg.WebDir != "" {
 		mux.Handle("/", webApp(s.cfg.WebDir))
 	}
-	return s.middleware(mux)
+	return s.middleware(s.runtimeHandler(mux))
 }
 
 type ctxKey int
@@ -221,7 +333,11 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 			h.Set("Cache-Control", "no-store")
 		}
 		if r.Body != nil {
-			r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
+			limit := int64(maxBodyBytes)
+			if attachmentUploadPath(r) {
+				limit = s.attachmentLimit()
+			}
+			r.Body = http.MaxBytesReader(w, r.Body, limit)
 		}
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		defer func() {
@@ -245,6 +361,8 @@ type statusRecorder struct {
 	wrote  bool
 }
 
+func (r *statusRecorder) Unwrap() http.ResponseWriter { return r.ResponseWriter }
+
 func (r *statusRecorder) WriteHeader(code int) {
 	if !r.wrote {
 		r.status, r.wrote = code, true
@@ -260,7 +378,7 @@ func (r *statusRecorder) Write(b []byte) (int, error) {
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 	defer cancel()
-	h := api.Health{Status: "ok", Database: "ok", Version: Version, Time: s.now().UTC()}
+	h := api.Health{Build: BuildInfo(), Status: "ok", Database: "ok", Version: Version, Time: s.now().UTC()}
 	status := http.StatusOK
 	if err := s.store.Ping(ctx); err != nil {
 		s.log.Warn("health: database", "err", err)

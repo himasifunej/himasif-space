@@ -1,0 +1,13 @@
+[Unit]
+Description=Space encrypted backup schedule (example, not installed/enabled)
+
+[Timer]
+# Example only: choose the actual interval from the agreed RPO and measured
+# snapshot downtime before enabling. This is not an agreed daily-backup SLA.
+OnCalendar=*-*-* 02:00:00
+RandomizedDelaySec=5min
+Persistent=false
+Unit=space-backup.service
+
+[Install]
+WantedBy=timers.target

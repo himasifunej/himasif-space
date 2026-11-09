@@ -19,6 +19,15 @@ var mediatekLogoData []byte
 //go:embed assets/humas.png
 var humasLogoData []byte
 
+//go:embed assets/psdm.png
+var psdmLogoData []byte
+
+//go:embed assets/kaderisasi.png
+var kaderisasiLogoData []byte
+
+//go:embed assets/litbang.png
+var litbangLogoData []byte
+
 var spaceBrandSVG = ui.MustParseSVG(spaceBrandData)
 
 // SVGs and bitmaps are parsed once, before the first frame.
@@ -35,6 +44,8 @@ var spaceIcons = func() map[string]*ui.SVG {
 		"chevron":  `<path d="m9 5 7 7-7 7"/>`,
 		"clock":    `<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>`,
 		"close":    `<path d="m6 6 12 12M6 18 18 6"/>`,
+		"left":     `<path d="m15 5-7 7 7 7"/>`,
+		"right":    `<path d="m9 5 7 7-7 7"/>`,
 		"down":     `<path d="m6 9 6 6 6-6"/>`,
 		"edit":     `<path d="m15 4 5 5M4 20l4-1L21 6l-5-5L3 14Z"/>`,
 		"filter":   `<path d="M4 7h16M7 12h10M10 17h4"/><circle cx="8" cy="7" r="2" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="2" fill="currentColor" stroke="none"/>`,
@@ -81,9 +92,17 @@ var spaceIcons = func() map[string]*ui.SVG {
 	return icons
 }()
 
+// Keys match the division slugs seeded in internal/seed: bph, humas, kader,
+// litbang, mediatek, psdm. Only the divisions whose emblem is published by
+// himasif.id are listed; BPH has no published division emblem, so it keeps the
+// neutral mark. "kaderisasi" is accepted as an alias for the full name.
 var spaceDivisionLogos = map[string]*ui.Bitmap{
-	"mediatek": mustDivisionBitmap(mediatekLogoData),
-	"humas":    mustDivisionBitmap(humasLogoData),
+	"mediatek":   mustDivisionBitmap(mediatekLogoData),
+	"humas":      mustDivisionBitmap(humasLogoData),
+	"psdm":       mustDivisionBitmap(psdmLogoData),
+	"kader":      mustDivisionBitmap(kaderisasiLogoData),
+	"kaderisasi": mustDivisionBitmap(kaderisasiLogoData),
+	"litbang":    mustDivisionBitmap(litbangLogoData),
 }
 
 func mustDivisionBitmap(data []byte) *ui.Bitmap {

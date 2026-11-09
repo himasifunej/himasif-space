@@ -50,6 +50,7 @@ type ErrorResponse struct {
 
 // Health reports whether the server and its database answer.
 type Health struct {
+	Build    BuildInfo `json:"build"`
 	Status   string    `json:"status"` // "ok" or "degraded"
 	Database string    `json:"database"`
 	Version  string    `json:"version"`
@@ -104,4 +105,13 @@ type Division struct {
 // List wraps the items of a list response, leaving room for paging.
 type List[T any] struct {
 	Items []T `json:"items"`
+}
+
+// BuildInfo identifies the actual source snapshot even for an uncommitted
+// candidate. A commit hash alone cannot identify a dirty workspace build.
+type BuildInfo struct {
+	Version      string `json:"version"`
+	Revision     string `json:"revision"`
+	SourceDigest string `json:"sourceDigest"`
+	BuiltAt      string `json:"builtAt"`
 }

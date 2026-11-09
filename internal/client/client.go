@@ -34,7 +34,8 @@ type Client struct {
 	BaseURL string
 	Token   string
 	// HTTP sends the requests; nil uses a client with DefaultTimeout.
-	HTTP *http.Client
+	HTTP    *http.Client
+	Offline *OfflineRepository
 
 	mu sync.Mutex // guards Token after the first request
 }
@@ -107,6 +108,11 @@ func (c *Client) Health(ctx context.Context) (api.Health, error) {
 func (c *Client) Login(ctx context.Context, req api.LoginRequest) (api.LoginResponse, error) {
 	var r api.LoginResponse
 	err := c.do(ctx, http.MethodPost, "/api/auth/login", req, &r)
+	if err == nil && c.Offline != nil {
+		copy := c.AccountSession()
+		copy.SetToken(r.Token)
+		copy.offlineIdentify(r.User)
+	}
 	return r, err
 }
 
@@ -140,6 +146,20 @@ func (c *Client) Divisions(ctx context.Context) ([]api.Division, error) {
 // do sends a request with body as JSON, when not nil, and decodes a 2xx
 // response into out, when not nil.
 func (c *Client) do(ctx context.Context, method, path string, body, out any) error {
+	// Pin account identity before network I/O and before touching local cache.
+	session := &Client{BaseURL: c.BaseURL, HTTP: c.HTTP, Token: c.token(), Offline: c.Offline}
+	return session.doPinned(ctx, method, path, body, out)
+}
+func (c *Client) doPinned(ctx context.Context, method, path string, body, out any) error {
+	return c.doPinnedLimit(ctx, method, path, body, out, maxBody)
+}
+
+// Large audit responses remain bounded and account-pinned. They never turn a
+// truncated JSON prefix into an apparently complete history.
+func (c *Client) doAudit(ctx context.Context, method, path string, body, out any) error {
+	return c.AccountSession().doPinnedLimit(ctx, method, path, body, out, 32<<20)
+}
+func (c *Client) doPinnedLimit(ctx context.Context, method, path string, body, out any, responseLimit int64) error {
 	var rd io.Reader
 	if body != nil {
 		b, err := json.Marshal(body)
@@ -163,20 +183,51 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 	if hc == nil {
 		hc = &http.Client{Timeout: DefaultTimeout}
 	}
+	cacheEpoch := c.offlineEpoch()
 	resp, err := hc.Do(req)
 	if err != nil {
 		if errors.Is(ctx.Err(), context.Canceled) {
 			return ctx.Err()
 		}
-		return &UnreachableError{Err: err}
+		if c.Offline != nil {
+			c.Offline.mu.Lock()
+			c.Offline.unavailable = true
+			c.Offline.mu.Unlock()
+		}
+		return c.readOffline(method, path, out, err)
 	}
 	defer resp.Body.Close()
-	data, err := io.ReadAll(io.LimitReader(resp.Body, maxBody))
+	data, err := io.ReadAll(io.LimitReader(resp.Body, responseLimit+1))
 	if err != nil {
-		return &UnreachableError{Err: err}
+		return c.readOffline(method, path, out, err)
+	}
+	if int64(len(data)) > responseLimit {
+		return fmt.Errorf("api: respons melebihi batas ukuran; data parsial tidak digunakan")
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		if resp.StatusCode == 401 || resp.StatusCode == 403 || resp.StatusCode == 404 {
+			c.clearOfflineAccess()
+		}
+		if resp.StatusCode >= 500 && c.Offline != nil && method == http.MethodGet && offlineReadable(path) {
+			if cachedErr := c.readOffline(method, path, out, responseError(resp.StatusCode, data)); cachedErr == nil {
+				return nil
+			}
+		}
 		return responseError(resp.StatusCode, data)
+	}
+	if c.Offline != nil && method == http.MethodGet {
+		c.Offline.mu.Lock()
+		c.Offline.unavailable = false
+		c.Offline.mu.Unlock()
+	}
+	if method == http.MethodGet && path == "/api/me" {
+		var user api.User
+		if json.Unmarshal(data, &user) == nil {
+			c.offlineIdentify(user)
+		}
+	}
+	if method == http.MethodGet {
+		c.cacheOfflineAt(path, data, cacheEpoch)
 	}
 	if out == nil || resp.StatusCode == http.StatusNoContent {
 		return nil

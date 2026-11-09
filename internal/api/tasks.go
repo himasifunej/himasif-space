@@ -33,49 +33,61 @@ type TaskPermissions struct {
 // Task is one canonical object projected into authorized spaces and jobdesk.
 // Exactly one of DeadlineDate/DeadlineAt is present; date-only stays date-only.
 type Task struct {
-	ID              id.ID             `json:"id"`
-	PeriodID        id.ID             `json:"periodId"`
-	OwnerDivisionID id.ID             `json:"ownerDivisionId"`
-	SpaceIDs        []id.ID           `json:"spaceIds"`
-	Title           string            `json:"title"`
-	Description     string            `json:"description"`
-	ExpectedOutput  string            `json:"expectedOutput"`
-	Category        string            `json:"category"`
-	Assignee        PersonRef         `json:"assignee"`
-	Participants    []PersonRef       `json:"participants"`
-	DeadlineDate    *timeutil.Date    `json:"deadlineDate,omitempty"`
-	DeadlineAt      *time.Time        `json:"deadlineAt,omitempty"`
-	PostingDate     *timeutil.Date    `json:"postingDate,omitempty"`
-	PostingAt       *time.Time        `json:"postingAt,omitempty"`
-	TimeZone        string            `json:"timeZone"`
-	Progress        string            `json:"progress"`
-	MatchStatus     string            `json:"matchStatus"`
-	Version         int64             `json:"version"`
-	CreatedBy       PersonRef         `json:"createdBy"`
-	CreatedAt       time.Time         `json:"createdAt"`
-	UpdatedAt       time.Time         `json:"updatedAt"`
-	Permissions     TaskPermissions   `json:"permissions"`
-	Evidence        []TaskEvidence    `json:"evidence"`
-	Comments        []TaskComment     `json:"comments"`
-	HelpRequests    []TaskHelpRequest `json:"helpRequests"`
+	LocalPending    bool    `json:"-"`
+	ID              id.ID   `json:"id"`
+	PeriodID        id.ID   `json:"periodId"`
+	OwnerDivisionID id.ID   `json:"ownerDivisionId"`
+	SpaceIDs        []id.ID `json:"spaceIds"`
+	// Numbers is the task's number (#T12) in each of its Spaces, by Space
+	// ID. Absent from servers before Tahap 6a.
+	Numbers          map[string]int64    `json:"numbers,omitempty"`
+	Title            string              `json:"title"`
+	Description      string              `json:"description"`
+	ExpectedOutput   string              `json:"expectedOutput"`
+	Category         string              `json:"category"`
+	Assignee         PersonRef           `json:"assignee"`
+	Participants     []PersonRef         `json:"participants"`
+	PlannedStartDate *timeutil.Date      `json:"plannedStartDate,omitempty"`
+	PlannedStartAt   *time.Time          `json:"plannedStartAt,omitempty"`
+	DeadlineDate     *timeutil.Date      `json:"deadlineDate,omitempty"`
+	DeadlineAt       *time.Time          `json:"deadlineAt,omitempty"`
+	PostingDate      *timeutil.Date      `json:"postingDate,omitempty"`
+	PostingAt        *time.Time          `json:"postingAt,omitempty"`
+	TimeZone         string              `json:"timeZone"`
+	Progress         string              `json:"progress"`
+	MatchStatus      string              `json:"matchStatus"`
+	Version          int64               `json:"version"`
+	CreatedBy        PersonRef           `json:"createdBy"`
+	CreatedAt        time.Time           `json:"createdAt"`
+	UpdatedAt        time.Time           `json:"updatedAt"`
+	Permissions      TaskPermissions     `json:"permissions"`
+	Evidence         []TaskEvidence      `json:"evidence"`
+	Comments         []TaskComment       `json:"comments"`
+	Checklist        []TaskChecklistItem `json:"checklist"`
+	// Attachments are the task's files, oldest first. Absent from servers
+	// before Tahap 6b.
+	Attachments  []TaskAttachment  `json:"attachments,omitempty"`
+	HelpRequests []TaskHelpRequest `json:"helpRequests"`
 }
 
 // TaskWriteRequest replaces editable metadata. Owner division is fixed after
 // creation. SpaceIDs adds shared spaces; the owner's division space is implicit.
 type TaskWriteRequest struct {
-	OwnerDivisionID id.ID          `json:"ownerDivisionId"`
-	SpaceIDs        []id.ID        `json:"spaceIds"`
-	Title           string         `json:"title"`
-	Description     string         `json:"description"`
-	ExpectedOutput  string         `json:"expectedOutput"`
-	Category        string         `json:"category"`
-	AssigneeID      id.ID          `json:"assigneeId"`
-	DeadlineDate    *timeutil.Date `json:"deadlineDate,omitempty"`
-	DeadlineAt      *time.Time     `json:"deadlineAt,omitempty"`
-	PostingDate     *timeutil.Date `json:"postingDate,omitempty"`
-	PostingAt       *time.Time     `json:"postingAt,omitempty"`
-	ExpectedVersion int64          `json:"expectedVersion,omitempty"`
-	Reason          string         `json:"reason,omitempty"`
+	OwnerDivisionID  id.ID          `json:"ownerDivisionId"`
+	SpaceIDs         []id.ID        `json:"spaceIds"`
+	Title            string         `json:"title"`
+	Description      string         `json:"description"`
+	ExpectedOutput   string         `json:"expectedOutput"`
+	Category         string         `json:"category"`
+	AssigneeID       id.ID          `json:"assigneeId"`
+	PlannedStartDate *timeutil.Date `json:"plannedStartDate,omitempty"`
+	PlannedStartAt   *time.Time     `json:"plannedStartAt,omitempty"`
+	DeadlineDate     *timeutil.Date `json:"deadlineDate,omitempty"`
+	DeadlineAt       *time.Time     `json:"deadlineAt,omitempty"`
+	PostingDate      *timeutil.Date `json:"postingDate,omitempty"`
+	PostingAt        *time.Time     `json:"postingAt,omitempty"`
+	ExpectedVersion  int64          `json:"expectedVersion,omitempty"`
+	Reason           string         `json:"reason,omitempty"`
 }
 
 // Move changes canonical progress and ordering. BeforeID must be a readable
@@ -88,6 +100,21 @@ type TaskMoveRequest struct {
 }
 type TaskCommentRequest struct {
 	Body string `json:"body"`
+}
+
+// TaskChecklistItem is one step inside a task. Ticking it does not change the
+// task's progress or evidence.
+type TaskChecklistItem struct {
+	ID        id.ID      `json:"id"`
+	Body      string     `json:"body"`
+	Done      bool       `json:"done"`
+	DoneBy    *PersonRef `json:"doneBy,omitempty"`
+	DoneAt    *time.Time `json:"doneAt,omitempty"`
+	CreatedAt time.Time  `json:"createdAt"`
+}
+type TaskChecklistRequest struct {
+	Body *string `json:"body,omitempty"`
+	Done *bool   `json:"done,omitempty"`
 }
 type TaskComment struct {
 	ID        id.ID     `json:"id"`
@@ -126,6 +153,7 @@ type TaskEvidence struct {
 	Note         string     `json:"note"`
 	MatchStatus  string     `json:"matchStatus"`
 	SubmittedAt  time.Time  `json:"submittedAt"`
+	RecordedAt   time.Time  `json:"recordedAt"`
 	ReviewedAt   *time.Time `json:"reviewedAt,omitempty"`
 	ReviewedBy   *PersonRef `json:"reviewedBy,omitempty"`
 	ReviewReason string     `json:"reviewReason,omitempty"`
@@ -153,4 +181,16 @@ type TaskFilter struct {
 	AssigneeID id.ID
 	Progress   string
 	DueBefore  *timeutil.Date
+}
+
+// TaskAttachment is a file attached to a task (Tahap 6b). URL is the
+// download path; the file itself is never public.
+type TaskAttachment struct {
+	ID          id.ID     `json:"id"`
+	Name        string    `json:"name"`
+	ContentType string    `json:"contentType"`
+	SizeBytes   int64     `json:"sizeBytes"`
+	URL         string    `json:"url"`
+	AddedBy     PersonRef `json:"addedBy"`
+	CreatedAt   time.Time `json:"createdAt"`
 }

@@ -66,7 +66,7 @@ func (s *Server) noteAccess(ctx context.Context, q store.Querier, p *principal, 
 	if held && !n.Lock.HeldByCaller && now.Before(n.Lock.ExpiresAt) {
 		canEdit = false
 	}
-	n.Permissions = api.NotePermissions{Manage: manage, Comment: open && comment, CanEdit: canEdit}
+	n.Permissions = api.NotePermissions{UploadFiles: manage && s.cfg.AttachmentDir != "", MaxAttachmentBytes: s.attachmentLimit(), Manage: manage, Comment: open && comment, CanEdit: canEdit}
 	return nil
 }
 
@@ -317,6 +317,10 @@ func (s *Server) getNote(w http.ResponseWriter, r *http.Request, p *principal) e
 		}
 		n.Comments = nonNil(comments)
 		n.Attachments = nonNil(attachments)
+		var meetingID id.ID
+		if err := q.QueryRow(ctx, `select id from meetings where note_id=$1 limit 1`, n.ID).Scan(&meetingID); err == nil {
+			n.MeetingID = &meetingID
+		}
 		out = n.Note
 		return nil
 	})

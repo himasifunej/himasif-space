@@ -37,13 +37,14 @@ func spaceTheme(dark bool, accent string, compact bool) *ui.Theme {
 		t.Warning = ui.Hex("#856021")
 		t.Success = ui.Hex("#3d7650")
 	}
-	t.Accent = spaceAccent(accent)
+	t.Accent = spaceAccentFor(accent, dark)
 	t.AccentHover = spaceMix(t.Accent, ui.Hex("#ffffff"), .08)
 	t.AccentPressed = spaceMix(t.Accent, ui.Hex("#000000"), .08)
-	// Custom accents can be very dark: choose the more legible button text.
+	// Custom accents can be very dark: choose the more legible button text,
+	// the canvas' warm ink on dark accents.
 	t.AccentText = ui.Hex("#24251f")
-	if spaceContrast(t.Accent, ui.Hex("#ffffff")) > spaceContrast(t.Accent, t.AccentText) {
-		t.AccentText = ui.Hex("#ffffff")
+	if spaceContrast(t.Accent, ui.Hex("#f6f1e6")) > spaceContrast(t.Accent, t.AccentText) {
+		t.AccentText = ui.Hex("#f6f1e6")
 	}
 	t.Focus = ui.RGBA(t.Accent.R, t.Accent.G, t.Accent.B, .65)
 	t.Selection = ui.RGBA(t.Accent.R, t.Accent.G, t.Accent.B, .25)
@@ -56,7 +57,33 @@ func spaceTheme(dark bool, accent string, compact bool) *ui.Theme {
 		t.Spacing = 3
 	}
 	t.FontSize = 14
+	// Canvas A's typeface; app/main registers it (RegisterFonts). Where it
+	// is missing, as in tests, the system's font draws instead.
+	t.Font = FontSans
 	return t
+}
+
+// spaceLightAccents are the preset accents on the light theme. Canvas A
+// darkens them there ([data-theme=light] --accent): the pastel dark-theme
+// accents are too faint as a button or selection on a light page.
+var spaceLightAccents = map[string]string{
+	"sand": "#2f2c25", "sage": "#4d6a3a", "blue": "#2f5d86",
+	"lavender": "#5b4e86", "rose": "#9c4f2c",
+}
+
+// spaceAccentFor is the accent of a theme: on the light theme a preset
+// takes its canvas light variant; a custom colour stays as chosen.
+func spaceAccentFor(value string, dark bool) ui.Color {
+	if !dark {
+		key := strings.ToLower(strings.TrimSpace(value))
+		if key == "" || !strings.HasPrefix(key, "#") {
+			if _, ok := spaceLightAccents[key]; !ok {
+				key = "sand"
+			}
+			return ui.Hex(spaceLightAccents[key])
+		}
+	}
+	return spaceAccent(value)
 }
 
 func spaceAccent(value string) ui.Color {

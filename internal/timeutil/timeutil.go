@@ -10,6 +10,7 @@ import (
 	"database/sql/driver"
 	"fmt"
 	"time"
+	_ "time/tzdata"
 )
 
 // DefaultZoneName is the zone of spaces that have not chosen another.

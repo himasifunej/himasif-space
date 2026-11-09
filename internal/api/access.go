@@ -44,6 +44,8 @@ const (
 	CapResultsReview  = "results.review"
 	CapPingSend       = "ping.send"
 	CapWhatsAppManage = "whatsapp.manage"
+	CapSOPRead        = "sop.read"
+	CapSOPReview      = "sop.review"
 )
 
 // Administrative capabilities, never held by a 45 nor given by a custom
@@ -116,6 +118,10 @@ type Member struct {
 	Groups        []string `json:"groups"`
 	CustomRoleIDs []id.ID  `json:"customRoleIds"`
 	Capabilities  []string `json:"capabilities"`
+	// WhatsAppLinked tells whether the member linked a WhatsApp number for
+	// this period. The number itself is never sent. Absent (nil) from a
+	// server that predates it, and from single-member responses.
+	WhatsAppLinked *bool `json:"whatsappLinked,omitempty"`
 }
 
 // Invitation is an invitation as its managers see it, without its token.
@@ -290,4 +296,18 @@ type AdminHandoverRequest struct {
 	Email             string `json:"email,omitempty"`
 	VerificationToken string `json:"verificationToken,omitempty"`
 	Custodian         string `json:"custodian"`
+}
+
+// SpaceTabPreference is one Space's tab bar for an account: the order of
+// its tabs by key, and the ones it hides.
+type SpaceTabPreference struct {
+	Order  []string `json:"order,omitempty"`
+	Hidden []string `json:"hidden,omitempty"`
+}
+
+// UIPreferences are the interface choices that follow an account across
+// devices. SpaceTabs is keyed by Space ID.
+type UIPreferences struct {
+	SpaceTabs map[string]SpaceTabPreference `json:"spaceTabs"`
+	UpdatedAt *time.Time                    `json:"updatedAt,omitempty"`
 }

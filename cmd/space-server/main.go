@@ -11,6 +11,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -38,10 +39,13 @@ func main() {
 func run() error {
 	envFile := flag.String("env-file", "", "read KEY=VALUE lines from `file` before the environment's own")
 	flag.Usage = func() {
-		fmt.Fprintln(os.Stderr, "usage: space-server [-env-file FILE] serve|migrate|seed|mail-test -to ADDRESS")
+		fmt.Fprintln(os.Stderr, "usage: space-server [-env-file FILE] version|serve|migrate|seed|activate-restore|quarantine-restore -database-name NAME -reason TEXT|mail-test -to ADDRESS")
 		flag.PrintDefaults()
 	}
 	flag.Parse()
+	if flag.NArg() == 1 && flag.Arg(0) == "version" {
+		return json.NewEncoder(os.Stdout).Encode(server.BuildInfo())
+	}
 	if *envFile != "" {
 		if err := config.LoadEnvFile(*envFile); err != nil {
 			return err
@@ -73,6 +77,10 @@ func run() error {
 	defer st.Close()
 
 	switch cmd {
+	case "activate-restore":
+		return activateRestore(ctx, cfg, st, args)
+	case "quarantine-restore":
+		return quarantineRestore(ctx, cfg, st, log, args)
 	case "migrate":
 		return migrate(ctx, st, log)
 	case "seed":
@@ -89,7 +97,7 @@ func run() error {
 		if err := migrate(ctx, st, log); err != nil {
 			return err
 		}
-		return serve(ctx, cfg, st, log)
+		return st.WithRuntimeLease(ctx, cfg.RunMode, func(leased context.Context) error { return serve(leased, cfg, st, log) })
 	}
 	flag.Usage()
 	return fmt.Errorf("unknown command %q", cmd)
@@ -112,6 +120,30 @@ func serve(ctx context.Context, cfg config.Config, st *store.Store, log *slog.Lo
 		return err
 	}
 	api := server.New(cfg, st, mailer, log)
+	schedulerCtx, stopScheduler := context.WithCancel(ctx)
+	monitorCtx, stopMonitor := context.WithCancel(context.WithoutCancel(ctx))
+	monitorDone := make(chan struct{})
+	go func() { defer close(monitorDone); api.RunOperationsMonitor(monitorCtx) }()
+	realtimeDone := make(chan struct{})
+	go func() { defer close(realtimeDone); api.RunRealtime(schedulerCtx) }()
+	schedulerDone := make(chan struct{})
+	go func() { defer close(schedulerDone); api.RunScheduler(schedulerCtx) }()
+	connectorsDone := make(chan struct{})
+	go func() { defer close(connectorsDone); api.RunConnectors(schedulerCtx) }()
+	whatsappDone := make(chan struct{})
+	go func() { defer close(whatsappDone); api.RunWhatsApp(schedulerCtx) }()
+	sopDone := make(chan struct{})
+	go func() { defer close(sopDone); api.RunSOP(schedulerCtx) }()
+	defer func() {
+		stopScheduler()
+		<-schedulerDone
+		<-connectorsDone
+		<-whatsappDone
+		<-sopDone
+		<-realtimeDone
+		stopMonitor()
+		<-monitorDone
+	}()
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
 		Handler:           api.Handler(),
@@ -122,7 +154,7 @@ func serve(ctx context.Context, cfg config.Config, st *store.Store, log *slog.Lo
 	}
 	errc := make(chan error, 1)
 	go func() {
-		log.Info("listening", "addr", cfg.HTTPAddr, "env", cfg.Env, "web_dir", cfg.WebDir, "mail", cfg.Mail.Driver)
+		log.Info("listening", "addr", cfg.HTTPAddr, "env", cfg.Env, "run_mode", cfg.RunMode, "web_dir", cfg.WebDir, "mail", cfg.Mail.Driver)
 		errc <- srv.ListenAndServe()
 	}()
 	select {
@@ -136,6 +168,7 @@ func serve(ctx context.Context, cfg config.Config, st *store.Store, log *slog.Lo
 	if err := srv.Shutdown(sctx); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
+	<-schedulerDone
 	// Recovery emails still being sent finish before the store closes.
 	api.Wait()
 	return nil
@@ -165,4 +198,62 @@ func mailTest(ctx context.Context, cfg config.Config, log *slog.Logger, args []s
 	}
 	log.Info("test email sent", "to", *to, "driver", cfg.Mail.Driver)
 	return nil
+}
+
+func quarantineRestore(ctx context.Context, cfg config.Config, st *store.Store, log *slog.Logger, args []string) error {
+	flags := flag.NewFlagSet("quarantine-restore", flag.ContinueOnError)
+	name := flags.String("database-name", "", "confirm the freshly restored space_restore_ / space_shadow_ database name")
+	reason := flags.String("reason", "", "reason for this isolated restore")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if cfg.RunMode != config.RunIsolatedRestore {
+		return errors.New("quarantine-restore requires SPACE_RUN_MODE=isolated_restore")
+	}
+	if *reason == "" || len(*reason) > 4000 {
+		return errors.New("quarantine-restore requires -reason (1 to 4000 bytes)")
+	}
+	if err := st.RequireRestoreDatabase(ctx, *name); err != nil {
+		return err
+	}
+	if err := migrate(ctx, st, log); err != nil {
+		return err
+	}
+	control, err := st.QuarantineRestore(ctx, *name, *reason)
+	if err != nil {
+		return err
+	}
+	log.Info("restored database quarantined", "restore_id", control.RestoreID, "mode", control.Mode)
+	return nil
+}
+
+// Schema preparation is separate: even the preview never runs migrations.
+func activateRestore(ctx context.Context, cfg config.Config, st *store.Store, args []string) error {
+	fs := flag.NewFlagSet("activate-restore", flag.ContinueOnError)
+	name := fs.String("database-name", "", "confirm restored database name")
+	restoreID := fs.String("restore-id", "", "confirm the restore ID from quarantine")
+	operator := fs.String("operator", "", "operator attribution")
+	reason := fs.String("reason", "", "review/cutover reference and reason")
+	cutoffText := fs.String("cutoff", "", "RFC3339 cutoff within the last 15 minutes")
+	applyHash := fs.String("apply-plan", "", "apply exactly this preview SHA256; absent means read-only preview")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 0 {
+		return errors.New("unexpected activation arguments")
+	}
+	if cfg.RunMode != config.RunMaintenance {
+		return errors.New("activate-restore requires SPACE_RUN_MODE=maintenance and all servers stopped")
+	}
+	cutoff, err := time.Parse(time.RFC3339Nano, *cutoffText)
+	if err != nil {
+		return fmt.Errorf("invalid cutoff: %w", err)
+	}
+	plan, err := st.ActivateRestore(ctx, *name, *restoreID, *operator, *reason, cutoff, *applyHash)
+	if err != nil {
+		return err
+	}
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(plan)
 }

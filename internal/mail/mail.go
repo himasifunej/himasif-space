@@ -44,6 +44,8 @@ func New(c config.Mail, log *slog.Logger) (Mailer, error) {
 		return nil, fmt.Errorf("mail: SPACE_MAIL_FROM: %w", err)
 	}
 	switch c.Driver {
+	case "disabled":
+		return Disabled(), nil
 	case "log":
 		return logMailer{log: log}, nil
 	case "smtp":

@@ -85,6 +85,7 @@ func TestNoteDocumentNativeSpanEditingPreservesOtherRichRuns(t *testing.T) {
 	e := newNoteDocumentEditor(source)
 	e.SetEditable(true)
 	tt := newNoteDocumentTester(e, 360, 640)
+	openBlockTools(t, tt, 1)
 	revealDocumentControl(t, tt, "Teks bagian", 360, 640)
 	if err := tt.Click("Teks bagian"); err != nil {
 		t.Fatal(err)
@@ -195,12 +196,24 @@ func TestNoteDocumentExtractionCopiesOnlyChosenTextAndNeverEditsReader(t *testin
 	var text, target string
 	e.OnExtract = func(selected, kind string) { text, target = selected, kind }
 	tt := newNoteDocumentTester(e, 1000, 900)
-	if err := tt.Click("Jadikan tugas dari blok 1"); err != nil {
+	// A reader gets no block tools ("Atur blok", "Hapus blok"), but may
+	// turn one whole block into a reminder (owner decision 9 Nov); a task
+	// only with the right to create tasks (ExtractTask).
+	for _, label := range []string{"Atur blok 1", "Hapus blok", "Jadikan tugas dari blok 1"} {
+		if _, found := tt.Find(label); found {
+			t.Fatalf("a reader received %q", label)
+		}
+	}
+	revealDocumentControl(t, tt, "Jadikan reminder dari blok 1", 1000, 900)
+	if err := tt.Click("Jadikan reminder dari blok 1"); err != nil {
 		t.Fatal(err)
 	}
-	if text != "Konsep referensi" || target != api.NoteLinkTask {
-		t.Fatal("block extraction did not copy the selected visible text")
+	if text != noteBlockText(content[0]) || target != api.NoteLinkReminder || e.TakeChanged() {
+		t.Fatalf("block extraction = %q %q", text, target)
 	}
+	e.ExtractTask = true
+	tt.Frame()
+	revealDocumentControl(t, tt, "Jadikan tugas dari blok 1", 1000, 900)
 	revealDocumentControl(t, tt, "Jadikan reminder dari baris 1 blok 2", 1000, 900)
 	if err := tt.Click("Jadikan reminder dari baris 1 blok 2"); err != nil {
 		t.Fatal(err)
@@ -214,11 +227,14 @@ func TestNoteDocumentNativeBlockDeletionHandlesLastVisibleBlock(t *testing.T) {
 	e := newNoteDocumentEditor([]api.NoteBlock{{Type: api.BlockParagraph, Spans: []api.Span{{Text: "Hapus draf blok ini"}}}})
 	e.SetEditable(true)
 	tt := newNoteDocumentTester(e, 360, 640)
+	openBlockTools(t, tt, 1)
+	revealDocumentControl(t, tt, "Hapus blok", 360, 640)
 	if err := tt.Click("Hapus blok"); err != nil {
 		t.Fatal(err)
 	}
-	if len(e.Content()) != 0 || !e.TakeChanged() || !tt.HasText("Catatan belum memiliki isi.") {
-		t.Fatal("deleting the final block did not leave a usable empty editor")
+	tt.Frame()
+	if len(e.Content()) != 0 || !e.TakeChanged() || !tt.HasText("Mulai menulis") {
+		t.Fatalf("deleting the final block did not leave a usable empty editor: content=%d texts=%q", len(e.Content()), tt.Texts())
 	}
 }
 
@@ -230,6 +246,18 @@ func newNoteDocumentTester(e *noteDocumentEditor, width, height int) *ui.Tester 
 	}, width, height)
 	tt.Frame()
 	return tt
+}
+
+// openBlockTools opens "Atur blok n", where a block's formatting, span
+// editing, extraction and deletion live since pilot.10.
+func openBlockTools(t *testing.T, tt *ui.Tester, n int) {
+	t.Helper()
+	label := fmt.Sprintf("Atur blok %d", n)
+	if err := tt.Click(label); err != nil {
+		t.Fatalf("%v; texts %q", err, tt.Texts())
+	}
+	tt.Advance(300 * time.Millisecond)
+	tt.Frame()
 }
 
 func revealDocumentControl(t *testing.T, tt *ui.Tester, label string, width, height int) {

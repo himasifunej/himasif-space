@@ -78,7 +78,7 @@ func TestAdminAndReadOnly(t *testing.T) {
 		t.Errorf("admin %v", AdminCaps)
 	}
 	ro := ReadOnly(Binding{Role: api.RoleKadiv}.Capabilities())
-	if !slices.Equal(ro, []string{api.CapMembersRead, api.CapNotesRead, api.CapSpaceRead}) {
+	if !slices.Equal(ro, []string{api.CapMembersRead, api.CapNotesRead, api.CapSOPRead, api.CapSpaceRead}) {
 		t.Errorf("read-only %v", ro)
 	}
 	if IsWrite(api.CapSpaceRead) || !IsWrite(api.CapInvitationsManage) {

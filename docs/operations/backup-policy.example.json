@@ -1,0 +1,19 @@
+{
+  "backup_dir": "/mnt/space-backup/archives",
+  "backup_volume_id": null,
+  "staging_dir": "/var/lib/space-backup/staging",
+  "attachments_dir": "/var/lib/space/attachments",
+  "wa_state_dir": "/var/lib/space-wa/state",
+  "age_recipients_file": "/etc/space-backup/recipients.txt",
+  "server_units": ["space-server.service"],
+  "bridge_units": ["space-wa.service"],
+  "user_services": false,
+  "retention_days": null,
+  "minimum_copies": 1,
+  "operator": null,
+  "rpo_minutes": null,
+  "rto_minutes": null,
+  "release_id": "SET_TO_THE_INSTALLED_RELEASE",
+  "max_restore_bytes": 21474836480,
+  "max_restore_files": 100000
+}

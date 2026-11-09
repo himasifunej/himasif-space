@@ -2,7 +2,10 @@ package server
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/himasifunej/himasif-space/internal/id"
@@ -21,7 +24,7 @@ func TestMigrationsIndependentBranchOrder(t *testing.T) {
 			remove: `drop table task_notifications, task_events, task_evidence,
 				task_participants, task_help_requests, task_comments, task_spaces, tasks`,
 			preserved: `select jsonb_build_object(
-				'reminders', (select jsonb_agg(to_jsonb(r) order by id) from reminders r),
+				'reminders', (select jsonb_agg(to_jsonb(r)-'notification_revision' order by id) from reminders r),
 				'shares', (select jsonb_agg(to_jsonb(s) order by reminder_id,recipient_id) from reminder_shares s),
 				'preferences', (select jsonb_agg(to_jsonb(p) order by user_id) from reminder_preferences p))::text`,
 		},
@@ -30,10 +33,10 @@ func TestMigrationsIndependentBranchOrder(t *testing.T) {
 			missing: "0004_personal_reminders",
 			remove:  `drop table reminder_shares, reminder_preferences, reminders`,
 			preserved: `select jsonb_build_object(
-				'tasks', (select jsonb_agg(to_jsonb(t) order by id) from tasks t),
-				'spaces', (select jsonb_agg(to_jsonb(s) order by task_id,space_id) from task_spaces s),
+				'tasks', (select jsonb_agg(to_jsonb(t)-'notification_revision'-'planned_start_date'-'planned_start_at' order by id) from tasks t),
+				'spaces', (select jsonb_agg(to_jsonb(s)-'number' order by task_id,space_id) from task_spaces s),
 				'comments', (select jsonb_agg(to_jsonb(c) order by id) from task_comments c),
-				'evidence', (select jsonb_agg(to_jsonb(e) order by id) from task_evidence e),
+				'evidence', (select jsonb_agg(to_jsonb(e)-'recorded_at' order by id) from task_evidence e),
 				'events', (select jsonb_agg(to_jsonb(e) order by id) from task_events e),
 				'notifications', (select jsonb_agg(to_jsonb(n) order by id) from task_notifications n))::text`,
 		},
@@ -41,6 +44,29 @@ func TestMigrationsIndependentBranchOrder(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 			st := testDB(t)
+			// Reconstruct the actual pre-0007 branch schema. Removing task tables
+			// from today's full schema would destroy newer modules and test no real
+			// historical migration order.
+			if _, err := st.DB().Exec(ctx, `drop schema public cascade; create schema public; create table schema_migrations(name text primary key,applied_at timestamptz not null default now())`); err != nil {
+				t.Fatal(err)
+			}
+			baseline, err := filepath.Glob("../store/migrations/000[1-6]_*.sql")
+			if err != nil || len(baseline) != 6 {
+				t.Fatalf("baseline migrations %v %v", baseline, err)
+			}
+			for _, path := range baseline {
+				data, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err = st.DB().Exec(ctx, string(data)); err != nil {
+					t.Fatal(err)
+				}
+				name := strings.TrimSuffix(filepath.Base(path), ".sql")
+				if _, err = st.DB().Exec(ctx, `insert into schema_migrations(name) values($1)`, name); err != nil {
+					t.Fatal(err)
+				}
+			}
 			seedMigrationOrderData(t, st)
 			q := st.DB()
 
@@ -64,7 +90,7 @@ func TestMigrationsIndependentBranchOrder(t *testing.T) {
 				return value
 			}
 			const ledgerQuery = `select jsonb_agg(to_jsonb(m) order by name)::text
-				from schema_migrations m where name<>$1`
+				from schema_migrations m where name<>$1 and name<'0007'`
 			beforeData := snapshot(tc.preserved)
 			beforeLedger := snapshot(ledgerQuery, tc.missing)
 
@@ -72,8 +98,8 @@ func TestMigrationsIndependentBranchOrder(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !slices.Equal(applied, []string{tc.missing}) {
-				t.Fatalf("applied %v, want only %s", applied, tc.missing)
+			if len(applied) == 0 || applied[0] != tc.missing || slices.ContainsFunc(applied[1:], func(name string) bool { return name < "0007" }) {
+				t.Fatalf("applied %v, want missing branch %s then newer migrations", applied, tc.missing)
 			}
 			if after := snapshot(tc.preserved); after != beforeData {
 				t.Fatalf("existing branch data changed:\nbefore %s\nafter  %s", beforeData, after)

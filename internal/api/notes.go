@@ -89,9 +89,11 @@ type Note struct {
 // NotePermissions tells the client what the caller may do. CanEdit is true
 // when the caller may manage and holds (or may take) the editor lock.
 type NotePermissions struct {
-	Manage  bool `json:"manage"`
-	Comment bool `json:"comment"`
-	CanEdit bool `json:"canEdit"`
+	UploadFiles        bool  `json:"uploadFiles"`
+	MaxAttachmentBytes int64 `json:"maxAttachmentBytes"`
+	Manage             bool  `json:"manage"`
+	Comment            bool  `json:"comment"`
+	CanEdit            bool  `json:"canEdit"`
 }
 
 // NoteLock is the single active editor of a note (NTE-06).
@@ -159,6 +161,8 @@ type NoteCommentRequest struct {
 // NoteAttachment is attachment metadata (NTE-09). A pending attachment has
 // no url yet.
 type NoteAttachment struct {
+	Stored      bool      `json:"stored"`
+	SHA256      string    `json:"sha256,omitempty"`
 	ID          id.ID     `json:"id"`
 	Name        string    `json:"name"`
 	URL         string    `json:"url"`

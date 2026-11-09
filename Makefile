@@ -4,6 +4,7 @@
 ENV_FILE ?= $(HOME)/.config/himasif-space/dev.env
 GO       ?= go
 WEB_OUT  := app/build/web
+VERSION  := $(shell python3 -c "import json;print(json.load(open('app/mygo.json'))['version'])")
 
 .PHONY: all check fmt vet test test-db web desktop-windows server serve migrate seed mail-test clean
 
@@ -30,7 +31,8 @@ test-db:
 # The web app (native UI compiled to WebAssembly), with a gzipped copy of
 # the WebAssembly for the server to send.
 web:
-	$(GO) tool mygo build -platform web ./app
+	MYGO_LDFLAGS="-X main.version=$(VERSION)" $(GO) tool mygo build -platform web ./app
+	python3 scripts/release/patch_web_index.py $(WEB_OUT)/index.html
 	gzip -kf9 $(WEB_OUT)/*.wasm
 
 desktop-windows:

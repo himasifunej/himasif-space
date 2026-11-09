@@ -246,14 +246,14 @@ func (s *Store) AddNoteComment(ctx context.Context, q Querier, nid id.ID, c api.
 // --- attachments (NTE-09) ---
 
 func (s *Store) NoteAttachments(ctx context.Context, q Querier, nid id.ID) ([]api.NoteAttachment, error) {
-	rows, err := q.Query(ctx, `select a.id, a.name, a.url, a.status, a.content_type, a.size_bytes, u.id, u.display_name, a.created_at
+	rows, err := q.Query(ctx, `select a.id, a.name, a.url, a.status, a.content_type, a.size_bytes, u.id, u.display_name, a.created_at, a.storage_key is not null, a.sha256
 		from note_attachments a join users u on u.id = a.added_by where a.note_id = $1 order by a.created_at, a.id`, nid)
 	if err != nil {
 		return nil, err
 	}
 	return pgx.CollectRows(rows, func(r pgx.CollectableRow) (api.NoteAttachment, error) {
 		var a api.NoteAttachment
-		e := r.Scan(&a.ID, &a.Name, &a.URL, &a.Status, &a.ContentType, &a.SizeBytes, &a.AddedBy.ID, &a.AddedBy.DisplayName, &a.CreatedAt)
+		e := r.Scan(&a.ID, &a.Name, &a.URL, &a.Status, &a.ContentType, &a.SizeBytes, &a.AddedBy.ID, &a.AddedBy.DisplayName, &a.CreatedAt, &a.Stored, &a.SHA256)
 		return a, e
 	})
 }

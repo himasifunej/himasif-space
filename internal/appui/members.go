@@ -31,6 +31,7 @@ type memberManagementState struct {
 	roleCaps              []string
 	confirmAction         string
 	confirmID             id.ID
+	inviteOpen            bool
 }
 
 func (a *App) memberDivision() id.ID {
@@ -117,120 +118,6 @@ func (a *App) memberWrite(cap, label string, work func(WorkspaceAPI, id.ID, id.I
 		}
 	})
 }
-func (a *App) membersPage(c *ui.Context) {
-	pageBody(c, "Anggota space", func() {
-		s := a.selectedSpace()
-		if s == nil {
-			return
-		}
-		d := a.access.members.division
-		if d == id.Nil {
-			d = a.memberDivision()
-			if d != id.Nil {
-				a.loadMembers(d)
-			}
-		}
-		if d == id.Nil {
-			pageNotice(c, "lock", "Direktori tidak tersedia", "Akses ruang ini tidak memberikan akses ke direktori divisi.")
-			return
-		}
-		ui.Row(c).FillWidth().Gap(8).Children(func() {
-			for _, div := range s.Divisions {
-				if a.spacePermissionsForDivision(div.ID, api.CapMembersRead) {
-					if spaceButton(c.Key(div.ID), div.Name, "users", d == div.ID).Clicked() {
-						a.loadMembers(div.ID)
-					}
-				}
-			}
-		})
-		if a.archiveDivisionAllowed(d) {
-			if spaceButton(c, "Kelola izin arsip", "archive", false).Clicked() {
-				a.selectArchiveDivision(d)
-				a.navigate(PathArchiveAccess)
-			}
-		}
-		m := &a.access.members
-		if m.loading {
-			muted(c, "Memuat anggota dan kewenangan…")
-			return
-		}
-		if m.err != "" {
-			pageNotice(c, "alert", "Permintaan belum berhasil", m.err)
-		}
-		if m.notice != "" {
-			pageNotice(c, "check", "Perubahan tersimpan", m.notice)
-		}
-		if spaceButton(c, "Muat ulang anggota", "refresh", false).Disabled(m.busy).Clicked() {
-			a.loadMembers(d)
-		}
-		if !m.loaded {
-			return
-		}
-		if m.access.ReadOnly {
-			pageNotice(c, "lock", "Hanya baca", "Keanggotaan periode yang ditutup tidak dapat diubah.")
-		}
-		if slices.Contains(m.access.Roles, api.Role45) {
-			pageNotice(c, "shield", "Kewenangan 45", "Kamu dapat mengelola pekerjaan dan WhatsApp sesuai izin. Pengaturan anggota, role, dan akses tetap dipegang kadiv asli.")
-		}
-		if m.confirmAction != "" {
-			a.memberConfirmation(c)
-		}
-		for _, member := range m.members {
-			pageSection(c.Key(member.UserID), member.DisplayName, memberRoleLabels(member.Roles), func() {
-				if len(member.Groups) > 0 {
-					muted(c, "Kelompok: "+strings.Join(member.Groups, ", "))
-				}
-				if len(member.CustomRoleIDs) > 0 {
-					names := []string{}
-					for _, r := range m.roles {
-						if slices.Contains(member.CustomRoleIDs, r.ID) {
-							names = append(names, r.Name)
-						}
-					}
-					muted(c, "Role kustom: "+strings.Join(names, ", "))
-				}
-				if a.memberCan(api.CapMembersManage) && member.Role != api.RoleKadiv {
-					if spaceButton(c, "Atur "+member.DisplayName, "settings", m.editing == member.UserID).Disabled(m.busy).Clicked() {
-						m.editing = member.UserID
-						m.role = member.Role
-						m.groups = slices.Clone(member.Groups)
-						m.roleIDs = slices.Clone(member.CustomRoleIDs)
-					}
-					if m.editing == member.UserID {
-						a.memberEditor(c, member)
-					}
-					if !slices.Contains(member.Roles, api.Role45) && spaceButton(c, "Hapus anggota "+member.DisplayName, "close", false).Disabled(m.busy).Clicked() {
-						m.confirmAction = "remove-member"
-						m.confirmID = member.UserID
-					}
-				}
-				if a.memberCan(api.Cap45Manage) && slices.Contains(m.access.Roles, api.RoleKadiv) && member.Role != api.RoleKadiv {
-					label := "Tunjuk 45 " + member.DisplayName
-					action := "appoint45"
-					if slices.Contains(member.Roles, api.Role45) {
-						label = "Copot 45 " + member.DisplayName
-						action = "remove45"
-					}
-					if spaceButton(c, label, "shield", false).Disabled(m.busy).Clicked() {
-						m.confirmAction = action
-						m.confirmID = member.UserID
-						m.actingCustom = false
-						m.actingCaps = []string{api.CapTasksManage, api.CapResultsReview, api.CapPingSend, api.CapWhatsAppManage}
-					}
-				}
-			})
-		}
-		if len(m.members) == 0 {
-			pageEmpty(c, "users", "Belum ada anggota", "Belum ada keanggotaan aktif dalam divisi ini.")
-		}
-		if a.memberCan(api.CapInvitationsManage) {
-			a.memberInvitations(c)
-		}
-		if a.memberCan(api.CapRolesManage) {
-			a.memberRoles(c)
-		}
-	})
-}
 func (a *App) memberEditor(c *ui.Context, member api.Member) {
 	m := &a.access.members
 	ui.Column(c).FillWidth().Gap(8).Children(func() {
@@ -276,52 +163,23 @@ func (a *App) memberEditor(c *ui.Context, member api.Member) {
 		}
 	})
 }
-func (a *App) memberInvitations(c *ui.Context) {
-	m := &a.access.members
-	pageSection(c, "Undangan anggota", "Dikirim ke email anggota. Akun baru memverifikasi email sebelum bergabung.", func() {
-		ui.TextInput(c.Key("invite-email"), &m.email).Label("Email undangan").Placeholder("nama@example.com").FillWidth().Disabled(m.busy)
-		if spaceButton(c, "Kirim undangan", "send", true).Disabled(m.busy || strings.TrimSpace(m.email) == "").Clicked() {
-			req := api.InviteRequest{Email: strings.TrimSpace(m.email)}
-			a.memberWrite(api.CapInvitationsManage, "Undangan dikirim ke email.", func(s WorkspaceAPI, p, d id.ID) error {
-				_, err := s.Invite(context.Background(), p, d, req)
-				return err
-			})
-		}
-		for _, inv := range m.invitations {
-			ui.Column(c.Key(inv.ID)).FillWidth().Gap(6).Padding(10).Children(func() {
-				ui.Text(c, inv.Email).Bold()
-				muted(c, inv.Status+" · berlaku hingga "+inv.ExpiresAt.Format("02 Jan 2006 15:04"))
-				if inv.Status == api.InvitationPending || inv.Status == api.InvitationExpired {
-					if spaceButton(c, "Kirim ulang "+inv.Email, "refresh", false).Disabled(m.busy).Clicked() {
-						a.memberWrite(api.CapInvitationsManage, "Undangan dikirim ulang. Tautan sebelumnya tidak berlaku.", func(s WorkspaceAPI, p, d id.ID) error {
-							_, err := s.ResendInvitation(context.Background(), p, d, inv.ID)
-							return err
-						})
-					}
-					if spaceButton(c, "Cabut undangan "+inv.Email, "close", false).Disabled(m.busy).Clicked() {
-						m.confirmAction = "revoke-invite"
-						m.confirmID = inv.ID
-					}
-				}
-			})
-		}
-	})
-}
 
-var operationalRoleChoices = []struct{ cap, label string }{{api.CapTasksManage, "Kelola tugas"}, {api.CapResultsReview, "Tinjau hasil"}, {api.CapPingSend, "Kirim ping"}, {api.CapWhatsAppManage, "Kelola WhatsApp"}, {api.CapNotesManage, "Kelola catatan"}}
+var operationalRoleChoices = []struct{ cap, label string }{{api.CapTasksManage, "Kelola tugas"}, {api.CapResultsReview, "Tinjau hasil"}, {api.CapPingSend, "Kirim ping"}, {api.CapWhatsAppManage, "Kelola WhatsApp"}, {api.CapNotesManage, "Kelola catatan"}, {api.CapSOPRead, "Baca evaluasi SOP"}, {api.CapSOPReview, "Tinjau temuan SOP"}}
 
 func (a *App) memberRoles(c *ui.Context) {
 	m := &a.access.members
 	pageSection(c, "Role kustom", "Role tambahan hanya memberi kewenangan operasional. Role 45 tidak dapat mengatur akses.", func() {
 		for _, r := range m.roles {
-			ui.Row(c.Key(r.ID)).FillWidth().Gap(6).Children(func() {
-				ui.Text(c, r.Name).Grow(1)
-				if spaceButton(c, "Edit role "+r.Name, "settings", false).Disabled(m.busy).Clicked() {
+			// Icon buttons (the name stays their label and tooltip) so the
+			// row fits a phone instead of running past its edge.
+			ui.Row(c.Key(r.ID)).FillWidth().MinWidth(0).Gap(6).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, r.Name).Grow(1).MinWidth(0).MaxLines(2)
+				if spaceIconButton(c, "Edit role "+r.Name, "settings").Disabled(m.busy).Clicked() {
 					m.roleEditing = r.ID
 					m.roleName = r.Name
 					m.roleCaps = slices.Clone(r.Capabilities)
 				}
-				if spaceButton(c, "Hapus role "+r.Name, "close", false).Disabled(m.busy).Clicked() {
+				if spaceIconButton(c, "Hapus role "+r.Name, "close").Disabled(m.busy).Clicked() {
 					m.confirmAction = "delete-role"
 					m.confirmID = r.ID
 				}
@@ -367,6 +225,9 @@ func (a *App) memberConfirmation(c *ui.Context) {
 			}
 			if m.actingCustom {
 				for _, r := range operationalRoleChoices {
+					if !slices.Contains([]string{api.CapTasksManage, api.CapResultsReview, api.CapPingSend, api.CapWhatsAppManage}, r.cap) {
+						continue
+					}
 					if spaceButton(c, r.label, "check", slices.Contains(m.actingCaps, r.cap)).Disabled(m.busy).Clicked() {
 						m.actingCaps = toggleString(m.actingCaps, r.cap)
 					}

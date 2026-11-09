@@ -1,0 +1,16 @@
+{
+  "date_semantics": "already_design_deadline",
+  "date_encoding": "google_serial",
+  "columns": {
+    "key": "KEY",
+    "title": "Task",
+    "deadline": "Deadline",
+    "status": "Status",
+    "approval": "Approval"
+  },
+  "status_progress": {
+    "active": ["todo", "doing", "submitted"],
+    "done": ["done"]
+  },
+  "completion_statuses": ["done"]
+}

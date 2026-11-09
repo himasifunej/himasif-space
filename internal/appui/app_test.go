@@ -3,6 +3,7 @@ package appui
 import (
 	"context"
 	"errors"
+	"regexp"
 	"sync"
 	"testing"
 	"time"
@@ -175,9 +176,11 @@ func (h *harness) settle() {
 
 func (h *harness) click(s string) {
 	h.t.Helper()
+	h.tt.Advance(300 * time.Millisecond)
 	if err := h.tt.Click(s); err != nil {
 		h.t.Fatalf("%v; texts %q", err, h.tt.Texts())
 	}
+	h.tt.Advance(300 * time.Millisecond)
 }
 
 func (h *harness) want(s string) {
@@ -451,8 +454,8 @@ func TestPages(t *testing.T) {
 		profile    bool
 	}{
 		{"Reminder pribadi", "Reminder belum dapat dimuat", false},
-		{"Evaluasi SOP", "Temuan perlu ditinjau", true},
-		{"Arsip periode", "Informasi periode", false},
+		{"Evaluasi SOP", "Layanan evaluasi SOP belum tersedia.", false},
+		{"Arsip", "Periode yang ditutup menjadi hanya-baca. Pengurus baru perlu izin kadiv periode aktif.", false},
 		{"Space saya", "Layanan akses Space belum tersedia.", false},
 	} {
 		if tc.profile {
@@ -468,7 +471,7 @@ func TestPages(t *testing.T) {
 	h.click("Menu profil")
 	h.click("Pengaturan")
 	h.settle()
-	h.click("Akun")
+	h.click("Profil dan keamanan")
 	for _, s := range []string{"ani@himasif.id", "Pribadi", "Terverifikasi", "https://api.contoh.test", "0.1.0-test", "Keluar"} {
 		h.want(s)
 	}
@@ -559,12 +562,26 @@ func TestConnectionIndicator(t *testing.T) {
 	h.tt.Advance(pingEvery)
 	h.settle()
 	h.want("Tidak ada koneksi")
+	// The topbar's sync pill shows the state and retries when clicked.
+	h.want("Offline")
 	f.mu.Lock()
 	f.unreachable = false
 	f.mu.Unlock()
-	h.click("Coba lagi")
+	h.click("Tidak ada koneksi")
 	h.tt.Frame()
 	h.want("Menyambungkan…")
 	h.settle()
 	h.want("Tersambung")
+	// Wide windows show "Tersinkron · HH.MM"; a narrow topbar (canvas A ·
+	// Tablet, with its search as an icon) shows the dot alone.
+	synced := h.tt.HasText("Buka pencarian")
+	for _, s := range h.tt.Texts() {
+		if regexp.MustCompile(`^Tersinkron · \d\d\.\d\d$`).MatchString(s) {
+			synced = true
+		}
+	}
+	if !synced {
+		t.Errorf("sync pill shows no time: %q", h.tt.Texts())
+	}
+	h.dontWant("Ctrl B · Sidebar")
 }
