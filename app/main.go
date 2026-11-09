@@ -22,7 +22,7 @@ import (
 
 // version is the app's version where the build does not stamp one, as in
 // a browser or under go run; keep it as mygo.json's.
-var version = "0.3.2"
+var version = "0.3.3"
 
 // appVersion returns the version of the app.
 func appVersion() string {
