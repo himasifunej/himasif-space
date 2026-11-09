@@ -15,8 +15,8 @@ import (
 // The Space's Anggota tab as on canvas A (#view-anggota): a table of
 // members with their role, subdivision and active workload, Ping and
 // "Ubah role" on each row, pending invitations and what each role may do.
-// On a phone each member is a compact card. The older actions (Atur, Hapus
-// anggota, Tunjuk 45) open from "Ubah role", as permissions allow.
+// On a phone each member is a compact card. "Ubah akses" opens the access
+// drawer (stage A2): base role, 45, groups, custom roles and removal.
 
 // memberRoleBadge is the single role the canvas shows for a member.
 func memberRoleBadge(m api.Member) string {
@@ -47,8 +47,8 @@ func (a *App) memberLoad(uid id.ID) (int, bool) {
 	return n, true
 }
 
-// memberCanEdit reports whether "Ubah role" has anything to offer for a
-// member: base role and removal, or appointing 45.
+// memberCanEdit reports whether "Ubah akses" has anything to offer for a
+// member: base role, groups, custom roles and removal, or the 45.
 func (a *App) memberCanEdit(member api.Member) bool {
 	if member.Role == api.RoleKadiv {
 		return false
@@ -180,6 +180,7 @@ func (a *App) membersPage(c *ui.Context) {
 				a.memberInviteForm(c)
 			}
 			a.memberTable(c, phone)
+			a.memberAccessPanel(c)
 			if a.memberCan(api.CapInvitationsManage) {
 				a.memberInvitations(c)
 			}
@@ -215,67 +216,10 @@ func (a *App) memberActions(c *ui.Context, member api.Member) {
 		}
 	}
 	if a.memberCanEdit(member) {
-		if memberAction(c, "Ubah role", "Ubah role "+member.DisplayName, m.editing == member.UserID).Disabled(m.busy).Clicked() {
-			a.toggleMemberEditor(member)
+		if memberAction(c, "Ubah akses", "Ubah akses "+member.DisplayName, m.editing == member.UserID).Disabled(m.busy).Clicked() {
+			a.openMemberAccess(member)
 		}
 	}
-}
-
-// toggleMemberEditor opens or closes the access editor under a row.
-func (a *App) toggleMemberEditor(member api.Member) {
-	m := &a.access.members
-	if m.editing == member.UserID {
-		m.editing = id.Nil
-		return
-	}
-	m.editing = member.UserID
-	m.role = member.Role
-	m.groups = slices.Clone(member.Groups)
-	m.roleIDs = slices.Clone(member.CustomRoleIDs)
-}
-
-// memberRowEditor opens under a row from "Ubah role": the base role,
-// groups and custom roles, removing the member and appointing 45, each as
-// the viewer's permissions allow.
-func (a *App) memberRowEditor(c *ui.Context, member api.Member) {
-	t := c.Theme()
-	m := &a.access.members
-	ui.Column(c).FillWidth().MinWidth(0).Padding(4, 16, 16, 16).Gap(10).Background(spaceMix(t.Surface, t.Background, .5)).Children(func() {
-		if len(member.CustomRoleIDs) > 0 {
-			names := []string{}
-			for _, r := range m.roles {
-				if slices.Contains(member.CustomRoleIDs, r.ID) {
-					names = append(names, r.Name)
-				}
-			}
-			muted(c, "Role kustom: "+strings.Join(names, ", "))
-		}
-		if a.memberCan(api.CapMembersManage) {
-			a.memberEditor(c, member)
-		}
-		ui.Row(c).FillWidth().Gap(8).Wrap().Children(func() {
-			if a.memberCan(api.CapMembersManage) && !slices.Contains(member.Roles, api.Role45) {
-				if spaceButton(c, "Hapus anggota "+member.DisplayName, "close", false).TextColor(t.Danger).Disabled(m.busy).Clicked() {
-					m.confirmAction = "remove-member"
-					m.confirmID = member.UserID
-				}
-			}
-			if a.memberCan(api.Cap45Manage) && slices.Contains(m.access.Roles, api.RoleKadiv) {
-				label := "Tunjuk 45 " + member.DisplayName
-				action := "appoint45"
-				if slices.Contains(member.Roles, api.Role45) {
-					label = "Copot 45 " + member.DisplayName
-					action = "remove45"
-				}
-				if spaceButton(c, label, "shield", false).Disabled(m.busy).Clicked() {
-					m.confirmAction = action
-					m.confirmID = member.UserID
-					m.actingCustom = false
-					m.actingCaps = []string{api.CapTasksManage, api.CapResultsReview, api.CapPingSend, api.CapWhatsAppManage}
-				}
-			}
-		})
-	})
 }
 
 func (a *App) memberInviteForm(c *ui.Context) {

@@ -2,6 +2,7 @@ package appui
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"strings"
 
@@ -22,7 +23,14 @@ type memberManagementState struct {
 	members               []api.Member
 	invitations           []api.Invitation
 	roles                 []api.CustomRole
+	// editing is the member whose access drawer is open (stage A2), with
+	// the drawer's unsaved choices: role, groups, roleIDs, on45 (and
+	// replace45 when it replaces the current 45), actingCustom/actingCaps.
 	editing               id.ID
+	drawerOpen            bool
+	on45, replace45       bool
+	replaceAsk, removeAsk bool
+	discardAsk            bool
 	role                  string
 	groups                []string
 	roleIDs               []id.ID
@@ -110,6 +118,16 @@ func (a *App) memberWrite(cap, label string, work func(WorkspaceAPI, id.ID, id.I
 				return
 			}
 			a.access.members.busy = false
+			// A save that did part of its work reloads what was saved and
+			// says what failed.
+			var step *memberStepError
+			if errors.As(err, &step) {
+				msg := step.done + " " + a.accessFailure(step.err)
+				a.loadMembers(d)
+				a.access.members.err = msg
+				a.loadSpaces()
+				return
+			}
 			if err != nil {
 				a.access.members.err = a.accessFailure(err)
 				return
@@ -117,51 +135,6 @@ func (a *App) memberWrite(cap, label string, work func(WorkspaceAPI, id.ID, id.I
 			a.loadMembers(d)
 			a.access.members.notice = label
 			a.loadSpaces()
-		}
-	})
-}
-func (a *App) memberEditor(c *ui.Context, member api.Member) {
-	m := &a.access.members
-	ui.Column(c).FillWidth().Gap(8).Children(func() {
-		ui.Text(c, "Role dasar").Bold()
-		for _, r := range []struct{ code, label string }{{api.RoleMember, "Anggota"}, {api.RoleCompanion, "Pendamping kadiv"}} {
-			if spaceButton(c, r.label, "user", m.role == r.code).Disabled(m.busy).Clicked() {
-				m.role = r.code
-			}
-		}
-		isMediatek := false
-		if s := a.selectedSpace(); s != nil {
-			for _, d := range s.Divisions {
-				if d.ID == m.division && d.Slug == "mediatek" {
-					isMediatek = true
-				}
-			}
-		}
-		if isMediatek {
-			ui.Text(c, "Kelompok (tanpa tambahan kewenangan)").Bold()
-			for _, group := range []string{api.GroupTekno, api.GroupDesain, api.GroupVideo} {
-				if spaceButton(c, group, "check", slices.Contains(m.groups, group)).Disabled(m.busy).Clicked() {
-					m.groups = toggleString(m.groups, group)
-				}
-			}
-		}
-		ui.Text(c, "Role kustom").Bold()
-		for _, r := range m.roles {
-			if spaceButton(c.Key(r.ID), r.Name, "shield", slices.Contains(m.roleIDs, r.ID)).Disabled(m.busy).Clicked() {
-				if i := slices.Index(m.roleIDs, r.ID); i >= 0 {
-					m.roleIDs = slices.Delete(m.roleIDs, i, i+1)
-				} else {
-					m.roleIDs = append(m.roleIDs, r.ID)
-				}
-			}
-		}
-		if spaceButton(c, "Simpan akses "+member.DisplayName, "check", true).Disabled(m.busy).Clicked() {
-			role := m.role
-			req := api.UpdateMemberRequest{Role: &role, Groups: append([]string{}, m.groups...), CustomRoleIDs: append([]id.ID{}, m.roleIDs...)}
-			a.memberWrite(api.CapMembersManage, "Akses anggota diperbarui.", func(s WorkspaceAPI, p, d id.ID) error {
-				_, err := s.UpdateMember(context.Background(), p, d, member.UserID, req)
-				return err
-			})
 		}
 	})
 }
@@ -219,49 +192,18 @@ func (a *App) memberRoles(c *ui.Context) {
 func (a *App) memberConfirmation(c *ui.Context) {
 	m := &a.access.members
 	action, target := m.confirmAction, m.confirmID
-	text := map[string]string{"remove-member": "Hapus keanggotaan ini? Akses divisi akan dicabut.", "revoke-invite": "Cabut undangan ini? Tautan email sebelumnya tidak dapat digunakan.", "delete-role": "Hapus role ini beserta penugasannya?", "appoint45": "Tunjuk sebagai 45? Ia mendapat kewenangan operasional kadiv, termasuk WhatsApp, sampai dicopot; tanpa pengaturan role atau akses.", "remove45": "Copot 45? Kewenangan tambahan langsung dicabut."}[action]
+	// Member access, removal and the 45 are confirmed in the access drawer.
+	text := map[string]string{"revoke-invite": "Cabut undangan ini? Tautan email sebelumnya tidak dapat digunakan.", "delete-role": "Hapus role ini beserta penugasannya?"}[action]
 	pageSection(c, "Konfirmasi perubahan", text, func() {
-		if action == "appoint45" {
-			if spaceButton(c, "Sesuaikan kewenangan 45", "settings", m.actingCustom).Disabled(m.busy).Clicked() {
-				m.actingCustom = !m.actingCustom
-			}
-			if m.actingCustom {
-				for _, r := range operationalRoleChoices {
-					if !slices.Contains([]string{api.CapTasksManage, api.CapResultsReview, api.CapPingSend, api.CapWhatsAppManage}, r.cap) {
-						continue
-					}
-					if spaceButton(c, r.label, "check", slices.Contains(m.actingCaps, r.cap)).Disabled(m.busy).Clicked() {
-						m.actingCaps = toggleString(m.actingCaps, r.cap)
-					}
-				}
-			}
-		}
-
 		if spaceButton(c, "Batal perubahan", "close", false).Disabled(m.busy).Clicked() {
 			m.confirmAction = ""
 		}
-		if action == "appoint45" && m.actingCustom && len(m.actingCaps) == 0 {
-			muted(c, "Pilih minimal satu kewenangan 45, atau gunakan kewenangan default.")
-		}
-		if spaceButton(c, "Konfirmasi perubahan", "check", true).Disabled(m.busy || (action == "appoint45" && m.actingCustom && len(m.actingCaps) == 0)).Clicked() {
+		if spaceButton(c, "Konfirmasi perubahan", "check", true).Disabled(m.busy).Clicked() {
 			switch action {
-			case "remove-member":
-				a.memberWrite(api.CapMembersManage, "Keanggotaan dicabut.", func(s WorkspaceAPI, p, d id.ID) error { return s.RemoveMember(context.Background(), p, d, target) })
 			case "revoke-invite":
 				a.memberWrite(api.CapInvitationsManage, "Undangan dicabut.", func(s WorkspaceAPI, p, d id.ID) error { return s.RevokeInvitation(context.Background(), p, d, target) })
 			case "delete-role":
 				a.memberWrite(api.CapRolesManage, "Role dihapus.", func(s WorkspaceAPI, p, d id.ID) error { return s.DeleteRole(context.Background(), p, d, target) })
-			case "appoint45":
-				req := api.Appoint45Request{UserID: target}
-				if m.actingCustom {
-					req.Capabilities = append([]string{}, m.actingCaps...)
-				}
-				a.memberWrite(api.Cap45Manage, "45 ditunjuk sampai dicopot kadiv asli.", func(s WorkspaceAPI, p, d id.ID) error {
-					_, err := s.Appoint45(context.Background(), p, d, req)
-					return err
-				})
-			case "remove45":
-				a.memberWrite(api.Cap45Manage, "Kewenangan 45 dicabut.", func(s WorkspaceAPI, p, d id.ID) error { return s.Remove45(context.Background(), p, d) })
 			}
 		}
 	})

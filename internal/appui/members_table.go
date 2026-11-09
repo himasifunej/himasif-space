@@ -275,11 +275,32 @@ func memberWhatsAppStatus(c *ui.Context, member api.Member) ui.Element {
 	return row
 }
 
-// memberColumns are the table's column widths after Anggota, which grows.
-var memberColumns = []struct {
+// memberColumn is a column of the table after Anggota, which grows.
+type memberColumn struct {
 	label string
 	width float32
-}{{"Role", 170}, {"Kelompok", 96}, {"Beban aktif", 140}, {"WhatsApp", 118}, {"", 180}}
+}
+
+// memberColumns are the table's fixed columns, narrow enough that names
+// keep their room at 1280 px. Kelompok shows only when someone has a
+// group (Mediatek).
+func memberColumns(groups bool) []memberColumn {
+	cols := []memberColumn{{"Role", 150}}
+	if groups {
+		cols = append(cols, memberColumn{"Kelompok", 80})
+	}
+	return append(cols, memberColumn{"Beban aktif", 116}, memberColumn{"WhatsApp", 112}, memberColumn{"", 136})
+}
+
+// memberHasGroups reports whether any member belongs to a group.
+func memberHasGroups(ms []api.Member) bool {
+	for _, m := range ms {
+		if len(m.Groups) > 0 {
+			return true
+		}
+	}
+	return false
+}
 
 // memberToolbar is the search field, the filter chips and the sort button.
 func (a *App) memberToolbar(c *ui.Context, phone bool, now time.Time) {
@@ -335,11 +356,13 @@ func (a *App) memberTable(c *ui.Context, phone bool) {
 	rows := a.visibleMembers(now)
 	panel := ui.Column(c).FillWidth().MinWidth(0).Radius(12).Background(t.Surface).Border(1, t.Border)
 	table := !phone && panel.Bounds().W >= 900
+	groups := memberHasGroups(m.members)
+	cols := memberColumns(groups)
 	panel.Children(func() {
 		if table {
 			ui.Row(c).FillWidth().Height(40).Padding(0, 16).Gap(16).AlignItems(ui.Center).Background(spaceMix(t.Surface, t.Background, .6)).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
 				ui.Text(c, "Anggota").FontSize(12).TextColor(faint(t)).Grow(1).MinWidth(0)
-				for _, col := range memberColumns {
+				for _, col := range cols {
 					ui.Text(c.Key(col.label), col.label).FontSize(12).TextColor(faint(t)).Width(col.width).Shrink(0)
 				}
 			})
@@ -369,33 +392,41 @@ func (a *App) memberTable(c *ui.Context, phone bool) {
 			}
 			row.Children(func() {
 				if table {
-					a.memberRow(c, member, now)
+					a.memberRow(c, member, now, groups)
 				} else {
 					a.memberCard(c, member, now)
-				}
-				if m.editing == member.UserID && a.memberCanEdit(member) {
-					a.memberRowEditor(c, member)
 				}
 			})
 		}
 	})
 }
 
-func (a *App) memberRow(c *ui.Context, member api.Member, now time.Time) {
+func (a *App) memberRow(c *ui.Context, member api.Member, now time.Time, groups bool) {
 	t := c.Theme()
 	m := &a.access.members
 	active, late, loaded := a.memberWork(member.UserID, now)
 	ui.Row(c).FillWidth().MinWidth(0).MinHeight(56).Padding(8, 16).Gap(16).AlignItems(ui.Center).Children(func() {
 		ui.Row(c).Grow(1).MinWidth(0).Gap(12).AlignItems(ui.Center).Children(func() {
 			avatar(c, member.DisplayName, 32)
-			ui.Text(c, member.DisplayName).FontSize(13).FontWeight(500).MaxLines(1).MinWidth(0)
+			ui.Text(c, member.DisplayName).FontSize(13).FontWeight(500).MaxLines(1).MinWidth(0).Tooltip(member.DisplayName)
 			if member.UserID == a.user.ID {
 				ui.Text(c, "kamu").FontSize(12).TextColor(faint(t)).Shrink(0)
 			}
 		})
-		ui.Box(c).Width(memberColumns[0].width).Shrink(0).Children(func() { memberRoleChip(c, member, m.roles) })
-		ui.Text(c, memberGroups(member)).FontSize(13).TextColor(t.TextMuted).Width(memberColumns[1].width).Shrink(0).MaxLines(1)
-		ui.Column(c).Width(memberColumns[2].width).Shrink(0).Gap(4).Children(func() {
+		cols := memberColumns(groups)
+		col := func(label string) float32 {
+			for _, c := range cols {
+				if c.label == label {
+					return c.width
+				}
+			}
+			return 0
+		}
+		ui.Box(c).Width(col("Role")).Shrink(0).Children(func() { memberRoleChip(c, member, m.roles) })
+		if groups {
+			ui.Text(c, memberGroups(member)).FontSize(13).TextColor(t.TextMuted).Width(col("Kelompok")).Shrink(0).MaxLines(1)
+		}
+		ui.Column(c).Width(col("Beban aktif")).Shrink(0).Gap(4).Children(func() {
 			if !loaded {
 				ui.Text(c, "—").FontSize(12).TextColor(faint(t))
 				return
@@ -412,8 +443,8 @@ func (a *App) memberRow(c *ui.Context, member api.Member, now time.Time) {
 				}
 			})
 		})
-		ui.Box(c).Width(memberColumns[3].width).Shrink(0).Children(func() { memberWhatsAppStatus(c, member) })
-		ui.Row(c).Width(memberColumns[4].width).Shrink(0).Gap(4).Justify(ui.End).AlignItems(ui.Center).Children(func() {
+		ui.Box(c).Width(col("WhatsApp")).Shrink(0).Children(func() { memberWhatsAppStatus(c, member) })
+		ui.Row(c).Width(col("")).Shrink(0).Gap(4).Justify(ui.End).AlignItems(ui.Center).Children(func() {
 			if member.Role == api.RoleKadiv && !a.memberCanEdit(member) && member.UserID == a.user.ID {
 				ui.Text(c, "Pemilik divisi").FontSize(12).TextColor(faint(t))
 				return
@@ -464,8 +495,8 @@ func (a *App) memberCard(c *ui.Context, member api.Member, now time.Time) {
 		})
 		if a.memberCanEdit(member) {
 			ui.Row(c).FillWidth().Gap(4).Justify(ui.End).Children(func() {
-				if memberAction(c, "Ubah role", "Ubah role "+member.DisplayName, m.editing == member.UserID).Height(36).Disabled(m.busy).Clicked() {
-					a.toggleMemberEditor(member)
+				if memberAction(c, "Ubah akses", "Ubah akses "+member.DisplayName, m.editing == member.UserID).Height(36).Disabled(m.busy).Clicked() {
+					a.openMemberAccess(member)
 				}
 			})
 		}
