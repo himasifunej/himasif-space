@@ -151,7 +151,7 @@ func (a *App) queueNote() {
 		return
 	}
 	m := api.OfflineMutation{ID: id.New(), Kind: "note.content", TargetID: n.ID, BaseTitle: a.notes.baselineTitle, BaseContent: cloneNoteDocument(a.notes.baselineContent), Title: a.notes.title, Content: a.notes.editor.Content()}
-	if err := api.ValidateNoteContent(m.Content); err != nil {
+	if err := api.ValidateNoteContentPreserving(m.Content); err != nil {
 		a.notes.err = err.Error()
 		return
 	}

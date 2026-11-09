@@ -123,7 +123,7 @@ func TestNoteDraftCorruptionOrMismatchedIdentityIsAnExplicitReadFailure(t *testi
 	wrongSpace := good
 	wrongSpace.SpaceID = id.Nil
 	unknownBlock := good
-	unknownBlock.Content = []api.NoteBlock{{Type: "unknown"}}
+	unknownBlock.Content = []api.NoteBlock{{Type: api.BlockHeading, Level: 9, Text: "x"}}
 	unknownLink := good
 	unknownLink.PendingLinks = []api.NoteLinkRequest{{TargetType: "unknown", TargetID: id.New()}}
 	missingTarget := good
@@ -296,5 +296,25 @@ func assertNoNoteDraftTemps(t *testing.T, root string) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+// A draft of a note holding a block from a newer server (kept, not
+// understood) is a good draft: it loads, and the block stays as it was.
+func TestNoteDraftKeepsUnsupportedBlocks(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "note-drafts")
+	user, note := id.New(), id.New()
+	draft := draftFixture(note, "Notulen")
+	const embed = `{"type":"embed","url":"https://himasif.id/x","height":240}`
+	if err := json.Unmarshal([]byte(`[{"type":"paragraph","spans":[{"text":"a"}]},`+embed+`]`), &draft.Content); err != nil {
+		t.Fatal(err)
+	}
+	store := &desktopNoteDrafts{root: root}
+	if err := store.Save(user, note, draft); err != nil {
+		t.Fatal(err)
+	}
+	got, err := (&desktopNoteDrafts{root: root}).Load(user, note)
+	if err != nil || got == nil || len(got.Content) != 2 || string(got.Content[1].Raw) != embed {
+		t.Fatalf("draft with a kept block = %+v, %v", got, err)
 	}
 }

@@ -44,7 +44,7 @@ func validateLocalNoteDraft(userID, noteID id.ID, draft appui.LocalNoteDraft) er
 	if !utf8.ValidString(draft.Title) || utf8.RuneCountInString(draft.Title) > 200 || strings.ContainsRune(draft.Title, 0) {
 		return errors.New("judul draf perangkat tidak valid atau melebihi 200 karakter")
 	}
-	if err := api.ValidateNoteContent(draft.Content); err != nil {
+	if err := api.ValidateNoteContentPreserving(draft.Content); err != nil {
 		return fmt.Errorf("isi draf perangkat: %w", err)
 	}
 	content, err := json.Marshal(draft.Content)
