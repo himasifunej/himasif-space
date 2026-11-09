@@ -499,7 +499,7 @@ func (a *App) saveNote() {
 		a.notes.err = "Isi judul note, maksimal 200 karakter."
 		return
 	}
-	if err := api.ValidateNoteContent(content); err != nil {
+	if err := api.ValidateNoteContentPreserving(content); err != nil {
 		a.notes.err = err.Error()
 		return
 	}
@@ -844,7 +844,7 @@ func (a *App) saveNoteRecovery() {
 		return
 	}
 	content := a.notes.editor.Content()
-	if err := api.ValidateNoteContent(content); err != nil {
+	if err := api.ValidateNoteContentPreserving(content); err != nil {
 		a.notes.draftErr = err.Error()
 		return
 	}
@@ -1001,7 +1001,7 @@ func (a *App) noteTemplateRequest() (api.NoteTemplateRequest, bool) {
 		return api.NoteTemplateRequest{}, false
 	}
 	req := api.NoteTemplateRequest{Name: strings.TrimSpace(a.notes.templateName), Content: a.notes.editor.Content()}
-	if err := api.ValidateNoteContent(req.Content); err != nil {
+	if err := api.ValidateNoteContentPreserving(req.Content); err != nil {
 		a.notes.err = err.Error()
 		return req, false
 	}

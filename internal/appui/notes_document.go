@@ -54,21 +54,49 @@ func newNoteDocumentEditor(content []api.NoteBlock) *noteDocumentEditor {
 func cloneNoteDocument(content []api.NoteBlock) []api.NoteBlock {
 	out := slices.Clone(content)
 	for i := range out {
-		out[i].Spans = slices.Clone(content[i].Spans)
+		out[i].Spans = cloneNoteSpans(content[i].Spans)
 		out[i].Items = slices.Clone(content[i].Items)
 		for j := range out[i].Items {
-			out[i].Items[j].Spans = slices.Clone(content[i].Items[j].Spans)
+			it := &out[i].Items[j]
+			it.Spans = cloneNoteSpans(it.Spans)
+			it.AssigneeID, it.TaskID = clonePointer(it.AssigneeID), clonePointer(it.TaskID)
+			it.DueOn = clonePointer(it.DueOn)
 		}
 		out[i].Columns = slices.Clone(content[i].Columns)
 		out[i].Rows = slices.Clone(content[i].Rows)
 		for j := range out[i].Rows {
 			out[i].Rows[j] = slices.Clone(content[i].Rows[j])
 			for k := range out[i].Rows[j] {
-				out[i].Rows[j][k] = slices.Clone(content[i].Rows[j][k])
+				out[i].Rows[j][k] = cloneNoteSpans(content[i].Rows[j][k])
 			}
 		}
+		out[i].Children = cloneNoteDocument(content[i].Children)
+		out[i].Raw = slices.Clone(content[i].Raw)
 	}
 	return out
+}
+
+func cloneNoteSpans(spans []api.Span) []api.Span {
+	out := slices.Clone(spans)
+	for i := range out {
+		out[i].Mention = clonePointer(out[i].Mention)
+	}
+	return out
+}
+
+func clonePointer[T any](p *T) *T {
+	if p == nil {
+		return nil
+	}
+	v := *p
+	return &v
+}
+
+// notePlainSpans reports whether spans are one run of unformatted text,
+// which the inline input may replace; formatting, links and mentions are
+// edited in "Atur blok" so they are never lost.
+func notePlainSpans(spans []api.Span) bool {
+	return len(spans) == 0 || len(spans) == 1 && !spans[0].Bold && spans[0].Link == "" && spans[0].Mention == nil
 }
 
 func (e *noteDocumentEditor) Content() []api.NoteBlock { return cloneNoteDocument(e.blocks) }
@@ -102,8 +130,16 @@ func noteBlockText(b api.NoteBlock) string {
 	switch b.Type {
 	case api.BlockHeading:
 		return b.Text
-	case api.BlockParagraph:
+	case api.BlockParagraph, api.BlockCallout:
 		return noteSpansText(b.Spans)
+	case api.BlockToggle:
+		lines := []string{b.Text}
+		for _, child := range b.Children {
+			if text := noteBlockText(child); text != "" {
+				lines = append(lines, text)
+			}
+		}
+		return strings.Join(lines, "\n")
 	case api.BlockBulletedList, api.BlockNumberedList, api.BlockChecklist:
 		lines := make([]string, len(b.Items))
 		for i, item := range b.Items {
@@ -421,8 +457,7 @@ func (e *noteDocumentEditor) blockView(c *ui.Context, index int) {
 				ui.Text(c, b.Text).FontSize(float32(28 - max(1, min(b.Level, 3))*4)).Bold().FillWidth().MinWidth(0)
 			}
 		case api.BlockParagraph:
-			plain := len(b.Spans) <= 1 && (len(b.Spans) == 0 || (!b.Spans[0].Bold && b.Spans[0].Link == ""))
-			if e.editable && plain {
+			if e.editable && notePlainSpans(b.Spans) {
 				value := ""
 				if len(b.Spans) == 1 {
 					value = b.Spans[0].Text
@@ -462,7 +497,9 @@ func (e *noteDocumentEditor) blockView(c *ui.Context, index int) {
 		case api.BlockDivider:
 			ui.Box(c).Height(1).FillWidth().Background(c.Theme().Border)
 		default:
-			muted(c, "Isi blok dipertahankan. Jenis ini belum dapat diedit di aplikasi ini.")
+			// Callout, toggle and blocks of unknown types are shown, not
+			// edited, here; their content is saved as it is.
+			noteReadOnlyBlock(c, b)
 		}
 		// Editors extract a whole block from "Atur blok"; readers, who get no
 		// block tools, see it under every block (owner decision 9 Nov).
@@ -499,11 +536,87 @@ func noteDocumentRichText(c *ui.Context, spans []api.Span, links bool) {
 					text.TextColor(c.Theme().Accent).Underline()
 				}
 			}
+			if span.Mention != nil {
+				// A mention shows its name; opening it comes with C4.
+				text.TextColor(c.Theme().Accent).Bold()
+			}
 			if span.Bold {
 				text.Bold()
 			}
 		}
 	})
+}
+
+// noteCalloutLabel names a callout variant for readers.
+func noteCalloutLabel(variant string) string {
+	if variant == api.CalloutDecision {
+		return "Keputusan"
+	}
+	return "Info"
+}
+
+// noteReadOnlyBlock shows a block this editor does not edit: a callout, a
+// toggle (open, with its children) or a block of a type this build does
+// not know, whose content is kept when the note is saved.
+func noteReadOnlyBlock(c *ui.Context, b api.NoteBlock) {
+	t := c.Theme()
+	switch b.Type {
+	case api.BlockCallout:
+		accent := t.Accent
+		if b.Variant == api.CalloutDecision {
+			accent = t.Success
+		}
+		ui.Column(c).FillWidth().MinWidth(0).Gap(4).Padding(10, 12).Radius(8).Background(t.Surface).Border(1, accent).Children(func() {
+			ui.Text(c, noteCalloutLabel(b.Variant)).FontSize(11).Bold().TextColor(accent)
+			noteDocumentRichText(c, b.Spans, true)
+		})
+	case api.BlockToggle:
+		ui.Column(c).FillWidth().MinWidth(0).Gap(6).Children(func() {
+			ui.Row(c).FillWidth().MinWidth(0).Gap(6).AlignItems(ui.Center).Children(func() {
+				ui.Icon(c, spaceIcon("down")).Size(14, 14).Shrink(0).TextColor(t.TextMuted)
+				title := b.Text
+				if title == "" {
+					title = "Toggle"
+				}
+				ui.Text(c, title).FontSize(14).Bold().Grow(1).MinWidth(0)
+			})
+			ui.Column(c).FillWidth().MinWidth(0).Gap(6).Padding(0, 0, 0, 20).Children(func() {
+				for i, child := range b.Children {
+					ui.Column(c.Key(i)).FillWidth().MinWidth(0).Children(func() { noteReadOnlyBlock(c, child) })
+				}
+			})
+		})
+	case api.BlockHeading:
+		ui.Text(c, b.Text).FontSize(float32(28 - max(1, min(b.Level, 3))*4)).Bold().FillWidth().MinWidth(0)
+	case api.BlockParagraph:
+		noteDocumentRichText(c, b.Spans, true)
+	case api.BlockBulletedList, api.BlockNumberedList, api.BlockChecklist:
+		for i, item := range b.Items {
+			ui.Row(c.Key(i)).FillWidth().MinWidth(0).Gap(8).AlignItems(ui.Start).Children(func() {
+				mark := "•"
+				switch b.Type {
+				case api.BlockNumberedList:
+					mark = fmt.Sprintf("%d.", i+1)
+				case api.BlockChecklist:
+					mark = "□"
+					if item.Checked {
+						mark = "✓"
+					}
+				}
+				ui.Text(c, mark).Width(22).TextColor(t.TextMuted)
+				ui.Column(c).Grow(1).MinWidth(0).Children(func() { noteDocumentRichText(c, item.Spans, true) })
+			})
+		}
+	case api.BlockTable:
+		muted(c, noteBlockText(b))
+	case api.BlockDivider:
+		ui.Box(c).Height(1).FillWidth().Background(t.Border)
+	default:
+		ui.Column(c).FillWidth().MinWidth(0).Gap(4).Padding(10, 12).Radius(8).Background(t.Surface).Border(1, t.Border).Children(func() {
+			ui.Text(c, "Blok tidak didukung").FontSize(12).Bold()
+			muted(c, "Blok \""+b.Type+"\" dibuat di versi Space yang lebih baru. Isinya tetap tersimpan; perbarui aplikasi untuk melihatnya.")
+		})
+	}
 }
 
 func (e *noteDocumentEditor) extractView(c *ui.Context, text, source string) {
@@ -553,8 +666,7 @@ func (e *noteDocumentEditor) listView(c *ui.Context, index int, b api.NoteBlock)
 				}
 				ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 					spans := b.Items[i].Spans
-					plain := len(spans) <= 1 && (len(spans) == 0 || (!spans[0].Bold && spans[0].Link == ""))
-					if e.editable && plain {
+					if e.editable && notePlainSpans(spans) {
 						value := noteSpansText(spans)
 						input := ui.TextInput(c.Key("inline-list-item"), &value).Label(fmt.Sprintf("Butir %d blok %d", i+1, index+1)).Placeholder("Tulis poin…").FillWidth().Background(ui.RGBA(0, 0, 0, 0)).BorderWidth(0)
 						if e.focusBlock == index+1 && i == 0 {

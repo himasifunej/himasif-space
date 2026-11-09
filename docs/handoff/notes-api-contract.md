@@ -30,10 +30,19 @@ Isi note adalah **dokumen blok** terstruktur (`content`), bukan HTML bebas. Seti
 | `checklist` | `items` (`{spans, checked}`) | Checklist (NTE-01) |
 | `table` | `columns` (array string), `rows` (array array `spans`) | Tabel; template jadwal memakai ini (NTE-04) |
 | `divider` | — | Garis pemisah |
+| `callout` | `variant` (`info` \| `decision`), `spans` | Kotak sorotan; `decision` = blok Keputusan (C1) |
+| `toggle` | `text` (judul, 0–500), `children` (array blok) | Lipatan; kedalaman maks. 1 (tidak boleh ada toggle di dalam toggle); anak dihitung ke batas 500 blok (C1) |
 
-`spans` adalah array `{ "text": "...", "bold": true|false, "link": "https://..."|null }` (teks tebal dan tautan — NTE-01). `title` note adalah field tersendiri (`title`), bukan blok.
+Field tambahan (C1, catatan rapat):
+- `heading.minutes` dan butir `numbered_list` `minutes`: durasi agenda rencana, 0–480 menit (0 = tanpa durasi).
+- Butir `checklist` (action item): `assigneeId` (PJ, UUID), `dueOn` (`YYYY-MM-DD`), `taskId` (tugas yang dibuat dari butir, UUID). Hanya untuk checklist; UUID kosong ditolak.
+- Span `mention`: `{ "kind": "user"|"task", "id": UUID }`. `text` wajib berisi nama/nomor (dibaca klien lama). Mention tidak boleh sekaligus `link`.
 
-Batas: `title` 1–200 karakter; total `content` ≤ 200 KiB (204.800 byte) setelah serialisasi JSON kanonis server, termasuk UTF-8 dan escape JSON; ≤ 500 blok; `spans` tiap blok ≤ 4000 karakter teks gabungan; `table` ≤ 50 kolom × 500 baris. Batas ukuran berlaku pada note, draf dan template. Blok/field tak dikenal ditolak `400`.
+`spans` adalah array `{ "text": "...", "bold": true|false, "link": "https://..."|null, "mention": {...}|null }` (teks tebal, tautan dan mention — NTE-01). `title` note adalah field tersendiri (`title`), bukan blok.
+
+Batas: `title` 1–200 karakter; total `content` ≤ 200 KiB (204.800 byte) setelah serialisasi JSON kanonis server, termasuk UTF-8 dan escape JSON; ≤ 500 blok (termasuk anak toggle); `spans` tiap blok ≤ 4000 karakter teks gabungan; `table` ≤ 50 kolom × 500 baris. Batas ukuran berlaku pada note, draf dan template. Server menolak blok/field tak dikenal dengan `400`.
+
+Klien: blok yang jenisnya tidak dikenal build klien (dari server yang lebih baru) disimpan utuh (`NoteBlock.Raw`), ditampilkan sebagai "Blok tidak didukung", dan dikirim kembali tanpa perubahan saat note disimpan. Klien memeriksa dengan `api.ValidateNoteContentPreserving`, sedangkan server memakai `api.ValidateNoteContent` yang ketat. Field tak dikenal di dalam blok yang **dikenal** tidak dipertahankan, jadi server harus dideploy sebelum klien yang memakai field baru.
 
 Contoh `content`:
 
