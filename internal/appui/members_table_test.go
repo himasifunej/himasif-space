@@ -200,6 +200,11 @@ func TestMembersTableNativeCapture(t *testing.T) {
 	h.app.openMemberAccess(members[4])
 	h.app.access.members.removeAsk, h.app.access.members.removeTasks, h.app.access.members.removeTasksFor = true, raka, members[4].UserID
 	shot("anggota-a3-hp-keluarkan-diblokir")
+
+	// 0.3.5: the blocked button and its reason in the dark theme.
+	h.app.chrome.preferences.Theme = "dark"
+	h.tt.SetSize(1440, 900)
+	shot("anggota-035-keluarkan-diblokir-gelap")
 }
 
 // The page shows the new head, chips and an empty state for a search that

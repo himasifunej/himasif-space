@@ -725,18 +725,28 @@ func (a *App) memberRemoveDialog(c *ui.Context, member api.Member, first, divisi
 					ui.Text(c, memberLocalCountNote).FontSize(12).TextColor(faint(t)).LineHeight(1.5)
 				}
 			}
+			if reason := memberRemoveBlockedReason(check, first); reason != "" {
+				// Said in words, so a blocked button never looks like one that
+				// just did not react (0.3.4: unclear in the dark theme).
+				ui.Row(c.Key("remove-reason")).FillWidth().MinWidth(0).Gap(6).AlignItems(ui.Center).Children(func() {
+					ui.Icon(c, spaceIcon("lock")).Size(13, 13).TextColor(t.TextMuted).Shrink(0)
+					ui.Text(c, reason).FontSize(12).TextColor(t.TextMuted).Grow(1).MinWidth(0).LineHeight(1.4)
+				})
+			}
 			ui.Row(c).FillWidth().Gap(8).Justify(ui.End).Children(func() {
 				if spaceButton(c, "Batal keluarkan", "", false).Disabled(m.busy).Clicked() {
 					m.removeAsk = false
+				}
+				if !check.allowed {
+					memberBlockedButton(c, "Keluarkan anggota", memberRemoveBlockedReason(check, first))
+					return
 				}
 				text := "Keluarkan anggota"
 				if m.busy {
 					text = "Mengeluarkan…"
 				}
-				b := spaceButton(c.Key("remove-confirm"), text, "close", true).Label("Keluarkan anggota").Disabled(m.busy || !check.allowed)
-				if check.allowed {
-					b.Background(t.Danger).TextColor(ui.RGBA(255, 255, 255, 1))
-				}
+				b := spaceButton(c.Key("remove-confirm"), text, "close", true).Label("Keluarkan anggota").Disabled(m.busy)
+				b.Background(t.Danger).TextColor(ui.RGBA(255, 255, 255, 1))
 				if b.Clicked() && check.allowed && !m.busy {
 					uid := member.UserID
 					a.memberWrite(api.CapMembersManage, member.DisplayName+" dikeluarkan dari "+division+".", func(s WorkspaceAPI, p, d id.ID) error {
@@ -746,6 +756,34 @@ func (a *App) memberRemoveDialog(c *ui.Context, member api.Member, first, divisi
 			})
 		})
 	})
+}
+
+// memberRemoveBlockedReason says why removal is not possible yet, or ""
+// when it is.
+func memberRemoveBlockedReason(check memberRemoveCheck, first string) string {
+	switch {
+	case check.allowed:
+		return ""
+	case !check.known:
+		return "Belum bisa dikeluarkan: tugas aktif " + first + " masih dihitung."
+	case check.count > 0:
+		return fmt.Sprintf("Belum bisa dikeluarkan: %s masih PJ %d tugas aktif.", first, check.count)
+	}
+	return "Belum bisa dikeluarkan."
+}
+
+// memberBlockedButton is a button that cannot be used, drawn so in both
+// themes: a muted fill, faint text and a lock instead of the action's
+// icon; it does nothing when clicked.
+func memberBlockedButton(c *ui.Context, label, reason string) ui.Element {
+	t := c.Theme()
+	b := ui.ButtonBase(c.Key("blocked-"+label)).Label(label).Tooltip(reason).Row().Gap(6).Height(36).Padding(0, 14).Radius(8).AlignItems(ui.Center).
+		Background(spaceMix(t.Surface, t.Background, .5)).Border(1, spaceMix(t.Border, t.Background, .5)).TextColor(faint(t)).Cursor(ui.CursorNotAllowed).Disabled(true)
+	b.Children(func() {
+		ui.Icon(c, spaceIcon("lock")).Size(14, 14)
+		ui.Text(c, label).FontSize(13)
+	})
+	return b
 }
 
 func (a *App) memberAccessFoot(c *ui.Context, member api.Member) {

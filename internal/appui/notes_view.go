@@ -270,12 +270,20 @@ func (a *App) noteLeaseView(c *ui.Context) {
 	}
 	t := c.Theme()
 	label, detail := "Belum ada pencatat aktif", ""
-	if n.Lock != nil {
-		label = n.Lock.Editor.DisplayName + " sedang mencatat"
-		if n.Lock.HeldByCaller {
-			label = "Kamu memegang editor"
-		}
+	// A lock past its expiry holds nobody (the server stops sending it,
+	// and one may expire while the note is open): no "sedang mencatat".
+	live := n.Lock != nil && a.noteNow().Before(n.Lock.ExpiresAt)
+	switch {
+	case live && n.Lock.HeldByCaller:
+		label = "Kamu memegang editor"
 		detail = "sampai " + noteZoneClock(n.Lock.ExpiresAt, a.noteViewZone())
+	case live:
+		label = n.Lock.Editor.DisplayName + " sedang mencatat"
+		detail = "sampai " + noteZoneClock(n.Lock.ExpiresAt, a.noteViewZone())
+	case n.Lock != nil && n.Lock.HeldByCaller:
+		detail = "kuncimu berakhir " + noteZoneClock(n.Lock.ExpiresAt, a.noteViewZone())
+	case n.Lock != nil:
+		detail = "kunci " + n.Lock.Editor.DisplayName + " berakhir " + noteZoneClock(n.Lock.ExpiresAt, a.noteViewZone())
 	}
 	if !n.Permissions.Manage {
 		detail = strings.TrimPrefix(detail+" · hanya baca", " · ")
@@ -300,7 +308,7 @@ func (a *App) noteLeaseView(c *ui.Context) {
 				if outlineButton(c.Key("lease-offline"), "Edit draf offline", "edit", true).Height(30).Tooltip("Editor server diperiksa ulang saat sinkronisasi; draf offline tidak mengambil alih editor orang lain.").Disabled(a.notes.busy).Clicked() {
 					a.beginNoteEditing()
 				}
-			case n.Lock == nil || n.Lock.HeldByCaller || !c.Now().Before(n.Lock.ExpiresAt):
+			case !live || n.Lock.HeldByCaller:
 				if outlineButton(c.Key("lease-take"), "Ambil editor", "edit", true).Height(30).Disabled(a.notesWriteBlocked()).Clicked() {
 					a.beginNoteEditing()
 				}

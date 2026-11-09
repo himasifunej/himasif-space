@@ -240,6 +240,7 @@ func TestMemberAccessDrawerRemoval(t *testing.T) {
 	h.tt.Frame()
 	h.want("Keluarkan Nara Tekno dari Media dan Teknologi?")
 	h.want("Nara tidak punya tugas aktif.")
+	h.dontWant("Belum bisa dikeluarkan")
 	h.click("Keluarkan anggota")
 	h.settle()
 	f.mu.Lock()
@@ -400,6 +401,7 @@ func TestMemberRemovalUsesServerCount(t *testing.T) {
 	h.click("Keluarkan Nara…")
 	h.settle()
 	h.want("Nara masih PJ 1 tugas aktif (Medhum 1).")
+	h.want("Belum bisa dikeluarkan: Nara masih PJ 1 tugas aktif.")
 	h.dontWant(memberLocalCountNote)
 	if h.app.memberRemoveState(nara).allowed {
 		t.Fatal("removal allowed with a Medhum task")
@@ -512,5 +514,20 @@ func TestMemberSortReleasesPinnedOrder(t *testing.T) {
 	h.click("Urutkan: Peran")
 	if len(h.app.access.members.pinned) != 0 {
 		t.Fatal("another sort kept the pinned order")
+	}
+}
+
+func TestMemberRemoveBlockedReason(t *testing.T) {
+	for _, tc := range []struct {
+		check memberRemoveCheck
+		want  string
+	}{
+		{memberRemoveCheck{known: true, allowed: true}, ""},
+		{memberRemoveCheck{}, "Belum bisa dikeluarkan: tugas aktif Nara masih dihitung."},
+		{memberRemoveCheck{known: true, count: 3}, "Belum bisa dikeluarkan: Nara masih PJ 3 tugas aktif."},
+	} {
+		if got := memberRemoveBlockedReason(tc.check, "Nara"); got != tc.want {
+			t.Errorf("%+v: %q, want %q", tc.check, got, tc.want)
+		}
 	}
 }

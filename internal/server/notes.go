@@ -54,16 +54,17 @@ func (s *Server) noteAccess(ctx context.Context, q store.Querier, p *principal, 
 		return err
 	}
 	now := s.now()
-	if held {
+	// An expired lock holds nobody: it is not sent, so no client shows
+	// someone "sedang mencatat" after the lock ran out.
+	n.Lock = nil
+	if held && now.Before(lease.Lock.ExpiresAt) {
 		lock := lease.Lock
 		lock.HeldByCaller = lock.Editor.ID == p.User.ID && lease.SessionID == p.Session.ID
 		n.Lock = &lock
-	} else {
-		n.Lock = nil
 	}
 	// canEdit: may manage, and no live lock held by someone else.
 	canEdit := manage
-	if held && !n.Lock.HeldByCaller && now.Before(n.Lock.ExpiresAt) {
+	if n.Lock != nil && !n.Lock.HeldByCaller {
 		canEdit = false
 	}
 	n.Permissions = api.NotePermissions{UploadFiles: manage && s.cfg.AttachmentDir != "", MaxAttachmentBytes: s.attachmentLimit(), Manage: manage, Comment: open && comment, CanEdit: canEdit}
