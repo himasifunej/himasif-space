@@ -12,6 +12,15 @@ import (
 
 func (a *App) notesView(c *ui.Context) {
 	a.ensureNotes()
+	phone := isMobile(c)
+	if phone && a.notes.selected != id.Nil {
+		// Phone: an open note fills the page; the bar has the way back.
+		ui.Column(c.Key(a.gen)).Grow(1).MinHeight(0).FillWidth().MinWidth(0).Gap(0).Children(func() {
+			a.notesFeedback(c)
+			a.noteDetail(c)
+		})
+		return
+	}
 	ui.Column(c.Key(a.gen)).Grow(1).MinHeight(0).FillWidth().MinWidth(0).Gap(0).Children(func() {
 		ui.Row(c).FillWidth().MinWidth(0).Wrap().Padding(12, 18).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, "Catatan bersama").FontSize(15).Bold().Grow(1).MinWidth(0)
@@ -30,6 +39,12 @@ func (a *App) notesView(c *ui.Context) {
 			a.noteCreatePopover(c, b)
 		})
 		a.notesFeedback(c)
+		if phone {
+			ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Label("Daftar catatan").Children(func() {
+				ui.Column(c).FillWidth().MinWidth(0).Padding(12, 16).Gap(9).Children(func() { a.notesList(c) })
+			})
+			return
+		}
 		ui.Row(c).Grow(1).MinHeight(0).FillWidth().MinWidth(0).AlignItems(ui.Stretch).Children(func() {
 			ui.Column(c).Width(220).Shrink(0).MinHeight(0).BorderWidth(0, 1, 0, 0).BorderColor(c.Theme().Border).Children(func() {
 				ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Label("Daftar catatan").Children(func() {
@@ -156,147 +171,150 @@ func (a *App) noteDetail(c *ui.Context) {
 		return
 	}
 	n := a.notes.note
-	ui.Row(c).FillWidth().MinWidth(0).Padding(14, 18).Gap(8).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, "Isi catatan").Bold().Grow(1).MinWidth(0)
-		muted(c, fmt.Sprintf("Versi %d", n.Version)).FontSize(11)
-		if spaceIconButton(c, "Tutup catatan", "close").Disabled(a.notes.busy).Clicked() {
-			a.closeNote()
-		}
-	})
+	phone := isMobile(c)
+	a.noteDocBar(c, phone)
 	ui.Scroll(c.Key(n.ID)).Grow(1).MinHeight(0).FillWidth().Label("Area isi catatan").Children(func() {
-		ui.Column(c).FillWidth().MinWidth(0).Padding(18).Gap(18).Children(func() {
-			if a.notes.detailLoading {
-				muted(c, "Memperbarui isi resmi…").FontSize(12)
-			}
-			if a.notes.detailErr != "" {
-				pageNotice(c, "alert", "Detail belum diperbarui", a.notes.detailErr)
-			}
-			a.noteLeaseView(c)
-			if n.MeetingID != nil && spaceButton(c, "Buka rapat terkait", "calendar", false).Clicked() {
-				a.chrome.tab = "Agenda"
-				a.ensureMeetings()
-				a.meetings.selected = *n.MeetingID
-			}
-			if a.notes.localStatus != "" {
-				muted(c, a.notes.localStatus).FontSize(12)
-			}
-			if a.notes.localErr != "" {
-				pageNotice(c, "alert", "Draf perangkat belum tersimpan", a.notes.localErr)
-			}
-			if a.notes.draftErr != "" {
-				pageNotice(c, "alert", "Draf pemulihan belum dapat diperbarui", a.notes.draftErr)
-			}
-			if a.notesCanEdit() {
-				ui.Field(c, "Judul catatan", func() {
-					if ui.TextInput(c.Key("note-title"), &a.notes.title).FillWidth().Label("Judul catatan").Changed() {
-						a.markNoteChanged()
-					}
+		pad := [2]float32{32, 24}
+		if phone {
+			pad = [2]float32{16, 16}
+		}
+		// One centered 720 px document column (canvas A).
+		ui.Column(c).FillWidth().MinWidth(0).AlignItems(ui.Center).Padding(pad[0], pad[1]).Children(func() {
+			ui.Column(c.Key("note-document")).FillWidth().MaxWidth(noteColumnWidth).MinWidth(0).Gap(18).Children(func() {
+				ui.Column(c).FillWidth().MinWidth(0).Gap(12).Children(func() {
+					a.noteTitleView(c, phone)
+					a.noteProperties(c, phone)
 				})
-			} else {
-				ui.Text(c, a.notes.title).FontSize(23).Bold().FillWidth().MinWidth(0)
-			}
-			if a.notes.dirty {
-				muted(c, "Ada perubahan yang belum menjadi isi resmi catatan.").FontSize(12)
-			} else {
-				muted(c, fmt.Sprintf("Isi resmi versi %d · %s", n.Version, taskTimestamp(n.UpdatedAt, a.noteViewZone()))).FontSize(11)
-			}
-			if a.notes.compare != nil {
-				a.noteComparisonView(c)
-			}
-			if a.notes.editor != nil {
-				a.notes.editor.SetEditable(a.notesCanEdit() && a.notes.compare == nil)
-				a.notes.editor.OnExtract = nil
-				a.notes.editor.ExtractTask = a.noteCanExtractTask()
-				if !a.notesWriteBlocked() && a.notes.compare == nil && !a.isAdmin() {
-					a.notes.editor.OnExtract = func(text, target string) { a.beginNoteConversion(target, text) }
+				if a.notes.detailLoading {
+					muted(c, "Memperbarui isi resmi…").FontSize(12)
 				}
-				a.notes.editor.View(c)
-				if a.notes.editor.TakeChanged() {
-					a.markNoteChanged()
+				if a.notes.detailErr != "" {
+					pageNotice(c, "alert", "Detail belum diperbarui", a.notes.detailErr)
 				}
-			}
-			if n.Permissions.Manage && spaceButton(c, "Simpan draf pemulihan ke server", "archive", false).FillWidth().Disabled(a.notesWriteBlocked()).Clicked() {
-				a.saveNoteRecovery()
-			}
-			a.noteRecoveryView(c)
-			if a.notes.conversion != nil {
-				a.noteConversionView(c)
-			}
-			a.noteCommentsView(c)
-			a.noteAttachmentsView(c)
-			a.noteTemplatesView(c)
-			a.noteReferencesView(c)
-			a.noteHistoryView(c)
-			if n.Permissions.Manage {
-				a.noteDeleteView(c)
-			}
+				if a.notes.saveErr != "" {
+					pageNotice(c, "alert", "Catatan belum tersimpan", a.notes.saveErr+" Ketikanmu aman di perangkat ini; simpan otomatis mencoba lagi.")
+				}
+				a.noteLeaseView(c)
+				if a.notes.localErr != "" {
+					pageNotice(c, "alert", "Draf perangkat belum tersimpan", a.notes.localErr)
+				}
+				if a.notes.draftErr != "" {
+					pageNotice(c, "alert", "Draf pemulihan belum dapat diperbarui", a.notes.draftErr)
+				}
+				a.noteDocumentBody(c)
+			})
 		})
 	})
-	ui.Row(c).FillWidth().MinWidth(0).Padding(12, 18).Gap(10).AlignItems(ui.Center).BorderWidth(1, 0, 0, 0).BorderColor(c.Theme().Border).Children(func() {
-		label := "Isi resmi hanya berubah setelah disimpan."
-		if !a.notesCanEdit() {
-			label = "Ambil editor untuk mengubah isi resmi."
-		}
-		ui.Text(c, label).FontSize(11).TextColor(c.Theme().TextMuted).Grow(1).MinWidth(0)
-		if spaceButton(c, "Simpan catatan", "check", true).Disabled(!a.notesCanEdit() || !a.notes.dirty || a.notes.compare != nil).Clicked() {
-			a.saveNote()
-		}
-	})
+	if a.notesCanEdit() {
+		ui.Row(c).FillWidth().MinWidth(0).Padding(10, 18).Gap(10).AlignItems(ui.Center).BorderWidth(1, 0, 0, 0).BorderColor(c.Theme().Border).Children(func() {
+			hint := "Tersimpan otomatis beberapa detik setelah kamu berhenti mengetik."
+			if phone {
+				hint = "Tersimpan otomatis."
+			}
+			ui.Text(c, hint).FontSize(11).TextColor(c.Theme().TextMuted).Grow(1).MinWidth(0)
+			if outlineButton(c.Key("note-save-now"), "Simpan sekarang", "check", false).Disabled(!a.notes.dirty || a.notes.saving || a.notes.compare != nil).Clicked() {
+				a.saveNote()
+			}
+		})
+	}
 }
 
+// noteDocumentBody is everything below the lease box: the blocks, then
+// recovery, comments, attachments and the rest, in the document column.
+func (a *App) noteDocumentBody(c *ui.Context) {
+	n := a.notes.note
+	if n == nil {
+		return
+	}
+	if a.notes.compare != nil {
+		a.noteComparisonView(c)
+	}
+	if a.notes.editor != nil {
+		a.notes.editor.SetEditable(a.notesCanEdit() && a.notes.compare == nil)
+		a.notes.editor.OnExtract = nil
+		a.notes.editor.ExtractTask = a.noteCanExtractTask()
+		if !a.notesWriteBlocked() && a.notes.compare == nil && !a.isAdmin() {
+			a.notes.editor.OnExtract = func(text, target string) { a.beginNoteConversion(target, text) }
+		}
+		a.notes.editor.View(c)
+		if a.notes.editor.TakeChanged() {
+			a.markNoteChanged()
+		}
+	}
+	a.noteRecoveryView(c)
+	if a.notes.conversion != nil {
+		a.noteConversionView(c)
+	}
+	a.noteCommentsView(c)
+	a.noteAttachmentsView(c)
+	a.noteTemplatesView(c)
+	a.noteReferencesView(c)
+	a.noteHistoryView(c)
+	if n.Permissions.Manage {
+		a.noteDeleteView(c)
+	}
+}
+
+// noteLeaseView is the editor lock as one slim strip under the properties:
+// who writes until when, and the one action that fits (single editor,
+// takeover with confirmation; unchanged rules).
 func (a *App) noteLeaseView(c *ui.Context) {
 	n := a.notes.note
 	if n == nil {
 		return
 	}
-	ui.Column(c).FillWidth().MinWidth(0).Gap(9).Padding(13).Radius(9).Background(c.Theme().Surface).Border(1, c.Theme().Border).Children(func() {
-		if n.Lock != nil {
-			label := "Pencatat: " + n.Lock.Editor.DisplayName
-			if n.Lock.HeldByCaller {
-				label = "Editor dipegang sesi ini"
-			}
-			ui.Text(c, label).FontSize(12).Bold()
-			muted(c, "Berlaku sampai "+taskTimestamp(n.Lock.ExpiresAt, a.noteViewZone())).FontSize(11)
-		} else {
-			muted(c, "Belum ada pencatat aktif.").FontSize(12)
+	t := c.Theme()
+	label, detail := "Belum ada pencatat aktif", ""
+	if n.Lock != nil {
+		label = n.Lock.Editor.DisplayName + " sedang mencatat"
+		if n.Lock.HeldByCaller {
+			label = "Kamu memegang editor"
 		}
-		if !n.Permissions.Manage {
-			muted(c, "Isi catatan hanya dapat dibaca dengan akses saat ini.").FontSize(11)
-			return
-		}
-		if a.notesCanEdit() {
-			if spaceButton(c, "Selesai mencatat", "check", false).FillWidth().Disabled(a.notes.busy).Clicked() {
-				a.finishNoteEditing()
+		detail = "sampai " + noteZoneClock(n.Lock.ExpiresAt, a.noteViewZone())
+	}
+	if !n.Permissions.Manage {
+		detail = strings.TrimPrefix(detail+" · hanya baca", " · ")
+	}
+	ui.Column(c.Key("note-lease")).FillWidth().MinWidth(0).Gap(8).Padding(8, 12).Radius(8).Background(spaceMix(t.Surface, t.Background, .5)).Children(func() {
+		ui.Row(c).FillWidth().MinWidth(0).Wrap().Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Icon(c, spaceIcon("edit")).Size(14, 14).TextColor(t.TextMuted).Shrink(0)
+			ui.Text(c, label).FontSize(13).FontWeight(500).MaxLines(1).MinWidth(0)
+			if detail != "" {
+				ui.Text(c, detail).FontSize(12).TextColor(t.TextMuted).MaxLines(1)
 			}
-			muted(c, "Melepas editor menjaga drafmu. Gunakan Simpan catatan untuk memperbarui isi resmi.").FontSize(11)
-			return
-		}
-		if a.canEditOfflineNote() {
-			if spaceButton(c, "Edit draf offline", "edit", true).FillWidth().Disabled(a.notes.busy).Clicked() {
-				a.beginNoteEditing()
+			ui.Box(c).Grow(1)
+			if !n.Permissions.Manage {
+				return
 			}
-			muted(c, "Editor server akan diperiksa ulang saat sinkronisasi. Draf offline tidak mengambil alih editor orang lain.")
-			return
-		}
-		otherLive := n.Lock != nil && !n.Lock.HeldByCaller && c.Now().Before(n.Lock.ExpiresAt)
-		if !otherLive {
-			if spaceButton(c, "Ambil editor", "edit", true).FillWidth().Disabled(a.notesWriteBlocked() && !a.canEditOfflineNote()).Clicked() {
-				a.beginNoteEditing()
+			switch {
+			case a.notesCanEdit():
+				if outlineButton(c.Key("lease-finish"), "Selesai mencatat", "check", false).Height(30).Tooltip("Perubahan terakhir disimpan dulu sebelum editor dilepas.").Disabled(a.notes.busy).Clicked() {
+					a.finishNoteEditing()
+				}
+			case a.canEditOfflineNote():
+				if outlineButton(c.Key("lease-offline"), "Edit draf offline", "edit", true).Height(30).Tooltip("Editor server diperiksa ulang saat sinkronisasi; draf offline tidak mengambil alih editor orang lain.").Disabled(a.notes.busy).Clicked() {
+					a.beginNoteEditing()
+				}
+			case n.Lock == nil || n.Lock.HeldByCaller || !c.Now().Before(n.Lock.ExpiresAt):
+				if outlineButton(c.Key("lease-take"), "Ambil editor", "edit", true).Height(30).Disabled(a.notesWriteBlocked()).Clicked() {
+					a.beginNoteEditing()
+				}
+			case !a.notes.takeoverConfirm:
+				if outlineButton(c.Key("lease-takeover"), "Ambil alih editor", "edit", false).Height(30).Disabled(a.notesWriteBlocked()).Clicked() {
+					a.notes.takeoverConfirm = true
+				}
 			}
-			return
-		}
-		if !a.notes.takeoverConfirm {
-			if spaceButton(c, "Ambil alih editor", "edit", false).FillWidth().Disabled(a.notesWriteBlocked()).Clicked() {
-				a.notes.takeoverConfirm = true
-			}
-		} else {
+		})
+		if n.Permissions.Manage && a.notes.takeoverConfirm && !a.notesCanEdit() {
 			pageNotice(c, "alert", "Ambil alih pencatatan?", "Draf pencatat sebelumnya tetap disimpan. Perangkatnya kehilangan hak memperbarui isi resmi sampai mengambil editor kembali.")
-			if spaceButton(c, "Konfirmasi ambil alih", "check", true).FillWidth().Disabled(a.notesWriteBlocked()).Clicked() {
-				a.takeoverNoteEditing()
-			}
-			if spaceButton(c, "Batal ambil alih", "close", false).FillWidth().Disabled(a.notes.busy).Clicked() {
-				a.notes.takeoverConfirm = false
-			}
+			ui.Row(c).Gap(8).Wrap().Children(func() {
+				if outlineButton(c.Key("lease-confirm"), "Konfirmasi ambil alih", "check", true).Disabled(a.notesWriteBlocked()).Clicked() {
+					a.takeoverNoteEditing()
+				}
+				if outlineButton(c.Key("lease-cancel"), "Batal ambil alih", "close", false).Disabled(a.notes.busy).Clicked() {
+					a.notes.takeoverConfirm = false
+				}
+			})
 		}
 	})
 }
@@ -526,10 +544,16 @@ func (a *App) noteHistoryView(c *ui.Context) {
 		if len(a.notes.history) == 0 {
 			muted(c, "Belum ada riwayat yang tersedia.")
 		}
-		for _, event := range a.notes.history {
+		for _, event := range groupNoteHistory(a.notes.history) {
 			ui.Column(c.Key(event.ID)).FillWidth().MinWidth(0).Gap(4).Padding(7, 0).Children(func() {
-				ui.Text(c, noteEventLabel(event.Action)).FontSize(12)
-				muted(c, event.Actor.DisplayName+" · "+taskTimestamp(event.CreatedAt, a.noteViewZone())).FontSize(10)
+				label := noteEventLabel(event.Action)
+				when := taskTimestamp(event.CreatedAt, a.noteViewZone())
+				if event.count > 1 {
+					label += fmt.Sprintf(" · %d kali disimpan", event.count)
+					when = noteZoneClock(event.first, a.noteViewZone()) + "–" + when
+				}
+				ui.Text(c, label).FontSize(12)
+				muted(c, event.Actor.DisplayName+" · "+when).FontSize(10)
 				if event.Reason != "" {
 					ui.Text(c, event.Reason).FontSize(12).FillWidth().MinWidth(0)
 				}
