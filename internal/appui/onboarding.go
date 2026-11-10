@@ -74,6 +74,9 @@ type onboardingState struct {
 	celebrate time.Time
 	// targets are this frame's bounds of what the tour points at.
 	targets map[string]ui.Rect
+	// notifPerm is the device's notification permission last frame, so a
+	// change to granted sends the test notice (watchNotificationPermission).
+	notifPerm string
 }
 
 func (a *App) onboardingService() (OnboardingAPI, bool) {
@@ -249,13 +252,28 @@ type onbStep struct {
 
 func (a *App) onboardingSteps() []onbStep {
 	d := a.onb.data
-	return []onbStep{
+	steps := []onbStep{
 		{"wa", "Tautkan WhatsApp", "Pengingat tugas dan ping masuk ke WhatsApp-mu lewat bot divisi.", "Tautkan", "whatsapp", d.WhatsAppLinked},
+	}
+	// Notifications are per device: the step follows this device's
+	// permission and shows only where the device has notifications.
+	switch perm := a.noticePermission(); perm {
+	case BrowserPermissionGranted:
+		steps = append(steps, onbStep{onbNotif, "Izinkan notifikasi", "Notifikasi di perangkat ini sudah diizinkan.", "", "bell", true})
+	case BrowserPermissionDefault:
+		steps = append(steps, onbStep{onbNotif, "Izinkan notifikasi", "Supaya pengingat dan ping muncul di perangkat ini selama Space terbuka.", "Izinkan", "bell", false})
+	case BrowserPermissionDenied:
+		steps = append(steps, onbStep{onbNotif, "Izinkan notifikasi", a.noticeDeniedHint(), "Lihat caranya", "bell", false})
+	}
+	return append(steps, []onbStep{
 		{api.OnboardProfile, "Lengkapi profil", "Periksa nama yang dilihat rekan di board, catatan, dan ping.", "Buka profil", "user", d.Done(api.OnboardProfile)},
 		{api.OnboardTasks, "Lihat tugasmu", "Buka Board tugas divisimu. Belum ada tugas? Wajar di minggu pertama.", "Buka board", "board", d.Done(api.OnboardTasks)},
-		{api.OnboardTour, "Kenali tab Space", "Tur singkat 5 langkah, sekitar satu menit.", "Mulai tur", "compass", d.Done(api.OnboardTour)},
-	}
+		{api.OnboardTour, "Kenali tab Space", "Tur singkat, sekitar satu menit.", "Mulai tur", "compass", d.Done(api.OnboardTour)},
+	}...)
 }
+
+// onbNotif is the checklist's notification step; it has no server mark.
+const onbNotif = "notif"
 
 // doOnboardingStep runs a step's action.
 func (a *App) doOnboardingStep(key string) {
@@ -266,6 +284,12 @@ func (a *App) doOnboardingStep(key string) {
 			a.selectSpace(sp.ID)
 			a.chrome.tab = "Bot WhatsApp"
 			a.navigate(PathSpaces)
+		}
+	case onbNotif:
+		if a.noticePermission() == BrowserPermissionDefault && a.Notifier != nil {
+			a.Notifier.RequestPermission()
+		} else {
+			a.OpenDeviceSettings()
 		}
 	case api.OnboardProfile:
 		a.onb.profileOpen, a.onb.profileName, a.onb.profileErr = true, a.user.DisplayName, ""
@@ -366,7 +390,7 @@ func (a *App) checklistRow(c *ui.Context, s onbStep, next, phone bool) {
 			if s.done {
 				title.TextColor(t.TextMuted).Strikethrough()
 			}
-			if !s.done && !phone {
+			if !s.done && (!phone || s.key == onbNotif) {
 				muted(c, s.detail).FontSize(12)
 			}
 		})

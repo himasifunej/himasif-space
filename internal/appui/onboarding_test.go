@@ -8,6 +8,7 @@ import (
 	"image/gif"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -88,6 +89,8 @@ func onbHarness(t *testing.T, role string, marks ...string) (*harness, *onbFake)
 	h.app.onb = onboardingState{}
 	sp := testAuthorizedSpace(h.app, h.api.divisions[0])
 	h.app.access.spaces[0].Roles[0].Roles = []string{role}
+	// Members own their tasks, so Bot WhatsApp (Tautkan nomormu) shows.
+	h.app.access.spaces[0].Roles[0].Capabilities = append(h.app.access.spaces[0].Roles[0].Capabilities, api.CapTasksOwn)
 	h.app.chrome.tab = defaultSpaceTab(sp)
 	h.app.navigate(PathSpaces)
 	h.settle()
@@ -350,5 +353,118 @@ func writeGIF(t *testing.T, name string, frames []image.Image, scale int) {
 	defer fh.Close()
 	if err := gif.EncodeAll(fh, out); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// fakeNotifier is a device's notification layer whose permission the test
+// sets; RequestPermission grants it, as a user clicking Allow.
+type fakeNotifier struct {
+	perm      string
+	hint      string
+	requested int
+	shown     []Notice
+}
+
+func (n *fakeNotifier) Permission() string { return n.perm }
+func (n *fakeNotifier) RequestPermission() {
+	n.requested++
+	n.perm = BrowserPermissionGranted
+}
+func (n *fakeNotifier) DeniedHint() string { return n.hint }
+func (n *fakeNotifier) Present(x Notice) error {
+	n.shown = append(n.shown, x)
+	return nil
+}
+
+func TestOnboardingNotificationStep(t *testing.T) {
+	h, _ := onbHarness(t, api.RoleMember, api.OnboardWelcome)
+	n := &fakeNotifier{perm: BrowserPermissionDefault}
+	h.app.Notifier = n
+	h.tt.Advance(300 * time.Millisecond)
+	h.want("Izinkan notifikasi")
+	h.want("0 dari 5")
+	h.click("Izinkan: Izinkan notifikasi")
+	h.tt.Advance(300 * time.Millisecond)
+	if n.requested != 1 {
+		t.Fatalf("requested %d", n.requested)
+	}
+	// Granted: one test notice at once, and the step ticks itself.
+	if len(n.shown) != 1 || n.shown[0].Kind != NoticeTest || n.shown[0].Title != "Notifikasi aktif ✓" {
+		t.Fatalf("test notice %+v", n.shown)
+	}
+	h.want("1 dari 5")
+	h.tt.Advance(time.Second)
+	if len(n.shown) != 1 {
+		t.Fatalf("test notice repeated: %d", len(n.shown))
+	}
+	// Blocked in the browser later: the hint shows, the button opens the
+	// device settings; allowed again in site settings: a new test notice.
+	n.perm = BrowserPermissionDenied
+	n.hint = "Klik ikon gembok di samping alamat situs"
+	h.tt.Frame() // the browser's change redraws the window
+	h.want("Klik ikon gembok di samping alamat situs")
+	h.click("Lihat caranya: Izinkan notifikasi")
+	if h.app.router.Path() != PathPengaturan || h.app.chrome.settingsTab != "Perangkat" {
+		t.Fatalf("hint button went to %s %q", h.app.router.Path(), h.app.chrome.settingsTab)
+	}
+	n.perm = BrowserPermissionGranted
+	h.tt.Frame()
+	if len(n.shown) != 2 {
+		t.Fatalf("no test notice after allowing again: %d", len(n.shown))
+	}
+}
+
+func TestOnboardingNotificationAlreadyAllowed(t *testing.T) {
+	h, _ := onbHarness(t, api.RoleMember, api.OnboardWelcome)
+	n := &fakeNotifier{perm: BrowserPermissionGranted}
+	h.app.Notifier = n
+	h.tt.Advance(time.Second)
+	if len(n.shown) != 0 {
+		t.Fatalf("a permission given before sent a test: %+v", n.shown)
+	}
+	h.want("1 dari 5")
+	// Without notifications on the device, the step is not offered.
+	h.app.Notifier = nil
+	h.tt.Frame()
+	h.want("0 dari 4")
+	h.dontWant("Izinkan notifikasi")
+}
+
+// The tour points only at what the account sees: a member has no Ping tab,
+// so the WhatsApp step points at Bot WhatsApp; without that tab either, the
+// step is left out.
+func TestOnboardingTourOnlyVisibleTargets(t *testing.T) {
+	h, _ := onbHarness(t, api.RoleMember, api.OnboardWelcome, api.OnboardChecklistHidden)
+	steps := tourSteps(api.GuideRoleMember, h.app.tourVisibleTab)
+	for _, s := range steps {
+		if tab, ok := strings.CutPrefix(s.target, "tab:"); ok && !h.app.tourVisibleTab(tab) {
+			t.Fatalf("step %q points at hidden tab %q", s.title, tab)
+		}
+	}
+	if len(steps) != 5 || steps[3].target != "tab:Bot WhatsApp" {
+		t.Fatalf("member steps %+v", steps)
+	}
+	h.app.startTour()
+	h.app.onb.tour.step = 3
+	h.tt.Advance(time.Second)
+	h.want("Bot WhatsApp")
+	h.want("4/5")
+	if _, ok := h.app.onb.targets["tab:Bot WhatsApp"]; !ok {
+		t.Fatal("Bot WhatsApp tab not measured for the spotlight")
+	}
+	h.dontWant("Bagian ini tidak tampil")
+	// A member who hid Bot WhatsApp: four steps, none missing.
+	sp := h.app.selectedSpace()
+	tabs := SpaceTabLayouts{h.app.spaceTabPreferenceKey(sp): {Hidden: []string{"bot"}}}
+	h.app.chrome.preferences.SpaceTabs = &tabs
+	steps = tourSteps(api.GuideRoleMember, h.app.tourVisibleTab)
+	if len(steps) != 4 || steps[3].target != "help" {
+		t.Fatalf("steps without the bot tab %+v", steps)
+	}
+	// A 45 who may ping gets the Ping tab.
+	h.app.access.spaces[0].Capabilities = append(h.app.access.spaces[0].Capabilities, api.CapPingSend)
+	h.app.access.spaces[0].Roles[0].Capabilities = append(h.app.access.spaces[0].Roles[0].Capabilities, api.CapPingSend)
+	if steps = tourSteps(api.GuideRole45, h.app.tourVisibleTab); steps[3].target != "tab:Ping" {
+		t.Fatalf("45 steps %+v", steps)
 	}
 }

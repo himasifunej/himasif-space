@@ -2,6 +2,7 @@ package server
 
 import (
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"regexp"
@@ -12,6 +13,7 @@ import (
 	"github.com/himasifunej/himasif-space/internal/api"
 	"github.com/himasifunej/himasif-space/internal/id"
 	"github.com/himasifunej/himasif-space/internal/store"
+	"github.com/himasifunej/himasif-space/internal/whatsapp"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -152,7 +154,36 @@ func (s *Server) consumeWALink(r *http.Request, q store.Querier, period api.Peri
 		After: map[string]any{"inboundId": in.ID, "groupId": group.ID, "jid": in.SenderJID, "source": source}}); err != nil {
 		return "", err
 	}
+	if err = s.waLinkHello(r, q, uid, in); err != nil {
+		return "", err
+	}
 	return "Tertaut ✓\nWhatsApp ini sekarang terhubung ke akun Space " + waWho(u, direct) + ".\nBukan kamu? Di Space buka Bot WhatsApp → Lepas tautan.", nil
+}
+
+// waLinkHelloText is the test message after a first link.
+const waLinkHelloText = "Tersambung ✓\nKamu akan menerima ping dan pengingat dari Space di sini."
+
+// waLinkHello queues, once per account, a short test message to the number
+// just linked, in a private chat (also when the code came through a
+// group), a few seconds after the reply: the member sees on WhatsApp
+// itself that pings and reminders will arrive there.
+func (s *Server) waLinkHello(r *http.Request, q store.Querier, uid id.ID, in waInbound) error {
+	ctx := r.Context()
+	o, err := s.store.Onboarding(ctx, q, uid)
+	if err != nil || o.Done(api.OnboardWAHello) || !waUserJID.MatchString(in.SenderJID) {
+		return err
+	}
+	req := whatsapp.SendRequest{ID: id.New(), ToJID: in.SenderJID, Text: waLinkHelloText, Mentions: []string{}}
+	payload, err := json.Marshal(req)
+	if err != nil {
+		return err
+	}
+	now := s.now()
+	if _, err = q.Exec(ctx, `insert into wa_outbox(id,event_key,connection_id,group_id,source_kind,actor_id,payload,available_at,created_at,updated_at) values($1,$2,$3,null,'link_dm',$4,$5,$6,$7,$7) on conflict(event_key) do nothing`,
+		req.ID, "link-hello:"+uid.String(), in.ConnectionID, uid, payload, now.Add(3*time.Second), now); err != nil {
+		return err
+	}
+	return s.store.SetOnboardingMark(ctx, q, uid, api.OnboardWAHello, false, now)
 }
 
 // moveWALink answers PINDAH: the number's owner (it is their message) moves
@@ -195,6 +226,9 @@ func (s *Server) moveWALink(r *http.Request, q store.Querier, period api.Period,
 	}
 	if err = s.record(r, q, p, store.AuditEvent{Action: "whatsapp.identity.move", TargetType: "user", TargetID: &uid, PeriodID: &period.ID,
 		Before: map[string]any{"userId": otherID}, After: map[string]any{"userId": uid, "inboundId": in.ID, "jid": in.SenderJID}}); err != nil {
+		return "", err
+	}
+	if err = s.waLinkHello(r, q, uid, in); err != nil {
 		return "", err
 	}
 	return "Dipindahkan ✓\nWhatsApp ini sekarang terhubung ke akun Space " + waWho(u, group.ID == id.Nil) + ".\nAkun " + other.DisplayName + " tidak lagi menerima pengingat di nomor ini.", nil

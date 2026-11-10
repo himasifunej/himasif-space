@@ -172,3 +172,30 @@ GOOS=js GOARCH=wasm go build ./internal/appui → ok
 - **Pendamping**: mendapat tur dan panduan role 45.
 - **Lengkapi profil**: untuk sekarang hanya nama tampilan, karena Space belum punya foto profil.
 - **Serah terima kadiv**: tidak tercentang otomatis, karena langkahnya tidak bisa dideteksi. Kadiv menutupnya dengan "Tandai selesai".
+
+## 0.4.1: izin notifikasi dan tur per role (masukan user)
+
+- **Langkah "Izinkan notifikasi"** di checklist. Langkah ini mengikuti izin di perangkat yang sedang dipakai, bukan disimpan di server:
+  - **Web**: membaca `Notification.permission`.
+  - **Desktop**: membaca setelan notifikasi Windows (`ToastNotifier.Setting`). Karena butuh PowerShell, nilainya dibaca di latar belakang setiap menit.
+  - Bila sudah `granted`, langkah tercentang sendiri.
+  - Bila `default`, tombol **Izinkan** memunculkan prompt browser.
+  - Bila `denied`, langkah menampilkan cara mengizinkannya lagi (gembok → Setelan situs, atau pengaturan notifikasi Windows), dan tombol **Lihat caranya** membuka Pengaturan › Perangkat.
+  - Perangkat tanpa dukungan notifikasi tidak mendapat langkah ini.
+- **Notifikasi uji** "Notifikasi aktif ✓ — Kamu akan dapat kabar tugas dan ping di sini."
+  - Dikirim begitu izin berubah dari belum diizinkan atau diblokir menjadi diizinkan selama Space terbuka, apa pun yang memintanya: checklist, Pengaturan, atau setelan situs.
+  - Izin yang sudah ada saat aplikasi dibuka tidak memicu notifikasi uji.
+  - Kodenya ada di `watchNotificationPermission`.
+- **Pesan uji WhatsApp** "Tersambung ✓ Kamu akan menerima ping dan pengingat dari Space di sini."
+  - Diantrekan sekali per akun setelah tautan pertama berhasil, juga lewat PINDAH. Pesan masuk ke chat pribadi nomor itu, 3 detik setelah balasan "Tertaut ✓", juga bila kodenya dikirim di grup.
+  - Pengiriman ditandai di server dengan tanda `waHello`, yang tidak bisa diubah klien.
+  - Test: `TestWALinkHelloOnce`.
+- **Lapisan notifikasi bersama**, `internal/appui/notifier.go`:
+  - `Notifier` terdiri dari `Permission`, `RequestPermission`, dan `Present(Notice)`. `NotifierHint` opsional untuk petunjuk saat izin diblokir.
+  - Implementasinya `webNotifications` (popup browser) dan `desktopNotifier` (notifikasi OS).
+  - "Dynamic island" desktop nanti cukup berupa `NoticePresenter` yang dipasang lewat `MultiNotifier{Base: osNotifier, Extra: []NoticePresenter{island}}`, tanpa mengubah appui. Island-nya belum dibuat.
+- **Tur**:
+  - `tourSteps(role, visibleTab)` hanya memilih tab yang memang tampil untuk akun: diizinkan role dan tidak disembunyikan.
+  - Langkah WhatsApp memakai Ping bila tab itu ada, lalu Bot WhatsApp, dan dilewati bila keduanya tidak ada. Langkah lain juga dilewati bila tabnya tidak ada.
+  - Keterangan "Bagian ini tidak tampil di layarmu sekarang" dihapus.
+  - Test: `TestOnboardingTourOnlyVisibleTargets`.

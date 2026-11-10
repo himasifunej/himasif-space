@@ -21,7 +21,7 @@ whatsapp
 3. Tekan tombol yang membuka WhatsApp. Kodenya sudah terisi, kamu tinggal menekan *Kirim*.
 4. Kalau bot belum bisa dihubungi langsung, kirim kodenya di grup WhatsApp divisi.
 
-Setelah tertaut, status di Space berubah menjadi *Tertaut* dan langkah ini di Beranda tercentang sendiri.
+Setelah tertaut, status di Space berubah menjadi *Tertaut* dan langkah ini di Beranda tercentang sendiri. Bot juga mengirim pesan uji "Tersambung ✓" ke chat pribadimu, sekali saja, supaya kamu tahu pesannya sampai.
 
 ## Kalau nomormu sudah dipakai akun lain
 

@@ -181,3 +181,29 @@ func clearDeviceNotifications(group string) {
 	}
 	_ = powershell(`[Windows.UI.Notifications.ToastNotificationManager,Windows.UI.Notifications,ContentType=WindowsRuntime] | Out-Null; [Windows.UI.Notifications.ToastNotificationManager]::History.RemoveGroup('` + group + `','id.himasif.space')`)
 }
+
+// notificationSettingEnabled asks Windows whether Space may show
+// notifications now (Settings → System → Notifications). It starts
+// PowerShell, so callers keep its answer and ask again now and then.
+func notificationSettingEnabled() bool {
+	return powershell(`$ErrorActionPreference='Stop'
+[Windows.UI.Notifications.ToastNotificationManager,Windows.UI.Notifications,ContentType=WindowsRuntime] | Out-Null
+$n=[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('id.himasif.space')
+if($n.Setting -ne [Windows.UI.Notifications.NotificationSetting]::Enabled){exit 42}`) == nil
+}
+
+// showNoticeNotification shows a notice of Space itself (no delivery, no
+// actions), as the onboarding's test after permission is given.
+func showNoticeNotification(title, body, tag string) error {
+	toast := `<toast><visual><binding template="ToastGeneric"><text>` + escapeXML(title) + `</text><text>` + escapeXML(body) + `</text></binding></visual></toast>`
+	return powershell(`$ErrorActionPreference='Stop'
+[Windows.UI.Notifications.ToastNotificationManager,Windows.UI.Notifications,ContentType=WindowsRuntime] | Out-Null
+[Windows.Data.Xml.Dom.XmlDocument,Windows.Data.Xml.Dom.XmlDocument,ContentType=WindowsRuntime] | Out-Null
+$x=New-Object Windows.Data.Xml.Dom.XmlDocument
+$x.LoadXml([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('` + base64.StdEncoding.EncodeToString([]byte(toast)) + `')))
+$t=[Windows.UI.Notifications.ToastNotification]::new($x)
+$t.Tag='` + escapeXML(tag) + `'
+$n=[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('id.himasif.space')
+if($n.Setting -ne [Windows.UI.Notifications.NotificationSetting]::Enabled){[Console]::Error.WriteLine('SPACE_NOTIFICATION_SETTING='+[int]$n.Setting);exit 42}
+$n.Show($t)`)
+}

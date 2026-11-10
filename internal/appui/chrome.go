@@ -149,6 +149,7 @@ func (a *App) shell(c *ui.Context) {
 
 	a.tourFrameStart()
 	a.ensureOnboarding(c.Now())
+	a.watchNotificationPermission()
 	a.tickOffline(c.Now())
 	a.tickRealtime(c)
 	a.tickNotes(c.Now())

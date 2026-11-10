@@ -23,3 +23,9 @@ func showTestDeviceNotification() error {
 }
 
 func clearDeviceNotifications(string) { mygo.ClearNotifications() }
+
+func notificationSettingEnabled() bool { return true }
+
+func showNoticeNotification(title, body, tag string) error {
+	return mygo.NewNotification(mygo.NotificationOptions{ID: tag, Title: title, Body: body, Group: "Space"}).Show()
+}

@@ -23,6 +23,7 @@ type webNotifications struct {
 func attachDevice(win *mygo.Window, app *appui.App) {
 	notifications := &webNotifications{app: app, win: win}
 	app.Notifications = notifications
+	app.Notifier = notifications
 	appui.HoldTouchPan = func() { js.Global().Set("space_pan_hold", true) }
 	app.SessionChanged = func(uid id.ID) {
 		notifications.mu.Lock()
@@ -197,5 +198,38 @@ func (n *webNotifications) NotifyBatch(uid id.ID, items []api.Delivery) (err err
 		key := "space.delivery." + uid.String() + "." + d.ID.String() + "." + d.AvailableAt.String()
 		storage.Call("setItem", key, "offered")
 	}
+	return nil
+}
+
+// The web app's notification layer (appui.Notifier): browser popups.
+
+func (n *webNotifications) Permission() string { return browserNotificationPermission() }
+func (n *webNotifications) RequestPermission() { requestBrowserNotifications(n.win) }
+
+// DeniedHint tells where a blocked site is allowed again.
+func (n *webNotifications) DeniedHint() string {
+	return "Diblokir di browser. Klik ikon gembok di samping alamat situs, pilih Setelan situs, lalu ubah Notifikasi menjadi Izinkan. Langkah ini tercentang sendiri."
+}
+
+// Present shows a browser popup now; a click brings Space forward.
+func (n *webNotifications) Present(x appui.Notice) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = errors.New("Browser menolak menampilkan notifikasi: " + jsError(r).Error())
+		}
+	}()
+	constructor := js.Global().Get("Notification")
+	if constructor.Type() != js.TypeFunction || constructor.Get("permission").String() != "granted" {
+		return errors.New("Izin notifikasi browser belum diberikan.")
+	}
+	toast := constructor.New(x.Title, map[string]any{"body": x.Body, "tag": "space-" + x.Tag})
+	var click js.Func
+	click = js.FuncOf(func(js.Value, []js.Value) any {
+		js.Global().Call("focus")
+		toast.Call("close")
+		click.Release()
+		return nil
+	})
+	toast.Set("onclick", click)
 	return nil
 }

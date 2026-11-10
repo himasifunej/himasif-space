@@ -5,7 +5,21 @@ Versi mengikuti aturan sebelum rilis publik:
 - **Minor** naik untuk pembaruan besar.
 - **1.0.0** untuk rilis publik.
 
-## 0.4.0 — 2026-11-10 · Siap dipakai pengurus baru
+## 0.4.1 — 2026-11-10 · Izin notifikasi dan tur yang pas per role
+
+- **Langkah baru "Izinkan notifikasi"** di checklist "Langkah pertama". Langkah ini mengikuti izin di perangkat yang sedang dipakai:
+  - Di web, mengikuti izin browser.
+  - Di aplikasi desktop, mengikuti setelan notifikasi Windows.
+  - Langkah tercentang sendiri bila notifikasi sudah diizinkan.
+  - Bila diblokir, langkah ini menampilkan cara mengizinkannya lagi.
+- **Notifikasi uji langsung** setiap kali izin baru diberikan: "Notifikasi aktif ✓".
+- **Pesan uji di WhatsApp** setelah nomor pertama kali tertaut: "Tersambung ✓". Pesan ini dikirim sekali per akun, lewat chat pribadi.
+- **Lapisan notifikasi bersama** (`appui.Notifier`): popup browser di web dan notifikasi Windows di desktop. "Dynamic island" untuk Space desktop bisa ditambahkan nanti sebagai presenter tambahan (`MultiNotifier`).
+- **Perbaikan tur**: tur hanya menyorot tab yang terlihat oleh akun itu.
+  - Anggota tidak punya tab Ping, jadi langkah WhatsApp menyorot tab Bot WhatsApp.
+  - Langkah yang tabnya disembunyikan dilewati.
+  - Keterangan "tidak tampil di layarmu" sudah dihapus.
+
 
 Rangkuman 0.3.1 sampai 0.4.0.
 

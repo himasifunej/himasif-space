@@ -98,6 +98,9 @@ type App struct {
 	Version string
 	// ClientName names the app to the server at login: "desktop" or "web".
 	ClientName string
+	// Notifier is the device's notification layer (notifier.go); nil where
+	// the device has none.
+	Notifier Notifier
 	// PreferencesStore persists appearance on this device, separately from tokens.
 	PreferencesStore PreferencesStore
 	// NoteDrafts keeps account-scoped recovery copies on this device.

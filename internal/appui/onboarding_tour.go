@@ -24,34 +24,62 @@ type tourState struct {
 // tourStep points at a target: "sidebar", "help", or "tab:<title>".
 type tourStep struct{ target, title, body string }
 
-func tourSteps(role string) []tourStep {
+// tourSteps are role's steps, each pointing at a tab the account sees
+// (visibleTab, by title): a step may fall back to another tab, as the
+// WhatsApp step to Bot WhatsApp where Ping is not open to the role or is
+// hidden, and is left out when none of its tabs shows. The sidebar and the
+// "?" are always there.
+func tourSteps(role string, visibleTab func(string) bool) []tourStep {
+	type choice struct {
+		tab, title, body string
+	}
+	pick := func(out []tourStep, choices ...choice) []tourStep {
+		for _, ch := range choices {
+			if visibleTab(ch.tab) {
+				return append(out, tourStep{"tab:" + ch.tab, ch.title, ch.body})
+			}
+		}
+		return out
+	}
+	waBot := choice{"Bot WhatsApp", "Bot WhatsApp", "Tautkan nomormu di sini. Ping dari kadiv dan pengingat tenggat lalu masuk ke WhatsApp-mu; di grup, ketik !tugas untuk melihat tugasmu."}
 	sidebar := tourStep{"sidebar", "Sidebar", "Pindah antara Jobdesk saya, Reminder pribadi, dan Space divisimu. Panduan dan Pengaturan ada di bawah."}
 	help := tourStep{"help", "Tombol ?", "Bingung di halaman mana pun? Tombol ini membuka panduan untuk halaman itu di panel samping."}
+	var out []tourStep
 	switch role {
 	case api.GuideRoleKadiv:
-		return []tourStep{
-			{"sidebar", "Sidebar", "Divisi yang kamu pimpin, periode aktif, dan Pengaturan. Panduan kadiv ada di bawah."},
-			{"tab:Board tugas", "Board tugas", "Buat tugas, pilih PJ dan tenggat. PJ menerima pengingat otomatis di WhatsApp."},
-			{"tab:Catatan", "Catatan rapat", "Pimpin rapat: agenda dengan durasi, timer, dan action item yang langsung jadi tugas."},
-			{"tab:Anggota", "Anggota", "Undang lewat NIM, atur role (Anggota atau 45), dan lihat beban tiap orang."},
-			{"help", "Tombol ?", "Panduan kadiv ada di sini: serah terima, pergantian periode, dan lainnya."},
-		}
+		out = append(out, tourStep{"sidebar", "Sidebar", "Divisi yang kamu pimpin, periode aktif, dan Pengaturan. Panduan kadiv ada di bawah."})
+		out = pick(out, choice{"Board tugas", "Board tugas", "Buat tugas, pilih PJ dan tenggat. PJ menerima pengingat otomatis di WhatsApp."})
+		out = pick(out, choice{"Catatan", "Catatan rapat", "Pimpin rapat: agenda dengan durasi, timer, dan action item yang langsung jadi tugas."})
+		out = pick(out, choice{"Anggota", "Anggota", "Undang lewat NIM, atur role (Anggota atau 45), dan lihat beban tiap orang."},
+			choice{"Ping", "Ping & bot WA", "Kirim pengingat ke anggota. Mereka menerimanya di WhatsApp."}, waBot)
+		help.body = "Panduan kadiv ada di sini: serah terima, pergantian periode, dan lainnya."
 	case api.GuideRole45:
-		return []tourStep{
-			sidebar,
-			{"tab:Board tugas", "Board tugas", "Kamu bisa membuat dan membagi tugas. Mengatur anggota tetap di tangan kadiv."},
-			{"tab:Catatan", "Catatan rapat", "Ambil editor, isi agenda, jalankan timer, dan jadikan action item tugas."},
-			{"tab:Ping", "Ping & bot WA", "Kirim pengingat ke anggota. Mereka menerimanya di WhatsApp."},
-			help,
+		out = append(out, sidebar)
+		out = pick(out, choice{"Board tugas", "Board tugas", "Kamu bisa membuat dan membagi tugas. Mengatur anggota tetap di tangan kadiv."})
+		out = pick(out, choice{"Catatan", "Catatan rapat", "Ambil editor, isi agenda, jalankan timer, dan jadikan action item tugas."})
+		out = pick(out, choice{"Ping", "Ping & bot WA", "Kirim pengingat ke anggota. Mereka menerimanya di WhatsApp."}, waBot)
+	default:
+		out = append(out, sidebar)
+		out = pick(out, choice{"Board tugas", "Board tugas", "Tugas yang diberikan kepadamu ada di sini. Pindahkan kartu ke Dikerjakan saat mulai."})
+		out = pick(out, choice{"Catatan", "Catatan rapat", "Baca notulen rapat. Action item untukmu ditandai dengan PJ dan tenggat."})
+		out = pick(out, choice{"Ping", "Ping & bot WA", "Kadiv bisa mengirim ping ke WhatsApp-mu. Di grup, ketik !tugas untuk melihat tugasmu."}, waBot)
+	}
+	return append(out, help)
+}
+
+// tourVisibleTab reports whether the tour's Space shows tab title in its
+// tab bar: open to the account and not hidden by it.
+func (a *App) tourVisibleTab(title string) bool {
+	sp := a.onboardingSpace()
+	if sp == nil {
+		return false
+	}
+	for _, tab := range a.spaceTabsVisible(sp) {
+		if tab.title == title {
+			return true
 		}
 	}
-	return []tourStep{
-		sidebar,
-		{"tab:Board tugas", "Board tugas", "Tugas yang diberikan kepadamu ada di sini. Pindahkan kartu ke Dikerjakan saat mulai."},
-		{"tab:Catatan", "Catatan rapat", "Baca notulen rapat. Action item untukmu ditandai dengan PJ dan tenggat."},
-		{"tab:Ping", "Ping & bot WA", "Kadiv bisa mengirim ping ke WhatsApp-mu. Di grup, ketik !tugas untuk melihat tugasmu."},
-		help,
-	}
+	return false
 }
 
 // tourTarget records where el was in the last frame, for the tour.
@@ -92,7 +120,7 @@ func (a *App) endTour() {
 
 func (a *App) tourOverlay(c *ui.Context) {
 	st := &a.onb.tour
-	steps := tourSteps(st.role)
+	steps := tourSteps(st.role, a.tourVisibleTab)
 	st.step = max(0, min(st.step, len(steps)-1))
 	step := steps[st.step]
 	if c.Shortcut(0, ui.KeyEscape) {
@@ -107,7 +135,8 @@ func (a *App) tourOverlay(c *ui.Context) {
 		target, found = a.onb.targets["mobile-nav"]
 	}
 	if !found {
-		// Not shown here (a hidden tab, a phone): no hole, the card alone.
+		// Not measured yet (the first frame of a step, or a page still
+		// loading): no hole, the card alone. Steps only name tabs that show.
 		target = ui.Rect{X: w / 2, Y: h / 2}
 	}
 	pad := float32(6)
@@ -171,9 +200,6 @@ func (a *App) tourCard(c *ui.Context, steps []tourStep, r ui.Rect, found, phone 
 		ui.Text(c, strings.ToUpper("Tur untuk "+guideRoleName(st.role))).FontSize(11).TextColor(faint(t))
 		ui.Text(c, step.title).FontSize(16).Bold()
 		ui.Text(c, step.body).FontSize(13).TextColor(t.TextMuted)
-		if !found && !phone {
-			muted(c, "Bagian ini tidak tampil di layarmu sekarang.").FontSize(11)
-		}
 		ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Margin(8, 0, 0, 0).Children(func() {
 			ui.Row(c.Key("dots")).Gap(4).AlignItems(ui.Center).Children(func() {
 				for i := range steps {

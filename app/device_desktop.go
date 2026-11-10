@@ -208,9 +208,11 @@ func attachDevice(win *mygo.Window, app *appui.App) {
 			d.handleLink(arg)
 		}
 	}
-	if err := registerNotifications(); err != nil {
-		d.err = err.Error()
+	registerErr := registerNotifications()
+	if registerErr != nil {
+		d.err = registerErr.Error()
 	}
+	app.Notifier = newDesktopNotifier(win, app, registerErr == nil)
 	if d.prefs.AceMode != "hidden" {
 		d.ace.ShowInactive()
 	}

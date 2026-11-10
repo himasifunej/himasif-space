@@ -18,6 +18,9 @@ const (
 	OnboardChecklistHidden = "checklistHidden"
 	// OnboardHandover is set when a kadiv finished the handover guide.
 	OnboardHandover = "handover"
+	// OnboardWAHello is set by the server once it queued the test message
+	// to a member's newly linked WhatsApp; clients cannot set it.
+	OnboardWAHello = "waHello"
 )
 
 // OnboardingKeys are the marks a client may set or clear.
