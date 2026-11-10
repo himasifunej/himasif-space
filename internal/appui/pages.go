@@ -17,7 +17,11 @@ func (a *App) page(c *ui.Context, r *ui.Route) {
 	switch {
 	case r.Match(PathJobdesk):
 		r.Title("Jobdesk saya")
+		a.markOnboarding(api.OnboardTasks)
 		a.jobdeskView(c)
+	case r.Match(PathPanduan):
+		r.Title("Panduan")
+		a.guideView(c)
 	case r.Match(PathReminder):
 		r.Title("Reminder pribadi")
 		a.remindersView(c)
@@ -196,6 +200,7 @@ func (a *App) spacePage(c *ui.Context, r *ui.Route, shared bool) {
 				a.overviewPage(c, title, shared)
 			}
 		case "Board tugas":
+			a.markOnboarding(api.OnboardTasks)
 			a.spaceTasksView(c)
 		case "Agenda":
 			a.agendaCalendar(c)

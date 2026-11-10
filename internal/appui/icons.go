@@ -90,6 +90,8 @@ var spaceIcons = func() map[string]*ui.SVG {
 		"pause":    `<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>`,
 		"play":     `<path d="M6 3l14 9-14 9V3Z"/>`,
 		"eye":      `<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>`,
+		"book":     `<path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/>`,
+		"compass":  `<circle cx="12" cy="12" r="9"/><path d="m16 8-2 6-6 2 2-6z"/>`,
 		"at":       `<circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/>`,
 	}
 	icons := make(map[string]*ui.SVG, len(paths))

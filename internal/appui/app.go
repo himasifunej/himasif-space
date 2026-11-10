@@ -127,6 +127,8 @@ type App struct {
 	spaceTabs                 spaceTabsUIState
 	jobdesk                   jobdeskUIState
 	home                      homeUIState
+	onb                       onboardingState
+	guide                     guideState
 
 	api    API
 	tokens TokenStore

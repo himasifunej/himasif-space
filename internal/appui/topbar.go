@@ -29,7 +29,7 @@ func (a *App) header(c *ui.Context) {
 		}
 	}
 	path := a.router.Path()
-	title := map[string]string{PathJobdesk: "Jobdesk saya", PathReminder: "Reminder pribadi", PathArsip: "Arsip periode", PathArchiveAccess: "Izin arsip", PathPengaturan: "Pengaturan", PathOrganisasi: "Organisasi", PathEvaluasi: "Evaluasi SOP", PathLainnya: "Lainnya"}[path]
+	title := map[string]string{PathJobdesk: "Jobdesk saya", PathReminder: "Reminder pribadi", PathArsip: "Arsip periode", PathArchiveAccess: "Izin arsip", PathPengaturan: "Pengaturan", PathOrganisasi: "Organisasi", PathEvaluasi: "Evaluasi SOP", PathLainnya: "Lainnya", PathPanduan: "Panduan"}[path]
 	if title == "" {
 		title = a.spaceTitle()
 	}
@@ -70,6 +70,7 @@ func (a *App) header(c *ui.Context) {
 			a.headerSearch(c, searchWidth)
 		}
 		a.headerMembers(c, w >= 900)
+		a.helpButton(c, 34)
 		a.headerBell(c)
 		if canPing(a.selectedSpace()) && path == PathSpaces {
 			ping := ui.ButtonBase(c).Label("Ping").Tooltip("Kirim ping ke anggota").Row().AlignItems(ui.Center).Justify(ui.Center).Gap(8).Height(36).Shrink(0).Padding(0, 12).Radius(8).Border(1, t.Border).TextColor(t.Text)

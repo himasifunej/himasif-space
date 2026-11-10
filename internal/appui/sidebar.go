@@ -21,7 +21,9 @@ func (a *App) sidebar(c *ui.Context) {
 	if collapsed {
 		width, padX = 60, 8
 	}
-	ui.Column(c.Key("sidebar")).Transition(ui.ElementTransition{Duration: 180 * time.Millisecond, Size: true}).Width(width).Shrink(0).Padding(14, padX).Gap(2).Background(t.Surface).BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
+	sb := ui.Column(c.Key("sidebar"))
+	a.tourTarget("sidebar", sb)
+	sb.Transition(ui.ElementTransition{Duration: 180 * time.Millisecond, Size: true}).Width(width).Shrink(0).Padding(14, padX).Gap(2).Background(t.Surface).BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
 		ui.Row(c).Shrink(0).Gap(10).Padding(4, 6, 12, 6).AlignItems(ui.Center).Children(func() {
 			ui.Image(c, spaceBrand()).Size(30, 30).Shrink(0).Fit(ui.Contain)
 			if !collapsed {
@@ -91,6 +93,10 @@ func (a *App) sidebarSections(c *ui.Context, collapsed bool) {
 }
 
 func (a *App) sidebarFoot(c *ui.Context, collapsed bool) {
+	if !a.isAdmin() && navRow(c, "Panduan", a.router.Path() == PathPanduan, collapsed, iconLead(c, "book"), "", false, nil).Clicked() {
+		a.guide.open = ""
+		a.navigate(PathPanduan)
+	}
 	if navRow(c, "Pengaturan", a.router.Path() == PathPengaturan, collapsed, iconLead(c, "settings"), "", false, nil).Clicked() {
 		a.chrome.settingsDetail = false
 		a.navigate(PathPengaturan)
@@ -203,6 +209,16 @@ func (a *App) profile(c *ui.Context, collapsed bool) {
 		panel.Width(270).Padding(12).Gap(6).Radius(12).Background(t.Surface).Border(1, t.Border).Shadow(0, 12, 32, 0, ui.RGBA(0, 0, 0, .35)).MarginStart(8)
 		ui.Text(c, a.user.DisplayName).Bold()
 		muted(c, a.user.Email)
+		if a.onboardingActive() {
+			if spaceButton(c, "Ubah profil", "user", false).FillWidth().Clicked() {
+				a.chrome.profileOpen = false
+				a.doOnboardingStep(api.OnboardProfile)
+			}
+			if spaceButton(c, "Ulangi tur", "compass", false).FillWidth().Clicked() {
+				a.chrome.profileOpen = false
+				a.startTour()
+			}
+		}
 		if a.isAdmin() && spaceButton(c, "Pengaturan organisasi", "shield", false).FillWidth().Clicked() {
 			a.navigate(PathOrganisasi)
 		}

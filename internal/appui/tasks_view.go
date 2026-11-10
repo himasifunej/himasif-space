@@ -81,6 +81,9 @@ func (a *App) taskBoardView(c *ui.Context, personal bool) {
 			return
 		}
 		a.projectTasks()
+		if !personal && a.boardEmpty() {
+			a.boardEmptyGuide(c)
+		}
 		ui.Row(c).Grow(1).MinHeight(0).FillWidth().MinWidth(0).Children(func() {
 			a.workspace.ViewBoard(c)
 		})

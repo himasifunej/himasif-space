@@ -122,7 +122,7 @@ func (a *App) mobileTopBar(c *ui.Context) {
 	w, _ := c.Size()
 	ui.Row(c.Key("mobile-top")).FillWidth().Height(56).Shrink(0).Padding(0, 8, 0, 12).Gap(6).AlignItems(ui.Center).Background(t.Background).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
 		ui.Image(c, spaceBrand()).Size(30, 30).Shrink(0).Fit(ui.Contain)
-		title := map[string]string{PathJobdesk: "Jobdesk saya", PathReminder: "Reminder pribadi", PathArsip: "Arsip periode", PathPengaturan: "Pengaturan", PathOrganisasi: "Organisasi", PathEvaluasi: "Evaluasi SOP", PathLainnya: "Lainnya"}[a.router.Path()]
+		title := map[string]string{PathJobdesk: "Jobdesk saya", PathReminder: "Reminder pribadi", PathArsip: "Arsip periode", PathPengaturan: "Pengaturan", PathOrganisasi: "Organisasi", PathEvaluasi: "Evaluasi SOP", PathLainnya: "Lainnya", PathPanduan: "Panduan"}[a.router.Path()]
 		if title == "" {
 			title = a.spaceTitle()
 		}
@@ -155,6 +155,7 @@ func (a *App) mobileTopBar(c *ui.Context) {
 			}
 		})
 		ui.Box(c).Grow(1)
+		a.helpButton(c, 36)
 		// The phone canvas keeps the sync state to a dot; a tap syncs, and
 		// opens the queue when changes wait or conflict.
 		sync := a.syncState(t)
@@ -231,7 +232,9 @@ func (a *App) mobileNav(c *ui.Context) {
 	t := c.Theme()
 	active := a.mobileActiveTab()
 	tabs := []mobileTab{{"home", "Beranda", "home"}, {"jobdesk", "Jobdesk", "task"}, {"board", "Board", "board"}, {"medhum", "Medhum", "link"}, {"more", "Lainnya", "more"}}
-	ui.Row(c.Key("mobile-nav")).FillWidth().Height(64).Shrink(0).Background(t.Surface).BorderWidth(1, 0, 0, 0).BorderColor(t.Border).Children(func() {
+	nav := ui.Row(c.Key("mobile-nav"))
+	a.tourTarget("mobile-nav", nav)
+	nav.FillWidth().Height(64).Shrink(0).Background(t.Surface).BorderWidth(1, 0, 0, 0).BorderColor(t.Border).Children(func() {
 		for _, tab := range tabs {
 			on := active == tab.key
 			b := ui.ButtonBase(c.Key(tab.key)).Label(tab.label).Grow(1).MinWidth(0).FillHeight().Column().Center().Gap(3).TextColor(t.TextMuted)

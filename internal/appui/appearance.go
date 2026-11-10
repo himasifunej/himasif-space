@@ -49,7 +49,7 @@ func primarySpaceButton(c *ui.Context, label, icon string) ui.Element {
 	if b.Hovered() {
 		b.Background(t.AccentHover)
 	}
-	return b
+	return onbPress(b)
 }
 
 func (a *App) paletteChoices(c *ui.Context) {

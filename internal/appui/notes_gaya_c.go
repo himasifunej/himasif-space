@@ -69,6 +69,8 @@ func (a *App) noteDetail(c *ui.Context) {
 					if spaceButton(c, "Muat ulang isi catatan", "refresh", false).Disabled(a.notes.busy).Clicked() && a.notes.selected != id.Nil {
 						a.openNote(a.notes.selected)
 					}
+				} else if a.notes.loaded && len(a.notes.items) == 0 {
+					ui.Column(c).FillWidth().Padding(0, 28).Children(func() { a.notesEmptyGuide(c, a.notesCanCreate()) })
 				} else {
 					pageEmpty(c, "note", "Pilih catatan", "Baca isi, lihat komentar, atau ambil editor untuk mencatat bersama.")
 				}

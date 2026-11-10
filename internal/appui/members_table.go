@@ -374,7 +374,7 @@ func (a *App) memberTable(c *ui.Context, phone bool) {
 	t := c.Theme()
 	m := &a.access.members
 	if len(m.members) == 0 {
-		pageEmpty(c, "users", "Belum ada anggota", "Belum ada keanggotaan aktif dalam divisi ini. Undang anggota lewat email.")
+		a.membersEmptyGuide(c)
 		return
 	}
 	now := c.Now()

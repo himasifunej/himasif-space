@@ -369,6 +369,7 @@ func (a *App) spaceTabButton(c *ui.Context, sp *api.Space, tabs []spaceTabDef, i
 			}
 		}
 	})
+	a.tourTarget("tab:"+tab.title, b)
 	if b.Clicked() {
 		a.chrome.tab = tab.title
 	}

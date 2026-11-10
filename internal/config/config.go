@@ -32,6 +32,9 @@ type Config struct {
 	PublicURL          string // where people open Space, for links in emails
 	DatabaseURL        string
 	WebDir             string // the built web app to serve at /, "" for none
+	// GuidesDir holds the in-app guide as Markdown files
+	// (SPACE_GUIDES_DIR); "" serves the guide built in.
+	GuidesDir string
 
 	SessionTTL time.Duration
 
@@ -79,6 +82,7 @@ func Load() (Config, error) {
 		PublicURL:     strings.TrimRight(get("SPACE_PUBLIC_URL", "http://localhost:8787"), "/"),
 		DatabaseURL:   os.Getenv("SPACE_DATABASE_URL"),
 		WebDir:        os.Getenv("SPACE_WEB_DIR"),
+		GuidesDir:     os.Getenv("SPACE_GUIDES_DIR"),
 		AdminEmail:    os.Getenv("SPACE_ADMIN_EMAIL"),
 		AdminPassword: os.Getenv("SPACE_ADMIN_PASSWORD"),
 		Mail: Mail{

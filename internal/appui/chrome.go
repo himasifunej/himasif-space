@@ -11,6 +11,8 @@ import (
 )
 
 type chromeState struct {
+	// notice is a message shown as a toast on the next frame.
+	notice                                                             string
 	preferences                                                        Preferences
 	datePickers                                                        map[string]*datePickerState
 	whens                                                              map[string]*whenState
@@ -145,6 +147,8 @@ func (a *App) shell(c *ui.Context) {
 		a.chrome.appearance = false
 	}
 
+	a.tourFrameStart()
+	a.ensureOnboarding(c.Now())
 	a.tickOffline(c.Now())
 	a.tickRealtime(c)
 	a.tickNotes(c.Now())
@@ -164,6 +168,7 @@ func (a *App) shell(c *ui.Context) {
 	if isMobile(c) {
 		a.mobileShell(c)
 		a.pingDialog(c)
+		a.onboardingOverlays(c)
 		a.toasts(c)
 		return
 	}
@@ -181,6 +186,8 @@ func (a *App) shell(c *ui.Context) {
 					}
 					if a.chrome.appearance {
 						a.appearance(c)
+					} else if a.guide.panel {
+						a.guidePanel(c)
 					}
 				})
 			})
@@ -194,6 +201,7 @@ func (a *App) shell(c *ui.Context) {
 		})
 	})
 	a.pingDialog(c)
+	a.onboardingOverlays(c)
 	a.toasts(c)
 }
 

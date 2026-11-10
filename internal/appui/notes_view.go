@@ -116,6 +116,10 @@ func (a *App) notesList(c *ui.Context) {
 		title, detail := "Belum ada catatan", "Mulai dari template rapat, jadwal, atau catatan bebas."
 		if q != "" {
 			title, detail = "Catatan tidak ditemukan", "Coba judul atau nama pencatat lain."
+		} else if isMobile(c) {
+			// The phone has no detail pane: the guide shows in the list.
+			a.notesEmptyGuide(c, a.notesCanCreate())
+			return
 		}
 		pageEmpty(c, "note", title, detail)
 	}

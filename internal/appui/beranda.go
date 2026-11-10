@@ -280,6 +280,7 @@ func (a *App) overviewPage(c *ui.Context, title string, shared bool) {
 					a.home.rng = homeRange(i)
 				}
 			})
+			a.onboardingBeranda(c, phone)
 			if !a.tasks.loaded {
 				detail := "Mengambil pekerjaan dari server."
 				if a.tasks.err != "" {
