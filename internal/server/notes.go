@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/himasifunej/himasif-space/internal/api"
@@ -67,8 +68,9 @@ func (s *Server) noteAccess(ctx context.Context, q store.Querier, p *principal, 
 	if n.Lock != nil && !n.Lock.HeldByCaller {
 		canEdit = false
 	}
-	n.Permissions = api.NotePermissions{UploadFiles: manage && s.cfg.AttachmentDir != "", MaxAttachmentBytes: s.attachmentLimit(), Manage: manage, Comment: open && comment, CanEdit: canEdit}
-	return nil
+	n.Permissions = api.NotePermissions{UploadFiles: manage && s.cfg.AttachmentDir != "", MaxAttachmentBytes: s.attachmentLimit(), Manage: manage, Comment: open && comment, CanEdit: canEdit,
+		Share: canShareNote(manage, sc, n, p.User.ID)}
+	return s.noteSharing(ctx, q, n)
 }
 
 // withNote wraps a note transaction: peek the period, lock period→note→
@@ -225,7 +227,7 @@ func (s *Server) createNote(w http.ResponseWriter, r *http.Request, p *principal
 		return err
 	}
 	title, err := validateNoteTitle(req.Title)
-	if err != nil {
+	if err != nil && (req.MeetingID == nil || strings.TrimSpace(req.Title) != "") {
 		return err
 	}
 	if req.TemplateID != nil && len(req.Content) > 0 {
@@ -270,13 +272,28 @@ func (s *Server) createNote(w http.ResponseWriter, r *http.Request, p *principal
 			content, kind = tmpl.Content, api.TemplateCustom
 		case len(req.Content) > 0:
 			content = req.Content
-			if req.TemplateKind == api.TemplateMeeting || req.TemplateKind == api.TemplateSchedule {
+			if builtinTemplateKind(req.TemplateKind) {
 				kind = req.TemplateKind
 			}
 		default:
 			content = builtinTemplateContent(req.TemplateKind)
-			if req.TemplateKind == api.TemplateMeeting || req.TemplateKind == api.TemplateSchedule {
+			if builtinTemplateKind(req.TemplateKind) {
 				kind = req.TemplateKind
+			}
+		}
+		var meeting *api.Meeting
+		if req.MeetingID != nil {
+			m, err := s.meetingForNote(ctx, q, *req.MeetingID, sid)
+			if err != nil {
+				return err
+			}
+			meeting = &m
+			kind = api.TemplateMeeting
+			if req.TemplateID == nil && len(req.Content) == 0 {
+				content = meetingNoteContent(m)
+			}
+			if strings.TrimSpace(req.Title) == "" {
+				title = meetingNoteTitle(m)
 			}
 		}
 		if err := api.ValidateNoteContent(content); err != nil {
@@ -285,8 +302,16 @@ func (s *Server) createNote(w http.ResponseWriter, r *http.Request, p *principal
 		n := store.NoteRow{Note: api.Note{ID: id.New(), SpaceID: sid, PeriodID: period.ID, OwnerDivisionID: did,
 			Title: title, Content: content, TemplateKind: kind, Version: 1, CreatedBy: taskPerson(p),
 			CreatedAt: now, UpdatedAt: now}}
+		if meeting != nil {
+			n.MeetingID = &meeting.ID
+		}
 		if err := s.store.InsertNote(ctx, q, n); err != nil {
 			return err
+		}
+		if meeting != nil {
+			if _, err := q.Exec(ctx, `update meetings set note_id=$2 where id=$1 and note_id is null`, meeting.ID, n.ID); err != nil {
+				return err
+			}
 		}
 		if err := s.noteAccess(ctx, q, p, period, &n); err != nil {
 			return err

@@ -116,8 +116,8 @@ Setiap tahap: branch sendiri dari tip terbaru, test lolos (kecuali 3 test NoteDo
     **C2a — Autosave** (keputusan owner, §7): simpan otomatis setelah ±4 detik diam, editor tidak tereset, riwayat digabung, pembaca diperbarui tanpa lompat.
 7. **C3 — Interaksi blok**: handle + / ⠇ (sisip, seret = `moveBlock`), menu `/` (grup Notulen dulu), bilah blok HP. Ini perubahan terbesar pada `notes_document.go`; pertahankan kunci editor dan paging untuk dokumen panjang.
 8. **C4 — Mention & action item**: `@` anggota/tugas, butir action item dengan PJ + tenggat, "Jadikan tugas" mengisi `taskId` + chip #T (memakai `OnExtract`/`NoteLinkTask` yang ada).
-9. **C5 — Template & catatan baru**: pemilih template; template Notulen berisi Agenda (dengan menit), Pembahasan, Keputusan, Action item; isi otomatis dari rapat terjadwal.
-10. **C6 — Tautan publik & tag** (migrasi 0028): popover Bagikan (Hanya divisi ini / Publik lewat tautan), endpoint buat/cabut/buat ulang, halaman publik hanya-baca tanpa login dengan noindex dan DTO daftar putih, audit, tag.
+9. ✅ (0.4.2) **C5 — Template & catatan baru**: pemilih template; template Notulen berisi Agenda (dengan menit), Pembahasan, Keputusan, Action item; isi otomatis dari rapat terjadwal.
+10. ✅ (0.4.2, migrasi 0031) **C6 — Tautan publik & tag**: popover Bagikan (Hanya divisi ini / Publik lewat tautan), endpoint buat/cabut/buat ulang, halaman publik hanya-baca tanpa login dengan noindex dan DTO daftar putih, audit, tag.
 11. **T1 — Timer lokal** (disetujui owner, dikerjakan sebelum T2): properti Timer, durasi agenda, pil sticky, jeda/sembunyikan, peringatan waktu habis (+5 mnt / agenda berikutnya). Semua di klien.
 12. **T2 — Timer bersama** (migrasi 0029 + endpoint): status di server, sinkron lewat pembaruan rapat yang ada.
 13. **C7 — Ringkasan ke WhatsApp** (opsional, setelah keputusan).

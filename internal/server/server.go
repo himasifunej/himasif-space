@@ -58,6 +58,9 @@ type Server struct {
 	// requests of one client address to the public account endpoints.
 	mailLimit   *limiter
 	publicLimit *limiter
+	// noteViewLimit bounds the public note views of one address: the page
+	// polls every 20 s, so it is wider than publicLimit.
+	noteViewLimit *limiter
 
 	// bg tracks work that outlives its request: recovery emails.
 	bg               sync.WaitGroup
@@ -81,11 +84,12 @@ func New(cfg config.Config, st *store.Store, mailer mail.Mailer, log *slog.Logge
 		log:              log,
 		now:              time.Now,
 		// Ten attempts per email and per address in a quarter of an hour.
-		loginLimit:  newLimiter(10, 15*time.Minute),
-		mailLimit:   newLimiter(5, 15*time.Minute),
-		publicLimit: newLimiter(30, 15*time.Minute),
-		sns:         newSNSClient(),
-		waDMLimit:   newLimiter(5, 15*time.Minute),
+		loginLimit:    newLimiter(10, 15*time.Minute),
+		mailLimit:     newLimiter(5, 15*time.Minute),
+		publicLimit:   newLimiter(30, 15*time.Minute),
+		noteViewLimit: newLimiter(300, 15*time.Minute),
+		sns:           newSNSClient(),
+		waDMLimit:     newLimiter(5, 15*time.Minute),
 	}
 	result.initWorkers()
 	result.configureRuntime()
@@ -305,6 +309,12 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/notes/{noteId}/attachments/{attachmentId}/file", s.handle(s.downloadNoteAttachment))
 	mux.Handle("DELETE /api/notes/{noteId}/attachments/{attachmentId}", s.handle(s.deleteNoteAttachment))
 	mux.Handle("GET /api/notes/{noteId}/links", s.handle(s.listNoteLinks))
+	mux.Handle("POST /api/notes/{noteId}/public-link", s.handle(s.createNotePublicLink))
+	mux.Handle("DELETE /api/notes/{noteId}/public-link", s.handle(s.revokeNotePublicLink))
+	mux.Handle("PUT /api/notes/{noteId}/tags", s.handle(s.setNoteTags))
+	// Public links (C6): no sign-in, read-only, never indexed.
+	mux.HandleFunc("GET /api/public/notes/{token}", s.getPublicNoteJSON)
+	mux.HandleFunc("GET /n/{token}", s.getPublicNotePage)
 	mux.Handle("POST /api/notes/{noteId}/links", s.handle(s.addNoteLink))
 	mux.Handle("DELETE /api/notes/{noteId}/links/{linkId}", s.handle(s.deleteNoteLink))
 

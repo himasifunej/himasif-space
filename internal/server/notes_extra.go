@@ -712,26 +712,33 @@ func builtinTemplateContent(kind string) []api.NoteBlock {
 	return []api.NoteBlock{}
 }
 
-// builtinTemplates returns the three built-in templates. They are not rows:
-// the server supplies them so every space has them (NTE-02).
+// builtinTemplates returns the built-in templates (C5: Notulen rapat
+// divisi, Evaluasi, Rapat singkat, Kosong; and Tabel Jadwal). They are not
+// rows: the server supplies them so every space has them (NTE-02).
 func builtinTemplates() []api.NoteTemplate {
-	meeting := []api.NoteBlock{
-		heading(1, "Notulensi Rapat"),
-		heading(2, "Agenda"), emptyPara(),
-		heading(2, "Pembahasan"), emptyPara(),
-		heading(2, "Keputusan"), emptyPara(),
-		heading(2, "Tindak lanjut"),
-		{Type: api.BlockChecklist, Items: []api.NoteListItem{{Spans: []api.Span{}, Checked: false}}},
-	}
+	meeting := meetingTemplateContent(nil)
 	schedule := []api.NoteBlock{
 		heading(1, "Tabel Jadwal"),
 		{Type: api.BlockTable, Columns: []string{"Tanggal", "Jam", "Kegiatan", "PJ", "Keterangan"},
 			Rows: [][][]api.Span{{{}, {}, {}, {}, {}}}},
 	}
 	free := []api.NoteBlock{emptyPara()}
+	evaluation := []api.NoteBlock{
+		heading(2, "Yang berjalan baik"), bullets(),
+		heading(2, "Yang perlu diperbaiki"), bullets(),
+		heading(2, "Penyebab"), emptyPara(),
+		heading(2, "Rencana perbaikan"), checklist(),
+	}
+	brief := []api.NoteBlock{
+		heading(2, "Topik"), emptyPara(),
+		heading(2, "Keputusan"), bullets(),
+		heading(2, "Action item"), checklist(),
+	}
 	return []api.NoteTemplate{
-		{ID: id.Nil, SpaceID: nil, Kind: api.TemplateMeeting, Name: "Rapat / Notulensi", Builtin: true, Content: meeting},
+		{ID: id.Nil, SpaceID: nil, Kind: api.TemplateMeeting, Name: "Notulen rapat divisi", Builtin: true, Content: meeting},
+		{ID: id.Nil, SpaceID: nil, Kind: api.TemplateEvaluation, Name: "Evaluasi", Builtin: true, Content: evaluation},
+		{ID: id.Nil, SpaceID: nil, Kind: api.TemplateBrief, Name: "Rapat singkat", Builtin: true, Content: brief},
+		{ID: id.Nil, SpaceID: nil, Kind: api.TemplateFree, Name: "Kosong", Builtin: true, Content: free},
 		{ID: id.Nil, SpaceID: nil, Kind: api.TemplateSchedule, Name: "Tabel Jadwal", Builtin: true, Content: schedule},
-		{ID: id.Nil, SpaceID: nil, Kind: api.TemplateFree, Name: "Catatan Bebas", Builtin: true, Content: free},
 	}
 }

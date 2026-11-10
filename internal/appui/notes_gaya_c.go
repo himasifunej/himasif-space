@@ -267,6 +267,7 @@ func (a *App) noteDocBar(c *ui.Context, phone bool) {
 			a.notes.reading = false // the next time the editor is taken, it opens in Edit
 		}
 		a.noteLockChip(c, phone)
+		a.noteShareButton(c, phone)
 		label, icon, warn := a.noteSaveState(now)
 		color := faint(t)
 		if warn {
@@ -526,6 +527,7 @@ func (a *App) notePanelMeeting(c *ui.Context) {
 	t := c.Theme()
 	n := a.notes.note
 	m, loading := a.noteMeeting()
+	a.noteTagsSection(c)
 	notePanelSection(c, "sec-rapat", "Rapat", func() {
 		switch {
 		case m != nil:

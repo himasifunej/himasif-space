@@ -51,6 +51,10 @@ const (
 	TemplateSchedule = "schedule"
 	TemplateFree     = "free"
 	TemplateCustom   = "custom"
+	// TemplateEvaluation and TemplateBrief are the built-in Evaluasi and
+	// Rapat singkat (C5).
+	TemplateEvaluation = "evaluation"
+	TemplateBrief      = "brief"
 )
 
 // Targets a note may link to (NTE-05).
@@ -152,22 +156,27 @@ type NoteListItem struct {
 // Note is a note as the caller sees it. Content is the block document. The
 // list form omits Content, Comments and Attachments (see contract).
 type Note struct {
-	ID              id.ID            `json:"id"`
-	SpaceID         id.ID            `json:"spaceId"`
-	PeriodID        id.ID            `json:"periodId"`
-	OwnerDivisionID id.ID            `json:"ownerDivisionId"`
-	Title           string           `json:"title"`
-	Content         []NoteBlock      `json:"content,omitempty"`
-	TemplateKind    string           `json:"templateKind"`
-	MeetingID       *id.ID           `json:"meetingId,omitempty"`
-	Version         int64            `json:"version"`
-	CreatedBy       PersonRef        `json:"createdBy"`
-	CreatedAt       time.Time        `json:"createdAt"`
-	UpdatedAt       time.Time        `json:"updatedAt"`
-	Lock            *NoteLock        `json:"lock,omitempty"`
-	Attachments     []NoteAttachment `json:"attachments,omitempty"`
-	Comments        []NoteComment    `json:"comments,omitempty"`
-	Permissions     NotePermissions  `json:"permissions"`
+	ID              id.ID       `json:"id"`
+	SpaceID         id.ID       `json:"spaceId"`
+	PeriodID        id.ID       `json:"periodId"`
+	OwnerDivisionID id.ID       `json:"ownerDivisionId"`
+	Title           string      `json:"title"`
+	Content         []NoteBlock `json:"content,omitempty"`
+	TemplateKind    string      `json:"templateKind"`
+	MeetingID       *id.ID      `json:"meetingId,omitempty"`
+	Version         int64       `json:"version"`
+	CreatedBy       PersonRef   `json:"createdBy"`
+	CreatedAt       time.Time   `json:"createdAt"`
+	UpdatedAt       time.Time   `json:"updatedAt"`
+	Lock            *NoteLock   `json:"lock,omitempty"`
+	// Tags are lowercase words the writers chose (C6).
+	Tags []string `json:"tags,omitempty"`
+	// PublicLink is the live "Publik lewat tautan", if any. Its token is
+	// never sent again after it was made.
+	PublicLink  *NotePublicLink  `json:"publicLink,omitempty"`
+	Attachments []NoteAttachment `json:"attachments,omitempty"`
+	Comments    []NoteComment    `json:"comments,omitempty"`
+	Permissions NotePermissions  `json:"permissions"`
 }
 
 // NotePermissions tells the client what the caller may do. CanEdit is true
@@ -178,6 +187,9 @@ type NotePermissions struct {
 	Manage             bool  `json:"manage"`
 	Comment            bool  `json:"comment"`
 	CanEdit            bool  `json:"canEdit"`
+	// Share: the caller may turn the public link on, off or anew: the
+	// owner division's kadiv, or the note's writer who may manage notes.
+	Share bool `json:"share"`
 }
 
 // NoteLock is the single active editor of a note (NTE-06).
@@ -195,6 +207,10 @@ type NoteCreateRequest struct {
 	TemplateID   *id.ID      `json:"templateId,omitempty"`
 	TemplateKind string      `json:"templateKind,omitempty"`
 	Content      []NoteBlock `json:"content,omitempty"`
+	// MeetingID, with the meeting template, fills the note from that
+	// scheduled meeting (title, time, place, agenda from its description)
+	// and links the meeting to the note (C5).
+	MeetingID *id.ID `json:"meetingId,omitempty"`
 }
 
 // NoteWriteRequest replaces a note's title and content. ExpectedVersion

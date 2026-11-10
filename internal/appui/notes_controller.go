@@ -105,6 +105,7 @@ type notesUIState struct {
 	links                                                                                []api.NoteLink
 	linksErr                                                                             string
 	createOpen                                                                           bool
+	share                                                                                noteSharingState
 	newTitle                                                                             string
 	templateID                                                                           id.ID
 	templateKind                                                                         string
@@ -465,6 +466,7 @@ func (a *App) beginNote() {
 		return
 	}
 	a.notes.createOpen, a.notes.newTitle, a.notes.templateID = true, "", id.Nil
+	a.notes.share.fromMeeting = true
 	if len(a.notes.templates) > 0 {
 		a.notes.templateKind = a.notes.templates[0].Kind
 	}
@@ -475,11 +477,19 @@ func (a *App) createNote() {
 		return
 	}
 	title := strings.TrimSpace(a.notes.newTitle)
-	if title == "" || utf8.RuneCountInString(title) > 200 {
+	var meeting *api.Meeting
+	if a.notes.share.fromMeeting && a.notes.templateKind == api.TemplateMeeting && a.notes.templateID == id.Nil {
+		meeting = a.nextNoteMeeting(time.Now())
+	}
+	if (title == "" && meeting == nil) || utf8.RuneCountInString(title) > 200 {
 		a.notes.err = "Isi judul note, maksimal 200 karakter."
 		return
 	}
 	req := api.NoteCreateRequest{Title: title, TemplateKind: a.notes.templateKind}
+	if meeting != nil {
+		mid := meeting.ID
+		req.MeetingID = &mid
+	}
 	if a.notes.templateID != id.Nil {
 		if !slices.ContainsFunc(a.notes.templates, func(t api.NoteTemplate) bool { return !t.Builtin && t.ID == a.notes.templateID }) {
 			return
@@ -492,6 +502,14 @@ func (a *App) createNote() {
 		n, err := service.CreateNote(context.Background(), space, req)
 		return func() {
 			a.notes.createOpen = false
+			if n.MeetingID != nil {
+				for i := range a.meetings.items {
+					if a.meetings.items[i].ID == *n.MeetingID {
+						nid := n.ID
+						a.meetings.items[i].NoteID = &nid
+					}
+				}
+			}
 			a.replaceNote(n)
 			a.openNote(n.ID)
 			a.notes.notice = "Note tersimpan di server."

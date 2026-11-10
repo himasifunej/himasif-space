@@ -45,13 +45,13 @@ func (s *Store) NotePeriod(ctx context.Context, q Querier, nid id.ID) (id.ID, er
 	return pid, err
 }
 
-const noteColumns = `n.id, n.space_id, n.period_id, n.owner_division_id, n.title, n.content, n.template_kind, n.meeting_id, n.version, n.created_by, u.display_name, n.created_at, n.updated_at`
+const noteColumns = `n.id, n.space_id, n.period_id, n.owner_division_id, n.title, n.content, n.template_kind, n.meeting_id, n.version, n.created_by, u.display_name, n.created_at, n.updated_at, n.tags`
 
 func scanNote(row pgx.Row) (NoteRow, error) {
 	var n NoteRow
 	var content []byte
 	err := row.Scan(&n.ID, &n.SpaceID, &n.PeriodID, &n.OwnerDivisionID, &n.Title, &content, &n.TemplateKind,
-		&n.MeetingID, &n.Version, &n.CreatedBy.ID, &n.CreatedBy.DisplayName, &n.CreatedAt, &n.UpdatedAt)
+		&n.MeetingID, &n.Version, &n.CreatedBy.ID, &n.CreatedBy.DisplayName, &n.CreatedAt, &n.UpdatedAt, &n.Tags)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return n, ErrNotFound
 	}
@@ -94,9 +94,9 @@ func (s *Store) InsertNote(ctx context.Context, q Querier, n NoteRow) error {
 		return err
 	}
 	_, err = q.Exec(ctx, `insert into notes
-		(id, space_id, period_id, owner_division_id, title, content, template_kind, meeting_id, version, created_by, created_at, updated_at)
-		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-		n.ID, n.SpaceID, n.PeriodID, n.OwnerDivisionID, n.Title, content, n.TemplateKind, n.MeetingID, n.Version, n.CreatedBy.ID, n.CreatedAt, n.UpdatedAt)
+		(id, space_id, period_id, owner_division_id, title, content, template_kind, meeting_id, version, created_by, created_at, updated_at, tags)
+		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+		n.ID, n.SpaceID, n.PeriodID, n.OwnerDivisionID, n.Title, content, n.TemplateKind, n.MeetingID, n.Version, n.CreatedBy.ID, n.CreatedAt, n.UpdatedAt, nonNilTags(n.Tags))
 	return err
 }
 

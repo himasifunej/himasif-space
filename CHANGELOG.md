@@ -5,6 +5,24 @@ Versi mengikuti aturan sebelum rilis publik:
 - **Minor** naik untuk pembaruan besar.
 - **1.0.0** untuk rilis publik.
 
+## 0.4.2 — 2026-11-10 · Catatan: tautan publik, tag, template
+
+- **Bagikan catatan (C6)**: dua pilihan, **Hanya divisi ini** (bawaan) dan **Publik lewat tautan**.
+  - Tautan publik bisa dibuka tanpa login dan hanya-baca.
+  - Tokennya acak 32 byte, dan server hanya menyimpan hash-nya.
+  - Tautan bisa dimatikan atau dibuat ulang; tautan lama langsung 404.
+  - Halamannya tidak diindeks, tidak di-cache, dan tidak mengirim referer.
+  - Hanya kadiv divisi atau penulis catatan yang boleh menyalakannya.
+  - Isinya disaring di server: mention tampil sebagai nama saja; tidak ada nomor WA, NIM, email, ID, komentar, lampiran, atau tautan ke Space.
+  - Autosave langsung terlihat oleh pembaca publik.
+  - Menutup periode ikut menutup tautannya.
+  - Setiap aksi tercatat di audit.
+- **Tag catatan** di panel Rapat. Semua tag ditulis huruf kecil, paling banyak 10.
+- **Template (C5)**: Notulen rapat divisi, Evaluasi, Rapat singkat, Kosong, dan Tabel Jadwal.
+  - Notulen berisi Agenda (setiap butir 10 mnt untuk timer), Pembahasan, Keputusan, dan Action item.
+  - Notulen bisa diisi otomatis dari rapat terjadwal berikutnya: judul, waktu dan tempat, agenda dari deskripsi rapat, dan rapat ikut tertaut ke catatan.
+- **Migrasi 0031** (aditif): kolom `notes.tags`, tabel `note_public_links`, dan jenis template `evaluation`/`brief`.
+
 ## 0.4.1 — 2026-11-10 · Izin notifikasi dan tur yang pas per role
 
 - **Langkah baru "Izinkan notifikasi"** di checklist "Langkah pertama". Langkah ini mengikuti izin di perangkat yang sedang dipakai:

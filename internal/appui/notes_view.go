@@ -130,7 +130,7 @@ func (a *App) noteCreatePopover(c *ui.Context, anchor ui.Element) {
 		ui.Text(c, "Catatan baru").Bold()
 		taskInput(c, "new-note-title", "Judul catatan baru", &a.notes.newTitle)
 		muted(c, "Pilih template awal").FontSize(12)
-		ui.Scroll(c).FillWidth().MaxHeight(160).Children(func() {
+		ui.Scroll(c).FillWidth().MaxHeight(240).Children(func() {
 			ui.Column(c).FillWidth().MinWidth(0).Gap(5).Children(func() {
 				for _, template := range a.notes.templates {
 					active := a.notes.templateID == template.ID
@@ -149,8 +149,12 @@ func (a *App) noteCreatePopover(c *ui.Context, anchor ui.Element) {
 				}
 			})
 		})
+		meeting := a.noteMeetingChoice(c)
+		if meeting != nil {
+			muted(c, "Judul boleh kosong: diisi \"Notulen "+meeting.Title+"\" dan tanggalnya. Agenda diambil dari deskripsi rapat.").FontSize(11)
+		}
 		muted(c, "Isi template disalin saat dibuat. Perubahan template berikutnya tidak mengubah catatan ini.").FontSize(11)
-		if spaceButton(c, "Buat catatan sekarang", "plus", true).FillWidth().Disabled(a.notesWriteBlocked() || !a.notesCanCreate() || strings.TrimSpace(a.notes.newTitle) == "").Clicked() {
+		if spaceButton(c, "Buat catatan sekarang", "plus", true).FillWidth().Disabled(a.notesWriteBlocked() || !a.notesCanCreate() || (strings.TrimSpace(a.notes.newTitle) == "" && meeting == nil)).Clicked() {
 			a.createNote()
 		}
 	})
