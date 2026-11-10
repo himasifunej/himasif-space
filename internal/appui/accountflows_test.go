@@ -287,3 +287,34 @@ func TestIncomingInvitationWaitsForCoreLogin(t *testing.T) {
 		t.Fatal("invitation did not inspect and render after core login finished")
 	}
 }
+
+// A link the server no longer accepts (revoked, used, expired, resent) says
+// so plainly: no "Memeriksa…" beside the error and no pointless retry. A
+// network failure keeps the retry.
+func TestInvitationLinkNoLongerValid(t *testing.T) {
+	h, f := accountHarness(t, api.AccountPerson, false)
+	f.resultErr = &client.Error{Status: 410, Code: api.CodeInvalidToken, Message: "Tautan tidak berlaku lagi. Minta tautan baru."}
+	if err := h.app.HandleAccountLink("#/undangan?token=revoked"); err != nil {
+		t.Fatal(err)
+	}
+	h.app.inspectInvitation()
+	h.settle()
+	h.want("Undangan ini tidak berlaku lagi")
+	h.dontWant("Memeriksa undangan dan alamat email…")
+	h.dontWant("Periksa lagi")
+	// Frames must not ask the server again and again for a dead link.
+	for i := 0; i < 5; i++ {
+		h.tt.Frame()
+	}
+	h.settle()
+	if f.inspects != 1 {
+		t.Fatalf("dead link inspected %d times", f.inspects)
+	}
+
+	f.resultErr = &client.Error{Status: 500, Code: api.CodeInternal, Message: "Terjadi kesalahan di server."}
+	h.app.inspectInvitation()
+	h.settle()
+	h.want("Undangan belum bisa diperiksa.")
+	h.want("Periksa lagi")
+	h.dontWant("Memeriksa undangan dan alamat email…")
+}

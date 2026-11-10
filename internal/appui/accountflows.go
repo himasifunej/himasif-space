@@ -38,6 +38,9 @@ type accountFlowState struct {
 	active, busy, awaitingLogin                   bool
 	token, verification                           string
 	preview                                       *api.InvitationPreview
+	// gone: the server said the invitation link no longer works (revoked,
+	// used, expired or replaced by a resend); checking again cannot help.
+	gone bool
 	err, message                                  string
 	link, email, name, password, confirm          string
 	owner                                         id.ID
@@ -194,14 +197,20 @@ func (a *App) runAccount(work func(context.Context, AccountAPI) func()) {
 
 func (a *App) inspectInvitation() {
 	req := api.InvitationTokenRequest{Token: a.account.token}
+	a.account.gone = false
 	a.runAccount(func(ctx context.Context, service AccountAPI) func() {
 		preview, err := service.InspectInvitation(ctx, req)
 		return func() {
+			var ce *client.Error
+			if errors.As(err, &ce) && ce.Code == api.CodeInvalidToken {
+				a.account.gone, a.account.err = true, ""
+				return
+			}
 			if err != nil {
 				a.account.err = errorText(err)
 				return
 			}
-			a.account.preview = &preview
+			a.account.gone, a.account.preview = false, &preview
 		}
 	})
 }
@@ -380,7 +389,7 @@ func (a *App) accountFlowView(c *ui.Context) bool {
 	if !a.account.active || a.screen == screenStarting || a.busy {
 		return false
 	}
-	if a.account.mode == "invite" && a.account.preview == nil && !a.account.busy && a.account.err == "" {
+	if a.account.mode == "invite" && a.account.preview == nil && !a.account.busy && a.account.err == "" && !a.account.gone {
 		a.inspectInvitation()
 	}
 	ui.Scroll(c).Fill().Children(func() {
@@ -461,9 +470,18 @@ func (a *App) invitationView(c *ui.Context) {
 	ui.Text(c, "Undangan ke Space").FontSize(21).Bold()
 	p := a.account.preview
 	if p == nil {
-		muted(c, "Memeriksa undangan dan alamat email…")
-		if a.account.err != "" && spaceButton(c, "Periksa lagi", "refresh", false).Disabled(a.account.busy).Clicked() {
-			a.inspectInvitation()
+		switch {
+		case a.account.gone:
+			ui.Text(c, "Undangan ini tidak berlaku lagi").FontSize(15).Bold().TextColor(c.Theme().Danger)
+			muted(c, "Undangannya sudah dicabut, sudah dipakai, kedaluwarsa, atau diganti oleh undangan yang dikirim ulang. Minta kadiv divisimu mengirim ulang undangan, lalu buka tautan dari email terbaru.")
+		case a.account.err != "":
+			// The error itself shows below (accountMessages).
+			muted(c, "Undangan belum bisa diperiksa.")
+			if spaceButton(c, "Periksa lagi", "refresh", false).Disabled(a.account.busy).Clicked() {
+				a.inspectInvitation()
+			}
+		default:
+			muted(c, "Memeriksa undangan dan alamat email…")
 		}
 		return
 	}
