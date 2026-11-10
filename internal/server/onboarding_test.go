@@ -24,6 +24,8 @@ func TestOnboardingProgressFollowsAccount(t *testing.T) {
 		t.Fatal("a second mark moved the first time")
 	}
 	o.call("POST", "/api/me/onboarding", mTok, api.OnboardingMark{Key: api.OnboardTour}, &got)
+	// A fresh value each time: decoding into a filled map would merge.
+	got = api.Onboarding{}
 	o.call("POST", "/api/me/onboarding", mTok, api.OnboardingMark{Key: api.OnboardTour, Clear: true}, &got)
 	if got.Done(api.OnboardTour) || !got.Done(api.OnboardWelcome) {
 		t.Fatalf("clear = %+v", got)
