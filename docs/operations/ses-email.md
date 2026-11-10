@@ -1,6 +1,10 @@
 # Email undangan lewat Amazon SES
 
-Status 10 Nov 2026: kode siap (branch `feat/nim-wa-ses`). **Email di pilot belum diaktifkan**; pilot berjalan dengan `SPACE_MAIL_DRIVER=disabled`. Mengaktifkannya butuh izin owner lewat GOA.
+Status 10 Nov 2026:
+- **Email aktif di pilot (0.3.7)** dengan `SPACE_MAIL_DRIVER=smtp`, atas izin owner lewat GOA.
+- Satu undangan uji ke alamat owner diterima SES (201) lalu dicabut. Jadi SES tidak menolak alamat yang belum diverifikasi, yang menandakan akun sudah keluar dari sandbox atau alamat itu terverifikasi. Status sandbox sendiri tidak bisa dicek tanpa kredensial API AWS.
+- **Bounce lewat SNS belum disambung**, karena butuh langkah di konsol AWS (langkah 3).
+- Catatan teknis: `creds use` menyamarkan stdout-nya, jadi `ses-env.sh --stage` mengirim nilai lewat ssh dari dalam proses itu (`ses-stage-inner.sh`) dan memverifikasinya dengan hash di server. Berkas `ses.env.pending` dihapus setelah aktivasi.
 
 ## Yang dilakukan server
 - **Driver** (`SPACE_MAIL_DRIVER`):

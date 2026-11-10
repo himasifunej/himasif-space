@@ -37,6 +37,12 @@ Setiap deploy tetap butuh persetujuan owner lewat GOA.
    Login API cukup sekali (`pw/tok.js`); batasnya 10 kali per 15 menit.
 6. Tidak ada uji UI lewat browser. Owner menguji sendiri di pilot.
 
+Pelajaran dari deploy 0.3.7:
+- Unggahan staging lewat `/tmp` lalu `r-unpack.sh`, karena quoting lewat `sudo -i` menghapus variabel.
+- Folder `manual-backups` dibuat otomatis; folder ini tidak ikut pindah dari aws-vps.
+- `/health` bridge butuh token.
+- Zona waktu tc-vps UTC+8, jadi `--since` smoke check memakai `UTC`.
+
 Skrip lama untuk aws-vps (yang build di server) diarsipkan di `E:\himasif-cache\deploy\aws-old\` dan tidak dipakai lagi.
 
 ## Catatan
