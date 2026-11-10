@@ -6,6 +6,7 @@ import (
 	"errors"
 	"math"
 	"net/url"
+	"runtime/debug"
 	"strconv"
 	"sync"
 	"time"
@@ -20,6 +21,13 @@ import (
 
 var errIslandUnavailable = errors.New("dynamic island unavailable; use OS toast")
 
+// islandTopGap is the island's distance from the top of the work area, in
+// DIP, as in the approved canvas.
+const islandTopGap = 6
+
+// islandIdleDestroy is how long an empty island keeps its window.
+const islandIdleDestroy = 10 * time.Minute
+
 type islandNotice struct {
 	n        appui.Notice
 	fallback func()
@@ -31,6 +39,7 @@ type islandPresenter struct {
 	// Only the isolated spike supplies an override, to measure rendering even
 	// when this Windows session currently has Focus Assist or fullscreen on.
 	environmentCheck                         func() bool
+	idleAfter                                time.Duration // 0: islandIdleDestroy; the spike shortens it
 	d                                        *desktopDevice
 	mu                                       sync.Mutex
 	m                                        island.Machine
@@ -201,15 +210,25 @@ func (p *islandPresenter) scheduleIdleDestroy() {
 	}
 	p.idleSince = time.Now()
 	stamp := p.idleSince
-	time.AfterFunc(10*time.Minute, func() {
+	idle := p.idleAfter
+	if idle == 0 {
+		idle = islandIdleDestroy
+	}
+	time.AfterFunc(idle, func() {
 		p.d.win.Update(func() {
 			p.mu.Lock()
 			empty := p.m.Current == nil
 			p.mu.Unlock()
-			if empty && p.idleSince == stamp && p.win != nil {
+			if p.idleSince != stamp {
+				return
+			}
+			p.idleSince = time.Time{}
+			if empty && p.win != nil {
 				p.win.Destroy()
 				p.win = nil
-				p.idleSince = time.Time{}
+				// The renderer's buffers are garbage now; return them to
+				// Windows instead of waiting for the scavenger.
+				debug.FreeOSMemory()
 			}
 		})
 	})
@@ -227,7 +246,7 @@ func (p *islandPresenter) position(w, h int) {
 	if a.Width == 0 {
 		a = mygo.Screen.PrimaryDisplay().WorkArea
 	}
-	p.win.SetPosition(a.X+(a.Width-w)/2, a.Y+8)
+	p.win.SetPosition(a.X+(a.Width-w)/2, a.Y+islandTopGap)
 }
 
 func (p *islandPresenter) refreshPosition() {
@@ -293,11 +312,12 @@ func (p *islandPresenter) view(c *ui.Context) {
 		if state == island.Expanded {
 			p.target = [3]float64{440, 184, 30}
 		}
+		// The shape starts moving now: the time since the last frame (up to
+		// 2 s while a banner rests, minutes since the island last hid) must
+		// not advance the spring, or it lands at once without its motion.
+		p.last = now
 	}
-	dt := now.Sub(p.last).Seconds()
-	if p.last.IsZero() {
-		dt = 0
-	}
+	dt := islandFrameStep(p.last, now)
 	p.last = now
 	moving := false
 	for i := range p.geometry {
@@ -349,7 +369,7 @@ func (p *islandPresenter) view(c *ui.Context) {
 	theme.Border = ui.RGBA(127, 127, 127, .2)
 	theme.FontSize = 13
 	theme.Accent = accent
-	theme.AccentText = bg
+	theme.AccentText = opaque(bg)
 	c.SetTheme(&theme)
 	alpha := float32(island.Ease((now.Sub(p.contentChanged).Seconds() - .06) / .24))
 	if reduced {
@@ -404,6 +424,7 @@ func (p *islandPresenter) hideEmpty() {
 	p.state = island.Hidden
 	p.current, p.shown, p.previous = nil, nil, nil
 	p.contentChanged = time.Time{}
+	p.last = time.Time{}
 	p.geometry = [3]float64{200, 36, 18}
 	p.velocity = [3]float64{}
 	p.scheduleIdleDestroy()
@@ -424,15 +445,7 @@ func (p *islandPresenter) content(c *ui.Context, x islandNotice, state island.St
 	content.Children(func() {
 		ui.Row(c).FillWidth().Gap(12).Children(func() {
 			style := p.d.notificationPrefs.Load().(devicePreferences).IslandStyle
-			glyphColor := accent
-			if style != "B" {
-				switch x.n.Kind {
-				case "task":
-					glyphColor = ui.RGB(10, 132, 255)
-				case "meeting":
-					glyphColor = ui.RGB(48, 209, 88)
-				}
-			}
+			glyphColor := islandGlyphColor(style, x.n.Kind)
 			lead := ui.Box(c).Size(34, 34).Radius(17).Padding(7)
 			if style == "B" {
 				lead.Background(ui.RGBA(199, 116, 79, .22))
@@ -464,7 +477,8 @@ func (p *islandPresenter) content(c *ui.Context, x islandNotice, state island.St
 				if p.d.notificationPrefs.Load().(devicePreferences).IslandStyle == "B" {
 					primary = accent
 				}
-				if ui.Button(c, "Buka").Background(primary).TextColor(bg).Clicked() && interactive {
+				// C's surface is translucent: its color would leave the label faint.
+				if ui.Button(c, "Buka").Background(primary).TextColor(opaque(bg)).Clicked() && interactive {
 					p.act(x.n.Link)
 					p.dismiss()
 				}
@@ -483,6 +497,50 @@ func (p *islandPresenter) content(c *ui.Context, x islandNotice, state island.St
 }
 
 func fmtIslandQueue(n int) string { return "+" + strconv.Itoa(n) }
+
+// islandFrameStep is the time the spring advances in a frame: none on the
+// first, and at most 50 ms, so a late frame does not skip the motion.
+func islandFrameStep(last, now time.Time) float64 {
+	if last.IsZero() {
+		return 0
+	}
+	return math.Max(0, math.Min(now.Sub(last).Seconds(), .05))
+}
+
+// islandGlyphColor is the kind's accent of each style, as in the approved
+// canvas (dceda2c54836).
+func islandGlyphColor(style, kind string) ui.Color {
+	switch style {
+	case "B":
+		switch kind {
+		case "deadline", "reminder":
+			return ui.RGB(232, 194, 122)
+		case "meeting":
+			return ui.RGB(168, 194, 172)
+		}
+		return ui.RGB(227, 160, 127)
+	case "C":
+		switch kind {
+		case "task":
+			return ui.RGB(10, 132, 255)
+		case "meeting":
+			return ui.RGB(52, 199, 89)
+		}
+		return ui.RGB(255, 159, 10)
+	}
+	switch kind {
+	case "task":
+		return ui.RGB(10, 132, 255)
+	case "deadline", "reminder":
+		return ui.RGB(255, 69, 58)
+	case "meeting":
+		return ui.RGB(48, 209, 88)
+	}
+	return ui.RGB(255, 159, 10)
+}
+
+// opaque drops a surface's translucency, for text drawn with its color.
+func opaque(c ui.Color) ui.Color { return ui.RGB(c.R, c.G, c.B) }
 func insideIsland(x, y float64, g [3]float64) bool {
 	w, h, r := g[0], g[1], math.Min(g[2], g[1]/2)
 	if x < 0 || y < 0 || x >= w || y >= h {

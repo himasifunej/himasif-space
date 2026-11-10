@@ -27,6 +27,7 @@ import (
 	"github.com/himasifunej/himasif-space/internal/api"
 	"github.com/himasifunej/himasif-space/internal/appui"
 	"github.com/himasifunej/himasif-space/internal/id"
+	"github.com/himasifunej/himasif-space/internal/island"
 )
 
 type devicePreferences struct {
@@ -288,6 +289,12 @@ func (d *desktopDevice) restorePosition() {
 	d.ace.SetPosition(x, y)
 }
 func (d *desktopDevice) Notify(uid id.ID, n api.Delivery) error {
+	return d.notify(uid, n, true)
+}
+
+// notify shows one delivery; bell rings the device's bell with it (a batch
+// rings once).
+func (d *desktopDevice) notify(uid id.ID, n api.Delivery, bell bool) error {
 	d.deliveryMu.Lock()
 	defer d.deliveryMu.Unlock()
 	d.mu.Lock()
@@ -327,7 +334,7 @@ func (d *desktopDevice) Notify(uid id.ID, n api.Delivery) error {
 	d.mu.Lock()
 	active = d.activeUser == uid
 	d.mu.Unlock()
-	if active && prefs.Sound && prefs.Volume > 0 && notificationSoundAllowed() {
+	if bell && active && prefs.Sound && prefs.Volume > 0 && notificationSoundAllowed() {
 		d.playBell(prefs)
 	}
 	d.win.Update(func() {
@@ -706,14 +713,15 @@ func (d *desktopDevice) NotifyBatch(uid id.ID, items []api.Delivery) error {
 		}
 	}
 	d.mu.Unlock()
-	// Keep each island delivery actionable. The OS-only path retains the
-	// existing batch summary instead of producing a burst of Windows toasts.
+	// Keep each island delivery actionable, with one bell. Only while the
+	// island replaces the toasts: beside them, or for what the island
+	// turns away, the batch keeps its one summary toast instead of a burst.
 	if d.island != nil && len(unseen) > 0 {
 		prefs := d.notificationPrefs.Load().(devicePreferences)
-		if prefs.IslandEnabled && islandEnvironmentAllowed() {
+		if prefs.IslandEnabled && prefs.IslandReplaceToast && islandSupported() && islandEnvironmentAllowed() && len(unseen) <= island.Capacity {
 			var batchErr error
-			for _, n := range unseen {
-				if e := d.Notify(uid, n); e != nil {
+			for i, n := range unseen {
+				if e := d.notify(uid, n, i == 0); e != nil {
 					batchErr = errors.Join(batchErr, e)
 				}
 			}

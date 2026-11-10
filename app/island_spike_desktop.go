@@ -3,7 +3,9 @@
 package main
 
 import (
+	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -28,14 +30,26 @@ func runIslandSpike() bool {
 	mygo.App.WhenReady(func() {
 		anchor := mygo.NewWindow(mygo.WindowOptions{Title: "Space spike anchor", Width: 640, Height: 480, Hidden: true, Content: ui.View(func(c *ui.Context) { ui.Box(c).Fill().Background(ui.RGB(36, 33, 28)) })})
 		anchor.ShowInactive()
-		if mode == "banner" {
+		// banner holds one banner; idle shows one that closes itself after
+		// 2 s, and drops the window 3 s later, as an idle island does after
+		// 10 minutes: what it then costs is what an idle island costs.
+		if mode == "banner" || mode == "idle" {
 			d := &desktopDevice{win: anchor, prefs: devicePreferences{IslandEnabled: true, IslandStyle: "C", IslandReplaceToast: true}}
 			mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { d.quitting = true })
 			d.notificationPrefs.Store(d.prefs)
-			p := &islandPresenter{d: d, environmentCheck: func() bool { return true }}
+			p := &islandPresenter{d: d, environmentCheck: func() bool { return true }, idleAfter: 3 * time.Second}
 			d.island = p
 			p.m.Push(island.Item{Tag: "spike", Value: islandNotice{n: appui.Notice{Title: "Space · Spike", Body: "Pengukuran idle presenter native", Tag: "spike"}}}, time.Now())
 			p.m.Until = time.Now().Add(time.Hour)
+			if mode == "idle" {
+				p.m.Until = time.Now().Add(2 * time.Second)
+				// The measurement script reads whether the window is gone.
+				time.AfterFunc(9*time.Second, func() {
+					anchor.Update(func() {
+						_ = os.WriteFile(filepath.Join(filepath.Dir(os.Args[0]), "island-idle-state.txt"), []byte(fmt.Sprintf("destroyed=%v\n", p.win == nil)), 0o644)
+					})
+				})
+			}
 			p.ensureWindow()
 			p.position(200, 36)
 			p.win.ShowInactive()
