@@ -7,6 +7,10 @@ import { makeSticker } from './media.mjs';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const GROUP = /^\d+(?:-\d+)?@g\.us$/;
 const USER = /^[0-9a-zA-Z._:-]+@(s\.whatsapp\.net|lid)$/;
+// The only direct message the bot reads: a Space link code ("Tautkan WhatsApp").
+const LINK_CODE = /^(?:!link\s+)?SPACE-[A-Za-z0-9_-]{16,64}$/i;
+// How long after a code arrives Space may reply to that chat.
+const DM_REPLY_WINDOW = 60 * 60_000;
 const hash = (value) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const messageText = (message) => {
   const content = normalizeMessageContent(message) ?? {};
@@ -23,8 +27,9 @@ export class Connections {
       const config = await store.read('configuration', { enabled: false, allowedGroups: [] });
       const events = await store.read('events', { sequence: 0, items: [] });
       const jobs = await store.read('jobs', {});
+      const dmPeers = await store.read('dm-peers', {});
       for (const job of Object.values(jobs)) if (job.status === 'sending') job.status = 'unknown';
-      const c = { id, store, config, events, jobs, socket: null, generation: 0, status: 'disconnected', updatedAt: new Date().toISOString(), qr: '', qrExpiresAt: null, attempts: 0, reconnect: null, pending: Promise.resolve() };
+      const c = { id, store, config, events, jobs, dmPeers, socket: null, generation: 0, status: 'disconnected', updatedAt: new Date().toISOString(), qr: '', qrExpiresAt: null, attempts: 0, reconnect: null, pending: Promise.resolve() };
       this.connections.set(id, c); return c;
     })();
     this.loading.set(id, loading);
@@ -100,7 +105,11 @@ export class Connections {
         for (const message of messages) {
           if (c.generation !== generation) return;
           const group = message.key.remoteJid;
-          if (!GROUP.test(group ?? '') || !c.config.allowedGroups.includes(group)) continue;
+          if (!GROUP.test(group ?? '')) {
+            if (USER.test(group ?? '') && !message.key.fromMe && type === 'notify') await this.direct(c, message);
+            continue;
+          }
+          if (!c.config.allowedGroups.includes(group)) continue;
           await c.store.write(`message:${group}:${message.key.id}`, message);
           if (message.key.fromMe || type !== 'notify') continue;
           const body = normalizeMessageContent(message.message) ?? {};
@@ -139,6 +148,23 @@ export class Connections {
       })().catch(() => { c.lastError = 'Delivery receipt was not persisted.'; });
     });
   }
+  // direct forwards a link code a person sent the bot in a private chat, and
+  // lets Space reply to that chat for a while. Any other private message is
+  // neither stored nor forwarded.
+  async direct(c, message) {
+    const text = messageText(message.message).trim();
+    if (!LINK_CODE.test(text)) return false;
+    const sender = jidNormalizedUser(message.key.remoteJid);
+    const alt = message.key.remoteJidAlt ? jidNormalizedUser(message.key.remoteJidAlt) : '';
+    const now = Date.now();
+    for (const [jid, until] of Object.entries(c.dmPeers)) if (until < now) delete c.dmPeers[jid];
+    c.dmPeers[sender] = now + DM_REPLY_WINDOW;
+    await c.store.write('dm-peers', c.dmPeers);
+    const stamp = Number(message.messageTimestamp?.toString?.() ?? message.messageTimestamp);
+    const occurredAt = Number.isFinite(stamp) && stamp > 0 ? new Date(stamp * 1000).toISOString() : null;
+    await this.emit(c, { type: 'message', groupJid: '', senderJid: sender, senderAltJid: alt, messageId: message.key.id, envelopeId: message.key.id, revision: hash(['message', text, '', message.key.id]), occurredAt, text, quotedMessageId: '', mentionedJids: [], media: null });
+    return true;
+  }
   async disconnect(id, logout = false) {
     const c = await this.get(id);
     if (logout && !c.socket) throw Object.assign(new Error('Connect before logging out; remote session removal is not confirmed while offline.'), { status: 409, attempted: false });
@@ -159,8 +185,13 @@ export class Connections {
   async acknowledge(id, through) { const c = await this.get(id); await c.pending; if (through > c.events.sequence) throw Object.assign(new Error('cursor exceeds available events'), { status: 400 }); c.events.items = c.events.items.filter((event) => event.sequence > through); await c.store.write('events', c.events); }
   async send(id, body) {
     const c = await this.get(id);
-    if (!UUID.test(body.id ?? '') || !GROUP.test(body.groupJid ?? '') || !c.config.allowedGroups.includes(body.groupJid)) throw Object.assign(new Error('destination is not configured'), { status: 403 });
-    const payload = { groupJid: body.groupJid, text: String(body.text ?? ''), mentions: [...new Set(body.mentions ?? [])], assetId: body.assetId ?? '', mediaType: body.mediaType ?? '' };
+    // A reply to a link code goes to the person who sent it, only within the
+    // reply window; everything else goes to a configured group.
+    const direct = !body.groupJid && Boolean(body.toJid);
+    const allowed = direct ? USER.test(body.toJid) && (c.dmPeers[body.toJid] ?? 0) > Date.now() : GROUP.test(body.groupJid ?? '') && c.config.allowedGroups.includes(body.groupJid);
+    if (!UUID.test(body.id ?? '') || !allowed) throw Object.assign(new Error('destination is not configured'), { status: 403 });
+    const payload = { groupJid: body.groupJid ?? '', ...(direct ? { toJid: body.toJid } : {}), text: String(body.text ?? ''), mentions: [...new Set(body.mentions ?? [])], assetId: body.assetId ?? '', mediaType: body.mediaType ?? '' };
+    if (direct && (payload.text.length > 2_000 || payload.mentions.length || payload.assetId)) throw Object.assign(new Error('invalid outgoing content'), { status: 400 });
     if (payload.text.length > 30_000 || payload.mentions.length > 500 || payload.mentions.some((jid) => !USER.test(jid)) || payload.assetId && !/^[0-9a-f]{64}$/.test(payload.assetId)) throw Object.assign(new Error('invalid outgoing content'), { status: 400 });
     const fingerprint = hash(payload), previous = c.jobs[body.id];
     if (previous) { if (previous.fingerprint !== fingerprint) throw Object.assign(new Error('job ID reused for different content'), { status: 409 }); return previous; }
@@ -176,7 +207,7 @@ export class Connections {
     const job = { id: body.id, fingerprint, messageId: '3EB0' + createHash('sha256').update(`${id}:${body.id}`).digest('hex').slice(0, 20).toUpperCase(), status: 'sending', updatedAt: new Date().toISOString() };
     c.jobs[body.id] = job; await c.store.write('jobs', c.jobs);
     try {
-      const result = await c.socket.sendMessage(payload.groupJid, content, { messageId: job.messageId });
+      const result = await c.socket.sendMessage(direct ? payload.toJid : payload.groupJid, content, { messageId: job.messageId });
       job.messageId = result.key.id;
       if (!['accepted', 'delivered', 'read'].includes(job.status)) job.status = 'accepted';
       job.updatedAt = new Date().toISOString(); job.acceptedAt ??= job.updatedAt;

@@ -84,6 +84,8 @@ type captureMailer struct {
 	mu   sync.Mutex
 	msgs []mail.Message
 	fail bool
+	// err, when set, is returned instead of sending (as a provider's refusal).
+	err error
 }
 
 func (m *captureMailer) Send(_ context.Context, msg mail.Message) error {
@@ -91,6 +93,9 @@ func (m *captureMailer) Send(_ context.Context, msg mail.Message) error {
 	defer m.mu.Unlock()
 	if m.fail {
 		return errors.New("test mailer: refused")
+	}
+	if m.err != nil {
+		return m.err
 	}
 	m.msgs = append(m.msgs, msg)
 	return nil

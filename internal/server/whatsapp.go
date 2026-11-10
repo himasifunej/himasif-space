@@ -2,9 +2,6 @@ package server
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/json"
 	"github.com/himasifunej/himasif-space/internal/api"
 	"github.com/himasifunej/himasif-space/internal/id"
@@ -14,7 +11,6 @@ import (
 	"regexp"
 	"slices"
 	"strings"
-	"time"
 )
 
 var waGroupJID = regexp.MustCompile(`^[0-9]+(?:-[0-9]+)?@g\.us$`)
@@ -375,40 +371,6 @@ func (s *Server) saveWAGroup(w http.ResponseWriter, r *http.Request, p *principa
 		return fail(503, api.CodeUnavailable, "Pemetaan tersimpan; penerapan allowlist pada bridge belum dikonfirmasi.")
 	}
 	w.WriteHeader(204)
-	return nil
-}
-func (s *Server) createWALink(w http.ResponseWriter, r *http.Request, p *principal) error {
-	bytes := make([]byte, 18)
-	if _, err := rand.Read(bytes); err != nil {
-		return err
-	}
-	code := "SPACE-" + base64.RawURLEncoding.EncodeToString(bytes)
-	sum := sha256.Sum256([]byte(code))
-	out := api.WALinkChallenge{Code: code, ExpiresAt: s.now().Add(10 * time.Minute), Instructions: "Kirim !link " + code + " di grup divisi/Medhum yang terhubung. Kode sekali pakai ini hanya untuk akunmu."}
-	err := s.store.Tx(r.Context(), func(q store.Querier) error {
-		sc, err := s.loadScope(r.Context(), q, r, p, store.LockUpdate)
-		if err != nil {
-			return err
-		}
-		if p.admin() {
-			return errForbidden
-		}
-		if err := sc.require(api.CapTasksOwn); err != nil {
-			return err
-		}
-		if _, err := s.lockedAccount(r, q, p); err != nil {
-			return err
-		}
-		if _, err := q.Exec(r.Context(), `update wa_link_challenges set used_at=$2 where user_id=$1 and used_at is null`, p.User.ID, s.now()); err != nil {
-			return err
-		}
-		_, err = q.Exec(r.Context(), `insert into wa_link_challenges(id,period_id,division_id,user_id,token_hash,expires_at) values($1,$2,$3,$4,$5,$6)`, id.New(), sc.period.ID, sc.division.ID, p.User.ID, sum[:], out.ExpiresAt)
-		return err
-	})
-	if err != nil {
-		return err
-	}
-	writeJSON(w, 201, out)
 	return nil
 }
 

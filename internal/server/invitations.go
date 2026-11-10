@@ -42,6 +42,22 @@ func (s *Server) allowPublic(r *http.Request) error {
 	return nil
 }
 
+// inviteEmail is the address an invitation goes to: the student address of
+// a NIM, or an email typed in full.
+func inviteEmail(req api.InviteRequest) (string, error) {
+	nim := strings.TrimSpace(req.NIM)
+	switch {
+	case nim != "" && strings.TrimSpace(req.Email) != "":
+		return "", badRequest("Isi NIM atau email, salah satu saja.")
+	case nim != "":
+		if !api.ValidNIM(nim) {
+			return "", badRequest("NIM hanya berisi angka, 8 sampai 20 digit.")
+		}
+		return api.StudentEmail(nim), nil
+	}
+	return validEmail(req.Email)
+}
+
 // invite invites an email to the division as a member (ACC-02). The token
 // goes only into the email; positions are given separately.
 func (s *Server) invite(w http.ResponseWriter, r *http.Request, p *principal) error {
@@ -49,7 +65,7 @@ func (s *Server) invite(w http.ResponseWriter, r *http.Request, p *principal) er
 	if err := readJSON(r, &req); err != nil {
 		return err
 	}
-	email, err := validEmail(req.Email)
+	email, err := inviteEmail(req)
 	if err != nil {
 		return err
 	}

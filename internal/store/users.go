@@ -26,6 +26,9 @@ type User struct {
 	DisabledAt      *time.Time
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+	// NIM is derived by the database from a verified student email
+	// (<NIM>@mail.unej.ac.id, migration 0028); "" for other accounts.
+	NIM string
 }
 
 // API returns the user as its owner sees it, without the password hash.
@@ -38,20 +41,21 @@ func (u User) API() api.User {
 		EmailVerified: u.EmailVerifiedAt != nil,
 		CreatedAt:     u.CreatedAt,
 		DisabledAt:    u.DisabledAt,
+		NIM:           u.NIM,
 	}
 }
 
 // NormalizeEmail returns the form emails are stored and compared in.
 func NormalizeEmail(email string) string { return strings.ToLower(strings.TrimSpace(email)) }
 
-const userColumns = `id, kind, email, display_name, coalesce(password_hash, ''), email_verified_at, disabled_at, created_at, updated_at`
+const userColumns = `id, kind, email, display_name, coalesce(password_hash, ''), email_verified_at, disabled_at, created_at, updated_at, coalesce(nim, '')`
 
 // userColumnsU is userColumns of the table aliased u, for joins.
-const userColumnsU = `u.id, u.kind, u.email, u.display_name, coalesce(u.password_hash, ''), u.email_verified_at, u.disabled_at, u.created_at, u.updated_at`
+const userColumnsU = `u.id, u.kind, u.email, u.display_name, coalesce(u.password_hash, ''), u.email_verified_at, u.disabled_at, u.created_at, u.updated_at, coalesce(u.nim, '')`
 
 func scanUser(row pgx.Row) (User, error) {
 	var u User
-	err := row.Scan(&u.ID, &u.Kind, &u.Email, &u.DisplayName, &u.PasswordHash, &u.EmailVerifiedAt, &u.DisabledAt, &u.CreatedAt, &u.UpdatedAt)
+	err := row.Scan(&u.ID, &u.Kind, &u.Email, &u.DisplayName, &u.PasswordHash, &u.EmailVerifiedAt, &u.DisabledAt, &u.CreatedAt, &u.UpdatedAt, &u.NIM)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return User{}, ErrNotFound
 	}

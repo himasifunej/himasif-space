@@ -121,6 +121,10 @@ func (a *App) tickRealtime(c *ui.Context) {
 			a.loadTaskNotifications()
 		}
 		a.PollDeliveries()
+		// "WhatsApp tertaut" appears once the bot got the member's code.
+		if a.whatsapp.linkStatus != nil && !a.whatsapp.linkStatusLoading {
+			a.loadWALinkStatus()
+		}
 		if a.meetings.loaded && a.meetings.space == space {
 			a.loadMeetings()
 		}

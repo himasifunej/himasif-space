@@ -23,6 +23,10 @@ type Invitation struct {
 	ExpiresAt  time.Time
 	RevokedAt  *time.Time
 	AcceptedAt *time.Time
+	// BouncedAt is set when Amazon SES reported a permanent bounce or a
+	// complaint for the address after the last sending.
+	BouncedAt    *time.Time
+	BounceReason string
 }
 
 // Status returns the status of the invitation at now.
@@ -41,14 +45,23 @@ func (i Invitation) Status(now time.Time) string {
 // API returns the invitation as its managers see it.
 func (i Invitation) API(now time.Time) api.Invitation {
 	return api.Invitation{ID: i.ID, PeriodID: i.PeriodID, DivisionID: i.DivisionID, Email: i.Email,
-		Status: i.Status(now), ExpiresAt: i.ExpiresAt.UTC(), CreatedAt: i.CreatedAt.UTC()}
+		Status: i.Status(now), ExpiresAt: i.ExpiresAt.UTC(), CreatedAt: i.CreatedAt.UTC(),
+		NIM: api.StudentNIM(i.Email), BouncedAt: utcPtr(i.BouncedAt), BounceReason: i.BounceReason}
 }
 
-const invitationColumns = `id, period_id, division_id, email, invited_by, created_at, sent_at, expires_at, revoked_at, accepted_at`
+func utcPtr(t *time.Time) *time.Time {
+	if t == nil {
+		return nil
+	}
+	u := t.UTC()
+	return &u
+}
+
+const invitationColumns = `id, period_id, division_id, email, invited_by, created_at, sent_at, expires_at, revoked_at, accepted_at, bounced_at, bounce_reason`
 
 func scanInvitation(r pgx.CollectableRow) (Invitation, error) {
 	var i Invitation
-	err := r.Scan(&i.ID, &i.PeriodID, &i.DivisionID, &i.Email, &i.InvitedBy, &i.CreatedAt, &i.SentAt, &i.ExpiresAt, &i.RevokedAt, &i.AcceptedAt)
+	err := r.Scan(&i.ID, &i.PeriodID, &i.DivisionID, &i.Email, &i.InvitedBy, &i.CreatedAt, &i.SentAt, &i.ExpiresAt, &i.RevokedAt, &i.AcceptedAt, &i.BouncedAt, &i.BounceReason)
 	return i, err
 }
 
@@ -97,7 +110,7 @@ func (s *Store) InvitationByToken(ctx context.Context, q Querier, tokenHash []by
 
 // RotateInvitation gives an invitation a new token and expiry.
 func (s *Store) RotateInvitation(ctx context.Context, q Querier, iid id.ID, tokenHash []byte, sentAt, expiresAt time.Time) error {
-	_, err := q.Exec(ctx, `update invitations set token_hash = $2, sent_at = $3, expires_at = $4 where id = $1`, iid, tokenHash, sentAt, expiresAt)
+	_, err := q.Exec(ctx, `update invitations set token_hash = $2, sent_at = $3, expires_at = $4, bounced_at = null, bounce_reason = '' where id = $1`, iid, tokenHash, sentAt, expiresAt)
 	return err
 }
 

@@ -30,13 +30,21 @@ type whatsappUIState struct {
 	name, language, greeting             string
 	templates                            [5]string
 	link                                 *api.WALinkChallenge
-	mapSpace                             id.ID
-	mapJID                               string
-	commandsEnabled                      bool
-	command                              *api.WACustomCommand
-	polling                              bool
-	pollSeq                              uint64
-	pollNext, pollUntil                  time.Time
+	// The member's own link (waOwnLink): status, polled while a code is
+	// open, and the unlink confirmation.
+	linkStatus          *api.WALinkStatus
+	linkStatusFor       id.ID
+	linkStatusLoading   bool
+	linkPollNext        time.Time
+	unlinkAsk           bool
+	linkToast           string
+	mapSpace            id.ID
+	mapJID              string
+	commandsEnabled     bool
+	command             *api.WACustomCommand
+	polling             bool
+	pollSeq             uint64
+	pollNext, pollUntil time.Time
 	// Tahap 7d: the opened setup step, "Pengaturan lanjutan", previews.
 	step         int
 	advancedOpen bool

@@ -129,8 +129,11 @@ type Event struct {
 	Media           *Media     `json:"media"`
 }
 type SendRequest struct {
-	ID        id.ID    `json:"id"`
-	GroupJID  string   `json:"groupJid"`
+	ID       id.ID  `json:"id"`
+	GroupJID string `json:"groupJid"`
+	// ToJID is set, without GroupJID, only for the reply to a link code a
+	// member sent the bot in a direct message.
+	ToJID     string   `json:"toJid,omitempty"`
 	Text      string   `json:"text"`
 	Mentions  []string `json:"mentions"`
 	AssetID   string   `json:"assetId,omitempty"`

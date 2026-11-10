@@ -197,6 +197,7 @@ type Membership struct {
 	Groups        []string
 	CustomRoleIDs []id.ID
 	Acting45      *Appointment45
+	NIM           string // from the user's verified student email, "" otherwise
 }
 
 // Appointment45 is an active 45 appointment.
@@ -217,7 +218,7 @@ func (a Appointment45) API() api.Appointment45 {
 }
 
 func (s *Store) memberships(ctx context.Context, q Querier, where string, args ...any) ([]Membership, error) {
-	rows, err := q.Query(ctx, `select m.id, m.period_id, m.division_id, m.user_id, u.display_name, m.role, m.groups,
+	rows, err := q.Query(ctx, `select m.id, m.period_id, m.division_id, m.user_id, u.display_name, m.role, m.groups, coalesce(u.nim, ''),
 			coalesce((select array_agg(mcr.role_id order by mcr.role_id) from membership_custom_roles mcr where mcr.membership_id = m.id), '{}'),
 			a.id, a.capabilities, a.appointed_by, a.appointed_at
 		from memberships m join users u on u.id = m.user_id
@@ -232,7 +233,7 @@ func (s *Store) memberships(ctx context.Context, q Querier, where string, args .
 		var aCaps []string
 		var aBy *id.ID
 		var aAt *time.Time
-		err := r.Scan(&m.ID, &m.PeriodID, &m.DivisionID, &m.UserID, &m.DisplayName, &m.Role, &m.Groups, &m.CustomRoleIDs,
+		err := r.Scan(&m.ID, &m.PeriodID, &m.DivisionID, &m.UserID, &m.DisplayName, &m.Role, &m.Groups, &m.NIM, &m.CustomRoleIDs,
 			&aID, &aCaps, &aBy, &aAt)
 		if aID != nil {
 			m.Acting45 = &Appointment45{ID: *aID, PeriodID: m.PeriodID, DivisionID: m.DivisionID, UserID: m.UserID,

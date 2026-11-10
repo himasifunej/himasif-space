@@ -18,6 +18,7 @@ import (
 	"net"
 	"net/mail"
 	"net/smtp"
+	"net/textproto"
 	"strconv"
 	"strings"
 	"time"
@@ -25,11 +26,32 @@ import (
 	"github.com/himasifunej/himasif-space/internal/config"
 )
 
-// Message is one plain-text email.
+// Message is one email: plain text, and optionally the same content as
+// HTML (sent as multipart/alternative).
 type Message struct {
 	To      string
 	Subject string
 	Text    string
+	HTML    string
+}
+
+// RejectedError is a permanent refusal by the mail server (an SMTP 5xx
+// reply), such as an address that does not exist or, in the Amazon SES
+// sandbox, one that is not verified. Sending again does not help.
+type RejectedError struct {
+	Code int
+	Msg  string
+}
+
+func (e *RejectedError) Error() string { return fmt.Sprintf("mail: rejected (%d): %s", e.Code, e.Msg) }
+
+// rejected turns a permanent SMTP reply into a RejectedError.
+func rejected(err error) error {
+	var tp *textproto.Error
+	if errors.As(err, &tp) && tp.Code >= 500 && tp.Code < 600 {
+		return &RejectedError{Code: tp.Code, Msg: tp.Msg}
+	}
+	return err
 }
 
 // Mailer sends messages.
@@ -49,7 +71,7 @@ func New(c config.Mail, log *slog.Logger) (Mailer, error) {
 	case "log":
 		return logMailer{log: log}, nil
 	case "smtp":
-		return &smtpMailer{cfg: c, from: from}, nil
+		return Limited(&smtpMailer{cfg: c, from: from}, c.PerMinute), nil
 	}
 	return nil, fmt.Errorf("mail: unknown driver %q", c.Driver)
 }
@@ -116,10 +138,10 @@ func (s *smtpMailer) Send(ctx context.Context, m Message) error {
 		}
 	}
 	if err := c.Mail(s.from.Address); err != nil {
-		return fmt.Errorf("mail: MAIL FROM: %w", err)
+		return rejected(fmt.Errorf("mail: MAIL FROM: %w", err))
 	}
 	if err := c.Rcpt(to.Address); err != nil {
-		return fmt.Errorf("mail: RCPT TO: %w", err)
+		return rejected(fmt.Errorf("mail: RCPT TO: %w", err))
 	}
 	w, err := c.Data()
 	if err != nil {
@@ -129,7 +151,7 @@ func (s *smtpMailer) Send(ctx context.Context, m Message) error {
 		return fmt.Errorf("mail: write: %w", err)
 	}
 	if err := w.Close(); err != nil {
-		return fmt.Errorf("mail: send: %w", err)
+		return rejected(fmt.Errorf("mail: send: %w", err))
 	}
 	return c.Quit()
 }
@@ -148,17 +170,38 @@ func (s *smtpMailer) compose(to *mail.Address, m Message) ([]byte, error) {
 	h("Date", time.Now().Format(time.RFC1123Z))
 	h("Message-ID", fmt.Sprintf("<%s@%s>", hex.EncodeToString(idBytes), domain))
 	h("MIME-Version", "1.0")
-	h("Content-Type", `text/plain; charset="utf-8"`)
-	h("Content-Transfer-Encoding", "quoted-printable")
+	if m.HTML == "" {
+		h("Content-Type", `text/plain; charset="utf-8"`)
+		h("Content-Transfer-Encoding", "quoted-printable")
+		b.WriteString("\r\n")
+		if err := writeQP(&b, m.Text); err != nil {
+			return nil, err
+		}
+		return b.Bytes(), nil
+	}
+	boundary := "space-" + hex.EncodeToString(idBytes)
+	h("Content-Type", `multipart/alternative; boundary="`+boundary+`"`)
 	b.WriteString("\r\n")
-	qp := quotedprintable.NewWriter(&b)
-	if _, err := qp.Write([]byte(strings.ReplaceAll(m.Text, "\n", "\r\n"))); err != nil {
-		return nil, err
+	for _, part := range []struct{ kind, body string }{{"text/plain", m.Text}, {"text/html", m.HTML}} {
+		b.WriteString("--" + boundary + "\r\n")
+		b.WriteString(`Content-Type: ` + part.kind + `; charset="utf-8"` + "\r\n")
+		b.WriteString("Content-Transfer-Encoding: quoted-printable\r\n\r\n")
+		if err := writeQP(&b, part.body); err != nil {
+			return nil, err
+		}
+		b.WriteString("\r\n")
 	}
-	if err := qp.Close(); err != nil {
-		return nil, err
-	}
+	b.WriteString("--" + boundary + "--\r\n")
 	return b.Bytes(), nil
+}
+
+func writeQP(b *bytes.Buffer, s string) error {
+	qp := quotedprintable.NewWriter(b)
+	s = strings.ReplaceAll(strings.ReplaceAll(s, "\r\n", "\n"), "\n", "\r\n")
+	if _, err := qp.Write([]byte(s)); err != nil {
+		return err
+	}
+	return qp.Close()
 }
 
 func (m Message) validate() error {

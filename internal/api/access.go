@@ -124,6 +124,9 @@ type Member struct {
 	// this period. The number itself is never sent. Absent (nil) from a
 	// server that predates it, and from single-member responses.
 	WhatsAppLinked *bool `json:"whatsappLinked,omitempty"`
+	// NIM is the member's student number, for the division's members and
+	// the admin (owner decision 10 Nov 2026). It is never on a public page.
+	NIM string `json:"nim,omitempty"`
 }
 
 // MemberActiveTasks are the tasks a member is still the PJ of in the
@@ -177,10 +180,19 @@ type Invitation struct {
 	Status     string    `json:"status"`
 	ExpiresAt  time.Time `json:"expiresAt"`
 	CreatedAt  time.Time `json:"createdAt"`
+	// NIM is set when Email is a student address <NIM>@StudentEmailDomain.
+	NIM string `json:"nim,omitempty"`
+	// BouncedAt is when the email of the last sending bounced for good or
+	// was marked as spam (Amazon SES); sending again clears it.
+	BouncedAt    *time.Time `json:"bouncedAt,omitempty"`
+	BounceReason string     `json:"bounceReason,omitempty"`
 }
 
+// InviteRequest invites Email, or, when NIM is set instead, the student
+// address <NIM>@StudentEmailDomain.
 type InviteRequest struct {
-	Email string `json:"email"`
+	Email string `json:"email,omitempty"`
+	NIM   string `json:"nim,omitempty"`
 }
 
 // InvitationTokenRequest carries the token of an invitation link.
