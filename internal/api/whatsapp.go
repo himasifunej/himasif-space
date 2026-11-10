@@ -68,6 +68,19 @@ type WALinkStatus struct {
 	// BotReady tells whether "Tautkan WhatsApp" can open a chat with the
 	// division's bot.
 	BotReady bool `json:"botReady"`
+	// Pending is the caller's open link code, if any: when it expires and
+	// what the bot made of it so far.
+	Pending *WALinkPending `json:"pending,omitempty"`
+}
+
+// WALinkPending is an open link code. ConflictAccount is set when the
+// number that sent it already belongs to that account; the sender may then
+// answer PINDAH until MoveUntil.
+type WALinkPending struct {
+	ExpiresAt       time.Time  `json:"expiresAt"`
+	AttemptedAt     *time.Time `json:"attemptedAt,omitempty"`
+	ConflictAccount string     `json:"conflictAccount,omitempty"`
+	MoveUntil       *time.Time `json:"moveUntil,omitempty"`
 }
 type WASessionState struct {
 	Status      string     `json:"status"`

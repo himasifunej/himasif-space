@@ -495,25 +495,39 @@ func (a *App) waReminderStep(c *ui.Context) {
 	}
 }
 
-// waOwnLink is "Tautkan WhatsApp": the member's own link. With a connected
-// bot it is two taps: make a one-time code, then open WhatsApp with the
-// code typed in and send it. The status updates by itself once the bot got
-// the message. Without a bot, the code is sent with !link in the group.
+// waOwnLink is "WhatsApp-mu": the member's own link. With a connected bot it
+// is two taps: make a one-time code, then open WhatsApp with the code typed
+// in and send it. While the code is open the panel waits visibly (spinner,
+// countdown) and checks the server every few seconds and on realtime; it
+// says what the bot made of the code, such as a number that belongs to
+// another account (answer PINDAH), and every failure has a working retry.
 func (a *App) waOwnLink(c *ui.Context) {
 	st := &a.whatsapp
 	t := c.Theme()
 	cl, ok := a.waClient()
 	sp := a.selectedSpace()
-	if ok && st.division != id.Nil && (st.linkStatusFor != st.division || st.linkStatus == nil) && !st.linkStatusLoading {
-		a.loadWALinkStatus()
-	}
 	if st.linkToast != "" {
 		c.AddToast(ui.Toast{Title: st.linkToast, Type: "success", Timeout: 4 * time.Second})
 		st.linkToast = ""
 	}
+	if ok && st.division != id.Nil && (st.linkStatusFor != st.division || st.linkStatus == nil) && !st.linkStatusLoading && st.linkErr == "" {
+		a.loadWALinkStatus()
+	}
 	ui.Text(c, "WhatsApp-mu").FontSize(13).Bold()
 	status := st.linkStatus
-	if status != nil && status.Linked {
+	if st.linkErr != "" {
+		ui.Text(c, st.linkErr).FontSize(12).TextColor(t.Danger)
+		if spaceButton(c.Key("link-retry"), "Coba lagi", "refresh", false).Disabled(st.linkStatusLoading).Clicked() {
+			st.linkErr = ""
+			a.loadWALinkStatus()
+		}
+		return
+	}
+	if status == nil {
+		ui.Spinner(c).Label("Memeriksa status WhatsApp…")
+		return
+	}
+	if status.Linked {
 		ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
 			ui.Icon(c, spaceIcon("check")).Size(16, 16).TextColor(t.Success).Shrink(0)
 			number := status.Phone
@@ -540,11 +554,19 @@ func (a *App) waOwnLink(c *ui.Context) {
 		}
 		return
 	}
+	now := c.Now()
+	pending := status.Pending
+	if pending != nil && !now.Before(pending.ExpiresAt) {
+		pending = nil
+	}
+	known := st.link != nil && now.Before(st.link.ExpiresAt)
 	muted(c, "Pengingat tugas dan rapat dari Space dikirim ke WhatsApp yang tertaut. Cukup sekali per periode.").FontSize(12)
-	live := st.link != nil && time.Now().Before(st.link.ExpiresAt)
-	if !live {
+	if !known && pending == nil {
+		if st.link != nil {
+			ui.Text(c, "Kode sudah kedaluwarsa. Buat kode baru.").FontSize(12).TextColor(t.Warning)
+		}
 		label := "Tautkan WhatsApp"
-		if status != nil && !status.BotReady {
+		if !status.BotReady {
 			label = "Buat kode"
 		}
 		if primarySpaceButton(c.Key("make-link"), label, "whatsapp").Disabled(!ok || sp == nil || sp.ReadOnly).Clicked() {
@@ -552,32 +574,57 @@ func (a *App) waOwnLink(c *ui.Context) {
 		}
 		return
 	}
-	if st.link.DeepLink != "" {
-		if primarySpaceButton(c.Key("open-wa"), "Buka WhatsApp dan kirim", "send").Clicked() {
-			c.OpenURL(st.link.DeepLink)
-		}
-		muted(c, "WhatsApp terbuka dengan kode sudah terketik; ketuk Kirim. Status di sini berubah sendiri setelah bot menerimanya.").FontSize(12)
-		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-			ui.Icon(c, spaceIcon("clock")).Size(14, 14).TextColor(t.TextMuted)
-			muted(c, "Menunggu pesan dari WhatsApp-mu · berlaku sampai "+st.link.ExpiresAt.Local().Format("15.04")).FontSize(12)
+	expires := st.link
+	until := time.Time{}
+	if known {
+		until = expires.ExpiresAt
+	} else {
+		until = pending.ExpiresAt
+	}
+	if pending != nil && pending.ConflictAccount != "" {
+		ui.Column(c).FillWidth().Gap(4).Padding(10, 12).Radius(8).Background(t.Background).Border(1, t.Warning).Children(func() {
+			ui.Text(c, "Nomor itu sudah tertaut ke akun "+pending.ConflictAccount+".").FontSize(13).FontWeight(600)
+			move := "sebelum habis waktunya"
+			if pending.MoveUntil != nil {
+				move = "sebelum " + pending.MoveUntil.Local().Format("15.04")
+			}
+			muted(c, "Balas PINDAH ke bot di WhatsApp "+move+" untuk memindahkannya ke akunmu, atau minta pemilik akun "+pending.ConflictAccount+" melepas tautan di Space lalu kirim kode baru.").FontSize(12)
 		})
 	}
-	command := "!link " + st.link.Code
-	ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
-		ui.Text(c, command).FontSize(12).Selectable().Padding(6, 10).Radius(7).Background(t.Background).Border(1, t.Border)
-		if spaceButton(c.Key("copy-code"), "Salin", "link", false).Clicked() {
-			c.WriteClipboard(command)
-			c.AddToast(ui.Toast{Title: "Kode disalin. Kirim di grup WhatsApp divisi.", Type: "success", Timeout: 4 * time.Second})
-		}
+	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Spinner(c)
+		left := until.Sub(now).Round(time.Second)
+		muted(c, fmt.Sprintf("Menunggu pesan dari WhatsApp… %d:%02d", int(left.Minutes()), int(left.Seconds())%60)).FontSize(12)
 	})
-	if st.link.DeepLink != "" {
-		muted(c, "Cara lain: kirim kode ini di grup WhatsApp divisi.").FontSize(12)
+	if known {
+		if st.link.DeepLink != "" {
+			if primarySpaceButton(c.Key("open-wa"), "Buka WhatsApp dan kirim", "send").Clicked() {
+				c.OpenURL(st.link.DeepLink)
+			}
+			muted(c, "WhatsApp terbuka dengan kode sudah terketik; ketuk Kirim. Status di sini berubah sendiri.").FontSize(12)
+		}
+		command := "!link " + st.link.Code
+		ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
+			ui.Text(c, command).FontSize(12).Selectable().Padding(6, 10).Radius(7).Background(t.Background).Border(1, t.Border)
+			if spaceButton(c.Key("copy-code"), "Salin", "link", false).Clicked() {
+				c.WriteClipboard(command)
+				c.AddToast(ui.Toast{Title: "Kode disalin.", Type: "success", Timeout: 4 * time.Second})
+			}
+		})
+		if st.link.DeepLink != "" {
+			muted(c, "Cara lain: kirim kode ini di grup WhatsApp divisi.").FontSize(12)
+		} else {
+			muted(c, "Kirim kode ini di grup WhatsApp divisi.").FontSize(12)
+		}
 	} else {
-		muted(c, "Kirim kode ini di grup WhatsApp divisi · berlaku sampai "+st.link.ExpiresAt.Local().Format("15.04")).FontSize(12)
+		muted(c, "Kodenya dibuat sebelum halaman dimuat ulang dan tidak bisa ditampilkan lagi. Kirim kode yang sudah kamu salin, atau buat kode baru.").FontSize(12)
+		if spaceButton(c.Key("make-link-again"), "Buat kode baru", "refresh", false).Disabled(!ok || sp == nil || sp.ReadOnly).Clicked() {
+			a.createOwnWALink(cl)
+		}
 	}
 	// Until the bot got the code: check every few seconds (also on realtime).
-	if !st.linkStatusLoading && c.Now().After(st.linkPollNext) {
-		st.linkPollNext = c.Now().Add(4 * time.Second)
+	if !st.linkStatusLoading && now.After(st.linkPollNext) {
+		st.linkPollNext = now.Add(4 * time.Second)
 		a.loadWALinkStatus()
 	}
 	c.After(time.Second)
@@ -596,17 +643,20 @@ func (a *App) createOwnWALink(cl *client.Client) {
 			st := &a.whatsapp
 			st.busy = false
 			if err != nil {
-				st.err = a.failed(err)
+				st.linkErr = "Kode belum bisa dibuat: " + errorText(err)
 				return
 			}
 			st.link = &link
+			if st.linkStatus != nil {
+				st.linkStatus.Pending = &api.WALinkPending{ExpiresAt: link.ExpiresAt}
+			}
 			st.linkPollNext = time.Now().Add(4 * time.Second)
 		}
 	})
 }
 
-// loadWALinkStatus fetches the member's own link; when it turns linked while
-// a code is open, the code is done.
+// loadWALinkStatus fetches the member's own link. A failure is shown with a
+// retry instead of pretending there is no bot.
 func (a *App) loadWALinkStatus() {
 	st := &a.whatsapp
 	cl := a.notificationClient()
@@ -624,14 +674,17 @@ func (a *App) loadWALinkStatus() {
 				return
 			}
 			if err != nil {
-				// A server without the endpoint: keep the code flow.
-				status = api.WALinkStatus{BotReady: false}
+				st.linkErr = "Status WhatsApp belum bisa dimuat: " + errorText(err)
+				return
 			}
+			st.linkErr = ""
 			was := st.linkStatus != nil && st.linkStatus.Linked
 			st.linkStatus, st.linkStatusFor = &status, did
-			if status.Linked && !was && st.link != nil {
+			if status.Linked && !was && (st.link != nil || status.Pending == nil) {
+				if st.link != nil {
+					st.linkToast = "WhatsApp tertaut."
+				}
 				st.link = nil
-				st.linkToast = "WhatsApp tertaut."
 				a.access.members.loaded = false
 			}
 		}
@@ -651,7 +704,7 @@ func (a *App) unlinkOwnWA(cl *client.Client) {
 			st := &a.whatsapp
 			st.busy, st.unlinkAsk = false, false
 			if err != nil {
-				st.err = a.failed(err)
+				st.linkErr = "Tautan belum bisa dilepas: " + errorText(err)
 				return
 			}
 			st.linkStatus = &api.WALinkStatus{BotReady: st.linkStatus != nil && st.linkStatus.BotReady}

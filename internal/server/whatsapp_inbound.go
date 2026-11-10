@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -80,7 +79,7 @@ func (s *Server) processWACommand(ctx context.Context) (bool, error) {
 		in.GroupID = group.ID
 		// A direct message to the bot carries only a link code (waDirectInbound).
 		direct := gid == nil && in.GroupJID == ""
-		if direct && (!conn.Enabled || period.Status == api.PeriodClosed || !strings.HasPrefix(in.Body, "!link ")) {
+		if direct && (!conn.Enabled || period.Status == api.PeriodClosed || !(strings.HasPrefix(in.Body, "!link ") || in.Body == "!pindah")) {
 			_, err = q.Exec(ctx, `update wa_inbound set state='ignored',error='Bot tidak aktif atau periode ditutup.' where id=$1`, in.ID)
 			return err
 		}
@@ -98,8 +97,12 @@ func (s *Server) processWACommand(ctx context.Context) (bool, error) {
 		}
 		var reply whatsapp.SendRequest
 		var actorID *id.ID
+		// Linking answers in plain text: no bot name or greeting around it.
+		plain := command == "link" || command == "pindah"
 		if command == "link" {
 			reply.Text, err = s.consumeWALink(r, q, period, group, in, fields)
+		} else if command == "pindah" {
+			reply.Text, err = s.moveWALink(r, q, period, group, in)
 		} else {
 			var p *principal
 			p, err = s.waSender(r, q, period, group, in)
@@ -126,7 +129,9 @@ func (s *Server) processWACommand(ctx context.Context) (bool, error) {
 		}
 		if reply.Text != "" || reply.AssetID != "" {
 			if reply.Text != "" {
-				reply.Text = renderWAText(conn, "reply", "", reply.Text)
+				if !plain {
+					reply.Text = renderWAText(conn, "reply", "", reply.Text)
+				}
 			}
 			parts := []whatsapp.SendRequest{reply}
 			if reply.AssetID != "" && reply.MediaType == "sticker" && reply.Text != "" {
@@ -207,87 +212,6 @@ func (s *Server) waSender(r *http.Request, q store.Querier, period api.Period, g
 		return nil, errForbidden
 	}
 	return p, nil
-}
-
-func (s *Server) consumeWALink(r *http.Request, q store.Querier, period api.Period, group api.WAGroup, in waInbound, fields []string) (string, error) {
-	if len(fields) != 2 || !strings.HasPrefix(fields[1], "SPACE-") || !waUserJID.MatchString(in.SenderJID) {
-		return "", badRequest("Gunakan !link <kode sekali pakai dari akun Space>.")
-	}
-	hash := sha256.Sum256([]byte(fields[1]))
-	var challenge, uid, did id.ID
-	err := q.QueryRow(r.Context(), `select id,user_id,division_id from wa_link_challenges where period_id=$1 and token_hash=$2 and used_at is null and expires_at>$3 for update`, period.ID, hash[:], s.now()).Scan(&challenge, &uid, &did)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return "", badRequest("Kode tautan tidak berlaku. Buat kode baru dari akun Space.")
-	}
-	if err != nil {
-		return "", err
-	}
-	u, err := s.store.UserForUpdate(r.Context(), q, uid)
-	if err != nil {
-		return "", err
-	}
-	if u.DisabledAt != nil || u.Kind == api.AccountOrganizationAdmin {
-		return "", errForbidden
-	}
-	p := &principal{User: u}
-	scRequest := r.Clone(r.Context())
-	scRequest.SetPathValue("divisionId", did.String())
-	sc, err := s.loadScope(r.Context(), q, scRequest, p, store.LockNone)
-	if err != nil {
-		return "", err
-	}
-	if err = sc.require(api.CapTasksOwn); err != nil {
-		return "", err
-	}
-	// In a group the member must see its Space; a direct message to the bot
-	// only needs the division the code was made in.
-	direct := group.ID == id.Nil
-	if !direct {
-		view, err := s.spaceView(r.Context(), q, p, group.SpaceID)
-		if err != nil {
-			return "", err
-		}
-		if !slices.Contains(view.Capabilities, api.CapSpaceRead) {
-			return "", errForbidden
-		}
-	}
-	jids := []string{in.SenderJID}
-	if in.SenderAltJID != "" && in.SenderAltJID != in.SenderJID && waUserJID.MatchString(in.SenderAltJID) {
-		jids = append(jids, in.SenderAltJID)
-	}
-	for _, jid := range jids {
-		var other id.ID
-		err = q.QueryRow(r.Context(), `select user_id from wa_identities where period_id=$1 and jid=$2`, period.ID, jid).Scan(&other)
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			return "", err
-		}
-		if err == nil && other != uid {
-			return "", conflict("Identitas chat sudah ditautkan ke akun lain; tautan tidak dipindahkan.")
-		}
-		if _, err = q.Exec(r.Context(), `insert into wa_identities(period_id,division_id,user_id,jid,verified_by,verified_at) values($1,$2,$3,$4,$3,$5) on conflict(period_id,jid) do update set verified_at=excluded.verified_at`, period.ID, did, uid, jid, s.now()); err != nil {
-			return "", err
-		}
-	}
-	if _, err = q.Exec(r.Context(), `update wa_link_challenges set used_at=$2 where id=$1`, challenge, s.now()); err != nil {
-		return "", err
-	}
-	source := "group"
-	if direct {
-		source = "dm"
-	}
-	if err = s.record(r, q, p, store.AuditEvent{Action: "whatsapp.identity.link", TargetType: "user", TargetID: &uid, PeriodID: &period.ID, After: map[string]any{"inboundId": in.ID, "groupId": group.ID, "jid": in.SenderJID, "source": source}}); err != nil {
-		return "", err
-	}
-	if direct {
-		// Only the sender reads this: name it, with the NIM masked, so a code
-		// forwarded to someone else shows whose account it links.
-		who := u.DisplayName
-		if u.NIM != "" {
-			who += " (NIM " + api.MaskNIM(u.NIM) + ")"
-		}
-		return "Tertaut. WhatsApp ini sekarang terhubung ke akun Space " + who + ". Bukan kamu? Buka Space → Bot WhatsApp → Lepas tautan.", nil
-	}
-	return waText(r.Context(), "link.success"), nil
 }
 
 func (s *Server) runWACommand(r *http.Request, q store.Querier, p *principal, period api.Period, conn api.WAConnection, group api.WAGroup, in waInbound, command string, args []string) (whatsapp.SendRequest, error) {

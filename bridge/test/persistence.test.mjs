@@ -66,3 +66,13 @@ test('a direct message is forwarded only when it is a link code, and only its se
  await assert.rejects(connections.send(cid,{...reply,id:'66666666-6666-4666-8666-666666666666'}),error=>error.status===403);
  await connections.close();
 });
+
+test('PINDAH in a private chat is forwarded only from someone who just sent a code',async t=>{
+ const connections=new Connections(await temporary(t),key,logger), c=await connections.get(cid);
+ const dm=(from,text,id)=>({key:{remoteJid:from,id,fromMe:false},messageTimestamp:1762800000,message:{conversation:text}});
+ assert.equal(await connections.direct(c,dm('6287777777777@s.whatsapp.net','PINDAH','B1')),false);
+ assert.equal(await connections.direct(c,dm('6281234567890@s.whatsapp.net','SPACE-abcdefghijklmnopqrstuvwx','B2')),true);
+ assert.equal(await connections.direct(c,dm('6281234567890@s.whatsapp.net','pindah','B3')),true);
+ assert.deepEqual(c.events.items.map(e=>e.text),['SPACE-abcdefghijklmnopqrstuvwx','pindah']);
+ await connections.close();
+});

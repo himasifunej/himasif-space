@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -14,6 +15,7 @@ import (
 	"github.com/himasifunej/himasif-space/internal/id"
 	"github.com/himasifunej/himasif-space/internal/store"
 	"github.com/himasifunej/himasif-space/internal/whatsapp"
+	"github.com/jackc/pgx/v5"
 )
 
 // Linking a member's WhatsApp to their Space account (plan §8, option a):
@@ -142,7 +144,26 @@ func (s *Server) waLinkStatus(w http.ResponseWriter, r *http.Request, p *princip
 		}
 		bot, err := s.divisionBotNumber(r, q, sc)
 		out.BotReady = bot != ""
-		return err
+		if err != nil || out.Linked {
+			return err
+		}
+		var pend api.WALinkPending
+		var other *string
+		err = q.QueryRow(r.Context(), `select c.expires_at, c.attempted_at, u.display_name, c.conflict_until from wa_link_challenges c left join users u on u.id=c.conflict_user_id
+			where c.period_id=$1 and c.user_id=$2 and c.used_at is null and c.expires_at>$3 order by c.expires_at desc limit 1`, sc.period.ID, p.User.ID, s.now()).Scan(&pend.ExpiresAt, &pend.AttemptedAt, &other, &pend.MoveUntil)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if other != nil && pend.MoveUntil != nil && pend.MoveUntil.After(s.now()) {
+			pend.ConflictAccount = *other
+		} else {
+			pend.MoveUntil = nil
+		}
+		out.Pending = &pend
+		return nil
 	})
 	if err != nil {
 		return err
@@ -188,13 +209,17 @@ func (s *Server) unlinkWA(w http.ResponseWriter, r *http.Request, p *principal) 
 // the per-chat limit; otherwise nothing, ignored.
 func waDirectInbound(s *Server, e whatsapp.Event, live bool) (body, state, reason string) {
 	m := waDMCode.FindStringSubmatch(e.Text)
+	move := waDMMove.MatchString(e.Text)
 	switch {
-	case e.Type != "message" || m == nil || !waUserJID.MatchString(e.SenderJID):
+	case e.Type != "message" || (m == nil && !move) || !waUserJID.MatchString(e.SenderJID):
 		return "", "ignored", "Pesan pribadi selain kode tautan tidak dibaca."
 	case !live:
 		return "", "ignored", "Bot tidak aktif atau periode ditutup saat penerimaan."
 	case !s.waDMLimit.allow("dm:"+e.SenderJID, s.now()):
 		return "", "ignored", "Terlalu banyak kode tautan dari chat ini."
+	}
+	if move {
+		return "!pindah", "queued", ""
 	}
 	return "!link " + m[1], "queued", ""
 }

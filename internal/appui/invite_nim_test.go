@@ -86,3 +86,60 @@ func TestNIMAndWALinkNativeCapture(t *testing.T) {
 	st.linkPollNext = time.Now().Add(time.Hour)
 	shot("wa-tautkan-menunggu")
 }
+
+// The member's own WhatsApp panel says what is going on: an error with a
+// retry that works, a visible wait with a countdown, and a number that
+// already belongs to another account with the PINDAH way out.
+func TestWAOwnLinkStates(t *testing.T) {
+	h := newChromeHarness(t, nil)
+	h.tt.SetSize(1280, 900)
+	d := h.api.divisions[0]
+	testAuthorizedSpace(h.app, d)
+	h.app.access.spaces[0].Roles = []api.Access{{DivisionID: d.ID, Roles: []string{api.RoleMember}, Capabilities: []string{api.CapSpaceRead, api.CapTasksOwn}}}
+	h.app.router.Push(PathSpaces)
+	h.app.chrome.tab = "Bot WhatsApp"
+	h.tt.Frame()
+	st := &h.app.whatsapp
+	st.loaded, st.division = true, d.ID
+
+	st.linkErr = "Status WhatsApp belum bisa dimuat: Tidak dapat menghubungi server. Periksa koneksi, lalu coba lagi."
+	h.tt.Frame()
+	h.want(st.linkErr)
+	h.click("Coba lagi")
+	h.tt.Frame()
+	if st.linkErr != "" {
+		t.Fatal("Coba lagi kept the error")
+	}
+	h.want("Memeriksa status WhatsApp…")
+
+	until := time.Now().Add(15 * time.Minute)
+	move := time.Now().Add(14 * time.Minute)
+	st.linkStatus, st.linkStatusFor = &api.WALinkStatus{BotReady: true, Pending: &api.WALinkPending{ExpiresAt: until, ConflictAccount: "Demo Mediatek", MoveUntil: &move}}, d.ID
+	st.link = &api.WALinkChallenge{Code: "SPACE-abcdefghijklmnopqrstuvwx", ExpiresAt: until, DeepLink: "https://wa.me/6281111111111?text=SPACE-abcdefghijklmnopqrstuvwx"}
+	st.linkPollNext = time.Now().Add(time.Hour)
+	h.tt.Frame()
+	h.want("Nomor itu sudah tertaut ke akun Demo Mediatek.")
+	h.want("Buka WhatsApp dan kirim")
+	waiting := false
+	for _, s := range h.tt.Texts() {
+		if strings.HasPrefix(s, "Menunggu pesan dari WhatsApp… 1") {
+			waiting = true
+		}
+	}
+	if !waiting {
+		t.Fatalf("no countdown in %q", h.tt.Texts())
+	}
+
+	// After a reload the code itself is gone, but the wait is not lost.
+	st.link = nil
+	h.tt.Frame()
+	h.want("Buat kode baru")
+	h.dontWant("Buka WhatsApp dan kirim")
+
+	// An expired code says so and offers a new one.
+	st.link = &api.WALinkChallenge{Code: "SPACE-x", ExpiresAt: time.Now().Add(-time.Minute)}
+	st.linkStatus.Pending = nil
+	h.tt.Frame()
+	h.want("Kode sudah kedaluwarsa. Buat kode baru.")
+	h.want("Tautkan WhatsApp")
+}

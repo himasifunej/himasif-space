@@ -37,6 +37,7 @@ type whatsappUIState struct {
 	linkStatusLoading   bool
 	linkPollNext        time.Time
 	unlinkAsk           bool
+	linkErr             string
 	linkToast           string
 	mapSpace            id.ID
 	mapJID              string
@@ -275,6 +276,9 @@ func (a *App) waHeader(c *ui.Context) bool {
 		if spaceButton(c, "Muat ulang", "refresh", false).Disabled(st.loading || st.busy || a.offlineMode()).Clicked() {
 			st.err = ""
 			a.loadWhatsApp()
+			// Also the member's own link: the reload button must reach it.
+			st.linkErr = ""
+			a.loadWALinkStatus()
 		}
 	})
 	if st.loading {

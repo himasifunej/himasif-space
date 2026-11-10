@@ -9,6 +9,9 @@ const GROUP = /^\d+(?:-\d+)?@g\.us$/;
 const USER = /^[0-9a-zA-Z._:-]+@(s\.whatsapp\.net|lid)$/;
 // The only direct message the bot reads: a Space link code ("Tautkan WhatsApp").
 const LINK_CODE = /^(?:!link\s+)?SPACE-[A-Za-z0-9_-]{16,64}$/i;
+// The answer that moves a number linked to another account; read only from
+// someone who sent a code within the reply window.
+const MOVE = /^!?pindah$/i;
 // How long after a code arrives Space may reply to that chat.
 const DM_REPLY_WINDOW = 60 * 60_000;
 const hash = (value) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -153,8 +156,9 @@ export class Connections {
   // neither stored nor forwarded.
   async direct(c, message) {
     const text = messageText(message.message).trim();
-    if (!LINK_CODE.test(text)) return false;
     const sender = jidNormalizedUser(message.key.remoteJid);
+    const recent = (c.dmPeers[sender] ?? 0) > Date.now();
+    if (!LINK_CODE.test(text) && !(MOVE.test(text) && recent)) return false;
     const alt = message.key.remoteJidAlt ? jidNormalizedUser(message.key.remoteJidAlt) : '';
     const now = Date.now();
     for (const [jid, until] of Object.entries(c.dmPeers)) if (until < now) delete c.dmPeers[jid];
