@@ -227,6 +227,9 @@ func (e *noteDocumentEditor) textKey(index, item int, k ui.TextKey) bool {
 	if !e.editable || index >= len(e.blocks) {
 		return false
 	}
+	if e.undoKey(k) || e.mentionKey(index, item, k) {
+		return true
+	}
 	if e.menu.open && e.menu.block == index && item < 0 {
 		matches := noteMenuMatches(e.menu.query)
 		switch k.Key {
@@ -417,6 +420,9 @@ func (e *noteDocumentEditor) blockRow(c *ui.Context, index int) {
 			if e.editable && e.menu.open && e.menu.block == index {
 				e.blockMenu(c, anchor)
 			}
+			if e.editable && e.Mentions != nil && e.mention.open && e.mention.block == index {
+				e.mentionMenu(c, anchor)
+			}
 			if e.editable && e.selected == index && e.advanced {
 				if e.OnExtract != nil && b.Type != api.BlockDivider {
 					e.extractView(c, noteBlockText(b), fmt.Sprintf("blok %d", index+1), true)
@@ -491,7 +497,7 @@ func (e *noteDocumentEditor) blockContent(c *ui.Context, index int, b api.NoteBl
 				ui.Text(c, b.Text).FontSize(size).Bold().FillWidth().MinWidth(0).Padding(4, 0)
 			}
 		case api.BlockParagraph:
-			if e.editable && notePlainSpans(b.Spans) {
+			if e.editable && noteInlineSpans(b.Spans) {
 				e.paragraphInput(c, index, fmt.Sprintf("Paragraf %d", index+1), "Ketik / untuk memilih blok", &e.blocks[index].Spans)
 			} else {
 				noteDocumentRichText(c, b.Spans, true)
@@ -509,7 +515,7 @@ func (e *noteDocumentEditor) blockContent(c *ui.Context, index int, b api.NoteBl
 				ui.Icon(c, spaceIcon(icon)).Size(16, 16).TextColor(accent).Shrink(0)
 				ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
 					ui.Text(c, noteCalloutLabel(b.Variant)).FontSize(11).Bold().TextColor(accent)
-					if e.editable && notePlainSpans(b.Spans) {
+					if e.editable && noteInlineSpans(b.Spans) {
 						e.paragraphInput(c, index, fmt.Sprintf("Isi blok %d", index+1), "Tulis "+strings.ToLower(noteCalloutLabel(b.Variant))+"…", &e.blocks[index].Spans)
 					} else {
 						noteDocumentRichText(c, b.Spans, true)
@@ -572,8 +578,9 @@ func (e *noteDocumentEditor) paragraphInput(c *ui.Context, index int, label, pla
 		e.focusOn(index, 0)
 		return
 	}
-	*spans = []api.Span{{Text: value}}
-	if paragraph && strings.HasPrefix(value, "/") && !strings.ContainsAny(value, "\n") && len([]rune(value)) <= 32 {
+	*spans = noteRespan(*spans, value)
+	e.afterInlineEdit(index, -1)
+	if paragraph && notePlainSpans(*spans) && strings.HasPrefix(value, "/") && !strings.ContainsAny(value, "\n") && len([]rune(value)) <= 32 {
 		e.menu = noteBlockMenu{open: true, block: index, replace: true, query: value[1:]}
 	} else if e.menu.open && e.menu.block == index && e.menu.replace {
 		e.menu.open = false
@@ -731,6 +738,7 @@ func (e *noteDocumentEditor) toggleView(c *ui.Context, index int, b api.NoteBloc
 				if e.editable && child.Type == api.BlockParagraph && notePlainSpans(child.Spans) {
 					value := noteSpansText(child.Spans)
 					in := ui.TextAreaBase(c.Key("toggle-line"), &value).Lines(1, 20).Label(fmt.Sprintf("Isi toggle %d baris %d", index+1, i+1)).Placeholder("Isi toggle").FillWidth().MinWidth(0).FontSize(14).Background(ui.RGBA(0, 0, 0, 0)).BorderWidth(0).Padding(2, 0)
+					in.OnTextKey(e.undoKey)
 					if in.Focused() {
 						e.selectBlock(index)
 					}
@@ -761,11 +769,17 @@ func (e *noteDocumentEditor) toggleView(c *ui.Context, index int, b api.NoteBloc
 // for keyboards and screen readers but drawn only when shown (hover, the
 // block tools, or a phone's "⋯").
 func (e *noteDocumentEditor) extractView(c *ui.Context, text, source string, shown bool) {
+	e.extractViewWith(c, text, source, shown, true)
+}
+
+// extractViewWith: task false leaves "Jadikan tugas" to the action item's
+// own button, which fills the task's PJ and tenggat and keeps its id.
+func (e *noteDocumentEditor) extractViewWith(c *ui.Context, text, source string, shown, task bool) {
 	if e.OnExtract == nil || strings.TrimSpace(text) == "" {
 		return
 	}
 	ui.Row(c.Key("extract")).Shrink(0).Gap(0).Opacity(noteShown(shown)).Children(func() {
-		if e.ExtractTask && noteHandle(c.Key("task"), "Jadikan tugas dari "+source, "task").Clicked() {
+		if task && e.ExtractTask && noteHandle(c.Key("task"), "Jadikan tugas dari "+source, "task").Clicked() {
 			e.OnExtract(text, api.NoteLinkTask)
 		}
 		if noteHandle(c.Key("bell"), "Jadikan reminder dari "+source, "bell").Clicked() {
@@ -812,7 +826,7 @@ func (e *noteDocumentEditor) listView(c *ui.Context, index int, b api.NoteBlock)
 			}
 			ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 				spans := b.Items[i].Spans
-				if e.editable && notePlainSpans(spans) {
+				if e.editable && noteInlineSpans(spans) {
 					value := noteSpansText(spans)
 					in := ui.TextInput(c.Key("inline-list-item"), &value).Label(fmt.Sprintf("Butir %d blok %d", i+1, index+1)).Placeholder("Tulis poin…").FillWidth().FontSize(14).Background(ui.RGBA(0, 0, 0, 0)).BorderWidth(0).Padding(4, 0)
 					in.OnTextKey(func(k ui.TextKey) bool { return e.textKey(index, i, k) })
@@ -825,18 +839,27 @@ func (e *noteDocumentEditor) listView(c *ui.Context, index int, b api.NoteBlock)
 						e.item = i
 					}
 					if in.Changed() {
-						e.blocks[index].Items[i].Spans = []api.Span{{Text: value}}
+						e.blocks[index].Items[i].Spans = noteRespan(spans, value)
 						e.changed = true
+						e.afterInlineEdit(index, i)
 					}
 				} else {
 					ui.Column(c).FillWidth().MinWidth(0).Padding(4, 0).Children(func() { noteDocumentRichText(c, spans, true) })
 				}
 			})
-			if e.editable && !notePlainSpans(b.Items[i].Spans) && noteHandle(c.Key("rich"), fmt.Sprintf("Ubah butir %d blok %d", i+1, index+1), "edit").Clicked() {
+			if e.editable && !noteInlineSpans(b.Items[i].Spans) && noteHandle(c.Key("rich"), fmt.Sprintf("Ubah butir %d blok %d", i+1, index+1), "edit").Clicked() {
 				e.selectBlock(index)
 				e.item, e.advanced = i, true
 			}
-			e.extractView(c, noteSpansText(b.Items[i].Spans), fmt.Sprintf("butir %d blok %d", i+1, index+1), shown)
+			// A checklist item is an action item: PJ, tenggat and its task.
+			action := b.Type == api.BlockChecklist
+			if action {
+				e.actionChips(c, index, i, b.Items[i], shown)
+			}
+			if b.Type == api.BlockNumberedList {
+				e.minutesChip(c, index, i, b.Items[i], shown)
+			}
+			e.extractViewWith(c, noteSpansText(b.Items[i].Spans), fmt.Sprintf("butir %d blok %d", i+1, index+1), shown, !(action && e.editable && e.OnActionTask != nil))
 		})
 	}
 }
@@ -893,6 +916,9 @@ func (e *noteDocumentEditor) MobileBar(c *ui.Context) {
 			tool("bar-up", "Naikkan blok", "", "↑", !valid || sel == 0, func() { e.moveBlock(-1) })
 			tool("bar-down", "Turunkan blok", "", "↓", !valid || sel >= len(e.blocks)-1, func() { e.moveBlock(1) })
 			tool("bar-tools", "Pilihan blok", "more", "", !valid, func() { e.advanced = !e.advanced })
+			ui.Box(c).Width(1).Height(24).Background(t.Border).Margin(0, 4)
+			tool("bar-undo", "Urungkan", "undo", "", !e.CanUndo(), func() { e.Undo() })
+			tool("bar-redo", "Ulangi", "redo", "", !e.CanRedo(), func() { e.Redo() })
 		})
 	})
 }

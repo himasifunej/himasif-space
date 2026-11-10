@@ -61,6 +61,9 @@ type noteConversion struct {
 	// reader: started by someone who cannot edit the note; the target is
 	// made but never linked to the note.
 	reader bool
+	// source: the action item it started from (C4); the task's id is put
+	// back into it.
+	source *noteActionSource
 }
 
 type noteDraftKey struct{ user, note id.ID }
@@ -134,6 +137,14 @@ type notesUIState struct {
 	panelTab                        string
 	panelPref                       int8
 	sheetOpen, moreOpen, attachOpen bool
+	// G3: the notulis reads the note without leaving the editor.
+	reading bool
+	// T1: meeting timers on this device, by note (kept while the app runs).
+	timers map[id.ID]*noteTimer
+	// C4: the note division's members for the PJ and "@" pickers.
+	members                   []api.Member
+	membersFor, membersPeriod id.ID
+	membersErr                string
 }
 
 func (a *App) notesService() (NotesAPI, bool) {
@@ -307,7 +318,7 @@ func (a *App) closeNote() {
 	a.notes.historyErr, a.notes.linksErr = "", ""
 	a.notes.baseVersion, a.notes.conflict = 0, false
 	a.notes.revision, a.notes.localRevision, a.notes.serverRevision = 0, 0, 0
-	a.notes.deleteConfirm, a.notes.takeoverConfirm = false, false
+	a.notes.deleteConfirm, a.notes.takeoverConfirm, a.notes.reading = false, false, false
 	a.notes.saving, a.notes.saveErr, a.notes.propsOpen, a.notes.releaseAfter = false, "", false, false
 	a.notes.savedAt, a.notes.saveFailedAt, a.notes.since, a.notes.remoteAt, a.notes.remoteBy = time.Time{}, time.Time{}, time.Time{}, time.Time{}, ""
 }
@@ -1377,6 +1388,11 @@ func (a *App) saveNoteConversion() {
 				return
 			}
 			c.target, c.linkPending = target, true
+			if c.source != nil && c.kind == api.NoteLinkTask && a.notes.editor != nil {
+				// The action item keeps its task (taskId, chip #T); autosave
+				// writes it with the next change.
+				a.notes.editor.SetItemTask(c.source.block, c.source.item, c.source.text, target)
+			}
 			link := api.NoteLinkRequest{TargetType: c.kind, TargetID: target}
 			if !slices.Contains(a.notes.pendingLinks, link) {
 				a.notes.pendingLinks = append(a.notes.pendingLinks, link)

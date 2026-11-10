@@ -5,9 +5,12 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/himasifunej/himasif-space/internal/api"
+	"github.com/himasifunej/himasif-space/internal/id"
+	"github.com/himasifunej/himasif-space/internal/timeutil"
 )
 
 const (
@@ -52,6 +55,22 @@ type noteDocumentEditor struct {
 	closed     map[int]bool // toggles folded by the viewer (not saved)
 	reveal     int          // phone: block whose extract buttons are shown (+1)
 	dragOver   int          // block a dragged handle is over (+1)
+	// G3: the document's undo history.
+	history noteUndoHistory
+	// C4: mentions and action items. Mentions lists the "@" picker's
+	// targets for a query (nil: no picker); Members the PJ picker's people
+	// (nil while loading); MemberName names a PJ; Today is the tenggat
+	// presets' today; TaskLabel names a task ("#T22"); OpenTask opens one;
+	// OnActionTask starts "Jadikan tugas" for an action item.
+	Mentions     func(query string) []noteMentionTarget
+	Members      func() []noteMember
+	MemberName   func(id.ID) string
+	Today        func() timeutil.Date
+	TaskLabel    func(id.ID) string
+	OpenTask     func(id.ID)
+	OnActionTask func(block, item int, it api.NoteListItem)
+	mention      noteMentionMenu
+	pick         notePick
 }
 
 func newNoteDocumentEditor(content []api.NoteBlock) *noteDocumentEditor {
@@ -59,6 +78,7 @@ func newNoteDocumentEditor(content []api.NoteBlock) *noteDocumentEditor {
 	if len(content) > 0 {
 		e.selected = 0
 	}
+	e.startHistory()
 	return e
 }
 
@@ -75,6 +95,8 @@ func (e *noteDocumentEditor) Replace(content []api.NoteBlock) {
 		e.selected = 0
 	}
 	e.blockPage = max(0, min(e.blockPage, (len(e.blocks)-1)/noteBlocksPerPage))
+	e.mention, e.pick = noteMentionMenu{}, notePick{}
+	e.startHistory()
 }
 
 func cloneNoteDocument(content []api.NoteBlock) []api.NoteBlock {
@@ -132,9 +154,16 @@ func (e *noteDocumentEditor) SetEditable(value bool) {
 		e.addOpen = false
 	}
 }
-func (e *noteDocumentEditor) TakeChanged() bool {
+func (e *noteDocumentEditor) TakeChanged() bool { return e.TakeChangedAt(time.Now()) }
+
+// TakeChangedAt reports (once) a change of the document, recording it in
+// the undo history at now.
+func (e *noteDocumentEditor) TakeChangedAt(now time.Time) bool {
 	changed := e.changed
 	e.changed = false
+	if changed {
+		e.track(now)
+	}
 	return changed
 }
 

@@ -246,6 +246,9 @@ Pilot 0.3.5: menulis terasa sempit dan terlalu banyak elemen; yang paling mengga
 ### Tahap kecil (masing-masing bisa dirilis)
 - **G1 — Panel bertab + bilah tipis** (rilis ini): panel kanan Rapat / Komentar / Riwayat (desktop terbuka, tablet tertutup, HP sheet bertab), bilah atas tipis dengan kunci + status + chip draf + ⋯, dokumen 760 px tanpa kartu bawah, chip rapat di bawah judul, outline Di halaman ini, form Jadikan tugas/reminder tampil di panel.
 - **G2 — Menu "/" ringkas** (rilis ini bila sempat): baris satu kolom dengan shortcut markdown di kanan; grid HP tetap.
-- **G3 — Edit | Baca + urungkan/ulangi**: mode baca tanpa handle, riwayat urungkan di editor (belum ada).
-- **G4 — Pohon catatan dengan saringan**: kelompok per bulan rapat/tag, saring Semua / Notulen / Milikku / Ada draf, daftar bisa diciutkan.
-- **G5 — Timer di tab Rapat** (= T1 rencana timer) dan komentar per blok (penanda di margin) bila owner menginginkannya.
+- **G3 — Edit | Baca + urungkan/ulangi** (dikerjakan di `feat/catatan-g3-timer-c4`): mode baca tanpa handle, riwayat urungkan di editor.
+- **G4 — Pohon catatan dengan saringan** (ditunda ke rilis berikutnya supaya rilis G3/T1/C4 tidak terlalu besar untuk pilot): kelompok per bulan rapat/tag, saring Semua / Notulen / Milikku / Ada draf, daftar bisa diciutkan.
+- **G5 — Timer di tab Rapat** (= T1, dikerjakan bersama G3) dan komentar per blok (penanda di margin; belum, menunggu keputusan owner).
+
+### Hasil G3 + T1 + C4 (branch `feat/catatan-g3-timer-c4`)
+Rincian dan daftar uji: `docs/handoff/catatan-g3-timer-c4-hasil.md`. Tanpa migrasi atau perubahan API: field C1 (`minutes`, `assigneeId`, `dueOn`, `taskId`, span `mention`) dipakai apa adanya. Timer T1 disimpan di memori aplikasi per catatan (hilang saat aplikasi ditutup; {{Asumsi}} cukup untuk T1, T2 memindahkannya ke server).

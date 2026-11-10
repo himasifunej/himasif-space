@@ -82,11 +82,13 @@ func (a *App) noteDetail(c *ui.Context) {
 			a.saveNote()
 		}
 	})
+	a.noteUndoShortcuts(c)
 	a.noteDocBar(c, phone)
 	ui.Row(c.Key("note-body")).Grow(1).MinHeight(0).FillWidth().MinWidth(0).AlignItems(ui.Stretch).Children(func() {
 		ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Children(func() {
+			a.noteTimerPill(c, phone)
 			a.noteDocumentScroll(c, phone)
-			if a.notesCanEdit() && phone && a.notes.editor != nil && a.notes.compare == nil {
+			if a.noteEditing() && phone && a.notes.editor != nil {
 				ui.Column(c).FillWidth().BorderWidth(1, 0, 0, 0).BorderColor(c.Theme().Border).Background(c.Theme().Surface).Children(func() { a.notes.editor.MobileBar(c) })
 			}
 		})
@@ -135,7 +137,7 @@ func (a *App) noteDocumentScroll(c *ui.Context, phone bool) {
 					a.noteComparisonView(c)
 				}
 				if e := a.notes.editor; e != nil {
-					e.SetEditable(a.notesCanEdit() && a.notes.compare == nil)
+					e.SetEditable(a.noteEditing())
 					e.OnExtract = nil
 					e.ExtractTask = a.noteCanExtractTask()
 					e.Compact = phone
@@ -147,8 +149,9 @@ func (a *App) noteDocumentScroll(c *ui.Context, phone bool) {
 							a.openNotePanel(c, a.notePanelTab())
 						}
 					}
+					a.wireNoteEditor(c, e)
 					e.View(c)
-					if e.TakeChanged() {
+					if e.TakeChangedAt(c.Now()) {
 						a.markNoteChanged()
 					}
 				}
@@ -255,6 +258,12 @@ func (a *App) noteDocBar(c *ui.Context, phone bool) {
 				a.openNotePanel(c, notePanelRiwayat)
 			}
 		}
+		if a.notesCanEdit() && a.notes.compare == nil {
+			a.noteModeSwitch(c, phone)
+		}
+		if !a.notesCanEdit() {
+			a.notes.reading = false // the next time the editor is taken, it opens in Edit
+		}
 		a.noteLockChip(c, phone)
 		label, icon, warn := a.noteSaveState(now)
 		color := faint(t)
@@ -267,6 +276,9 @@ func (a *App) noteDocBar(c *ui.Context, phone bool) {
 				ui.Text(c, label).FontSize(12).TextColor(color).MaxLines(1).MinWidth(0)
 			}
 		})
+		if !phone && a.noteEditing() {
+			a.noteUndoButtons(c)
+		}
 		if a.notes.saveErr != "" && a.notesCanEdit() && !a.notes.saving {
 			if outlineButton(c.Key("note-retry"), "Coba simpan lagi", "refresh", false).Height(28).Clicked() {
 				a.commitNote(false)
@@ -541,6 +553,7 @@ func (a *App) notePanelMeeting(c *ui.Context) {
 			muted(c, "Catatan ini tidak terhubung ke rapat.").FontSize(12)
 		}
 	})
+	a.noteTimerSection(c)
 	if m != nil {
 		att := meetingAttendance(m)
 		notePanelSection(c, "sec-hadir", "Kehadiran · "+strings.Join(att.parts(), " · "), func() {
