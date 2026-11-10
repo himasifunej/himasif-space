@@ -33,14 +33,14 @@ var _ AccountAPI = (*client.Client)(nil)
 // seq changes whenever the flow is replaced; gen additionally binds requests to
 // the current session. A late response cannot populate another account's form.
 type accountFlowState struct {
-	seq                                           uint64
-	mode                                          string
-	active, busy, awaitingLogin                   bool
-	token, verification                           string
-	preview                                       *api.InvitationPreview
+	seq                         uint64
+	mode                        string
+	active, busy, awaitingLogin bool
+	token, verification         string
+	preview                     *api.InvitationPreview
 	// gone: the server said the invitation link no longer works (revoked,
 	// used, expired or replaced by a resend); checking again cannot help.
-	gone bool
+	gone                                          bool
 	err, message                                  string
 	link, email, name, password, confirm          string
 	owner                                         id.ID
