@@ -11,6 +11,10 @@ import "github.com/himasifunej/himasif-space/internal/id"
 type NoteWASummaryRequest struct {
 	Send            bool  `json:"send"`
 	ExpectedVersion int64 `json:"expectedVersion"`
+	// PublicURL is the note's public link (C6) the caller still holds: the
+	// server keeps only its hash, so it can use the link only when the
+	// client sends it; it is used when it opens the live link.
+	PublicURL string `json:"publicUrl,omitempty"`
 }
 
 // NoteWASummary is the message and where it goes. Problem says why it
@@ -24,6 +28,8 @@ type NoteWASummary struct {
 	Problem   string `json:"problem,omitempty"`
 	Warning   string `json:"warning,omitempty"`
 	Version   int64  `json:"version"`
-	Queued    bool   `json:"queued"`
-	OutboxID  *id.ID `json:"outboxId,omitempty"`
+	// Public: the message links the note's public page.
+	Public   bool   `json:"public"`
+	Queued   bool   `json:"queued"`
+	OutboxID *id.ID `json:"outboxId,omitempty"`
 }

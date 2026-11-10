@@ -169,4 +169,22 @@ func TestNoteWASummary(t *testing.T) {
 	if c := o.call("POST", path, o.member, api.NoteWASummaryRequest{Send: true, ExpectedVersion: pv.Version}, nil); c != 409 {
 		t.Fatalf("double send = %d", c)
 	}
+
+	// A public note (C6): the link the writer holds is used once the
+	// server finds it opens the live link; a made-up one is not.
+	var made api.NotePublicLinkCreated
+	if c := o.call("POST", "/api/notes/"+note.ID.String()+"/public-link", o.member, nil, &made); c != 201 {
+		t.Fatalf("public link = %d", c)
+	}
+	pv = api.NoteWASummary{}
+	o.call("POST", path, o.member, api.NoteWASummaryRequest{PublicURL: made.URL}, &pv)
+	if !pv.Public || !strings.Contains(pv.Text, "Catatan lengkap: "+made.URL) || pv.Warning != "" {
+		t.Fatalf("public preview %+v", pv)
+	}
+	pv = api.NoteWASummary{}
+	fake := made.URL[:len(made.URL)-4] + "AAAA"
+	o.call("POST", path, o.member, api.NoteWASummaryRequest{PublicURL: fake}, &pv)
+	if pv.Public || strings.Contains(pv.Text, "/n/") || !strings.Contains(pv.Warning, "Catatan ini publik") {
+		t.Fatalf("made-up link %+v", pv)
+	}
 }

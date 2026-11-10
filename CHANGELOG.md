@@ -5,6 +5,23 @@ Versi mengikuti aturan sebelum rilis publik:
 - **Minor** naik untuk pembaruan besar.
 - **1.0.0** untuk rilis publik.
 
+## 0.4.3 — 2026-11-10 · Timer rapat bersama, ringkasan ke WhatsApp, panel Anggota
+
+- **Timer rapat bersama (T2)**:
+  - Timer catatan rapat kini disimpan di server pada rapat, jadi notulis di laptop dan kadiv di HP melihat timer yang sama.
+  - Yang bisa mengatur (mulai, jeda, lanjut, agenda berikutnya, +5 mnt, hentikan): pengelola rapat dan penyunting catatan rapat itu. Yang lain hanya melihat, dengan keterangan "Diatur oleh …".
+  - Bila dua orang menekan bersamaan, yang kedua mendapat pesan "Timer baru saja diubah oleh …" dan tampilannya dimuat ulang.
+  - Catatan tanpa rapat tetap memakai timer di perangkat itu.
+  - Migrasi 0032 hanya menambah kolom.
+- **Kirim ringkasan rapat ke WhatsApp (C7)**:
+  - Tab Rapat di catatan punya tombol "Kirim ringkasan ke WhatsApp", dengan pratinjau dan konfirmasi.
+  - Isinya keputusan, action item (PJ + tenggat) dan tautan catatan. Tautan publik dipakai bila catatan dibagikan publik dari perangkat yang sama.
+  - Pesan dikirim lewat bot divisi ke grup divisi.
+- **Anggota (A4)**:
+  - Setiap baris anggota punya menu ⋯ berisi Lihat tugas dan Keluarkan….
+  - Di layar lebar, "Undangan tertunda" (kirim ulang, cabut, status bounce) tampil berdampingan dengan "Kewenangan role" yang ringkas.
+- **Status layanan**: "Revisi sumber server" dan "Hash snapshot server" terisi, tidak lagi "unknown".
+
 ## 0.4.2 — 2026-11-10 · Catatan: tautan publik, tag, template
 
 - **Bagikan catatan (C6)**: dua pilihan, **Hanya divisi ini** (bawaan) dan **Publik lewat tautan**.

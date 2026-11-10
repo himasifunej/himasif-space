@@ -36,8 +36,9 @@ Status: **selesai** (10 Nov 2026), rilis 0.4.3. Rencana: `anggota-catatan-rapat-
   - Worker baru mengirim selama pengirimnya masih bisa membaca Space.
   - Bila divisi belum punya grup bot, dialog menjelaskannya dan tombol Kirim tidak tampil.
   - Bila bot sedang terputus, ada peringatan bahwa pesan terkirim begitu bot tersambung lagi.
-- **Tautan**: {{Asumsi}} untuk sementara mengarah ke `SPACE_PUBLIC_URL/#/spaces` (fungsi `noteSummaryLink`), karena Space belum punya deep link per catatan.
-  - Setelah C6 (tautan publik) masuk, fungsi ini memakai tautan publik bila diaktifkan.
+- **Tautan** (fungsi `noteSummaryLink`):
+  - Bila catatan publik (C6), ringkasan memakai tautan publik. Karena server hanya menyimpan hash token, klien mengirim URL yang masih dipegangnya, dan server memakainya hanya bila hash-nya cocok dengan tautan yang aktif.
+  - Bila tautan itu tidak ada di perangkat ini (misalnya dibuat di perangkat lain, atau aplikasi sudah dimuat ulang), dialog memperingatkan dan ringkasan memakai tautan Space `SPACE_PUBLIC_URL/#/spaces`. {{Asumsi}} Space belum punya deep link per catatan.
 - Riwayat catatan mencatat "Ringkasan dikirim ke grup WhatsApp".
 
 ## A4 — Panel bawah Anggota

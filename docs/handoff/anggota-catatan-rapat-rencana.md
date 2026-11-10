@@ -108,7 +108,7 @@ Setiap tahap: branch sendiri dari tip terbaru, test lolos (kecuali 3 test NoteDo
 1. **A1 — Tabel baca**: avatar, badge role, bar beban (+ lewat tenggat dari tugas termuat), status WA berwarna, kepala halaman (Izin arsip, Undang), cari + chip filter + urutkan, keadaan kosong. Tanpa perubahan alur edit. Berkas: `members_view.go`.
 2. **A2 — Drawer Ubah akses (desktop) + sheet (HP)**: pindahkan `memberEditor` ke drawer; urutan bagian, kartu radio dengan penjelasan, kelompok, role kustom, ringkasan kewenangan, kaki dengan hitungan perubahan; 45 sebagai sakelar (dialog ganti 45). Hapus panel inline. Berkas: `members.go`, `members_view.go`, komponen drawer/sheet bersama.
 3. **A3 — Keluarkan yang aman**: kotak merah di drawer + dialog dengan jumlah tugas aktif; blokir bila masih ada tugas (tautan Lihat tugas). Pengalihan massal = tahap terpisah setelah keputusan.
-4. **A4 — Panel bawah**: Undangan tertunda + Kewenangan role ringkas; menu ⋯ baris.
+4. ✅ (0.4.3) **A4 — Panel bawah**: Undangan tertunda + Kewenangan role ringkas; menu ⋯ baris.
 
 **Catatan rapat**
 5. **C1 — Server blok baru** (tanpa UI): tipe `callout`/`toggle`, field butir checklist (`assigneeId`, `dueOn`, `taskId`), span `mention`, `minutes` agenda, **`id` stabil per blok** (disiapkan untuk kunci per blok, §7); validasi + test di `internal/api/notes_validate*.go` dan server. Klien lama: render "blok tidak didukung".
@@ -119,8 +119,8 @@ Setiap tahap: branch sendiri dari tip terbaru, test lolos (kecuali 3 test NoteDo
 9. ✅ (0.4.2) **C5 — Template & catatan baru**: pemilih template; template Notulen berisi Agenda (dengan menit), Pembahasan, Keputusan, Action item; isi otomatis dari rapat terjadwal.
 10. ✅ (0.4.2, migrasi 0031) **C6 — Tautan publik & tag**: popover Bagikan (Hanya divisi ini / Publik lewat tautan), endpoint buat/cabut/buat ulang, halaman publik hanya-baca tanpa login dengan noindex dan DTO daftar putih, audit, tag.
 11. **T1 — Timer lokal** (disetujui owner, dikerjakan sebelum T2): properti Timer, durasi agenda, pil sticky, jeda/sembunyikan, peringatan waktu habis (+5 mnt / agenda berikutnya). Semua di klien.
-12. **T2 — Timer bersama** (migrasi 0029 + endpoint): status di server, sinkron lewat pembaruan rapat yang ada.
-13. **C7 — Ringkasan ke WhatsApp** (opsional, setelah keputusan).
+12. ✅ (0.4.3, migrasi 0032) **T2 — Timer bersama** (endpoint aksi): status di server, sinkron lewat pembaruan rapat yang ada.
+13. ✅ (0.4.3) **C7 — Ringkasan ke WhatsApp**. Hasil T2/C7/A4: `docs/handoff/timer-c7-a4-hasil.md`.
 
 Urutan yang disarankan: A1 → A2 → A3 → C1 → C2 → C2a → T1 → C3 → C4 → A4 → C5 → C6 → T2 → C7. A1 dan C1 bisa paralel (berkas berbeda).
 

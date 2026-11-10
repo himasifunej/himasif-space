@@ -64,6 +64,15 @@ func (a *App) noteSummarySection(c *ui.Context) {
 	}
 }
 
+// notePublicURL is the note's public link this app made (C6) and still
+// holds; the server checks it against the live link.
+func (a *App) notePublicURL(nid id.ID) string {
+	if a.notes.share.urlNote == nid {
+		return a.notes.share.url
+	}
+	return ""
+}
+
 func (a *App) loadNoteSummary(nid id.ID) {
 	svc, ok := a.noteSummaryService()
 	if !ok {
@@ -73,7 +82,7 @@ func (a *App) loadNoteSummary(nid id.ID) {
 	*st = noteSummaryState{open: true, busy: true, note: nid}
 	gen := a.gen
 	a.async(func() func() {
-		out, err := svc.NoteWASummary(context.Background(), nid, api.NoteWASummaryRequest{})
+		out, err := svc.NoteWASummary(context.Background(), nid, api.NoteWASummaryRequest{PublicURL: a.notePublicURL(nid)})
 		return func() {
 			st := &a.notes.summary
 			if gen != a.gen || st.note != nid {
@@ -98,7 +107,7 @@ func (a *App) sendNoteSummary(nid id.ID, version int64) {
 	st.busy, st.err = true, ""
 	gen := a.gen
 	a.async(func() func() {
-		out, err := svc.NoteWASummary(context.Background(), nid, api.NoteWASummaryRequest{Send: true, ExpectedVersion: version})
+		out, err := svc.NoteWASummary(context.Background(), nid, api.NoteWASummaryRequest{Send: true, ExpectedVersion: version, PublicURL: a.notePublicURL(nid)})
 		return func() {
 			st := &a.notes.summary
 			if gen != a.gen || st.note != nid {

@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -135,13 +136,32 @@ func noteSummaryText(title string, meeting *api.Meeting, decisions []string, act
 	return b.String()
 }
 
-// noteSummaryLink is where the message points: the note in Space (a member
-// opens it after signing in).
-func (s *Server) noteSummaryLink(ctx context.Context, q store.Querier, n *store.NoteRow) (string, error) {
-	if s.cfg.PublicURL == "" {
-		return "", nil
+// noteSummaryLink is where the message points: the note's public page when
+// it is public and the caller sent its live link (C6 keeps only the token's
+// hash), else Space, where a member opens it after signing in. public says
+// whether the note has a live public link at all.
+func (s *Server) noteSummaryLink(ctx context.Context, q store.Querier, n *store.NoteRow, sent string) (link string, usedPublic, public bool, err error) {
+	live, err := s.store.NotePublicLink(ctx, q, n.ID)
+	if err != nil {
+		return "", false, false, err
 	}
-	return s.cfg.PublicURL + "/#/spaces", nil
+	public = live != nil
+	prefix := strings.TrimSuffix(s.cfg.PublicURL, "/") + "/n/"
+	if public && sent != "" && strings.HasPrefix(sent, prefix) {
+		token := strings.TrimPrefix(sent, prefix)
+		hash := sha256.Sum256([]byte(token))
+		var ok bool
+		if err := q.QueryRow(ctx, `select exists(select 1 from note_public_links where note_id=$1 and token_hash=$2 and revoked_at is null)`, n.ID, hash[:]).Scan(&ok); err != nil {
+			return "", false, false, err
+		}
+		if ok && publicTokenRe.MatchString(token) {
+			return s.publicNoteURL(token), true, true, nil
+		}
+	}
+	if s.cfg.PublicURL == "" {
+		return "", false, public, nil
+	}
+	return strings.TrimSuffix(s.cfg.PublicURL, "/") + "/#/spaces", false, public, nil
 }
 
 func (s *Server) noteWASummary(w http.ResponseWriter, r *http.Request, p *principal) error {
@@ -211,10 +231,11 @@ func (s *Server) noteWASummary(w http.ResponseWriter, r *http.Request, p *princi
 		}
 		decisions, actions := noteSummaryParts(n.Content, names)
 		out.Decisions, out.Actions = len(decisions), len(actions)
-		link, err := s.noteSummaryLink(ctx, q, n)
+		link, usedPublic, public, err := s.noteSummaryLink(ctx, q, n, req.PublicURL)
 		if err != nil {
 			return err
 		}
+		out.Public = usedPublic
 		out.Text = noteSummaryText(n.Title, meeting, decisions, actions, link)
 
 		var connID, gid id.ID
@@ -229,6 +250,8 @@ func (s *Server) noteWASummary(w http.ResponseWriter, r *http.Request, p *princi
 			out.Problem = "Belum ada keputusan atau action item (dengan PJ atau tenggat) di catatan ini."
 		case status != "connected":
 			out.Warning = "Bot WhatsApp sedang tidak tersambung; ringkasan terkirim begitu tersambung lagi."
+		case public && !usedPublic:
+			out.Warning = "Catatan ini publik, tetapi tautannya hanya tampil saat dibuat; ringkasan memakai tautan Space. Buat tautan baru di Bagikan bila ingin menyertakan tautan publik."
 		}
 		if !req.Send {
 			return nil
