@@ -358,7 +358,7 @@ func noteTemplateKindLabel(kind string) string {
 }
 
 func noteEventLabel(action string) string {
-	labels := map[string]string{"note.create": "Catatan dibuat", "note.update": "Isi resmi diperbarui", "note.lock.takeover": "Editor diambil alih", "note.comment": "Komentar ditambahkan", "note.comment.add": "Komentar ditambahkan", "note.attachment.add": "Lampiran ditambahkan", "note.attachment.upload": "Berkas lampiran diunggah", "note.attachment.remove": "Lampiran dihapus", "note.link.add": "Hubungan pekerjaan dicatat", "note.link.remove": "Hubungan pekerjaan dihapus"}
+	labels := map[string]string{"note.create": "Catatan dibuat", "note.update": "Isi resmi diperbarui", "note.lock.takeover": "Editor diambil alih", "note.comment": "Komentar ditambahkan", "note.comment.add": "Komentar ditambahkan", "note.attachment.add": "Lampiran ditambahkan", "note.attachment.upload": "Berkas lampiran diunggah", "note.attachment.remove": "Lampiran dihapus", "note.link.add": "Hubungan pekerjaan dicatat", "note.link.remove": "Hubungan pekerjaan dihapus", "note.wa_summary": "Ringkasan dikirim ke grup WhatsApp"}
 	if label, exists := labels[action]; exists {
 		return label
 	}

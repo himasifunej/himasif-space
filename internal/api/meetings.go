@@ -35,6 +35,15 @@ type Meeting struct {
 	CreatedAt       time.Time            `json:"createdAt"`
 	UpdatedAt       time.Time            `json:"updatedAt"`
 	CanManage       bool                 `json:"canManage"`
+	// Timer is the shared meeting timer (stage T2), nil while none runs.
+	// TimerVersion counts its changes; an action carries it as
+	// ExpectedVersion. It is apart from Version, so running the timer
+	// never conflicts with editing the meeting.
+	Timer        *MeetingTimer `json:"timer,omitempty"`
+	TimerVersion int64         `json:"timerVersion"`
+	// CanRunTimer: the caller may start and steer the timer (the meeting's
+	// manager, or who may edit its note).
+	CanRunTimer bool `json:"canRunTimer"`
 }
 
 type MeetingRequest struct {

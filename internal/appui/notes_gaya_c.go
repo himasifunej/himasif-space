@@ -558,6 +558,7 @@ func (a *App) notePanelMeeting(c *ui.Context) {
 		}
 	})
 	a.noteTimerSection(c)
+	a.noteSummarySection(c)
 	if m != nil {
 		att := meetingAttendance(m)
 		notePanelSection(c, "sec-hadir", "Kehadiran · "+strings.Join(att.parts(), " · "), func() {

@@ -142,6 +142,13 @@ type notesUIState struct {
 	reading bool
 	// T1: meeting timers on this device, by note (kept while the app runs).
 	timers map[id.ID]*noteTimer
+	// T2: the shared timer's pill hidden on this device, by meeting; an
+	// action on its way and what went wrong.
+	sharedTimerHidden map[id.ID]bool
+	// C7: the "Ringkasan ke WhatsApp" dialog.
+	summary   noteSummaryState
+	timerBusy bool
+	timerErr  string
 	// C4: the note division's members for the PJ and "@" pickers.
 	members                   []api.Member
 	membersFor, membersPeriod id.ID

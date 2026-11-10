@@ -73,6 +73,10 @@ func TestNoteAgendaFromBlocks(t *testing.T) {
 // yellow when its time is up, and hides without stopping.
 func TestNoteTimerPanelAndPill(t *testing.T) {
 	h := gayaCOpen(t, false, 1440, 900)
+	// T1 is the timer of a note without a meeting; a meeting's note shows
+	// the meeting's shared timer (T2, notes_t2_c7_test.go).
+	h.app.notes.note.MeetingID = nil
+	h.tt.Frame()
 	h.want("Mulai timer")
 	h.want("opsional · 45 mnt untuk 3 agenda")
 	h.want("Timer hanya di perangkat ini.")

@@ -41,6 +41,17 @@ type meetingsState struct {
 	selected              id.ID
 	participant           id.ID
 	arrival, note         string
+	// skew is how far the server's clock is ahead of this device's, from
+	// the last shared timer received (stage T2).
+	skew time.Duration
+}
+
+// noteSkew reads the server's clock off a meeting's timer received at
+// received.
+func (s *meetingsState) noteSkew(m api.Meeting, received time.Time) {
+	if m.Timer != nil && !m.Timer.ServerNow.IsZero() {
+		s.skew = m.Timer.ServerNow.Sub(received)
+	}
 }
 
 func (a *App) meetingsService() (MeetingsAPI, bool) {
@@ -73,6 +84,7 @@ func (a *App) loadMeetings() {
 	a.meetings.loading = true
 	a.async(func() func() {
 		items, err := svc.SpaceMeetings(context.Background(), sid)
+		received := time.Now()
 		members := []api.PersonRef{}
 		var memberErr error
 		if !sp.ReadOnly && slices.Contains(sp.Capabilities, api.CapMembersRead) {
@@ -92,6 +104,9 @@ func (a *App) loadMeetings() {
 				return
 			}
 			a.meetings.items = items
+			for _, m := range items {
+				a.meetings.noteSkew(m, received)
+			}
 			a.meetings.members = members
 			a.meetings.notes = notes
 			a.meetings.loaded = true

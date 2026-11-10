@@ -389,7 +389,9 @@ func (s *Server) dispatchWAClaim(ctx context.Context, claim waClaim) error {
 			if groupID == nil {
 				valid = valid && sourceKind == "link_dm" && waUserJID.MatchString(request.ToJID) && len(request.Mentions) == 0 && request.AssetID == ""
 			}
-			if sourceKind == "command" || sourceKind == "parser" {
+			// A note summary (C7) goes only while its sender may still read
+			// the Space.
+			if sourceKind == "command" || sourceKind == "parser" || sourceKind == "note_summary" {
 				if sourceKind == "command" {
 					valid = valid && commandsEnabled
 				}

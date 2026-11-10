@@ -5,6 +5,14 @@ ENV_FILE ?= $(HOME)/.config/himasif-space/dev.env
 GO       ?= go
 WEB_OUT  := app/build/web
 VERSION  := $(shell python3 -c "import json;print(json.load(open('app/mygo.json'))['version'])")
+# Shown on Status layanan: the commit (with -dirty for local changes), a
+# SHA-256 over the sorted per-file SHA-256 of the tracked files as they are
+# on disk, and the build time.
+REVISION := $(shell git rev-parse HEAD 2>/dev/null || echo unknown)$(shell git diff --quiet HEAD 2>/dev/null || echo -dirty)
+DIGEST   := $(shell git ls-files -z | xargs -0 sha256sum 2>/dev/null | LC_ALL=C sort -k2 | sha256sum | cut -c1-64)
+BUILT_AT := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+SERVER_PKG := github.com/himasifunej/himasif-space/internal/server
+SERVER_LDFLAGS := -X $(SERVER_PKG).Version=$(VERSION) -X $(SERVER_PKG).SourceRevision=$(REVISION) -X $(SERVER_PKG).SourceDigest=$(DIGEST) -X $(SERVER_PKG).BuiltAt=$(BUILT_AT)
 
 .PHONY: all check fmt vet test test-db web desktop-windows server serve migrate seed mail-test clean
 
@@ -39,7 +47,7 @@ desktop-windows:
 	$(GO) tool mygo build -platform windows/amd64 ./app
 
 server:
-	$(GO) build -ldflags "-X github.com/himasifunej/himasif-space/internal/server.Version=$(VERSION)" -o bin/space-server ./cmd/space-server
+	$(GO) build -ldflags "$(SERVER_LDFLAGS)" -o bin/space-server ./cmd/space-server
 
 serve: server
 	./bin/space-server -env-file $(ENV_FILE) serve

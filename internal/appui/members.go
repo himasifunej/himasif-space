@@ -54,6 +54,8 @@ type memberManagementState struct {
 	removeTasksFor     id.ID
 	removeTasksLoading bool
 	removeTasksLocal   bool
+	// rowMenu is the member whose row menu ⋯ is open (stage A4).
+	rowMenu id.ID
 }
 
 func (a *App) memberDivision() id.ID {

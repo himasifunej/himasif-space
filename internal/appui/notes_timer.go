@@ -1,12 +1,14 @@
 package appui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/himasifunej/himasif-space/internal/api"
+	"github.com/himasifunej/himasif-space/internal/client"
 	"github.com/himasifunej/himasif-space/internal/id"
 )
 
@@ -19,6 +21,13 @@ import (
 // headings), which the notulis sets with the duration chip of an item;
 // without them the timer counts the total only. The timer never writes
 // the note: it is not content and does not touch the editor lock.
+//
+// Stage T2: a note of a meeting shows the meeting's shared timer, kept on
+// the server (api.MeetingTimer): the notulis on a laptop and the kadiv on
+// a phone see the same one, and who may manage the meeting or edit its
+// note steers it; the others only see it. The time is worked out here from
+// the server's stamps. A note without a meeting keeps the T1 timer on this
+// device. Hiding the pill is a choice of this device in both cases.
 
 type noteTimer struct {
 	started  time.Time
@@ -151,6 +160,143 @@ func (a *App) noteAgendaItems() []noteAgendaItem {
 	return noteAgenda(a.notes.editor.blocks)
 }
 
+// noteTimerCtl is the timer a note shows: its meeting's shared timer, or,
+// without a meeting, the one on this device.
+type noteTimerCtl struct {
+	tm      *noteTimer   // nil: none runs
+	meeting *api.Meeting // the shared timer's meeting; nil: on this device
+	loading bool         // the meeting is still on its way
+	control bool         // may start and steer it
+}
+
+func (a *App) noteTimerCtl() noteTimerCtl {
+	n := a.notes.note
+	if n == nil {
+		return noteTimerCtl{}
+	}
+	if n.MeetingID != nil {
+		m, loading := a.noteMeeting()
+		if m != nil && !m.Cancelled {
+			ctl := noteTimerCtl{meeting: m, control: m.CanRunTimer}
+			if m.Timer != nil {
+				tm := sharedNoteTimer(*m.Timer, a.meetings.skew)
+				tm.hidden = a.notes.sharedTimerHidden[m.ID]
+				ctl.tm = &tm
+			}
+			return ctl
+		}
+		if loading {
+			return noteTimerCtl{loading: true}
+		}
+	}
+	return noteTimerCtl{tm: a.noteTimer(), control: true}
+}
+
+// sharedNoteTimer is the server's timer on this device's clock: skew is
+// how far the server's clock is ahead of this one.
+func sharedNoteTimer(t api.MeetingTimer, skew time.Duration) noteTimer {
+	ms := func(v int64) time.Duration { return time.Duration(v) * time.Millisecond }
+	out := noteTimer{started: t.StartedAt.Add(-skew), paused: ms(t.PausedMs), agenda: t.Agenda, agendaAt: ms(t.AgendaAtMs), extra: ms(t.ExtraMs)}
+	if t.PausedAt != nil {
+		out.pausedAt = t.PausedAt.Add(-skew)
+	}
+	for _, d := range t.DoneMs {
+		out.done = append(out.done, ms(d))
+	}
+	return out
+}
+
+// setTimerHidden hides or shows the pill on this device.
+func (a *App) setTimerHidden(ctl noteTimerCtl, hidden bool) {
+	if ctl.meeting == nil {
+		if tm := a.noteTimer(); tm != nil {
+			tm.hidden = hidden
+		}
+		return
+	}
+	if a.notes.sharedTimerHidden == nil {
+		a.notes.sharedTimerHidden = map[id.ID]bool{}
+	}
+	a.notes.sharedTimerHidden[ctl.meeting.ID] = hidden
+}
+
+// MeetingTimerAPI runs the shared timer's actions (stage T2). It is
+// optional: a service without it cannot steer a meeting's timer.
+type MeetingTimerAPI interface {
+	MeetingTimer(context.Context, id.ID, api.MeetingTimerRequest) (api.Meeting, error)
+}
+
+func (a *App) meetingTimerService() (MeetingTimerAPI, bool) {
+	if live, ok := a.api.(*client.Client); ok {
+		return live.AccountSession(), true
+	}
+	s, ok := a.api.(MeetingTimerAPI)
+	return s, ok
+}
+
+// noteTimerAct is one timer action: on the server for a meeting's timer,
+// here for a timer on this device.
+func (a *App) noteTimerAct(ctl noteTimerCtl, action string, now time.Time) {
+	if ctl.meeting != nil {
+		a.runMeetingTimer(ctl.meeting.ID, ctl.meeting.TimerVersion, action)
+		return
+	}
+	switch action {
+	case api.TimerStart:
+		a.startNoteTimer(now)
+		return
+	case api.TimerStop:
+		a.stopNoteTimer()
+		return
+	}
+	tm := a.noteTimer()
+	if tm == nil {
+		return
+	}
+	switch action {
+	case api.TimerPause:
+		tm.pause(now)
+	case api.TimerResume:
+		tm.resume(now)
+	case api.TimerNext:
+		tm.next(now)
+	case api.TimerExtend:
+		tm.extend()
+	}
+}
+
+func (a *App) runMeetingTimer(mid id.ID, version int64, action string) {
+	svc, ok := a.meetingTimerService()
+	if !ok || a.notes.timerBusy {
+		return
+	}
+	gen := a.gen
+	a.notes.timerBusy, a.notes.timerErr = true, ""
+	a.async(func() func() {
+		m, err := svc.MeetingTimer(context.Background(), mid, api.MeetingTimerRequest{Action: action, ExpectedVersion: version})
+		received := time.Now()
+		return func() {
+			if gen != a.gen {
+				return
+			}
+			a.notes.timerBusy = false
+			if err != nil {
+				a.notes.timerErr = a.failed(err)
+				// Someone else changed it, or the meeting moved on: show
+				// the timer as it is now.
+				a.loadMeetings()
+				return
+			}
+			a.meetings.noteSkew(m, received)
+			for i := range a.meetings.items {
+				if a.meetings.items[i].ID == m.ID {
+					a.meetings.items[i] = m
+				}
+			}
+		}
+	})
+}
+
 func (a *App) startNoteTimer(now time.Time) {
 	if a.notes.note == nil {
 		return
@@ -172,16 +318,32 @@ func (a *App) noteTimerSection(c *ui.Context) {
 	t := c.Theme()
 	now := c.Now()
 	agenda := a.noteAgendaItems()
-	tm := a.noteTimer()
+	ctl := a.noteTimerCtl()
+	tm := ctl.tm
+	where := "Timer hanya di perangkat ini."
+	if ctl.meeting != nil {
+		where = "Timer bersama: semua yang membuka rapat ini melihat waktu yang sama."
+	}
 	notePanelSection(c, "sec-timer", "Timer", func() {
+		if ctl.loading {
+			muted(c, "Memuat timer rapat…").FontSize(12)
+			return
+		}
+		if a.notes.timerErr != "" {
+			ui.Text(c, a.notes.timerErr).FontSize(12).TextColor(t.Danger)
+		}
+		if tm == nil && !ctl.control {
+			muted(c, "Timer rapat belum dimulai. Notulis atau pengelola rapat yang memulainya.").FontSize(12)
+			return
+		}
 		if tm == nil {
 			var planned int
 			for _, it := range agenda {
 				planned += it.minutes
 			}
 			ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
-				if outlineButton(c.Key("timer-start"), "Mulai timer", "play", true).Height(30).Clicked() {
-					a.startNoteTimer(now)
+				if outlineButton(c.Key("timer-start"), "Mulai timer", "play", true).Height(30).Disabled(a.notes.timerBusy).Clicked() {
+					a.noteTimerAct(ctl, api.TimerStart, now)
 				}
 				detail := "opsional · hitung total waktu"
 				if len(agenda) > 0 {
@@ -192,7 +354,7 @@ func (a *App) noteTimerSection(c *ui.Context) {
 			if len(agenda) == 0 {
 				muted(c, "Isi durasi di butir agenda bernomor (chip “mnt”) supaya timer mengikuti agenda.").FontSize(11)
 			}
-			muted(c, "Timer hanya di perangkat ini.").FontSize(11)
+			muted(c, where).FontSize(11)
 			return
 		}
 		c.After(time.Second)
@@ -246,42 +408,47 @@ func (a *App) noteTimerSection(c *ui.Context) {
 				}
 			})
 		}
-		ui.Row(c).FillWidth().Wrap().Gap(6).Padding(4, 0, 0, 0).Children(func() {
-			a.noteTimerButtons(c, tm, v, now, false)
-			if outlineButton(c.Key("timer-stop"), "Hentikan timer", "close", false).Height(28).Clicked() {
-				a.stopNoteTimer()
-			}
-		})
-		if tm.hidden && spaceButton(c, "Tampilkan pil timer", "eye", false).Clicked() {
-			tm.hidden = false
+		if ctl.control {
+			ui.Row(c).FillWidth().Wrap().Gap(6).Padding(4, 0, 0, 0).Children(func() {
+				a.noteTimerButtons(c, ctl, v, now, false)
+				if outlineButton(c.Key("timer-stop"), "Hentikan timer", "close", false).Height(28).Disabled(a.notes.timerBusy).Clicked() {
+					a.noteTimerAct(ctl, api.TimerStop, now)
+				}
+			})
+		} else if ctl.meeting != nil && ctl.meeting.Timer != nil && ctl.meeting.Timer.UpdatedBy.DisplayName != "" {
+			muted(c, "Diatur oleh "+ctl.meeting.Timer.UpdatedBy.DisplayName+".").FontSize(12)
 		}
-		muted(c, "Timer hanya di perangkat ini.").FontSize(11)
+		if tm.hidden && spaceButton(c, "Tampilkan pil timer", "eye", false).Clicked() {
+			a.setTimerHidden(ctl, false)
+		}
+		muted(c, where).FontSize(11)
 	})
 }
 
 // noteTimerButtons: Jeda/Lanjut, and, for an agenda, +5 mnt and the next.
-func (a *App) noteTimerButtons(c *ui.Context, tm *noteTimer, v noteTimerView, now time.Time, pill bool) {
+func (a *App) noteTimerButtons(c *ui.Context, ctl noteTimerCtl, v noteTimerView, now time.Time, pill bool) {
+	busy := a.notes.timerBusy
 	small := func(key, label, icon string, primary bool) ui.Element {
 		if pill {
-			return spaceIconButton(c.Key(key), label, icon)
+			return spaceIconButton(c.Key(key), label, icon).Disabled(busy)
 		}
-		return outlineButton(c.Key(key), label, icon, primary).Height(28)
+		return outlineButton(c.Key(key), label, icon, primary).Height(28).Disabled(busy)
 	}
 	if v.paused {
 		if small("timer-resume", "Lanjutkan timer", "play", true).Clicked() {
-			tm.resume(now)
+			a.noteTimerAct(ctl, api.TimerResume, now)
 		}
 	} else if small("timer-pause", "Jeda timer", "pause", false).Clicked() {
-		tm.pause(now)
+		a.noteTimerAct(ctl, api.TimerPause, now)
 	}
 	if v.agenda < 0 || pill {
 		return
 	}
-	if outlineButton(c.Key("timer-extend"), "+5 mnt", "", false).Height(28).Clicked() {
-		tm.extend()
+	if outlineButton(c.Key("timer-extend"), "+5 mnt", "", false).Height(28).Disabled(busy).Clicked() {
+		a.noteTimerAct(ctl, api.TimerExtend, now)
 	}
-	if outlineButton(c.Key("timer-next"), noteNextAgendaLabel(v.agenda, len(a.noteAgendaItems())), "right", false).Height(28).Clicked() {
-		tm.next(now)
+	if outlineButton(c.Key("timer-next"), noteNextAgendaLabel(v.agenda, len(a.noteAgendaItems())), "right", false).Height(28).Disabled(busy).Clicked() {
+		a.noteTimerAct(ctl, api.TimerNext, now)
 	}
 }
 
@@ -296,7 +463,8 @@ func noteNextAgendaLabel(current, total int) string {
 // hidden: right on a desktop, centred on a phone; yellow when the agenda's
 // time is up.
 func (a *App) noteTimerPill(c *ui.Context, phone bool) {
-	tm := a.noteTimer()
+	ctl := a.noteTimerCtl()
+	tm := ctl.tm
 	if tm == nil || tm.hidden {
 		return
 	}
@@ -340,18 +508,20 @@ func (a *App) noteTimerPill(c *ui.Context, phone bool) {
 			if v.paused {
 				ui.Text(c, "dijeda").FontSize(11).TextColor(faint(t)).Shrink(0)
 			}
-			if over {
-				if outlineButton(c.Key("pill-extend"), "+5 mnt", "", false).Height(28).Clicked() {
-					tm.extend()
+			switch {
+			case !ctl.control:
+			case over:
+				if outlineButton(c.Key("pill-extend"), "+5 mnt", "", false).Height(28).Disabled(a.notes.timerBusy).Clicked() {
+					a.noteTimerAct(ctl, api.TimerExtend, now)
 				}
-				if outlineButton(c.Key("pill-next"), noteNextAgendaLabel(v.agenda, len(agenda))+" →", "", true).Height(28).Clicked() {
-					tm.next(now)
+				if outlineButton(c.Key("pill-next"), noteNextAgendaLabel(v.agenda, len(agenda))+" →", "", true).Height(28).Disabled(a.notes.timerBusy).Clicked() {
+					a.noteTimerAct(ctl, api.TimerNext, now)
 				}
-			} else {
-				a.noteTimerButtons(c, tm, v, now, true)
+			default:
+				a.noteTimerButtons(c, ctl, v, now, true)
 			}
 			if spaceIconButton(c.Key("pill-hide"), "Sembunyikan timer", "close").Clicked() {
-				tm.hidden = true
+				a.setTimerHidden(ctl, true)
 			}
 		})
 	})

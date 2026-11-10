@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/himasifunej/himasif-space/internal/api"
 	"github.com/himasifunej/himasif-space/internal/id"
 	"github.com/jackc/pgx/v5"
@@ -9,16 +10,38 @@ import (
 
 const meetingColumns = `id,period_id,space_id,owner_division_id,organizer_id,title,description,location,join_url,starts_at,ends_at,time_zone,note_id,cancelled,reminder_minutes,version,created_at,updated_at`
 
+// meetingRead adds the shared timer (stage T2), which is written only by
+// SetMeetingTimer.
+const meetingRead = meetingColumns + `,timer,timer_version`
+
 func scanMeeting(row pgx.Row) (api.Meeting, error) {
 	var m api.Meeting
-	err := row.Scan(&m.ID, &m.PeriodID, &m.SpaceID, &m.OwnerDivisionID, &m.OrganizerID, &m.Title, &m.Description, &m.Location, &m.JoinURL, &m.StartsAt, &m.EndsAt, &m.TimeZone, &m.NoteID, &m.Cancelled, &m.ReminderMinutes, &m.Version, &m.CreatedAt, &m.UpdatedAt)
+	var timer []byte
+	err := row.Scan(&m.ID, &m.PeriodID, &m.SpaceID, &m.OwnerDivisionID, &m.OrganizerID, &m.Title, &m.Description, &m.Location, &m.JoinURL, &m.StartsAt, &m.EndsAt, &m.TimeZone, &m.NoteID, &m.Cancelled, &m.ReminderMinutes, &m.Version, &m.CreatedAt, &m.UpdatedAt, &timer, &m.TimerVersion)
+	if err == nil && len(timer) > 0 && string(timer) != "null" {
+		m.Timer = &api.MeetingTimer{}
+		err = json.Unmarshal(timer, m.Timer)
+	}
 	return m, err
 }
 func (s *Store) Meeting(ctx context.Context, q Querier, mid id.ID, lock string) (api.Meeting, error) {
-	return scanMeeting(q.QueryRow(ctx, `select `+meetingColumns+` from meetings where id=$1`+lock, mid))
+	return scanMeeting(q.QueryRow(ctx, `select `+meetingRead+` from meetings where id=$1`+lock, mid))
+}
+
+// SetMeetingTimer stores the shared timer (nil: none) as version.
+func (s *Store) SetMeetingTimer(ctx context.Context, q Querier, mid id.ID, t *api.MeetingTimer, version int64) error {
+	var raw []byte
+	if t != nil {
+		var err error
+		if raw, err = json.Marshal(t); err != nil {
+			return err
+		}
+	}
+	_, err := q.Exec(ctx, `update meetings set timer=$2,timer_version=$3 where id=$1`, mid, raw, version)
+	return err
 }
 func (s *Store) Meetings(ctx context.Context, q Querier, sid id.ID) ([]api.Meeting, error) {
-	rows, err := q.Query(ctx, `select `+meetingColumns+` from meetings where space_id=$1 order by starts_at,id`, sid)
+	rows, err := q.Query(ctx, `select `+meetingRead+` from meetings where space_id=$1 order by starts_at,id`, sid)
 	if err != nil {
 		return nil, err
 	}

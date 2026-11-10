@@ -40,6 +40,12 @@ func (s *Server) meetingRead(r *http.Request, q store.Querier, p *principal, m *
 		return errNotFound
 	}
 	m.CanManage = s.meetingManage(r, q, p, *m) == nil
+	if m.CanRunTimer, err = s.canRunMeetingTimer(r, q, p, *m); err != nil {
+		return err
+	}
+	if m.Timer != nil {
+		m.Timer.ServerNow = s.now()
+	}
 	m.Participants, err = s.store.MeetingParticipants(r.Context(), q, m.ID)
 	return err
 }

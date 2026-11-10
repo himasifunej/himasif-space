@@ -185,16 +185,10 @@ func (a *App) membersPage(c *ui.Context) {
 			}
 			a.memberTable(c, phone)
 			a.memberAccessPanel(c)
-			if a.memberCan(api.CapInvitationsManage) {
-				a.memberInvitations(c)
-			}
+			a.memberBottomPanel(c)
 			if a.memberCan(api.CapRolesManage) {
 				a.memberRoles(c)
 			}
-			ui.Column(c).FillWidth().MinWidth(0).Padding(14, 16).Gap(6).Radius(12).Background(t.Surface).Border(1, t.Border).Children(func() {
-				ui.Text(c, "Kewenangan role").FontSize(13).Bold()
-				ui.Text(c, "Kadiv: semua, termasuk role, undangan, 45, dan bot. · 45: operasional kadiv dan bot, tanpa role/akses. · Pendamping: delegasi, tenggat, ping, tinjauan. · Anggota: tugas sendiri, komentar, ajukan bantuan.").FontSize(13).TextColor(t.TextMuted).LineHeight(1.6)
-			})
 		})
 	})
 }
@@ -224,6 +218,97 @@ func (a *App) memberActions(c *ui.Context, member api.Member) {
 			a.openMemberAccess(member)
 		}
 	}
+	a.memberRowMenu(c, member)
+}
+
+// memberRowMenu is the row's ⋯ (stage A4): Lihat tugas, and Keluarkan…
+// for who may remove members (the drawer's removal dialog, with its check
+// of active tasks).
+func (a *App) memberRowMenu(c *ui.Context, member api.Member) {
+	m := &a.access.members
+	canRemove := a.memberCan(api.CapMembersManage) && member.Role != api.RoleKadiv && !m.access.ReadOnly
+	if a.selectedSpace() == nil && !canRemove {
+		return
+	}
+	b := spaceIconButton(c.Key("row-more"), "Lainnya untuk "+member.DisplayName, "more")
+	if b.Clicked() {
+		if m.rowMenu == member.UserID {
+			m.rowMenu = id.Nil
+		} else {
+			m.rowMenu = member.UserID
+		}
+	}
+	open := m.rowMenu == member.UserID
+	popover(c, b, &open, 220, func() {
+		t := c.Theme()
+		item := func(key, label, icon string, danger bool) bool {
+			e := ui.ButtonBase(c.Key(key)).Label(label).Row().FillWidth().Height(32).Padding(0, 8).Gap(8).AlignItems(ui.Center).Radius(7).TextColor(t.Text)
+			if danger {
+				e.TextColor(t.Danger)
+			}
+			if e.Hovered() {
+				e.Background(t.SurfaceHover)
+			}
+			clicked := e.Clicked()
+			e.FocusRing(e.FocusVisible()).Children(func() {
+				ui.Icon(c, spaceIcon(icon)).Size(14, 14).Shrink(0)
+				ui.Text(c, label).FontSize(13).MaxLines(1)
+			})
+			return clicked
+		}
+		if a.selectedSpace() != nil && item("menu-tasks", "Lihat tugas", "board", false) {
+			m.rowMenu = id.Nil
+			a.showMemberTasks(member, id.Nil)
+		}
+		if canRemove && item("menu-remove", "Keluarkan…", "close", true) {
+			m.rowMenu = id.Nil
+			a.openMemberAccess(member)
+			m.removeAsk = true
+			a.loadMemberRemoveTasks(member)
+		}
+	})
+	if !open && m.rowMenu == member.UserID {
+		m.rowMenu = id.Nil
+	}
+}
+
+// memberRoleSummary is the short "Kewenangan role" of the bottom panel.
+var memberRoleSummary = []struct{ role, text string }{
+	{"Kadiv", "Semua, termasuk role, undangan, 45 dan bot."},
+	{"45", "Operasional kadiv dan bot, tanpa role dan akses."},
+	{"Pendamping", "Delegasi, tenggat, ping, tinjauan."},
+	{"Anggota", "Tugas sendiri, komentar, ajukan bantuan."},
+}
+
+// memberBottomPanel is the canvas' bottom of the Anggota page (stage A4):
+// "Undangan tertunda" (for who may invite) beside a short "Kewenangan
+// role"; one above the other on a narrow screen.
+func (a *App) memberBottomPanel(c *ui.Context) {
+	t := c.Theme()
+	invites := a.memberCan(api.CapInvitationsManage)
+	row := ui.Column(c.Key("member-bottom")).FillWidth().MinWidth(0).Gap(12)
+	wide := row.Bounds().W >= 760
+	if wide {
+		row.Row().AlignItems(ui.Start)
+	}
+	row.Children(func() {
+		if invites {
+			ui.Column(c.Key("bottom-invites")).Grow(1).FillWidth().MinWidth(0).Children(func() { a.memberInvitations(c) })
+		}
+		card := ui.Column(c.Key("bottom-roles")).FillWidth().MinWidth(0).Padding(14, 16).Gap(8).Radius(12).Background(t.Surface).Border(1, t.Border)
+		if wide && invites {
+			card.Width(340).Shrink(0)
+		}
+		card.Children(func() {
+			ui.Text(c, "Kewenangan role").FontSize(13).Bold()
+			for _, r := range memberRoleSummary {
+				ui.Row(c.Key(r.role)).FillWidth().MinWidth(0).Gap(10).AlignItems(ui.Start).Children(func() {
+					ui.Text(c, r.role).FontSize(12).FontWeight(600).Width(84).Shrink(0)
+					ui.Text(c, r.text).FontSize(12).TextColor(t.TextMuted).LineHeight(1.5).Grow(1).MinWidth(0)
+				})
+			}
+		})
+	})
 }
 
 func (a *App) memberInviteForm(c *ui.Context) {

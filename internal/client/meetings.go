@@ -37,3 +37,10 @@ func (c *Client) MeetingCandidates(ctx context.Context, sid id.ID) ([]api.Person
 	err := c.do(ctx, http.MethodGet, "/api/spaces/"+sid.String()+"/meeting-candidates", nil, &out)
 	return out.Items, err
 }
+
+// MeetingTimer runs one action of the shared meeting timer (stage T2).
+func (c *Client) MeetingTimer(ctx context.Context, mid id.ID, req api.MeetingTimerRequest) (api.Meeting, error) {
+	var out api.Meeting
+	err := c.do(ctx, http.MethodPost, "/api/meetings/"+mid.String()+"/timer", req, &out)
+	return out, err
+}

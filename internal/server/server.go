@@ -187,6 +187,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/meetings/{meetingId}", s.handle(s.getMeeting))
 	mux.Handle("PUT /api/meetings/{meetingId}", s.handle(s.updateMeeting))
 	mux.Handle("PUT /api/meetings/{meetingId}/attendance/{userId}", s.handle(s.recordAttendance))
+	mux.Handle("POST /api/meetings/{meetingId}/timer", s.handle(s.meetingTimerAction))
+	mux.Handle("POST /api/notes/{noteId}/wa-summary", s.handle(s.noteWASummary))
 	mux.HandleFunc("GET /api/health", s.health)
 	mux.HandleFunc("POST /api/mail/ses-events", s.sesEvents)
 	mux.HandleFunc("POST /api/auth/login", s.login)

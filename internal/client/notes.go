@@ -141,3 +141,11 @@ func (c *Client) UpdateNoteTemplate(ctx context.Context, template id.ID, req api
 func (c *Client) DeleteNoteTemplate(ctx context.Context, template id.ID) error {
 	return c.do(ctx, http.MethodDelete, "/api/note-templates/"+template.String(), nil, nil)
 }
+
+// NoteWASummary previews (Send false) or sends a note's summary to its
+// division's WhatsApp group (stage C7).
+func (c *Client) NoteWASummary(ctx context.Context, nid id.ID, req api.NoteWASummaryRequest) (api.NoteWASummary, error) {
+	var out api.NoteWASummary
+	err := c.do(ctx, http.MethodPost, "/api/notes/"+nid.String()+"/wa-summary", req, &out)
+	return out, err
+}
