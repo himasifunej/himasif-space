@@ -30,16 +30,21 @@ import (
 )
 
 type devicePreferences struct {
-	Autostart bool    `json:"autostart"`
-	AceMode   string  `json:"aceMode"`
-	AceName   string  `json:"aceName"`
-	Mascot    string  `json:"mascot"`
-	Audio     string  `json:"audio"`
-	Volume    float64 `json:"volume"`
-	Sound     bool    `json:"sound"`
-	X, Y      int
+	IslandEnabled      bool    `json:"islandEnabled"`
+	IslandStyle        string  `json:"islandStyle"`
+	IslandReplaceToast bool    `json:"islandReplaceToast"`
+	IslandReduceMotion bool    `json:"islandReduceMotion"`
+	Autostart          bool    `json:"autostart"`
+	AceMode            string  `json:"aceMode"`
+	AceName            string  `json:"aceName"`
+	Mascot             string  `json:"mascot"`
+	Audio              string  `json:"audio"`
+	Volume             float64 `json:"volume"`
+	Sound              bool    `json:"sound"`
+	X, Y               int
 }
 type desktopDevice struct {
+	island              *islandPresenter
 	mu                  sync.Mutex
 	deliveryMu          sync.Mutex
 	notificationPrefs   atomic.Value
@@ -95,10 +100,14 @@ func attachDevice(win *mygo.Window, app *appui.App) {
 	if err != nil {
 		return
 	}
-	d := &desktopDevice{root: filepath.Join(root, "himasif-space", "device"), win: win, app: app, journal: map[string]string{}, prefs: devicePreferences{AceMode: "hidden", AceName: "Ace", Volume: .45, Sound: true}}
+	d := &desktopDevice{root: filepath.Join(root, "himasif-space", "device"), win: win, app: app, journal: map[string]string{}, prefs: devicePreferences{AceMode: "hidden", AceName: "Ace", Volume: .45, Sound: true, IslandEnabled: true, IslandStyle: "C", IslandReplaceToast: true}}
 	if data, err := os.ReadFile(filepath.Join(d.root, "preferences.json")); err == nil {
 		_ = json.Unmarshal(data, &d.prefs)
 	}
+	if d.prefs.IslandStyle != "A" && d.prefs.IslandStyle != "B" && d.prefs.IslandStyle != "C" {
+		d.prefs.IslandStyle = "C"
+	}
+	d.island = &islandPresenter{d: d}
 	if data, err := os.ReadFile(filepath.Join(d.root, "delivery-journal.json")); err == nil {
 		_ = json.Unmarshal(data, &d.journal)
 	}
@@ -183,11 +192,20 @@ func attachDevice(win *mygo.Window, app *appui.App) {
 		}
 		d.quitting = true
 	})
-	mygo.Screen.OnDisplaysChanged(func() { d.restorePosition() })
+	mygo.Screen.OnDisplaysChanged(func() {
+		d.restorePosition()
+		d.island.refreshPosition()
+	})
+	win.OnMove(func() {
+		if d.island.win != nil && d.island.win.IsVisible() {
+			d.island.refreshPosition()
+		}
+	})
 	app.SessionChanged = func(uid id.ID) {
 		d.mu.Lock()
 		old := d.activeUser
 		d.activeUser = uid
+		d.island.reset(false)
 		d.mu.Unlock()
 		d.current = nil
 		d.ace.Update(func() {})
@@ -212,7 +230,7 @@ func attachDevice(win *mygo.Window, app *appui.App) {
 	if registerErr != nil {
 		d.err = registerErr.Error()
 	}
-	app.Notifier = newDesktopNotifier(win, app, registerErr == nil)
+	app.Notifier = islandNotifier{Notifier: newDesktopNotifier(win, app, registerErr == nil), p: d.island}
 	if d.prefs.AceMode != "hidden" {
 		d.ace.ShowInactive()
 	}
@@ -297,7 +315,7 @@ func (d *desktopDevice) Notify(uid id.ID, n api.Delivery) error {
 		return err
 	}
 	link := notificationLink(uid, n, "open")
-	err = showDeviceNotification(n, link)
+	err = d.presentDelivery(uid, n, link, prefs)
 	if err != nil {
 		return err
 	}
@@ -463,6 +481,7 @@ func (d *desktopDevice) settings(c *ui.Context) {
 			if d.err != "" {
 				ui.Text(c, d.err).TextColor(c.Theme().Danger)
 			}
+			d.islandSettings(c)
 			deviceSection(c, "Notifikasi perangkat", "Periksa izin Windows dan mode jangan ganggu bila notifikasi tidak terlihat.", func() {
 				if ui.Button(c, "Buka pengaturan notifikasi Windows").Clicked() {
 					go func() {
@@ -687,6 +706,23 @@ func (d *desktopDevice) NotifyBatch(uid id.ID, items []api.Delivery) error {
 		}
 	}
 	d.mu.Unlock()
+	// Keep each island delivery actionable. The OS-only path retains the
+	// existing batch summary instead of producing a burst of Windows toasts.
+	if d.island != nil && len(unseen) > 0 {
+		prefs := d.notificationPrefs.Load().(devicePreferences)
+		if prefs.IslandEnabled && islandEnvironmentAllowed() {
+			var batchErr error
+			for _, n := range unseen {
+				if e := d.Notify(uid, n); e != nil {
+					batchErr = errors.Join(batchErr, e)
+				}
+			}
+			if uncertain {
+				batchErr = errors.Join(batchErr, errors.New("Penerimaan sebagian notifikasi sebelumnya tidak dapat dipastikan; periksa kotak notifikasi."))
+			}
+			return batchErr
+		}
+	}
 	if len(unseen) == 0 {
 		if uncertain {
 			return errors.New("Penerimaan notifikasi sebelumnya tidak dapat dipastikan; periksa kotak notifikasi.")

@@ -30,6 +30,22 @@ var litbangLogoData []byte
 
 var spaceBrandSVG = ui.MustParseSVG(spaceBrandData)
 
+// NoticeGlyph shares Space's established icon set with desktop presenters.
+func NoticeGlyph(kind string) *ui.SVG {
+	key := "bell"
+	switch kind {
+	case "ping":
+		key = "chat"
+	case "task":
+		key = "check"
+	case "meeting":
+		key = "calendar"
+	case "deadline", "reminder":
+		key = "clock"
+	}
+	return spaceIcons[key]
+}
+
 // SVGs and bitmaps are parsed once, before the first frame.
 var spaceIcons = func() map[string]*ui.SVG {
 	paths := map[string]string{

@@ -22,7 +22,7 @@ import (
 
 // version is the app's version where the build does not stamp one, as in
 // a browser or under go run; keep it as mygo.json's.
-var version = "0.4.3"
+var version = "0.4.4"
 
 // appVersion returns the version of the app.
 func appVersion() string {
@@ -33,6 +33,9 @@ func appVersion() string {
 }
 
 func main() {
+	if runIslandSpike() {
+		return
+	}
 	if !mygo.App.RequestSingleInstanceLock() {
 		return
 	}

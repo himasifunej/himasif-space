@@ -1,7 +1,7 @@
 {
   "name": "Space",
   "identifier": "id.himasif.space",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "copyright": "© 2026 HIMASIF",
   "out": "build",
   "linux": {

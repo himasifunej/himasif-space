@@ -12,10 +12,7 @@ func (a *App) isAdmin() bool { return a.user.Kind == api.AccountOrganizationAdmi
 // View builds the window's interface.
 func (a *App) View(c *ui.Context) {
 	a.loadPreferences()
-	dark := a.chrome.preferences.Theme == "dark"
-	if a.chrome.preferences.Theme == "system" {
-		dark = c.Theme().Dark
-	}
+	dark := a.DarkAppearance(c.Theme().Dark)
 	c.SetTheme(paletteTheme(dark, a.chrome.preferences))
 	t := c.Theme()
 	ui.Column(c).Fill().Background(t.Background).TextColor(t.Text).Children(func() {
@@ -40,6 +37,16 @@ func (a *App) View(c *ui.Context) {
 			}
 		})
 	})
+}
+
+// DarkAppearance resolves the device theme for auxiliary native windows too.
+// Call from the UI thread, like View.
+func (a *App) DarkAppearance(systemDark bool) bool {
+	a.loadPreferences()
+	if a.chrome.preferences.Theme == "system" {
+		return systemDark
+	}
+	return a.chrome.preferences.Theme == "dark"
 }
 
 // muted builds a small secondary text.

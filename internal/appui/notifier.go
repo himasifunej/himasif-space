@@ -27,7 +27,13 @@ type Notice struct {
 	Tag string
 	// Link is a Space link opened on a click; "" brings Space forward.
 	Link string
+	// Actions are optional Space deep links; OS presenters may ignore them.
+	Actions []NoticeAction
+	// AccountID scopes transient desktop content to its signed-in recipient.
+	AccountID string
 }
+
+type NoticeAction struct{ Label, Link string }
 
 // NoticePresenter is one way of showing notices: a browser popup, an OS
 // notification, or, later, an island.
@@ -60,16 +66,34 @@ type NotifierHint interface {
 type MultiNotifier struct {
 	Base  Notifier
 	Extra []NoticePresenter
+	// ReplaceBase tries Extra first. Only an accepted notice suppresses Base;
+	// unavailable or failed presenters always fall back to the OS.
+	ReplaceBase bool
 }
 
 func (m MultiNotifier) Permission() string { return m.Base.Permission() }
 func (m MultiNotifier) RequestPermission() { m.Base.RequestPermission() }
 func (m MultiNotifier) Present(n Notice) error {
+	if m.ReplaceBase {
+		for _, p := range m.Extra {
+			if p.Present(n) == nil {
+				return nil
+			}
+		}
+		return m.Base.Present(n)
+	}
 	err := m.Base.Present(n)
 	for _, p := range m.Extra {
 		_ = p.Present(n)
 	}
 	return err
+}
+
+func (m MultiNotifier) DeniedHint() string {
+	if h, ok := m.Base.(NotifierHint); ok {
+		return h.DeniedHint()
+	}
+	return "Periksa izin notifikasi perangkat di Pengaturan."
 }
 
 // ShowNotice shows msg as a toast in Space on the next frame; device code

@@ -5,6 +5,14 @@ Versi mengikuti aturan sebelum rilis publik:
 - **Minor** naik untuk pembaruan besar.
 - **1.0.0** untuk rilis publik.
 
+## 0.4.4 — 2026-11-10 · Dynamic Island desktop
+
+- Jendela Dynamic Island native Windows: banner dan detail, aksi Buka/Tunda 15 menit, antrean prioritas, dan penggantian berdasarkan tag.
+- Pengaturan › Perangkat: aktif/mati, gaya A (Hitam), B (Aksen Space), C (Kaca; bawaan), penggantian toast Windows, dan pengurangan gerak.
+- Toast Windows tetap dipakai saat island mati, antrean penuh, fullscreen, presentasi, Focus Assist, atau presenter tidak tersedia. Pilihan untuk menampilkan keduanya juga tersedia.
+- Spring mass 1 / stiffness 170 / damping 19, crossfade konten, WorkArea atas tengah, tanpa mengambil fokus, dan sudut transparan yang meneruskan klik.
+- Desktop saja; tidak mengubah server atau basis data. Belum dirilis/deploy. Hasil spike dan daftar uji owner: `docs/handoff/dynamic-island-044.md`.
+
 ## 0.4.3 — 2026-11-10 · Timer rapat bersama, ringkasan ke WhatsApp, panel Anggota
 
 - **Timer rapat bersama (T2)**:

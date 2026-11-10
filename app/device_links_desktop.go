@@ -12,6 +12,12 @@ import (
 )
 
 func (d *desktopDevice) handleLink(raw string) {
+	d.handleNotificationLink(raw, true)
+}
+
+// Island actions such as snooze reuse account validation and API handling
+// without bringing the main window forward. Only Open requests focus.
+func (d *desktopDevice) handleNotificationLink(raw string, activate bool) {
 	u, err := url.Parse(raw)
 	if err != nil || u.Scheme != "himasif-space" || u.Host != "notification" {
 		return
@@ -28,9 +34,11 @@ func (d *desktopDevice) handleLink(raw string) {
 	if json.Unmarshal(payload, &n) != nil {
 		return
 	}
-	d.pendingLink = raw
-	d.win.Show()
-	d.win.Focus()
+	if activate {
+		d.pendingLink = raw
+		d.win.Show()
+		d.win.Focus()
+	}
 	// Deep links carry navigation hints only. Responses still require the
 	// matching signed-in account, and server rechecks the recipient and scope.
 	d.win.Update(func() {

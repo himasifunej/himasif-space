@@ -1,0 +1,59 @@
+//go:build !js
+
+package main
+
+import (
+	"os"
+	"strings"
+	"time"
+
+	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/ui"
+	"github.com/himasifunej/himasif-space/internal/appui"
+	"github.com/himasifunej/himasif-space/internal/island"
+)
+
+// An isolated native-window spike: no account, API, tray, protocol registration,
+// notification shortcuts or preference writes. It closes itself after 45 s.
+func runIslandSpike() bool {
+	mode := ""
+	for _, arg := range os.Args[1:] {
+		if strings.HasPrefix(arg, "--island-spike=") {
+			mode = strings.TrimPrefix(arg, "--island-spike=")
+		}
+	}
+	if mode == "" {
+		return false
+	}
+	mygo.App.WhenReady(func() {
+		anchor := mygo.NewWindow(mygo.WindowOptions{Title: "Space spike anchor", Width: 640, Height: 480, Hidden: true, Content: ui.View(func(c *ui.Context) { ui.Box(c).Fill().Background(ui.RGB(36, 33, 28)) })})
+		anchor.ShowInactive()
+		if mode == "banner" {
+			d := &desktopDevice{win: anchor, prefs: devicePreferences{IslandEnabled: true, IslandStyle: "C", IslandReplaceToast: true}}
+			mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { d.quitting = true })
+			d.notificationPrefs.Store(d.prefs)
+			p := &islandPresenter{d: d, environmentCheck: func() bool { return true }}
+			d.island = p
+			p.m.Push(island.Item{Tag: "spike", Value: islandNotice{n: appui.Notice{Title: "Space · Spike", Body: "Pengukuran idle presenter native", Tag: "spike"}}}, time.Now())
+			p.m.Until = time.Now().Add(time.Hour)
+			p.ensureWindow()
+			p.position(200, 36)
+			p.win.ShowInactive()
+			p.win.Update(func() {})
+		}
+		if mode == "hidden" || mode == "pill" {
+			w := mygo.NewWindow(mygo.WindowOptions{Title: "Space island spike", Width: 200, Height: 36, Hidden: true, Frameless: true, Transparent: true, AlwaysOnTop: true, SkipTaskbar: true, DisableResize: true, Panel: true, Content: ui.View(func(c *ui.Context) { ui.Column(c).Fill().Radius(18).Background(ui.RGBA(30, 30, 32, .78)) })})
+			a := mygo.Screen.PrimaryDisplay().WorkArea
+			w.SetPosition(a.X+(a.Width-200)/2, a.Y+8)
+			islandPrepareWindow(w.NativeHandle())
+			islandWindowShape(w.NativeHandle(), 200, 36, 18)
+			islandGlass(w.NativeHandle(), true, true)
+			if mode == "pill" {
+				w.ShowInactive()
+			}
+		}
+		go func() { time.Sleep(45 * time.Second); mygo.App.Quit() }()
+	})
+	_ = mygo.App.Run()
+	return true
+}
