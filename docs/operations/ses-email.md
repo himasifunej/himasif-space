@@ -2,8 +2,8 @@
 
 Status 10 Nov 2026:
 - **Email aktif di pilot (0.3.7)** dengan `SPACE_MAIL_DRIVER=smtp`, atas izin owner lewat GOA.
-- Satu undangan uji ke alamat owner diterima SES (201) lalu dicabut. Jadi SES tidak menolak alamat yang belum diverifikasi, yang menandakan akun sudah keluar dari sandbox atau alamat itu terverifikasi. Status sandbox sendiri tidak bisa dicek tanpa kredensial API AWS.
-- **Bounce lewat SNS belum disambung**, karena butuh langkah di konsol AWS (langkah 3).
+- Satu undangan uji ke alamat owner diterima SES (201) lalu dicabut. Jadi SES tidak menolak alamat yang belum diverifikasi, yang menandakan akun sudah keluar dari sandbox atau alamat itu terverifikasi. Lewat API (10 Nov 2026): akun sudah production, kuota 50.000 email/24 jam, 14 email/detik.
+- **Bounce dan komplain lewat SNS tersambung sejak 10 Nov 2026**: topik `space-ses-events` (ap-southeast-2), langganan HTTPS ke `https://space.tiyoouw.app/api/mail/ses-events` terkonfirmasi otomatis oleh API, identitas `himasif.id` mengirim Bounce dan Complaint (dengan headers) ke topik itu. Uji dengan `bounce@simulator.amazonses.com` diterima API (200, tanda tangan SNS valid). Forwarding email dan DKIM tidak diubah.
 - Catatan teknis: `creds use` menyamarkan stdout-nya, jadi `ses-env.sh --stage` mengirim nilai lewat ssh dari dalam proses itu (`ses-stage-inner.sh`) dan memverifikasinya dengan hash di server. Berkas `ses.env.pending` dihapus setelah aktivasi.
 
 ## Yang dilakukan server
@@ -37,11 +37,11 @@ Nilainya tidak pernah dicetak, disalin manual, atau di-commit.
 ## Langkah aktivasi di pilot (tc-vps), **setelah izin**
 Skripnya ada di `E:\himasif-cache\deploy\ses-env.sh` dan dijalankan dari PC.
 
-1. **Cek akun SES** di konsol AWS ap-southeast-2: sudah keluar dari sandbox? {{Unverified}}: belum dicek. Selama masih di sandbox, hanya alamat terverifikasi yang bisa menerima email, dan alamat lain ditolak dengan 422 di atas.
+1. **Cek akun SES** di konsol AWS ap-southeast-2: sudah keluar dari sandbox? Sudah (dicek 10 Nov 2026 lewat `aws sesv2 get-account`). Selama masih di sandbox, hanya alamat terverifikasi yang bisa menerima email, dan alamat lain ditolak dengan 422 di atas.
 2. **`ses-env.sh --stage`**: menulis `~/.config/himasif-space-pilot/ses.env.pending` (0600) dari vault, tanpa mencetak nilai dan tanpa menyentuh `server.env` atau layanan.
 3. **Bounce (opsional tetapi disarankan)**:
    - Buat topik SNS `space-ses-events` di ap-southeast-2.
-   - Tambahkan langganan HTTPS ke `https://db.tiyoouw.app/api/mail/ses-events`.
+   - Tambahkan langganan HTTPS ke `https://space.tiyoouw.app/api/mail/ses-events` (alamat `SPACE_PUBLIC_URL`; `db.tiyoouw.app` juga diarahkan ke API yang sama tetapi bukan alamat resminya).
    - Di SES, identitas `himasif.id` → Notifications, arahkan Bounce dan Complaint ke topik itu.
    - Isi ARN-nya sebagai `SPACE_SES_SNS_TOPIC_ARN` di berkas pending. Langganan terkonfirmasi otomatis setelah API memakai ARN tersebut.
 4. **`ses-env.sh --activate`**:
