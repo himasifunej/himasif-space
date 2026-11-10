@@ -289,10 +289,12 @@ func TestWALinkByDirectMessage(t *testing.T) {
 	o.call("POST", scope+"/whatsapp-link", o.kadiv, nil, &other)
 	refused := dm(other.Code)
 	o.st.DB().QueryRow(ctx, `select state from wa_inbound where id=$1`, refused).Scan(&state)
+	// It is answered with the PINDAH offer (wa_link_move_test.go); nothing moves.
 	var n int
-	o.st.DB().QueryRow(ctx, `select count(*) from wa_identities where period_id=$1 and jid=$2`, o.period.ID, sender).Scan(&n)
-	if state != "failed" || n != 1 {
-		t.Fatalf("second account on one number: state=%s identities=%d", state, n)
+	var still id.ID
+	o.st.DB().QueryRow(ctx, `select count(*), min(user_id::text)::uuid from wa_identities where period_id=$1 and jid=$2`, o.period.ID, sender).Scan(&n, &still)
+	if state != "applied" || n != 1 || still != o.memberID {
+		t.Fatalf("second account on one number: state=%s identities=%d owner=%v", state, n, still)
 	}
 	// A used code does not work twice.
 	again := dm(link.Code)
