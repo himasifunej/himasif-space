@@ -66,7 +66,7 @@ func (a *App) memberWork(uid id.ID, now time.Time) (active, late int, ok bool) {
 // memberMatches tells whether a member passes the search text and a filter.
 func (a *App) memberMatches(m api.Member, query, filter string, now time.Time) bool {
 	if q := strings.ToLower(strings.TrimSpace(query)); q != "" {
-		hay := strings.ToLower(m.DisplayName + " " + strings.Join(m.Groups, " ") + " " + memberRoleBadge(m))
+		hay := strings.ToLower(m.DisplayName + " " + m.NIM + " " + strings.Join(m.Groups, " ") + " " + memberRoleBadge(m))
 		if !strings.Contains(hay, q) {
 			return false
 		}
@@ -337,7 +337,7 @@ func (a *App) memberToolbar(c *ui.Context, phone bool, now time.Time) {
 		box.Row().AlignItems(ui.Center)
 	}
 	box.Children(func() {
-		in := ui.TextInput(c.Key("member-search"), &m.query).Label("Cari anggota").Placeholder("Cari nama atau kelompok")
+		in := ui.TextInput(c.Key("member-search"), &m.query).Label("Cari anggota").Placeholder("Cari nama, NIM atau kelompok")
 		if wide {
 			in.Width(260).Shrink(0)
 		} else {
@@ -434,10 +434,17 @@ func (a *App) memberRow(c *ui.Context, member api.Member, now time.Time, groups 
 	ui.Row(c).FillWidth().MinWidth(0).MinHeight(56).Padding(8, 16).Gap(16).AlignItems(ui.Center).Children(func() {
 		ui.Row(c).Grow(1).MinWidth(0).Gap(12).AlignItems(ui.Center).Children(func() {
 			avatar(c, member.DisplayName, 32)
-			ui.Text(c, member.DisplayName).FontSize(13).FontWeight(500).MaxLines(1).MinWidth(0).Tooltip(member.DisplayName)
-			if member.UserID == a.user.ID {
-				ui.Text(c, "kamu").FontSize(12).TextColor(faint(t)).Shrink(0)
-			}
+			ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
+				ui.Row(c).Gap(6).AlignItems(ui.Center).MinWidth(0).Children(func() {
+					ui.Text(c, member.DisplayName).FontSize(13).FontWeight(500).MaxLines(1).MinWidth(0).Tooltip(member.DisplayName)
+					if member.UserID == a.user.ID {
+						ui.Text(c, "kamu").FontSize(12).TextColor(faint(t)).Shrink(0)
+					}
+				})
+				if member.NIM != "" {
+					ui.Text(c, member.NIM).FontSize(11).TextColor(t.TextMuted).MaxLines(1).Selectable()
+				}
+			})
 		})
 		cols := memberColumns(groups)
 		col := func(label string) float32 {
@@ -497,6 +504,9 @@ func (a *App) memberCard(c *ui.Context, member api.Member, now time.Time) {
 						ui.Icon(c, spaceIcon("whatsapp")).Size(14, 14).TextColor(t.Warning).Tooltip("WhatsApp belum tertaut").Shrink(0)
 					}
 				})
+				if member.NIM != "" {
+					ui.Text(c, member.NIM).FontSize(12).TextColor(t.TextMuted).MaxLines(1).Selectable()
+				}
 				ui.Row(c).Gap(8).AlignItems(ui.Center).Wrap().MinWidth(0).Children(func() {
 					memberRoleChip(c, member, m.roles)
 					if len(member.Groups) > 0 {

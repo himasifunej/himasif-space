@@ -45,3 +45,24 @@ test('unknown destination and disconnected jobs are rejected without attempting 
  assert.equal(await connections.job(cid,request.id),null);
  await connections.close();
 });
+
+test('a direct message is forwarded only when it is a link code, and only its sender can get a reply',async t=>{
+ const connections=new Connections(await temporary(t),key,logger), c=await connections.get(cid);
+ const dm=(text,id)=>({key:{remoteJid:'6281234567890@s.whatsapp.net',id,fromMe:false},messageTimestamp:1762800000,message:{conversation:text}});
+ assert.equal(await connections.direct(c,dm('halo bot, ada tugas apa?','A1')),false);
+ assert.equal(c.events.items.length,0);
+ assert.equal(await connections.direct(c,dm('SPACE-abcdefghijklmnopqrstuvwx','A2')),true);
+ assert.equal(c.events.items.length,1);
+ const event=c.events.items[0];
+ assert.equal(event.groupJid,'');assert.equal(event.senderJid,'6281234567890@s.whatsapp.net');assert.equal(event.text,'SPACE-abcdefghijklmnopqrstuvwx');
+ c.status='connected';const sent=[];
+ c.socket={async sendMessage(jid,content,options){sent.push([jid,content]);return {key:{id:options.messageId}};},end(){}};
+ const reply={id:'33333333-3333-4333-8333-333333333333',toJid:'6281234567890@s.whatsapp.net',text:'Tertaut.'};
+ assert.equal((await connections.send(cid,reply)).status,'accepted');
+ assert.deepEqual(sent,[['6281234567890@s.whatsapp.net',{text:'Tertaut.',mentions:[]}]]);
+ await assert.rejects(connections.send(cid,{...reply,id:'44444444-4444-4444-8444-444444444444',toJid:'6289999999999@s.whatsapp.net'}),error=>error.status===403);
+ await assert.rejects(connections.send(cid,{...reply,id:'55555555-5555-4555-8555-555555555555',mentions:['6281234567890@s.whatsapp.net']}),error=>error.status===400);
+ c.dmPeers['6281234567890@s.whatsapp.net']=Date.now()-1;
+ await assert.rejects(connections.send(cid,{...reply,id:'66666666-6666-4666-8666-666666666666'}),error=>error.status===403);
+ await connections.close();
+});

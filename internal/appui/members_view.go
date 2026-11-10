@@ -231,18 +231,65 @@ func (a *App) memberInviteForm(c *ui.Context) {
 	m := &a.access.members
 	ui.Column(c).FillWidth().MinWidth(0).Padding(14, 16).Gap(10).Radius(12).Background(t.Surface).Border(1, t.Border).Children(func() {
 		ui.Text(c, "Undang anggota").FontSize(13).Bold()
-		muted(c, "Dikirim ke email anggota. Akun baru memverifikasi email sebelum bergabung.")
+		muted(c, "Ketik NIM mahasiswa; undangan dikirim ke email kampusnya. Akun baru memverifikasi email sebelum bergabung.")
+		target := inviteTarget(m.email)
 		ui.Row(c).FillWidth().Gap(8).AlignItems(ui.End).Children(func() {
-			ui.TextInput(c.Key("invite-email"), &m.email).Label("Email undangan").Placeholder("nama@example.com").Grow(1).MinWidth(0).Disabled(m.busy)
-			if primarySpaceButton(c, "Kirim undangan", "send").Disabled(m.busy || strings.TrimSpace(m.email) == "").Clicked() {
-				req := api.InviteRequest{Email: strings.TrimSpace(m.email)}
-				a.memberWrite(api.CapInvitationsManage, "Undangan dikirim ke email.", func(s WorkspaceAPI, p, d id.ID) error {
+			ui.TextInput(c.Key("invite-email"), &m.email).Label("NIM atau email").Placeholder("232410101090").Grow(1).MinWidth(0).Disabled(m.busy)
+			if primarySpaceButton(c, "Kirim undangan", "send").Disabled(m.busy || target.req == nil).Clicked() {
+				req := *target.req
+				a.memberWrite(api.CapInvitationsManage, "Undangan dikirim ke "+target.email+".", func(s WorkspaceAPI, p, d id.ID) error {
 					_, err := s.Invite(context.Background(), p, d, req)
 					return err
 				})
 			}
 		})
+		switch {
+		case target.problem != "":
+			ui.Text(c, target.problem).FontSize(12).TextColor(t.Danger)
+		case target.email != "":
+			ui.Row(c).Gap(6).AlignItems(ui.Center).MinWidth(0).Children(func() {
+				ui.Icon(c, spaceIcon("send")).Size(14, 14).TextColor(t.TextMuted).Shrink(0)
+				muted(c, "Dikirim ke").FontSize(12).Shrink(0)
+				ui.Text(c, target.email).FontSize(12).FontWeight(600).MaxLines(1).MinWidth(0).Selectable()
+			})
+			if target.warning != "" {
+				ui.Text(c, target.warning).FontSize(12).TextColor(t.Warning)
+			}
+		}
 	})
+}
+
+// inviteTargetInfo is what the invite form would send for its input.
+type inviteTargetInfo struct {
+	req              *api.InviteRequest
+	email            string // the address shown before sending
+	warning, problem string
+}
+
+// inviteTarget reads the invite field: a NIM becomes the student address
+// <NIM>@mail.unej.ac.id; a full email is sent as typed, with a warning when
+// it is not a student address (lecturers and alumni have other emails).
+func inviteTarget(input string) inviteTargetInfo {
+	s := strings.TrimSpace(input)
+	switch {
+	case s == "":
+		return inviteTargetInfo{}
+	case !strings.Contains(s, "@"):
+		if !api.ValidNIM(s) {
+			return inviteTargetInfo{problem: "NIM hanya berisi angka, 8 sampai 20 digit. Untuk alamat lain, ketik email lengkap."}
+		}
+		return inviteTargetInfo{req: &api.InviteRequest{NIM: s}, email: api.StudentEmail(s)}
+	}
+	email := strings.ToLower(s)
+	at := strings.LastIndexByte(email, '@')
+	if at < 1 || at == len(email)-1 || !strings.Contains(email[at:], ".") || strings.ContainsAny(email, " ,;<>") {
+		return inviteTargetInfo{problem: "Alamat email belum lengkap."}
+	}
+	out := inviteTargetInfo{req: &api.InviteRequest{Email: email}, email: email}
+	if !api.IsStudentEmail(email) {
+		out.warning = "Bukan email mahasiswa UNEJ (@" + api.StudentEmailDomain + "). Tetap bisa dikirim, misalnya untuk dosen atau alumni."
+	}
+	return out
 }
 
 // memberInvitations is the canvas' "Undangan tertunda" card: invitations
@@ -276,7 +323,17 @@ func (a *App) memberInvitations(c *ui.Context) {
 				if inv.Status == api.InvitationExpired {
 					status = "kedaluwarsa " + inv.ExpiresAt.Format("02 Jan 2006")
 				}
-				ui.Text(c, status).FontSize(12).TextColor(t.TextMuted).Shrink(0)
+				if inv.BouncedAt != nil {
+					// Amazon SES reported the email did not arrive: the NIM or
+					// address is probably wrong. Sending again clears it.
+					reason := inv.BounceReason
+					if reason == "" {
+						reason = "Email tidak sampai."
+					}
+					ui.Text(c, "Tidak terkirim · "+reason).FontSize(12).TextColor(t.Danger).MinWidth(0).MaxLines(2).Tooltip("Periksa NIM atau alamatnya. Bila salah, cabut lalu undang ulang; bila benar, kirim ulang.")
+				} else {
+					ui.Text(c, status).FontSize(12).TextColor(t.TextMuted).Shrink(0)
+				}
 				ui.Row(c).Gap(4).Shrink(0).Children(func() {
 					if memberAction(c, "Kirim ulang", "Kirim ulang "+inv.Email, false).Disabled(m.busy).Clicked() {
 						a.memberWrite(api.CapInvitationsManage, "Undangan dikirim ulang. Tautan sebelumnya tidak berlaku.", func(s WorkspaceAPI, p, d id.ID) error {

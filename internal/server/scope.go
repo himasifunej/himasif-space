@@ -127,7 +127,7 @@ func memberAPI(m store.Membership, roles map[id.ID]api.CustomRole, closed bool) 
 	}
 	return api.Member{ID: m.ID, UserID: m.UserID, PeriodID: m.PeriodID, DivisionID: m.DivisionID,
 		DisplayName: m.DisplayName, Role: m.Role, Roles: b.Roles(), Groups: nonNil(m.Groups),
-		CustomRoleIDs: nonNil(m.CustomRoleIDs), Capabilities: caps}
+		CustomRoleIDs: nonNil(m.CustomRoleIDs), Capabilities: caps, NIM: m.NIM}
 }
 
 // spaceViews returns the spaces of a period the caller may open, with the

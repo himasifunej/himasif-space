@@ -143,7 +143,7 @@ func (s *Server) deleteWACommand(w http.ResponseWriter, r *http.Request, p *prin
 func (s *Server) waOutbox(w http.ResponseWriter, r *http.Request, p *principal) error {
 	out := []api.WAOutboxItem{}
 	err := s.withWA(r, p, false, func(q store.Querier, _ *scope, c *api.WAConnection) error {
-		rows, err := q.Query(r.Context(), `select o.id,coalesce(nullif(o.target_name,''),g.name),o.status,o.attempts,o.message_id,o.last_error,o.created_at,o.updated_at,o.suppressed_at,o.suppression_reason from wa_outbox o join wa_groups g on g.id=o.group_id where o.connection_id=$1 order by o.created_at desc,o.id desc limit 100`, c.ID)
+		rows, err := q.Query(r.Context(), `select o.id,coalesce(nullif(o.target_name,''),g.name,'Pesan pribadi'),o.status,o.attempts,o.message_id,o.last_error,o.created_at,o.updated_at,o.suppressed_at,o.suppression_reason from wa_outbox o left join wa_groups g on g.id=o.group_id where o.connection_id=$1 order by o.created_at desc,o.id desc limit 100`, c.ID)
 		if err != nil {
 			return err
 		}

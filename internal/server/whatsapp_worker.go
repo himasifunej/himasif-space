@@ -254,6 +254,13 @@ func (s *Server) pollWAConnection(ctx context.Context, cid id.ID) error {
 					if gid == nil || !c.Enabled || period.Status == api.PeriodClosed {
 						state, reason = "ignored", "Grup tidak aktif atau periode ditutup saat penerimaan."
 					}
+					if event.GroupJID == "" {
+						// A direct message: only a link code is read, and only its
+						// code is kept (as "!link <code>"); anything else is dropped
+						// without its text.
+						event.Text, state, reason = waDirectInbound(s, event, c.Enabled && period.Status != api.PeriodClosed)
+						event.MentionedJIDs, event.Media, event.QuotedMessageID = []string{}, nil, ""
+					}
 					if event.MessageID == "" || event.EnvelopeID == "" || event.Revision == "" || event.ReceivedAt.IsZero() {
 						return errors.New("incomplete whatsapp envelope")
 					}
@@ -348,15 +355,19 @@ func (s *Server) dispatchWAClaim(ctx context.Context, claim waClaim) error {
 		}
 		// Group locks protect the authorization snapshot. They are released
 		// before transport, once the durable attempt has entered sending.
-		var groupID id.ID
+		var groupID *id.ID
 		if err = q.QueryRow(ctx, `select group_id from wa_outbox where id=$1`, claim.ID).Scan(&groupID); err != nil {
 			return err
 		}
 		var jid string
 		var spaceID id.ID
 		var commandsEnabled bool
-		if err = q.QueryRow(ctx, `select jid,space_id,commands_enabled from wa_groups where id=$1 and connection_id=$2 for share`, groupID, conn.ID).Scan(&jid, &spaceID, &commandsEnabled); err != nil {
-			return err
+		// Only the reply to a link code goes to a person instead of a group
+		// (constraint wa_outbox_group_or_dm).
+		if groupID != nil {
+			if err = q.QueryRow(ctx, `select jid,space_id,commands_enabled from wa_groups where id=$1 and connection_id=$2 for share`, *groupID, conn.ID).Scan(&jid, &spaceID, &commandsEnabled); err != nil {
+				return err
+			}
 		}
 		var payload []byte
 		var actorID *id.ID
@@ -375,6 +386,9 @@ func (s *Server) dispatchWAClaim(ctx context.Context, claim waClaim) error {
 		eligible = true
 		if claim.Status == "queued" {
 			valid := conn.Enabled && period.Status != api.PeriodClosed && request.GroupJID == jid
+			if groupID == nil {
+				valid = valid && sourceKind == "link_dm" && waUserJID.MatchString(request.ToJID) && len(request.Mentions) == 0 && request.AssetID == ""
+			}
 			if sourceKind == "command" || sourceKind == "parser" {
 				if sourceKind == "command" {
 					valid = valid && commandsEnabled

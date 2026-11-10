@@ -30,6 +30,7 @@ Setiap deploy tetap butuh persetujuan owner lewat GOA.
    - backup `before-VER-<ts>.dump` dan lampiran;
    - API, dengan rollback otomatis bila health gagal;
    - web, dengan versi lama disimpan sebagai `web.before-VER`;
+   - bridge WhatsApp (`r-bridge.sh`), hanya bila sumbernya berubah dan `package.json` sama. Cadangannya `src.before-VER`, dengan rollback otomatis bila `/health` gagal;
    - smoke check: layanan, error/panic di log sejak deploy, health;
    - snapshot catatan kedua, lalu dibandingkan dengan yang pertama.
 

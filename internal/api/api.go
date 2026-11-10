@@ -86,7 +86,14 @@ type User struct {
 	EmailVerified bool       `json:"emailVerified"`
 	CreatedAt     time.Time  `json:"createdAt"`
 	DisabledAt    *time.Time `json:"disabledAt,omitempty"`
+	// NIM comes from a verified student email (<NIM>@StudentEmailDomain).
+	NIM string `json:"nim,omitempty"`
 }
+
+// StudentEmailDomain is the email domain of UNEJ student accounts: a
+// student's address is <NIM>@StudentEmailDomain. Migration 0028 derives
+// users.nim from it, so changing it needs a migration too.
+const StudentEmailDomain = "mail.unej.ac.id"
 
 // Period is one kepengurusan, as 2025/2026.
 type Period struct {

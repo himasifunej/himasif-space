@@ -163,6 +163,9 @@ func (a *App) memberWrite(cap, label string, work func(WorkspaceAPI, id.ID, id.I
 			a.pinMemberOrder()
 			a.loadMembers(d)
 			a.access.members.notice = label
+			if strings.HasPrefix(label, "Undangan dikirim ke ") {
+				a.access.members.email = "" // ready for the next NIM
+			}
 			a.loadSpaces()
 		}
 	})

@@ -51,6 +51,23 @@ type WALinkChallenge struct {
 	Code         string    `json:"code"`
 	ExpiresAt    time.Time `json:"expiresAt"`
 	Instructions string    `json:"instructions"`
+	// DeepLink opens a chat with the division's bot with the code typed in
+	// (https://wa.me/<bot>?text=<code>): the member only taps Send. Empty
+	// while the division has no connected bot; then only !link in a group
+	// works.
+	DeepLink string `json:"deepLink,omitempty"`
+}
+
+// WALinkStatus is the caller's own WhatsApp link in a period.
+type WALinkStatus struct {
+	Linked bool `json:"linked"`
+	// Phone is the linked number with its middle hidden (+62 812-••••-4471);
+	// empty when WhatsApp only shared a private ID (LID).
+	Phone    string     `json:"phone,omitempty"`
+	LinkedAt *time.Time `json:"linkedAt,omitempty"`
+	// BotReady tells whether "Tautkan WhatsApp" can open a chat with the
+	// division's bot.
+	BotReady bool `json:"botReady"`
 }
 type WASessionState struct {
 	Status      string     `json:"status"`

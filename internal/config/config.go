@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -53,6 +54,14 @@ type Mail struct {
 	// TLS is "starttls" (port 587), "tls" (port 465) or "none" (a local
 	// catcher such as Mailpit).
 	TLS string
+	// PerMinute bounds the emails the server sends in one minute, all
+	// addresses together (SPACE_MAIL_PER_MINUTE, default 20). Amazon SES
+	// allows 1 per second in its sandbox and 14 after it.
+	PerMinute int
+	// SNSTopicARN is the Amazon SNS topic SES publishes bounces and
+	// complaints to (SPACE_SES_SNS_TOPIC_ARN). Empty turns the endpoint
+	// /api/mail/ses-events off.
+	SNSTopicARN string
 }
 
 // Development reports whether the server runs for development.
@@ -79,6 +88,8 @@ func Load() (Config, error) {
 			Username: os.Getenv("SPACE_SMTP_USERNAME"),
 			Password: os.Getenv("SPACE_SMTP_PASSWORD"),
 			TLS:      get("SPACE_SMTP_TLS", "starttls"),
+
+			SNSTopicARN: os.Getenv("SPACE_SES_SNS_TOPIC_ARN"),
 		},
 	}
 	var errs []error
@@ -138,6 +149,14 @@ func Load() (Config, error) {
 		errs = append(errs, fmt.Errorf("SPACE_SMTP_PORT: %w", err))
 	}
 	c.Mail.Port = port
+	perMinute, err := strconv.Atoi(get("SPACE_MAIL_PER_MINUTE", "20"))
+	if err != nil || perMinute < 1 || perMinute > 600 {
+		errs = append(errs, errors.New("SPACE_MAIL_PER_MINUTE must be between 1 and 600"))
+	}
+	c.Mail.PerMinute = perMinute
+	if c.Mail.SNSTopicARN != "" && !snsTopicARN.MatchString(c.Mail.SNSTopicARN) {
+		errs = append(errs, fmt.Errorf("SPACE_SES_SNS_TOPIC_ARN is not an SNS topic ARN: %q", c.Mail.SNSTopicARN))
+	}
 	switch c.Mail.Driver {
 	case "log", "disabled":
 	case "smtp":
@@ -161,10 +180,12 @@ func Load() (Config, error) {
 			errs = append(errs, fmt.Errorf("SPACE_SMTP_TLS must be starttls, tls or none, not %q", c.Mail.TLS))
 		}
 	default:
-		errs = append(errs, fmt.Errorf("SPACE_MAIL_DRIVER must be log or smtp, not %q", c.Mail.Driver))
+		errs = append(errs, fmt.Errorf("SPACE_MAIL_DRIVER must be disabled, log or smtp, not %q", c.Mail.Driver))
 	}
 	return c, errors.Join(errs...)
 }
+
+var snsTopicARN = regexp.MustCompile(`^arn:aws:sns:[a-z0-9-]+:[0-9]{12}:[A-Za-z0-9_-]{1,256}$`)
 
 func get(key, fallback string) string {
 	if v, ok := os.LookupEnv(key); ok && v != "" {

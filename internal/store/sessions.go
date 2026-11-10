@@ -39,7 +39,7 @@ func (s *Store) SessionUser(ctx context.Context, tokenHash []byte, now time.Time
 		tokenHash, now)
 	var u User
 	err := row.Scan(&sess.ID, &sess.UserID, &sess.Client, &sess.CreatedAt, &sess.ExpiresAt,
-		&u.ID, &u.Kind, &u.Email, &u.DisplayName, &u.PasswordHash, &u.EmailVerifiedAt, &u.DisabledAt, &u.CreatedAt, &u.UpdatedAt)
+		&u.ID, &u.Kind, &u.Email, &u.DisplayName, &u.PasswordHash, &u.EmailVerifiedAt, &u.DisabledAt, &u.CreatedAt, &u.UpdatedAt, &u.NIM)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Session{}, User{}, ErrNotFound
 	}

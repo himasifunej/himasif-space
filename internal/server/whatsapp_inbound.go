@@ -78,7 +78,13 @@ func (s *Server) processWACommand(ctx context.Context) (bool, error) {
 			}
 		}
 		in.GroupID = group.ID
-		if gid == nil || group.JID != in.GroupJID || !group.CommandsEnabled || !conn.Enabled || period.Status == api.PeriodClosed {
+		// A direct message to the bot carries only a link code (waDirectInbound).
+		direct := gid == nil && in.GroupJID == ""
+		if direct && (!conn.Enabled || period.Status == api.PeriodClosed || !strings.HasPrefix(in.Body, "!link ")) {
+			_, err = q.Exec(ctx, `update wa_inbound set state='ignored',error='Bot tidak aktif atau periode ditutup.' where id=$1`, in.ID)
+			return err
+		}
+		if !direct && (gid == nil || group.JID != in.GroupJID || !group.CommandsEnabled || !conn.Enabled || period.Status == api.PeriodClosed) {
 			_, err = q.Exec(ctx, `update wa_inbound set state='ignored',error='Command dinonaktifkan, grup berubah, atau periode ditutup.' where id=$1`, in.ID)
 			return err
 		}
@@ -134,6 +140,10 @@ func (s *Server) processWACommand(ctx context.Context) (bool, error) {
 			for index, part := range parts {
 				part.ID = id.New()
 				part.GroupJID = group.JID
+				groupID, source := &group.ID, "command"
+				if direct {
+					part.GroupJID, part.ToJID, groupID, source = "", in.SenderJID, nil, "link_dm"
+				}
 				if part.Mentions == nil {
 					part.Mentions = []string{}
 				}
@@ -145,7 +155,7 @@ func (s *Server) processWACommand(ctx context.Context) (bool, error) {
 				if index > 0 {
 					key += ":media"
 				}
-				if _, err = q.Exec(ctx, `insert into wa_outbox(id,event_key,connection_id,group_id,source_kind,source_id,actor_id,payload,available_at,created_at,updated_at) values($1,$2,$3,$4,'command',$5,$6,$7,$8,$8,$8) on conflict(event_key) do nothing`, part.ID, key, cid, group.ID, in.ID, actorID, payload, s.now()); err != nil {
+				if _, err = q.Exec(ctx, `insert into wa_outbox(id,event_key,connection_id,group_id,source_kind,source_id,actor_id,payload,available_at,created_at,updated_at) values($1,$2,$3,$4,$9,$5,$6,$7,$8,$8,$8) on conflict(event_key) do nothing`, part.ID, key, cid, groupID, in.ID, actorID, payload, s.now(), source); err != nil {
 					return err
 				}
 			}
@@ -229,12 +239,17 @@ func (s *Server) consumeWALink(r *http.Request, q store.Querier, period api.Peri
 	if err = sc.require(api.CapTasksOwn); err != nil {
 		return "", err
 	}
-	view, err := s.spaceView(r.Context(), q, p, group.SpaceID)
-	if err != nil {
-		return "", err
-	}
-	if !slices.Contains(view.Capabilities, api.CapSpaceRead) {
-		return "", errForbidden
+	// In a group the member must see its Space; a direct message to the bot
+	// only needs the division the code was made in.
+	direct := group.ID == id.Nil
+	if !direct {
+		view, err := s.spaceView(r.Context(), q, p, group.SpaceID)
+		if err != nil {
+			return "", err
+		}
+		if !slices.Contains(view.Capabilities, api.CapSpaceRead) {
+			return "", errForbidden
+		}
 	}
 	jids := []string{in.SenderJID}
 	if in.SenderAltJID != "" && in.SenderAltJID != in.SenderJID && waUserJID.MatchString(in.SenderAltJID) {
@@ -256,8 +271,21 @@ func (s *Server) consumeWALink(r *http.Request, q store.Querier, period api.Peri
 	if _, err = q.Exec(r.Context(), `update wa_link_challenges set used_at=$2 where id=$1`, challenge, s.now()); err != nil {
 		return "", err
 	}
-	if err = s.record(r, q, p, store.AuditEvent{Action: "whatsapp.identity.link", TargetType: "user", TargetID: &uid, PeriodID: &period.ID, After: map[string]any{"inboundId": in.ID, "groupId": group.ID, "jid": in.SenderJID}}); err != nil {
+	source := "group"
+	if direct {
+		source = "dm"
+	}
+	if err = s.record(r, q, p, store.AuditEvent{Action: "whatsapp.identity.link", TargetType: "user", TargetID: &uid, PeriodID: &period.ID, After: map[string]any{"inboundId": in.ID, "groupId": group.ID, "jid": in.SenderJID, "source": source}}); err != nil {
 		return "", err
+	}
+	if direct {
+		// Only the sender reads this: name it, with the NIM masked, so a code
+		// forwarded to someone else shows whose account it links.
+		who := u.DisplayName
+		if u.NIM != "" {
+			who += " (NIM " + api.MaskNIM(u.NIM) + ")"
+		}
+		return "Tertaut. WhatsApp ini sekarang terhubung ke akun Space " + who + ". Bukan kamu? Buka Space → Bot WhatsApp → Lepas tautan.", nil
 	}
 	return waText(r.Context(), "link.success"), nil
 }

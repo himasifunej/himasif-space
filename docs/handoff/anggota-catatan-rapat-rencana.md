@@ -179,7 +179,12 @@ Urutan yang disarankan: A1 → A2 → A3 → C1 → C2 → C2a → T1 → C3 →
 
 ## 8. Usulan: identitas NIM dan penautan WhatsApp tanpa `!link` di grup
 
-Status: **usulan, belum diputuskan, belum diimplementasi.**
+Status: **diputuskan owner 10 Nov 2026 dan diimplementasi di `feat/nim-wa-ses`**; hasilnya ada di `docs/handoff/nim-wa-ses-hasil.md`. Ada beberapa perbedaan dari usulan di bawah:
+- NIM terlihat oleh semua anggota divisi, bukan hanya pengurus.
+- Domain mahasiswa menjadi konstanta (`api.StudentEmailDomain`) dan kolom generated, bukan konfigurasi.
+- Kode tautan berlaku 15 menit.
+- Tidak ada QR di desktop.
+- Pesan pribadi selain kode diabaikan tanpa balasan.
 
 ### Kondisi sekarang
 - **Undangan** (`internal/server/invitations.go`): kadiv mengundang email apa saja (`validEmail`) dan server mengirim tautan. Orang tanpa akun meminta **bukti email** (`verifyInvitationEmail`): token sekali pakai dikirim ke email itu, dan akun dibuat saat menerima undangan dengan bukti tersebut. Jadi email akun **sudah terbukti dimiliki**.

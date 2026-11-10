@@ -43,6 +43,18 @@ func (c *Client) CreateWALink(ctx context.Context, pid, did id.ID) (api.WALinkCh
 	err := c.do(ctx, "POST", divisionPath(pid, did)+"/whatsapp-link", nil, &out)
 	return out, err
 }
+
+// WALinkStatus is the caller's own WhatsApp link in the division's period.
+func (c *Client) WALinkStatus(ctx context.Context, pid, did id.ID) (api.WALinkStatus, error) {
+	var out api.WALinkStatus
+	err := c.do(ctx, "GET", divisionPath(pid, did)+"/whatsapp-link", nil, &out)
+	return out, err
+}
+
+// UnlinkWA removes the caller's WhatsApp link in the period.
+func (c *Client) UnlinkWA(ctx context.Context, pid, did id.ID) error {
+	return c.do(ctx, "DELETE", divisionPath(pid, did)+"/whatsapp-link", nil, nil)
+}
 func (c *Client) WACommands(ctx context.Context, cid id.ID) ([]api.WACustomCommand, error) {
 	var out []api.WACustomCommand
 	err := c.do(ctx, "GET", waPath(cid)+"/commands", nil, &out)

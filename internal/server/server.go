@@ -63,6 +63,10 @@ type Server struct {
 	bg               sync.WaitGroup
 	wa               *whatsapp.Client
 	waTransportSlots chan struct{}
+	// sns verifies Amazon SES bounce reports (mail_ses.go).
+	sns *snsClient
+	// waDMLimit bounds the link codes one WhatsApp chat may send the bot.
+	waDMLimit *limiter
 }
 
 // New returns a server.
@@ -80,6 +84,8 @@ func New(cfg config.Config, st *store.Store, mailer mail.Mailer, log *slog.Logge
 		loginLimit:  newLimiter(10, 15*time.Minute),
 		mailLimit:   newLimiter(5, 15*time.Minute),
 		publicLimit: newLimiter(30, 15*time.Minute),
+		sns:         newSNSClient(),
+		waDMLimit:   newLimiter(5, 15*time.Minute),
 	}
 	result.initWorkers()
 	result.configureRuntime()
@@ -127,6 +133,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/periods/{periodId}/divisions/{divisionId}/whatsapp", s.handle(s.listWA))
 	mux.Handle("POST /api/periods/{periodId}/divisions/{divisionId}/whatsapp", s.handle(s.createWA))
 	mux.Handle("POST /api/periods/{periodId}/divisions/{divisionId}/whatsapp-link", s.handle(s.createWALink))
+	mux.Handle("GET /api/periods/{periodId}/divisions/{divisionId}/whatsapp-link", s.handle(s.waLinkStatus))
+	mux.Handle("DELETE /api/periods/{periodId}/divisions/{divisionId}/whatsapp-link", s.handle(s.unlinkWA))
 	mux.Handle("POST /api/periods/{periodId}/divisions/{divisionId}/whatsapp/preview", s.handle(s.previewWA))
 	mux.Handle("PUT /api/whatsapp/{connectionId}", s.handle(s.updateWA))
 	mux.Handle("GET /api/whatsapp/{connectionId}/state", s.handle(s.waSession))
@@ -176,6 +184,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PUT /api/meetings/{meetingId}", s.handle(s.updateMeeting))
 	mux.Handle("PUT /api/meetings/{meetingId}/attendance/{userId}", s.handle(s.recordAttendance))
 	mux.HandleFunc("GET /api/health", s.health)
+	mux.HandleFunc("POST /api/mail/ses-events", s.sesEvents)
 	mux.HandleFunc("POST /api/auth/login", s.login)
 	mux.Handle("POST /api/auth/logout", s.authed(s.logout))
 	mux.Handle("GET /api/me", s.authed(s.me))
