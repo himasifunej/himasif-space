@@ -28,7 +28,15 @@ type TaskPermissions struct {
 	Comment  bool `json:"comment"`
 	Help     bool `json:"help"`
 	Review   bool `json:"review"`
+	// SelfReview: the reviewer may also approve their own submission, as
+	// a kadiv of the task's division or an organization admin may. Others
+	// wait for another reviewer. Older servers leave it out (false).
+	SelfReview bool `json:"selfReview,omitempty"`
 }
+
+// SelfApprovedReason is the review reason of a submission its own
+// submitter approved, when they give none: the history says so.
+const SelfApprovedReason = "Disetujui sendiri"
 
 // Task is one canonical object projected into authorized spaces and jobdesk.
 // Exactly one of DeadlineDate/DeadlineAt is present; date-only stays date-only.
@@ -137,9 +145,12 @@ type TaskHelpRequest struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 type TaskEvidenceRequest struct {
-	URL             string `json:"url"`
-	Note            string `json:"note"`
-	ExpectedVersion int64  `json:"expectedVersion"`
+	URL  string `json:"url"`
+	Note string `json:"note"`
+	// AttachmentIDs are files the submitter uploaded to the task for this
+	// submission (0.4.5): a link, a note or files, any of them.
+	AttachmentIDs   []id.ID `json:"attachmentIds,omitempty"`
+	ExpectedVersion int64   `json:"expectedVersion"`
 }
 type TaskEvidenceReviewRequest struct {
 	Matched         bool   `json:"matched"`
@@ -157,6 +168,9 @@ type TaskEvidence struct {
 	ReviewedAt   *time.Time `json:"reviewedAt,omitempty"`
 	ReviewedBy   *PersonRef `json:"reviewedBy,omitempty"`
 	ReviewReason string     `json:"reviewReason,omitempty"`
+	// Files are the task's attachments uploaded as this submission's proof.
+	// Absent from servers before 0.4.5.
+	Files []TaskAttachment `json:"files,omitempty"`
 }
 type TaskEvent struct {
 	ID        id.ID     `json:"id"`

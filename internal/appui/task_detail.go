@@ -3,6 +3,7 @@ package appui
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -492,6 +493,82 @@ func (a *App) taskReopenView(c *ui.Context, t api.Task) {
 	})
 }
 
+// selfReviewBlocked: the latest submission is the viewer's own, and only a
+// kadiv or an admin may approve their own (TaskPermissions.SelfReview).
+func (a *App) selfReviewBlocked(t api.Task, e api.TaskEvidence) bool {
+	return e.SubmittedBy.ID == a.user.ID && !t.Permissions.SelfReview
+}
+
+// reviewWaitText says who reviews a submission its submitter may not.
+func (a *App) reviewWaitText(t api.Task) string {
+	who := "kadiv atau peninjau lain di divisi ini"
+	if sp := a.selectedSpace(); sp != nil {
+		for _, d := range sp.Divisions {
+			if d.ID == t.OwnerDivisionID {
+				who = "kadiv " + d.Name + " atau peninjau lain"
+			}
+		}
+	}
+	return "Menunggu ditinjau oleh " + who + ". Hasil yang kamu serahkan sendiri tidak bisa kamu cocokkan."
+}
+
+// approveReason is what an approval says when the reviewer writes
+// nothing: servers before 0.4.5 ask for a reason even then.
+func (a *App) approveReason(e api.TaskEvidence) string {
+	if e.SubmittedBy.ID == a.user.ID {
+		return api.SelfApprovedReason
+	}
+	return "Bukti sesuai"
+}
+
+// taskEvidenceReview is the latest submission's review: "Bukti sesuai" in
+// one click, "Bukti tidak sesuai" with the correction it asks for, or, for
+// a submission its submitter may not review, who it waits for.
+func (a *App) taskEvidenceReview(c *ui.Context, t api.Task, e api.TaskEvidence) {
+	th := c.Theme()
+	if a.selfReviewBlocked(t, e) {
+		if e.MatchStatus == api.MatchPending {
+			ui.Text(c, a.reviewWaitText(t)).FontSize(12).TextColor(th.Warning)
+		}
+		return
+	}
+	ui.Row(c).Gap(6).Wrap().Children(func() {
+		label := "Bukti sesuai"
+		if e.SubmittedBy.ID == a.user.ID {
+			label = "Setujui sendiri"
+		}
+		if primarySpaceButton(c, label, "check").Disabled(a.taskWriteBlocked() || e.MatchStatus == api.MatchVerified).Clicked() {
+			reason := a.approveReason(e)
+			a.tasks.rejecting = false
+			a.mutateTask("Pencocokan bukti", func(s TasksAPI) error {
+				_, err := s.ReviewTaskEvidence(context.Background(), t.ID, e.ID, api.TaskEvidenceReviewRequest{Matched: true, Reason: reason, ExpectedVersion: t.Version})
+				return err
+			}, nil)
+		}
+		if spaceButton(c, "Bukti tidak sesuai", "close", a.tasks.rejecting).Border(1, th.Border).Disabled(a.taskWriteBlocked() || e.MatchStatus == api.MatchRejected).Clicked() {
+			a.tasks.rejecting, a.tasks.reason = !a.tasks.rejecting, ""
+		}
+	})
+	if !a.tasks.rejecting || e.MatchStatus == api.MatchRejected {
+		return
+	}
+	ui.Column(c.Key("reject-form")).FillWidth().Gap(8).Children(func() {
+		taskInput(c, "review-reason", "Apa yang perlu dikoreksi? *", &a.tasks.reason)
+		ui.Row(c).Gap(8).Children(func() {
+			if spaceButton(c, "Tandai tidak sesuai", "close", true).Disabled(a.taskWriteBlocked() || strings.TrimSpace(a.tasks.reason) == "").Clicked() {
+				reason := strings.TrimSpace(a.tasks.reason)
+				a.mutateTask("Pencocokan bukti", func(s TasksAPI) error {
+					_, err := s.ReviewTaskEvidence(context.Background(), t.ID, e.ID, api.TaskEvidenceReviewRequest{Matched: false, Reason: reason, ExpectedVersion: t.Version})
+					return err
+				}, func() { a.tasks.rejecting, a.tasks.reason = false, "" })
+			}
+			if spaceButton(c, "Batal", "", false).Clicked() {
+				a.tasks.rejecting, a.tasks.reason = false, ""
+			}
+		})
+	})
+}
+
 func (a *App) taskEvidenceView(c *ui.Context, t api.Task) {
 	th := c.Theme()
 	canSubmit := (t.Permissions.Progress || t.Permissions.Manage) && t.Progress != api.TaskCancelled && t.Progress != api.TaskDone && t.MatchStatus != api.MatchPending && !a.offlineMode()
@@ -506,14 +583,14 @@ func (a *App) taskEvidenceView(c *ui.Context, t api.Task) {
 		if len(t.Evidence) == 0 && !a.tasks.evidenceOpen {
 			muted(c, "Belum ada. PJ menyerahkan tautan atau catatan hasil lewat “Serahkan hasil”.").FontSize(13)
 		}
-		if t.Permissions.Review && len(t.Evidence) > 0 {
-			taskInput(c, "review-reason", "Alasan pencocokan / koreksi *", &a.tasks.reason)
-		}
 		for i, e := range t.Evidence {
 			ui.Row(c.Key(e.ID)).FillWidth().Gap(12).Padding(10).Radius(8).Border(1, th.Border).AlignItems(ui.Start).Children(func() {
 				kind := "CATATAN"
-				if e.URL != "" {
+				switch {
+				case e.URL != "":
 					kind = "TAUTAN"
+				case len(e.Files) > 0:
+					kind = "BERKAS"
 				}
 				ui.Text(c, kind).FontSize(9).Bold().TextColor(th.Accent).Padding(10, 6).Radius(6).Background(th.SurfaceHover).Shrink(0)
 				ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
@@ -522,6 +599,9 @@ func (a *App) taskEvidenceView(c *ui.Context, t api.Task) {
 					}
 					if e.Note != "" {
 						ui.Text(c, e.Note).FontSize(13)
+					}
+					for _, f := range e.Files {
+						a.evidenceFileRow(c, t, f, nil)
 					}
 					status := ui.Text(c, matchLabel(e.MatchStatus)).FontSize(11)
 					switch e.MatchStatus {
@@ -537,43 +617,13 @@ func (a *App) taskEvidenceView(c *ui.Context, t api.Task) {
 						muted(c, "Alasan: "+e.ReviewReason).FontSize(11)
 					}
 					if t.Permissions.Review && i == len(t.Evidence)-1 && t.Progress != api.TaskCancelled {
-						ui.Row(c).Gap(6).Wrap().Children(func() {
-							if primarySpaceButton(c, "Bukti sesuai", "check").Disabled(a.taskWriteBlocked() || strings.TrimSpace(a.tasks.reason) == "" || e.MatchStatus == api.MatchVerified).Clicked() {
-								reason := a.tasks.reason
-								a.mutateTask("Pencocokan bukti", func(s TasksAPI) error {
-									_, err := s.ReviewTaskEvidence(context.Background(), t.ID, e.ID, api.TaskEvidenceReviewRequest{Matched: true, Reason: reason, ExpectedVersion: t.Version})
-									return err
-								}, nil)
-							}
-							if spaceButton(c, "Bukti tidak sesuai", "close", false).Border(1, th.Border).Disabled(a.taskWriteBlocked() || strings.TrimSpace(a.tasks.reason) == "" || e.MatchStatus == api.MatchRejected).Clicked() {
-								reason := a.tasks.reason
-								a.mutateTask("Pencocokan bukti", func(s TasksAPI) error {
-									_, err := s.ReviewTaskEvidence(context.Background(), t.ID, e.ID, api.TaskEvidenceReviewRequest{Matched: false, Reason: reason, ExpectedVersion: t.Version})
-									return err
-								}, nil)
-							}
-						})
+						a.taskEvidenceReview(c, t, e)
 					}
 				})
 			})
 		}
 		if canSubmit && a.tasks.evidenceOpen {
-			ui.Column(c.Key("evidence-form")).FillWidth().Gap(10).Padding(12).Radius(8).Border(1, th.Accent).Children(func() {
-				muted(c, "Waktu penyerahan asli tetap tersimpan. Tinjauan mencocokkan hasil dengan tugas.").FontSize(12)
-				taskInput(c, "evidence-url", "Tautan hasil (https://…)", &a.tasks.evidenceURL)
-				taskLongInput(c, "evidence-note", "Catatan hasil", &a.tasks.evidenceNote)
-				ui.Row(c).Gap(8).Children(func() {
-					if primarySpaceButton(c, "Serahkan hasil", "send").Disabled(a.taskWriteBlocked() || (strings.TrimSpace(a.tasks.evidenceURL) == "" && strings.TrimSpace(a.tasks.evidenceNote) == "")).Clicked() {
-						req := api.TaskEvidenceRequest{URL: a.tasks.evidenceURL, Note: a.tasks.evidenceNote, ExpectedVersion: t.Version}
-						a.mutateTask("Penyerahan hasil", func(s TasksAPI) error { _, err := s.SubmitTaskEvidence(context.Background(), t.ID, req); return err }, func() {
-							a.tasks.evidenceURL, a.tasks.evidenceNote, a.tasks.evidenceOpen = "", "", false
-						})
-					}
-					if spaceButton(c, "Batal", "", false).Clicked() {
-						a.tasks.evidenceOpen = false
-					}
-				})
-			})
+			a.taskEvidenceForm(c, t)
 		}
 	})
 }
@@ -653,7 +703,11 @@ func (a *App) taskActivity(t api.Task) []activity {
 		for _, e := range t.Evidence {
 			out = append(out, activity{key: "e" + e.ID.String(), at: e.SubmittedAt, who: e.SubmittedBy.DisplayName, text: "menyerahkan hasil"})
 			if e.ReviewedAt != nil && e.ReviewedBy != nil {
-				out = append(out, activity{key: "r" + e.ID.String(), at: *e.ReviewedAt, who: e.ReviewedBy.DisplayName, text: "mencocokkan bukti: " + strings.ToLower(matchLabel(e.MatchStatus)), note: e.ReviewReason})
+				text := "mencocokkan bukti: " + strings.ToLower(matchLabel(e.MatchStatus))
+				if e.ReviewedBy.ID == e.SubmittedBy.ID && e.MatchStatus == api.MatchVerified {
+					text = "menyetujui hasilnya sendiri (disetujui sendiri)"
+				}
+				out = append(out, activity{key: "r" + e.ID.String(), at: *e.ReviewedAt, who: e.ReviewedBy.DisplayName, text: text, note: e.ReviewReason})
 			}
 		}
 		for _, h := range t.HelpRequests {
@@ -834,4 +888,102 @@ func (a *App) taskStatusPill(c *ui.Context, t api.Task) {
 			}
 		}
 	}).AttachTo(pill, ui.AnchorBottomLeft, ui.AnchorTopLeft)
+}
+
+// evidenceURLProblem is what is wrong with a result link as typed, or ""
+// when it is empty or a usable https:// link.
+func evidenceURLProblem(raw string) string {
+	v := strings.TrimSpace(raw)
+	if v == "" {
+		return ""
+	}
+	if strings.ContainsAny(v, " \t\r\n") {
+		return "Tautan tidak boleh berisi spasi."
+	}
+	if !strings.HasPrefix(strings.ToLower(v), "https://") {
+		return "Tautan harus diawali https://"
+	}
+	u, err := url.Parse(v)
+	if err != nil || u.Hostname() == "" || !strings.Contains(u.Hostname(), ".") || u.User != nil {
+		return "Tautan belum lengkap, misalnya https://drive.google.com/…"
+	}
+	return ""
+}
+
+// taskEvidenceForm is "Serahkan hasil": a link, files, or both, and a
+// note. It is sent only when the link, if any, is a usable https:// one.
+func (a *App) taskEvidenceForm(c *ui.Context, t api.Task) {
+	th := c.Theme()
+	ui.Column(c.Key("evidence-form")).FillWidth().Gap(10).Padding(12).Radius(8).Border(1, th.Accent).Children(func() {
+		muted(c, "Waktu penyerahan asli tetap tersimpan. Tinjauan mencocokkan hasil dengan tugas.").FontSize(12)
+		_, canFiles := a.taskFilesService()
+		canFiles = canFiles && a.PickFile != nil
+		if canFiles {
+			if i := Segmented(c, "Bentuk hasil", []string{"Tautan", "Unggah berkas"}, a.tasks.evidenceMode); i >= 0 {
+				a.tasks.evidenceMode = i
+			}
+		} else {
+			a.tasks.evidenceMode = 0
+		}
+		problem := evidenceURLProblem(a.tasks.evidenceURL)
+		if a.tasks.evidenceMode == 0 {
+			taskInputHint(c, "evidence-url", "Tautan hasil (https://…)", "https://drive.google.com/…", &a.tasks.evidenceURL)
+			if problem != "" {
+				ui.Text(c, problem).FontSize(12).TextColor(th.Danger)
+			}
+		} else {
+			ui.Column(c.Key("evidence-files")).FillWidth().Gap(6).Children(func() {
+				for _, f := range a.tasks.evidenceFiles {
+					f := f
+					a.evidenceFileRow(c, t, f, func() { a.dropEvidenceFile(t, f) })
+				}
+				label := "Pilih berkas"
+				if len(a.tasks.evidenceFiles) > 0 {
+					label = "Tambah berkas"
+				}
+				if a.tasks.evidenceUploading {
+					label = "Mengunggah…"
+				}
+				if spaceButton(c.Key("evidence-pick"), label, "plus", false).Border(1, th.Border).Disabled(a.taskWriteBlocked() || a.tasks.evidenceUploading).Clicked() {
+					a.pickEvidenceFile(t)
+				}
+				muted(c, "Gambar, PDF, teks, dokumen Office atau zip · maks. 20 MB per berkas.").FontSize(11)
+			})
+		}
+		// What the other tab holds goes too: either, or both.
+		var parts []string
+		if strings.TrimSpace(a.tasks.evidenceURL) != "" && problem == "" {
+			parts = append(parts, "1 tautan")
+		}
+		if n := len(a.tasks.evidenceFiles); n > 0 {
+			parts = append(parts, fmt.Sprintf("%d berkas", n))
+		}
+		if len(parts) > 0 {
+			muted(c, "Diserahkan: "+strings.Join(parts, " · ")).FontSize(12)
+		}
+		taskLongInput(c, "evidence-note", "Catatan hasil", &a.tasks.evidenceNote)
+		if a.tasks.evidenceErr != "" {
+			ui.Text(c, a.tasks.evidenceErr).FontSize(12).TextColor(th.Danger)
+		}
+		empty := strings.TrimSpace(a.tasks.evidenceURL) == "" && strings.TrimSpace(a.tasks.evidenceNote) == "" && len(a.tasks.evidenceFiles) == 0
+		ui.Row(c).Gap(8).Children(func() {
+			if primarySpaceButton(c, "Serahkan hasil", "send").Disabled(a.taskWriteBlocked() || a.tasks.evidenceUploading || problem != "" || empty).Clicked() {
+				req := api.TaskEvidenceRequest{URL: strings.TrimSpace(a.tasks.evidenceURL), Note: a.tasks.evidenceNote, ExpectedVersion: t.Version}
+				for _, f := range a.tasks.evidenceFiles {
+					req.AttachmentIDs = append(req.AttachmentIDs, f.ID)
+				}
+				a.tasks.evidenceErr = ""
+				a.mutateTaskOr("Penyerahan hasil", func(s TasksAPI) error { _, err := s.SubmitTaskEvidence(context.Background(), t.ID, req); return err }, func() {
+					a.tasks.evidenceURL, a.tasks.evidenceNote, a.tasks.evidenceOpen = "", "", false
+					a.tasks.evidenceFiles, a.tasks.evidenceMode = nil, 0
+				}, func(msg string) { a.tasks.evidenceErr = msg })
+			}
+			if spaceButton(c, "Batal", "", false).Clicked() {
+				for _, f := range slices.Clone(a.tasks.evidenceFiles) {
+					a.dropEvidenceFile(t, f)
+				}
+				a.tasks.evidenceOpen, a.tasks.evidenceErr, a.tasks.evidenceMode = false, "", 0
+			}
+		})
+	})
 }

@@ -3,6 +3,7 @@ package appui
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/himasifunej/himasif-space/internal/api"
@@ -173,19 +174,21 @@ func (a *App) taskFilesView(c *ui.Context, t api.Task) {
 		}
 	}
 	can := a.canAttachTaskFiles(t)
-	if len(t.Attachments) == 0 && !can {
+	// Files given as proof show with their submission, not here.
+	shown := a.generalTaskFiles(t)
+	if len(shown) == 0 && !can {
 		return
 	}
 	ui.Column(c.Key("task-files")).FillWidth().Gap(8).Children(func() {
 		ui.Row(c).FillWidth().AlignItems(ui.Center).Children(func() {
-			ui.Text(c, fmt.Sprintf("Berkas · %d", len(t.Attachments))).FontSize(12).Bold().Grow(1)
+			ui.Text(c, fmt.Sprintf("Berkas · %d", len(shown))).FontSize(12).Bold().Grow(1)
 			if can && st.upload == nil && len(t.Attachments) < taskFileMaxCount {
 				if spaceButton(c.Key("attach-file"), "Lampirkan berkas", "plus", false).Border(1, th.Border).Disabled(st.busy || a.taskWriteBlocked()).Clicked() {
 					a.pickTaskFile(t)
 				}
 			}
 		})
-		for _, f := range t.Attachments {
+		for _, f := range shown {
 			ui.Row(c.Key(f.ID)).FillWidth().MinWidth(0).Gap(10).Padding(8, 10).Radius(8).Border(1, th.Border).AlignItems(ui.Center).Children(func() {
 				ui.Icon(c, detailIcon("clip")).Size(16, 16).TextColor(th.TextMuted).Shrink(0)
 				ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
@@ -261,4 +264,100 @@ func detailIconButton(c *ui.Context, label, icon string) ui.Element {
 	}
 	b.FocusRing(b.FocusVisible()).Children(func() { ui.Icon(c, detailIcon(icon)).Size(15, 15) })
 	return b
+}
+
+// generalTaskFiles are a task's files that are no submission's proof, nor
+// uploaded for the submission being written.
+func (a *App) generalTaskFiles(t api.Task) []api.TaskAttachment {
+	proof := map[id.ID]bool{}
+	for _, e := range t.Evidence {
+		for _, f := range e.Files {
+			proof[f.ID] = true
+		}
+	}
+	for _, f := range a.tasks.evidenceFiles {
+		proof[f.ID] = true
+	}
+	out := make([]api.TaskAttachment, 0, len(t.Attachments))
+	for _, f := range t.Attachments {
+		if !proof[f.ID] {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
+// evidenceFileRow is a proof file: its name and size, a download, and,
+// while the submission is written, its removal.
+func (a *App) evidenceFileRow(c *ui.Context, t api.Task, f api.TaskAttachment, remove func()) {
+	th := c.Theme()
+	ui.Row(c.Key("ef-"+f.ID.String())).FillWidth().MinWidth(0).Gap(8).Padding(6, 8).Radius(6).Background(th.SurfaceHover).AlignItems(ui.Center).Children(func() {
+		ui.Icon(c, detailIcon("clip")).Size(14, 14).TextColor(th.TextMuted).Shrink(0)
+		ui.Text(c, f.Name).FontSize(12).MaxLines(1).Grow(1).MinWidth(0)
+		muted(c, taskFileSize(f.SizeBytes)).FontSize(11).Shrink(0)
+		if f.URL != "" && detailIconButton(c.Key("dl"), "Unduh "+f.Name, "download").Disabled(a.tasks.files.busy || a.offlineMode()).Clicked() {
+			a.downloadTaskFile(t, f)
+		}
+		if remove != nil && spaceIconButton(c.Key("rm"), "Hapus "+f.Name, "close").Disabled(a.tasks.evidenceUploading).Clicked() {
+			remove()
+		}
+	})
+}
+
+// pickEvidenceFile uploads a file to the task as proof for the submission
+// being written; it is the submission's once it is sent.
+func (a *App) pickEvidenceFile(t api.Task) {
+	files, ok := a.taskFilesService()
+	if !ok || a.PickFile == nil || a.tasks.evidenceUploading {
+		return
+	}
+	if len(t.Attachments)+len(a.tasks.evidenceFiles) >= taskFileMaxCount {
+		a.tasks.evidenceErr = "Tugas ini sudah memiliki 20 berkas. Hapus salah satu dulu."
+		return
+	}
+	gen, tid := a.gen, t.ID
+	a.tasks.evidenceUploading, a.tasks.evidenceErr = true, ""
+	a.PickFile(taskFileMaxBytes, func(file SelectedFile, err error) {
+		a.update(func() {
+			if gen != a.gen {
+				return
+			}
+			if err != nil || file.Name == "" {
+				a.tasks.evidenceUploading = false
+				if err != nil {
+					a.tasks.evidenceErr = err.Error()
+					a.tasks.errToast = a.tasks.evidenceErr
+				}
+				return
+			}
+			aid := id.New()
+			a.async(func() func() {
+				f, err := files.UploadTaskAttachment(context.Background(), tid, aid, file.Name, file.Data)
+				return func() {
+					if gen != a.gen {
+						return
+					}
+					a.tasks.evidenceUploading = false
+					if err != nil {
+						a.tasks.evidenceErr = "Berkas belum terunggah: " + a.taskFailure(err)
+						a.tasks.errToast = a.tasks.evidenceErr
+						return
+					}
+					a.tasks.evidenceFiles = append(a.tasks.evidenceFiles, f)
+				}
+			})
+		})
+	})
+}
+
+// dropEvidenceFile removes a file uploaded for a submission not yet sent.
+func (a *App) dropEvidenceFile(t api.Task, f api.TaskAttachment) {
+	a.tasks.evidenceFiles = slices.DeleteFunc(a.tasks.evidenceFiles, func(x api.TaskAttachment) bool { return x.ID == f.ID })
+	if files, ok := a.taskFilesService(); ok {
+		tid := t.ID
+		a.async(func() func() {
+			_ = files.RemoveTaskAttachment(context.Background(), tid, f.ID)
+			return func() {}
+		})
+	}
 }

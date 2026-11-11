@@ -99,6 +99,11 @@ func (a *App) taskFeedback(c *ui.Context) {
 		c.AddToast(ui.Toast{Title: a.tasks.notice, Type: kind, Timeout: 8 * time.Second})
 		a.tasks.notice = ""
 	}
+	if a.tasks.errToast != "" {
+		// Over the task's dialog too, where the board's line is hidden.
+		c.AddToast(ui.Toast{Title: a.tasks.errToast, Type: "error", Timeout: 10 * time.Second})
+		a.tasks.errToast = ""
+	}
 	if a.tasks.err != "" {
 		ui.Row(c).FillWidth().Padding(10, 22).Gap(8).Children(func() { ui.Text(c, a.tasks.err).FontSize(12).TextColor(c.Theme().Danger).Grow(1).MinWidth(0) })
 	}
@@ -811,6 +816,8 @@ func taskEventLabel(action string) string {
 		return "Hasil diserahkan"
 	case "task.evidence.review":
 		return "Bukti dicocokkan"
+	case "task.evidence.self_approve":
+		return "Hasil disetujui sendiri"
 	}
 	return "Tugas diperbarui"
 }
