@@ -117,20 +117,24 @@ type App struct {
 	// PreferencesStore persists appearance on this device, separately from tokens.
 	PreferencesStore PreferencesStore
 	// NoteDrafts keeps account-scoped recovery copies on this device.
-	PendingFiles              PendingFileStore
-	NoteDrafts                NoteDraftStore
-	preferencesLoaded         bool
-	chrome                    chromeState
-	realtime                  realtimeUIState
-	workspace                 *workspaceui.State
-	access                    workspaceAccessState
-	tasks                     tasksUIState
-	reminders                 remindersUIState
-	notes                     notesUIState
-	meetings                  meetingsState
-	agenda                    agendaState
-	deliveries                deliveriesState
-	updates                   updateCardState
+	PendingFiles      PendingFileStore
+	NoteDrafts        NoteDraftStore
+	preferencesLoaded bool
+	chrome            chromeState
+	realtime          realtimeUIState
+	workspace         *workspaceui.State
+	access            workspaceAccessState
+	tasks             tasksUIState
+	reminders         remindersUIState
+	notes             notesUIState
+	meetings          meetingsState
+	agenda            agendaState
+	deliveries        deliveriesState
+	updates           updateCardState
+	// serverVersion is the server's, from the last health check (Tentang).
+	serverVersion string
+	// aboutOpen are the versions unfolded in Tentang; the newest starts open.
+	aboutOpen                 map[string]bool
 	operations                operationsUIState
 	emergency                 emergencyUIState
 	offlineSync               offlineUIState
@@ -427,7 +431,7 @@ func (a *App) ping(now time.Time) {
 	}
 	gen := a.gen
 	a.async(func() func() {
-		_, err := a.api.Health(context.Background())
+		h, err := a.api.Health(context.Background())
 		return func() {
 			if gen != a.gen {
 				return
@@ -438,6 +442,7 @@ func (a *App) ping(now time.Time) {
 				return
 			}
 			a.conn = connOnline
+			a.serverVersion = h.Version
 			a.syncedAt = now
 			if a.periodsErr != "" && !a.periodsLoading {
 				a.loadPeriods()

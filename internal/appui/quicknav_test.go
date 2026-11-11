@@ -141,7 +141,7 @@ func TestQuicknavMatching(t *testing.T) {
 		"selalu tampil": "Selalu tampil",
 		"volume":        "Volume bel",
 		"logout":        "Keluar akun",
-		"sandi":         "Ubah kata sandi",
+		"sandi":         "Kata sandi",
 		"balasan grup":  "Balasan perintah di grup",
 		"island":        "Notifikasi dan Dynamic Island",
 	} {

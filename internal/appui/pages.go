@@ -208,60 +208,7 @@ func (a *App) organizationPage(c *ui.Context, r *ui.Route) {
 	a.organizationAdminView(c)
 }
 
-func (a *App) spaceSettings(c *ui.Context, shared bool) {
-	pageBody(c, "Pengaturan space", func() {
-		if shared {
-			pageNotice(c, "whatsapp", "Medhum dilayani bot Humas", "Bot Humas ditujukan untuk grup Humas dan Medhum. Bot Mediatek berada di grup divisinya sendiri.")
-		}
-		if s := a.selectedSpace(); s != nil {
-			info(c, [][2]string{{"Space", s.Name}, {"Jenis", s.Kind}, {"Akses", s.Access}})
-		}
-		if spaceButton(c, "Kelola anggota dan akses", "users", false).Clicked() {
-			a.chrome.tab = "Anggota"
-			a.navigate(PathSpaces)
-		}
-		if spaceButton(c, "Lihat pengaturan WhatsApp", "whatsapp", false).Clicked() {
-			a.chrome.settingsTab = "WhatsApp"
-			a.router.Push(PathPengaturan)
-		}
-		pageSection(c, "Identitas space", "Logo bawaan mengikuti identitas divisi. Pengaturan logo dan nama kustom belum tersedia.", func() {
-			if d := a.selectedDivision(); d != nil && !shared {
-				pageDivisionMark(c, *d)
-				info(c, [][2]string{{"Nama divisi", d.Name}, {"Slug", d.Slug}})
-			}
-		})
-	})
-}
-
 func (a *App) reminderSettings(c *ui.Context) { a.notificationSettings(c) }
-
-func (a *App) accountPage(c *ui.Context) {
-	settingsBody(c, "Akun dan aplikasi", "Kelola identitas dan keamanan, serta periksa koneksi aplikasi ini.", func() {
-		kind := "Pribadi"
-		if a.user.Kind == api.AccountOrganizationAdmin {
-			kind = "Admin organisasi"
-		}
-		verified := "Belum diverifikasi"
-		if a.user.EmailVerified {
-			verified = "Terverifikasi"
-		}
-		pageSection(c, "Akunmu", "Identitas akun yang sedang masuk.", func() {
-			info(c, [][2]string{{"Nama", a.user.DisplayName}, {"Email", a.user.Email}, {"Jenis akun", kind}, {"Verifikasi email", verified}})
-		})
-		a.accountCredentialsView(c)
-		pageSection(c, "Aplikasi", "Informasi koneksi Space pada perangkat ini.", func() { info(c, [][2]string{{"Server", a.ServerURL}, {"Versi", a.Version}}) })
-		if spaceButton(c, "Penampilan", "palette", false).Clicked() {
-			a.chrome.appearance = true
-		}
-		label := "Keluar"
-		if a.loggingOut {
-			label = "Keluar…"
-		}
-		if spaceButton(c, label, "logout", false).Disabled(a.loggingOut).TextColor(c.Theme().Danger).Clicked() {
-			a.logout()
-		}
-	})
-}
 
 func info(c *ui.Context, rows [][2]string) {
 	ui.Column(c).FillWidth().Gap(13).Children(func() {

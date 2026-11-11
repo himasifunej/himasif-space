@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"fmt"
 	"image/png"
 	"slices"
 	"strings"
@@ -57,6 +58,8 @@ type whatsappUIState struct {
 	// commandText is the custom command's response being edited, with
 	// words for its placeholders.
 	commandText string
+	// activityProblems: Aktivitas shows only what failed or is uncertain.
+	activityProblems bool
 }
 
 func waQRBitmap(value string) *ui.Bitmap {
@@ -318,8 +321,27 @@ func (a *App) waSpaceName(sid id.ID) string {
 	return "Space"
 }
 
+// waCoreCommands are the bot's own commands, which follow task permissions.
+var waCoreCommands = []string{"!tugas", "!hari", "!pending", "!rekap", "!setsticker"}
+
+// waMediaLabel says a command's media in words.
+func waMediaLabel(kind string) string {
+	switch kind {
+	case "sticker":
+		return "Stiker"
+	case "image":
+		return "Gambar"
+	case "video":
+		return "Video"
+	}
+	return kind
+}
+
+// commandSettings is Command bot, option B: the custom commands in a list,
+// the one chosen in an editor, and a WhatsApp preview that follows what is
+// typed.
 func (a *App) commandSettings(c *ui.Context) {
-	settingsBody(c, "Command bot", "Kelola pemicu, respons, dan cakupan grup untuk command khusus.", func() {
+	settingsPageView(c, "Command bot", "Perintah khusus yang dijawab bot di grup WhatsApp divisi.", true, nil, func() {
 		if !a.waHeader(c) {
 			return
 		}
@@ -329,88 +351,254 @@ func (a *App) commandSettings(c *ui.Context) {
 			pageNotice(c, "info", "Koneksi divisi", "Buat koneksi melalui pengaturan WhatsApp dengan akun pengelola terlebih dahulu.")
 			return
 		}
+		t := c.Theme()
 		disabled := st.busy || st.loading || a.offlineMode() || cl == nil
 		conn := *st.connection
-		muted(c, "Command inti tetap mengikuti izin tugas. Balas media dengan !setsticker damn untuk menyimpan stiker melalui WhatsApp.")
-		if spaceButton(c, "Buat perintah baru", "plus", false).Disabled(disabled).Clicked() {
-			st.command = &api.WACustomCommand{ID: id.New(), GroupIDs: []id.ID{}}
-			st.commandText = ""
-		}
-		for _, command := range st.commands {
-			if spaceButton(c.Key(command.ID.String()), "!"+command.Trigger, "terminal", st.command != nil && st.command.ID == command.ID).Disabled(disabled).Clicked() {
-				copy := command
-				copy.GroupIDs = slices.Clone(command.GroupIDs)
-				st.command = &copy
-				st.commandText = waFriendlyWith(waCommandTokens, command.Response)
+		ui.Row(c.Key("core")).FillWidth().Gap(6).Wrap().AlignItems(ui.Center).Children(func() {
+			muted(c, "Perintah inti, mengikuti izin tugas:").FontSize(13)
+			for _, k := range waCoreCommands {
+				ui.Row(c.Key(k)).Height(22).Padding(0, 8).Radius(6).Border(1, t.Border).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, k).Font(FontMono).FontSize(12).TextColor(t.TextMuted)
+				})
 			}
-		}
-		draft := st.command
-		if draft == nil {
-			return
-		}
-		ui.Field(c, "Nama perintah", func() {
-			ui.TextInput(c, &draft.Trigger).Label("Nama perintah").Placeholder("misalnya halo, lalu anggota mengetik !halo").FillWidth()
 		})
-		pv := "command|" + draft.ID.String()
-		a.waTemplateEditor(c, "command-response-"+draft.ID.String(), "Balasan bot", &st.commandText, waCommandTokens, true, pv, func() { waCommandPreview(c, st.commandText, c.Now()) })
-		// Server 0.4.3 and older send these words as they are typed.
-		muted(c, "Nama pengirim, Tanggal, Jam, Nama grup, dan teks setelah perintah diisi oleh server Space 0.4.5 ke atas.").FontSize(12)
-		if draft.AssetID != "" {
-			muted(c, "Media tersimpan: "+draft.MediaType)
-			if spaceButton(c, "Lepaskan media dari command", "close", false).Disabled(disabled).Clicked() {
-				draft.AssetID = ""
-				draft.MediaType = ""
-			}
-		}
-		muted(c, "Tanpa pilihan grup, command berlaku di semua grup koneksi ini.")
-		for _, g := range conn.Groups {
-			selected := slices.Contains(draft.GroupIDs, g.ID)
-			if spaceButton(c.Key(g.ID.String()), g.Name, "users", selected).Disabled(disabled).Clicked() {
-				if selected {
-					draft.GroupIDs = slices.DeleteFunc(draft.GroupIDs, func(gid id.ID) bool { return gid == g.ID })
-				} else {
-					draft.GroupIDs = append(draft.GroupIDs, g.ID)
+		w, _ := c.Size()
+		list := func() {
+			ui.Column(c.Key("command-list")).Width(220).Shrink(0).Radius(12).Background(t.Surface).Border(1, t.Border).Children(func() {
+				for i, command := range st.commands {
+					on := st.command != nil && st.command.ID == command.ID
+					// Looking at a command needs no connection; saving does.
+					b := ui.ButtonBase(c.Key(command.ID.String())).Label("!"+command.Trigger).FillWidth().Column().AlignItems(ui.Start).Gap(2).Padding(12, 14)
+					if i > 0 {
+						b.BorderWidth(1, 0, 0, 0).BorderColor(t.Border)
+					}
+					if on || b.Hovered() {
+						b.Background(t.SurfaceHover)
+					}
+					b.FocusRing(b.FocusVisible()).Children(func() {
+						ui.Text(c, "!"+command.Trigger).Font(FontMono).FontSize(14).MaxLines(1)
+						scope := "Semua grup"
+						if len(command.GroupIDs) > 0 {
+							scope = fmt.Sprintf("%d grup", len(command.GroupIDs))
+						}
+						if command.AssetID != "" {
+							scope += " · " + waMediaLabel(command.MediaType)
+						}
+						muted(c, scope).FontSize(12)
+					})
+					if b.Clicked() {
+						copy := command
+						copy.GroupIDs = slices.Clone(command.GroupIDs)
+						st.command = &copy
+						st.commandText = waFriendlyWith(waCommandTokens, command.Response)
+					}
 				}
+				ui.Row(c).FillWidth().Padding(8, 8).BorderWidth(boolBorder(len(st.commands) > 0), 0, 0, 0).BorderColor(t.Border).Children(func() {
+					if spaceButton(c, "Buat perintah baru", "plus", false).Disabled(disabled).FillWidth().Clicked() {
+						st.command = &api.WACustomCommand{ID: id.New(), GroupIDs: []id.ID{}}
+						st.commandText = ""
+					}
+				})
+			})
+		}
+		preview := func() {
+			ui.Column(c.Key("command-preview")).Gap(10).MinWidth(0).Children(func() {
+				if st.command != nil {
+					waCommandPreview(c, st.commandText, c.Now())
+				}
+				muted(c, "Nama pengirim, Tanggal, Jam, Nama grup, dan teks setelah perintah diisi oleh server Space 0.4.5 ke atas.").FontSize(12)
+			})
+		}
+		editor := func() {
+			draft := st.command
+			box := ui.Column(c.Key("command-editor")).Grow(1).MinWidth(0).Padding(16).Gap(14).Radius(12).Background(t.Surface).Border(1, t.Border)
+			box.Children(func() {
+				if draft == nil {
+					pageEmpty(c, "terminal", "Pilih perintah", "Pilih perintah di kiri untuk mengubahnya, atau buat perintah baru.")
+					return
+				}
+				ui.Field(c, "Nama perintah", func() {
+					ui.TextInput(c, &draft.Trigger).Label("Nama perintah").Placeholder("misalnya halo, lalu anggota mengetik !halo").FillWidth()
+				})
+				// The preview beside or under the editor is always open.
+				a.waTemplateEditor(c, "command-response-"+draft.ID.String(), "Balasan bot", &st.commandText, waCommandTokens, true, "", nil)
+				ui.Column(c.Key("media")).FillWidth().Gap(6).Children(func() {
+					ui.Text(c, "Media balasan").FontSize(13).FontWeight(500)
+					if draft.AssetID != "" {
+						ui.Row(c).FillWidth().Gap(10).AlignItems(ui.Center).Wrap().Children(func() {
+							statusPill(c, waMediaLabel(draft.MediaType), t.Accent)
+							muted(c, "Dikirim bersama balasan.").FontSize(13).Grow(1)
+							if SettingButton(c, "Lepaskan media dari command", "close").Disabled(disabled).Clicked() {
+								draft.AssetID = ""
+								draft.MediaType = ""
+							}
+						})
+					} else {
+						trigger := strings.TrimPrefix(strings.TrimSpace(draft.Trigger), "!")
+						if trigger == "" {
+							trigger = "namaperintah"
+						}
+						muted(c, "Agar perintah ini membalas dengan stiker: di grup WhatsApp, balas gambar, video pendek, atau stiker dengan !setsticker "+trigger+".").FontSize(13)
+					}
+				})
+				ui.Column(c.Key("groups")).FillWidth().Gap(6).Children(func() {
+					ui.Text(c, "Berlaku di").FontSize(13).FontWeight(500)
+					muted(c, "Tanpa pilihan grup, command berlaku di semua grup koneksi ini.").FontSize(13)
+					ui.Row(c).FillWidth().Gap(6).Wrap().Children(func() {
+						for _, g := range conn.Groups {
+							selected := slices.Contains(draft.GroupIDs, g.ID)
+							if spaceButton(c.Key(g.ID.String()), g.Name, "users", selected).Disabled(disabled).Clicked() {
+								if selected {
+									draft.GroupIDs = slices.DeleteFunc(draft.GroupIDs, func(gid id.ID) bool { return gid == g.ID })
+								} else {
+									draft.GroupIDs = append(draft.GroupIDs, g.ID)
+								}
+							}
+						}
+					})
+				})
+				ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
+					if draft.Version > 0 && SettingButton(c, "Hapus command", "trash").Disabled(disabled).TextColor(t.Danger).Clicked() {
+						commandID, version := draft.ID, draft.Version
+						a.waRun(func() error { return cl.DeleteWACommand(context.Background(), conn.ID, commandID, version) })
+					}
+					ui.Box(c).Grow(1)
+					if primarySpaceButton(c, "Simpan command", "check").Disabled(disabled).Clicked() {
+						trigger := strings.TrimPrefix(strings.TrimSpace(draft.Trigger), "!")
+						req := api.WACustomCommandRequest{Trigger: trigger, Response: waServerWith(waCommandTokens, st.commandText), AssetID: draft.AssetID, MediaType: draft.MediaType, GroupIDs: slices.Clone(draft.GroupIDs), ExpectedVersion: draft.Version}
+						commandID := draft.ID
+						a.waRun(func() error { _, err := cl.SaveWACommand(context.Background(), conn.ID, commandID, req); return err })
+					}
+				})
+			})
+		}
+		// Three columns where the window allows; else the preview goes under
+		// the editor.
+		ui.Row(c.Key("command-panes")).FillWidth().Gap(16).AlignItems(ui.Start).Children(func() {
+			list()
+			if w >= 1600 {
+				editor()
+				ui.Column(c).Width(300).Shrink(0).Children(preview)
+				return
 			}
-		}
-		if spaceButton(c, "Simpan command", "check", false).Disabled(disabled).Clicked() {
-			trigger := strings.TrimPrefix(strings.TrimSpace(draft.Trigger), "!")
-			req := api.WACustomCommandRequest{Trigger: trigger, Response: waServerWith(waCommandTokens, st.commandText), AssetID: draft.AssetID, MediaType: draft.MediaType, GroupIDs: slices.Clone(draft.GroupIDs), ExpectedVersion: draft.Version}
-			commandID := draft.ID
-			a.waRun(func() error { _, err := cl.SaveWACommand(context.Background(), conn.ID, commandID, req); return err })
-		}
-		if draft.Version > 0 {
-			if spaceButton(c, "Hapus command", "trash", false).Disabled(disabled).Clicked() {
-				commandID, version := draft.ID, draft.Version
-				a.waRun(func() error { return cl.DeleteWACommand(context.Background(), conn.ID, commandID, version) })
-			}
-		}
+			ui.Column(c).Grow(1).MinWidth(0).Gap(16).Children(func() {
+				editor()
+				preview()
+			})
+		})
 	})
 }
 
+func boolBorder(b bool) float32 {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+// waOutboxStatus says an outbox status in words; problem marks what failed
+// or is uncertain.
+func waOutboxStatus(status string) (text string, problem bool) {
+	switch status {
+	case "queued":
+		return "Antre", false
+	case "sending":
+		return "Mengirim", false
+	case "unknown":
+		return "Hasil belum pasti", true
+	case "accepted":
+		return "Diterima", false
+	case "delivered":
+		return "Terkirim", false
+	case "read":
+		return "Dibaca", false
+	case "failed":
+		return "Gagal", true
+	case "cancelled":
+		return "Dibatalkan", false
+	}
+	return status, false
+}
+
+// whatsappActivity is Aktivitas WhatsApp, option A: a table of the
+// deliveries, statuses in words, with a filter for the problems.
 func (a *App) whatsappActivity(c *ui.Context) {
-	settingsBody(c, "Aktivitas WhatsApp", "Tinjau antrean dan status pengiriman pada koneksi divisi.", func() {
+	settingsPageView(c, "Aktivitas WhatsApp", "Antrean dan status pengiriman bot divisi.", true, nil, func() {
 		if !a.waHeader(c) {
 			return
 		}
 		st := &a.whatsapp
 		if !a.waCanManage() {
+			pageNotice(c, "info", "Aktivitas bot", "Aktivitas pengiriman terlihat oleh kadiv atau pemegang izin WhatsApp divisi.")
 			return
 		}
 		if len(st.outbox) == 0 {
 			pageEmpty(c, "clock", "Belum ada aktivitas", "Belum ada job pengiriman pada koneksi ini.")
+			return
 		}
+		t := c.Theme()
+		problems := 0
 		for _, item := range st.outbox {
-			ui.Column(c.Key(item.ID.String())).FillWidth().MinWidth(0).Padding(16).Gap(6).Radius(10).Background(c.Theme().Surface).Border(1, c.Theme().Border).Children(func() {
-				ui.Text(c, item.GroupName+" · "+item.Status).Bold()
-				muted(c, item.CreatedAt.Local().Format("02 Jan 15:04"))
-				if item.SuppressedAt != nil {
-					muted(c, "Ditahan setelah restore: "+item.SuppressionReason)
-				}
-				if item.LastError != "" {
-					muted(c, item.LastError)
+			if _, bad := waOutboxStatus(item.Status); bad || item.SuppressedAt != nil {
+				problems++
+			}
+		}
+		ui.Row(c.Key("filter")).FillWidth().Gap(12).AlignItems(ui.Center).Wrap().Children(func() {
+			sel := 0
+			if st.activityProblems {
+				sel = 1
+			}
+			if i := segmented(c, "Saring aktivitas", []string{fmt.Sprintf("Semua %d", len(st.outbox)), fmt.Sprintf("Bermasalah %d", problems)}, sel); i >= 0 {
+				st.activityProblems = i == 1
+			}
+			muted(c, "Hasil belum pasti direkonsiliasi dengan jurnal; jangan kirim ulang hanya karena belum ada receipt.").FontSize(12).Grow(1).MinWidth(200)
+		})
+		cols := []struct {
+			title string
+			grow  float32
+		}{{"WAKTU", .9}, {"TUJUAN", 1.6}, {"STATUS", 1.1}, {"PERCOBAAN", .7}, {"CATATAN", 2.4}}
+		ui.Column(c.Key("activity")).FillWidth().Radius(12).Background(t.Surface).Border(1, t.Border).Clip().Children(func() {
+			ui.Row(c.Key("head")).FillWidth().Height(36).Padding(0, 16).Gap(12).AlignItems(ui.Center).Background(t.SurfacePressed).Children(func() {
+				for _, col := range cols {
+					ui.Text(c, col.title).Font(FontMono).FontSize(10).TextColor(faint(t)).Grow(col.grow).Basis(0).MinWidth(0).MaxLines(1)
 				}
 			})
-		}
+			shown := 0
+			for _, item := range st.outbox {
+				status, bad := waOutboxStatus(item.Status)
+				if st.activityProblems && !bad && item.SuppressedAt == nil {
+					continue
+				}
+				shown++
+				note := item.LastError
+				if item.SuppressedAt != nil {
+					note = "Ditahan setelah restore: " + item.SuppressionReason
+				}
+				ui.Row(c.Key(item.ID.String())).FillWidth().Padding(12, 16).Gap(12).AlignItems(ui.Start).BorderWidth(1, 0, 0, 0).BorderColor(t.Border).Children(func() {
+					ui.Text(c, item.CreatedAt.Local().Format("02 Jan 15.04")).Font(FontMono).FontSize(12).Grow(cols[0].grow).Basis(0).MinWidth(0)
+					ui.Text(c, item.GroupName).FontSize(13).Grow(cols[1].grow).Basis(0).MinWidth(0).MaxLines(2)
+					ui.Row(c).Grow(cols[2].grow).Basis(0).MinWidth(0).Children(func() {
+						color := t.TextMuted
+						switch {
+						case bad:
+							color = t.Danger
+						case item.Status == "read" || item.Status == "delivered":
+							color = t.Success
+						}
+						statusPill(c, status, color)
+					})
+					ui.Text(c, fmt.Sprint(item.Attempts)).Font(FontMono).FontSize(12).TextColor(t.TextMuted).Grow(cols[3].grow).Basis(0).MinWidth(0)
+					if note == "" {
+						note = "—"
+					}
+					ui.Text(c, note).FontSize(12).TextColor(t.TextMuted).Grow(cols[4].grow).Basis(0).MinWidth(0).MaxLines(3)
+				})
+			}
+			if shown == 0 {
+				ui.Row(c).FillWidth().Padding(16).BorderWidth(1, 0, 0, 0).BorderColor(t.Border).Children(func() {
+					muted(c, "Tidak ada pengiriman bermasalah.").FontSize(13)
+				})
+			}
+		})
 	})
 }

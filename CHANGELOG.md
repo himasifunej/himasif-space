@@ -5,6 +5,19 @@ Versi mengikuti aturan sebelum rilis publik:
 - **Minor** naik untuk pembaruan besar.
 - **1.0.0** untuk rilis publik.
 
+## Belum dirilis · Pengaturan baru
+
+Desain ulang Pengaturan dari canvas c66c26d3f3e1, pilihan owner. Notifikasi dan Dynamic Island, Tautan dan bot WhatsApp, dan Status layanan tidak berubah.
+
+- **Akun**: baris Akunmu, Keamanan akun (formulir kata sandi terbuka di barisnya), Aplikasi ini; serah terima admin di bagiannya sendiri.
+- **Tampilan**: baris tema, palet, aksen, kepadatan, dan warna board, dengan pratinjau sidebar dan board di samping.
+- **Sinkronisasi**: status dan Sinkronkan sekarang dalam satu baris; setiap perubahan tertunda sebagai baris dengan Tinjau.
+- **Identitas space**: jenis dan akses dalam kata-kata, logo divisi, dan tautan ke Anggota serta Bot WhatsApp.
+- **Pengingat dan ping**: hari pengingat sebagai pilihan (H-3 sampai Hari H) dengan H- sendiri, jam kirim, ulangi lewat tenggat, dan satu kalimat contoh; ping dibuka dari barisnya.
+- **Command bot**: daftar perintah, editor, dan pratinjau WhatsApp yang mengikuti ketikan; media balasan (stiker) dijelaskan.
+- **Aktivitas WhatsApp**: tabel pengiriman dengan status dalam kata-kata dan saringan Bermasalah.
+- **Tentang**: versi aplikasi dan server, lalu riwayat dengan versi terbaru terbuka.
+
 ## 0.4.6-rc.3 — 2026-11-11 · Kartu pembaruan (pre-release)
 
 - **Kartu pembaruan** di pojok kiri bawah jendela Space, seperti enowX. Sebelumnya versi baru diunduh diam-diam dan hanya tampak di Pengaturan › Status layanan.

@@ -4,6 +4,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -102,15 +103,11 @@ func TestNotificationSettingsFieldsHaveVisibleLabels(t *testing.T) {
 	h.app.router.Replace(PathPengaturan)
 	h.tt.Advance(500 * time.Millisecond)
 	h.tt.Frame()
-	for _, label := range []string{"Hari sebelum tenggat · pisahkan koma", "Jam lokal · 0–23", "Menit · 0–59", "Overdue setiap berapa hari · 1–30"} {
-		count := 0
-		for _, text := range h.tt.Texts() {
-			if text == label {
-				count++
-			}
-		}
-		if count < 2 {
-			t.Fatalf("field %q should have a visible label and an accessible input: %v", label, h.tt.Texts())
+	// Each row has a visible title, and each input an accessible label.
+	texts := strings.Join(h.tt.Texts(), "|")
+	for _, label := range []string{"Hari pengingat", "Jam kirim", "Lewat tenggat", "Hari pengingat sendiri", "Jam kirim, jam 0–23", "Jam kirim, menit 0–59", "Ulangi lewat tenggat", "Simpan jadwal divisi"} {
+		if !strings.Contains("|"+texts+"|", "|"+label+"|") {
+			t.Fatalf("no %q: %v", label, h.tt.Texts())
 		}
 	}
 	captureNativeUI(t, h, "settings-pengingat-labels")
