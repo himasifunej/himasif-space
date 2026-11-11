@@ -45,6 +45,9 @@ func (s *Server) waTaskCommand(r *http.Request, q store.Querier, p *principal, p
 			due = t.DeadlineAt.Format("2006-01-02T15:04:05Z07:00")
 		}
 		reply.Text = waText(r.Context(), "task.details", t.Title, t.Assignee.DisplayName, due, waProgress(waLanguage(r.Context()), t.Progress), waMatch(waLanguage(r.Context()), t.MatchStatus), t.ID)
+		if link := s.cardLink("task", t.ID); link != "" {
+			reply.Text += "\n" + waText(r.Context(), "card.link", link)
+		}
 	case "done":
 		if !t.Permissions.Progress {
 			return reply, errForbidden

@@ -174,7 +174,11 @@ func (s *Server) enqueue(ctx context.Context, q store.Querier, key, kind string,
 	if err != nil {
 		return err
 	}
-	_, err = q.Exec(ctx, `insert into delivery_events(id,event_key,source_kind,source_id,source_version,space_id,title,body,time_zone,scheduled_at,created_at,message_key,message_args) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) on conflict(event_key) do nothing`, eid, key, kind, source, version, space, title, body, zone, at, s.now(), message.Key, messageArgs)
+	relatedKind, relatedID := "", (*id.ID)(nil)
+	if message.RelatedKind != "" && message.RelatedID != id.Nil {
+		relatedKind, relatedID = message.RelatedKind, &message.RelatedID
+	}
+	_, err = q.Exec(ctx, `insert into delivery_events(id,event_key,source_kind,source_id,source_version,space_id,title,body,time_zone,scheduled_at,created_at,message_key,message_args,related_kind,related_id) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) on conflict(event_key) do nothing`, eid, key, kind, source, version, space, title, body, zone, at, s.now(), message.Key, messageArgs, relatedKind, relatedID)
 	if err != nil {
 		return err
 	}
@@ -266,4 +270,8 @@ func scheduledChannels(kind string) []string {
 type deliveryMessage struct {
 	Key  string
 	Args []string
+	// RelatedKind ("task", "meeting") and RelatedID name the card a ping is
+	// about, for the app to open and the WhatsApp message to link.
+	RelatedKind string
+	RelatedID   id.ID
 }

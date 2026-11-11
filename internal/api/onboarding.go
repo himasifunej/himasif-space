@@ -18,13 +18,16 @@ const (
 	OnboardChecklistHidden = "checklistHidden"
 	// OnboardHandover is set when a kadiv finished the handover guide.
 	OnboardHandover = "handover"
+	// OnboardWebAppBannerOff hides the web's "Pakai Space untuk Windows"
+	// bar for good: "Jangan ingatkan lagi", in every browser.
+	OnboardWebAppBannerOff = "webAppBannerOff"
 	// OnboardWAHello is set by the server once it queued the test message
 	// to a member's newly linked WhatsApp; clients cannot set it.
 	OnboardWAHello = "waHello"
 )
 
 // OnboardingKeys are the marks a client may set or clear.
-var OnboardingKeys = []string{OnboardWelcome, OnboardProfile, OnboardTasks, OnboardTour, OnboardChecklistHidden, OnboardHandover}
+var OnboardingKeys = []string{OnboardWelcome, OnboardProfile, OnboardTasks, OnboardTour, OnboardChecklistHidden, OnboardHandover, OnboardWebAppBannerOff}
 
 // Onboarding is the caller's onboarding progress: the marks recorded, by
 // key, and what the server derives. Accounts that existed before

@@ -325,10 +325,7 @@ func (s *Server) taskNotify(r *http.Request, q store.Querier, t *store.TaskRow, 
 			return err
 		}
 		eventID := id.New()
-		if err := s.enqueue(r.Context(), q, "task-update:"+eventID.String(), "ping", eventID, t.Version, &sid, title, body, t.TimeZone, s.now(), recipients, []string{"device", "whatsapp"}, deliveryMessage{Key: waTaskNoticeKey(title), Args: []string{body}}); err != nil {
-			return err
-		}
-		if _, err := q.Exec(r.Context(), `update delivery_events set related_kind='task',related_id=$2 where source_kind='ping' and source_id=$1`, eventID, t.ID); err != nil {
+		if err := s.enqueue(r.Context(), q, "task-update:"+eventID.String(), "ping", eventID, t.Version, &sid, title, body, t.TimeZone, s.now(), recipients, []string{"device", "whatsapp"}, deliveryMessage{Key: waTaskNoticeKey(title), Args: []string{body}, RelatedKind: "task", RelatedID: t.ID}); err != nil {
 			return err
 		}
 	}

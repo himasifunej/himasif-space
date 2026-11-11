@@ -288,10 +288,7 @@ func (s *Server) fillMeeting(r *http.Request, q store.Querier, p *principal, m *
 		messageKey = "meeting.cancelled"
 	}
 	eventID := id.New()
-	if err := s.enqueue(r.Context(), q, "meeting-change:"+eventID.String(), "ping", eventID, m.Version, &m.SpaceID, title, meetingWhen(m.StartsAt.In(timeZoneOrUTC(m.TimeZone))), m.TimeZone, s.now(), notify, []string{"device", "whatsapp"}, deliveryMessage{Key: messageKey, Args: []string{m.Title, meetingWhen(m.StartsAt.In(timeZoneOrUTC(m.TimeZone)))}}); err != nil {
-		return err
-	}
-	if _, err := q.Exec(r.Context(), `update delivery_events set related_kind='meeting',related_id=$2 where source_kind='ping' and source_id=$1`, eventID, m.ID); err != nil {
+	if err := s.enqueue(r.Context(), q, "meeting-change:"+eventID.String(), "ping", eventID, m.Version, &m.SpaceID, title, meetingWhen(m.StartsAt.In(timeZoneOrUTC(m.TimeZone))), m.TimeZone, s.now(), notify, []string{"device", "whatsapp"}, deliveryMessage{Key: messageKey, Args: []string{m.Title, meetingWhen(m.StartsAt.In(timeZoneOrUTC(m.TimeZone)))}, RelatedKind: "meeting", RelatedID: m.ID}); err != nil {
 		return err
 	}
 	return s.meetingRead(r, q, p, m)

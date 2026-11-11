@@ -8,5 +8,5 @@
     "webview": false
   },
   "icon": "resources/icon.png",
-  "urlSchemes": ["himasif-space"]
+  "urlSchemes": ["himasif-space", "space"]
 }

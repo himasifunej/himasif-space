@@ -95,6 +95,8 @@ type App struct {
 	DeviceSettings func(*ui.Context)
 	// Ace is this device's Ace for the onboarding; nil on the web.
 	Ace AceDevice
+	// Web is what only the browser has; nil in the desktop app.
+	Web WebPlatform
 	// AppUpdates draws the app's own updates in Status layanan: the
 	// desktop app's updater; nil on the web, which updates with the page.
 	AppUpdates     func(*ui.Context)
@@ -132,6 +134,7 @@ type App struct {
 	notificationSettingsState notificationSettingsState
 	pingHistory               pingHistoryState
 	pingUI                    pingUIState
+	card                      cardState
 	uiPrefs                   uiPreferencesSync
 	taskNotification          taskNotificationState
 	organization              organizationUIState
