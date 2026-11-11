@@ -16,7 +16,7 @@ Versi mengikuti aturan sebelum rilis publik:
 
 ## 0.4.5 — 2026-11-11 · Navigasi cepat, template WA, island v2, perbaikan pilot 0.4.4 (rc)
 
-- **Navigasi cepat (Ctrl K)**: mencari semua halaman, tab Space, aksi, catatan, tugas, dan setiap seksi atau field pengaturan, dengan jejak seperti "Ace dan suara · Pengaturan › Perangkat". Ctrl K membuka dan menutup palet. Enter menjalankan hasil hanya saat daftar hasil tampil. "Izin arsip" hanya muncul untuk pengelola arsip.
+- **Navigasi cepat (Ctrl K)**: mencari semua halaman, tab Space, aksi, catatan, tugas, dan setiap seksi atau field pengaturan, dengan jejak seperti "Gaya Dynamic Island · Pengaturan › Perangkat › Dynamic Island". Ctrl K membuka dan menutup palet. Enter menjalankan hasil hanya saat daftar hasil tampil. "Izin arsip" hanya muncul untuk pengelola arsip.
 - **Template dan perintah WhatsApp**:
   - Chip "Sisipkan:" berlabel, misalnya [Isi pesan] dan [Nama pengirim], tidak lagi memakai { }.
   - Pratinjau muncul sendiri dan ditutup manual.
@@ -28,7 +28,15 @@ Versi mengikuti aturan sebelum rilis publik:
   - Muncul kembali setelah layar penuh atau screenshot.
   - Pilihan **Selalu tampil** aktif bawaan, termasuk untuk pengguna yang memperbarui. Ace beristirahat sebagai pil di atas layar, lalu tampil lagi setelah login.
   - Layar penuh diperiksa setiap 0,5 detik.
-- **RAM**: logo divisi dan maskot impor disimpan seukuran tampilannya. Maskot GIF 512×512×60 turun dari 45 MiB menjadi 8,4 MiB.
+- **RAM**: logo divisi disimpan seukuran tampilannya.
+- **Pengaturan › Perangkat (canvas A)**:
+  - Bagian di kolom kiri, masing-masing dengan statusnya (misalnya "Selalu tampil · Kaca"), dan kotak "Cari di Perangkat ini".
+  - Baris label dengan saklar yang langsung tersimpan, menggantikan tombol "…: aktif". Ada pratinjau kecil island.
+  - Volume bel memakai slider dengan tombol Putar.
+  - Di layar sempit dan HP, pencarian pindah ke atas dan kontrol lebar turun ke bawah labelnya. Browser memakai susunan yang sama.
+- **Maskot bintang dihapus**: Ace sekarang hanya Dynamic Island.
+  - Jendela Ace (mengambang/tepi layar), menu tray "Tampilkan/Sembunyikan Ace", nama maskot, dan impor PNG/GIF hilang.
+  - Saat pertama dibuka, preferensi lama ditulis ulang tanpa posisi, nama, dan maskot, lalu gambar maskot impor dihapus. Pengaturan island dan bel tetap.
 - **Perbaikan pilot 0.4.4**:
   - Baris tab tanpa scrollbar yang selalu tampil.
   - Tur meminta pengguna menekan tab, lalu menyorot halamannya.

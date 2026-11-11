@@ -59,12 +59,12 @@ func TestShellFitsWithCustomTitleBar(t *testing.T) {
 func TestSettingsTabsReachableAtDesktopWidths(t *testing.T) {
 	h := newChromeHarness(t, nil)
 	h.app.router.Replace(PathPengaturan)
-	h.app.DeviceSettings = func(c *ui.Context) { ui.Text(c, "Perangkat, notifikasi, dan Ace") }
+	h.app.DeviceSettings = func(c *ui.Context) { ui.Text(c, "Halaman perangkat") }
 	for _, size := range [][2]int{{1440, 900}, {880, 1000}, {390, 1000}} {
 		h.tt.SetSize(size[0], size[1])
 		for _, tab := range []struct{ name, label, heading string }{
 			{"Sinkronisasi", "Offline dan sinkronisasi", "Sinkronisasi perangkat"}, {"Darurat", "Spreadsheet darurat", "Salinan darurat dan rekonsiliasi"},
-			{"Status layanan", "Status layanan", "Status layanan"}, {"Perangkat", "Notifikasi, suara, dan Ace", "Perangkat, notifikasi, dan Ace"},
+			{"Status layanan", "Status layanan", "Status layanan"}, {"Perangkat", "Notifikasi dan Dynamic Island", "Halaman perangkat"},
 			{"WhatsApp", "Tautan dan bot WhatsApp", "WhatsApp divisi"}, {"Pengingat", "Pengingat dan ping", "Pengingat dan ping"},
 			{"Command", "Command bot", "Command bot"}, {"Aktivitas", "Aktivitas WhatsApp", "Aktivitas WhatsApp"}, {"Akun", "Profil dan keamanan", "Akun dan aplikasi"},
 		} {

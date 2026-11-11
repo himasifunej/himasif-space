@@ -129,19 +129,22 @@ func TestQuicknavMatching(t *testing.T) {
 		}
 		return got[0]
 	}
-	if it := first("Ace"); it.title != "Ace dan suara" || it.trail != "Pengaturan › Perangkat" {
+	// Ace is the Dynamic Island: its name finds the device page first.
+	if it := first("Ace"); it.title != "Notifikasi dan Dynamic Island" || it.trail != "Pengaturan › Perangkat ini" {
 		t.Errorf("Ace → %q · %q", it.title, it.trail)
 	}
 	for q, want := range map[string]string{
-		"pengaturn":    "Pengaturan", // a typo
-		"setting":      "Pengaturan", // English
-		"tema gelap":   "Tema gelap",
-		"maskot":       "Nama maskot",
-		"volume":       "Volume bel",
-		"logout":       "Keluar akun",
-		"sandi":        "Ubah kata sandi",
-		"balasan grup": "Balasan perintah di grup",
-		"island":       "Dynamic Island",
+		"pengaturn":     "Pengaturan", // a typo
+		"setting":       "Pengaturan", // English
+		"tema gelap":    "Tema gelap",
+		"maskot":        "Notifikasi dan Dynamic Island",
+		"selalu tampil": "Selalu tampil",
+		"volume":        "Volume bel",
+		"logout":        "Keluar akun",
+		"sandi":         "Ubah kata sandi",
+		"balasan grup":  "Balasan perintah di grup",
+		"island":        "Notifikasi dan Dynamic Island",
+		"gaya island":   "Gaya Dynamic Island",
 	} {
 		if it := first(q); it.title != want {
 			t.Errorf("%q → %q (%s), want %q", q, it.title, it.trail, want)
@@ -168,9 +171,9 @@ func TestQuicknavPalette(t *testing.T) {
 	h.dontWant("Navigasi cepat")
 	h.tt.Key(ui.Ctrl, ui.KeyK)
 	h.tt.Type("Ace")
-	h.want("Ace dan suara")
+	h.want("Notifikasi dan Dynamic Island")
 	h.want("Pengaturan › Perangkat")
-	h.want("Nama maskot")
+	h.want("Selalu tampil")
 	h.tt.Key(0, ui.KeyDown)
 	if h.app.chrome.searchCursor != 1 {
 		t.Fatalf("Down left the cursor at %d", h.app.chrome.searchCursor)

@@ -238,6 +238,7 @@ func (a *App) navSettings() []navItem {
 // openSettings opens a settings tab, scrolled to its section reveal.
 func (a *App) openSettings(tab, reveal string) {
 	a.chrome.settingsTab = tab
+	settingsPage.query = "" // a search on the device page would hide the section
 	a.chrome.settingsDetail = true
 	if reveal == "Pengaturan lanjutan" {
 		a.whatsapp.advancedOpen = true
@@ -287,7 +288,7 @@ func RevealSection(c *ui.Context, section ui.Element, title string) {
 // English: a word of the query matches its group's other words too.
 var navSynonyms = [][]string{
 	{"pengaturan", "setting", "settings", "setelan", "atur", "konfigurasi", "preferensi", "opsi"},
-	{"ace", "maskot", "mascot", "karakter"},
+	{"ace", "island", "dynamic", "maskot", "mascot", "karakter"},
 	{"notifikasi", "notif", "pemberitahuan", "notification", "toast", "bel", "lonceng"},
 	{"suara", "sound", "audio", "bunyi", "volume"},
 	{"tampilan", "tema", "theme", "warna", "appearance", "gelap", "terang", "dark", "light", "aksen"},
@@ -534,7 +535,7 @@ func (a *App) searchResults(c *ui.Context) {
 	})
 	tasks := a.taskSearchResults(c, strings.ToLower(q))
 	if len(shown) == 0 && tasks == 0 {
-		muted(c, "Tidak ada yang cocok. Coba kata lain, misalnya \"tema\" atau \"maskot\".").Padding(6)
+		muted(c, "Tidak ada yang cocok. Coba kata lain, misalnya \"tema\" atau \"island\".").Padding(6)
 	}
 	if q == "" {
 		muted(c, "Ketik untuk mencari halaman, Space, aksi, catatan, tugas, dan setiap pengaturan.").Padding(6)

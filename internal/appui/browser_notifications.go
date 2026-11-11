@@ -27,7 +27,8 @@ type BrowserNotifications struct {
 	testFailed bool
 }
 
-// View draws the page.
+// View draws the page: canvas A's rows, as on the desktop, with what
+// only the desktop app has named.
 func (b *BrowserNotifications) View(c *ui.Context) {
 	perm := BrowserPermissionUnsupported
 	if b.Permission != nil {
@@ -36,45 +37,53 @@ func (b *BrowserNotifications) View(c *ui.Context) {
 	if perm != BrowserPermissionGranted {
 		b.testResult = ""
 	}
-	settingsBody(c, "Notifikasi, suara, dan Ace", "Pengaturan ini hanya untuk perangkat ini.", func() {
+	status, color := browserPermissionStatus(c, perm)
+	nav := []SettingsNavItem{
+		{Title: "Notifikasi browser", Icon: "bell", Status: status},
+		{Title: "Aplikasi desktop", Icon: "monitor", Status: "Windows"},
+	}
+	SettingsLayout(c, "Notifikasi dan Dynamic Island", "Browser ini. Tidak ikut ke perangkat lain.", nav, nil, func() {
 		t := c.Theme()
-		ui.Column(c).FillWidth().MinWidth(0).Padding(18).Gap(12).Radius(10).Background(t.Surface).Border(1, t.Border).Children(func() {
-			ui.Row(c).FillWidth().MinWidth(0).Gap(10).AlignItems(ui.Center).Children(func() {
-				ui.Icon(c, spaceIcon("bell")).Size(18, 18).Shrink(0).TextColor(t.Accent)
-				ui.Text(c, "Notifikasi browser").FontSize(14).Bold().Grow(1).MinWidth(0)
-				status, color := browserPermissionStatus(c, perm)
-				ui.Text(c, status).FontSize(12).Bold().TextColor(color).Label("Status izin: " + status)
-			})
+		SettingSection(c, "Notifikasi browser", "Pengingat dan ping muncul selama Space terbuka di tab ini.", func() {
+			var description string
 			switch perm {
 			case BrowserPermissionGranted:
-				muted(c, "Browser mengizinkan Space menampilkan notifikasi selama aplikasi terbuka di tab ini.")
-				if ui.Button(c, "Kirim notifikasi uji").Clicked() && b.Test != nil {
-					if err := b.Test(); err != nil {
-						b.testResult, b.testFailed = err.Error(), true
-					} else {
-						b.testResult, b.testFailed = "Notifikasi uji dikirim. Bila tidak muncul, periksa mode Jangan Ganggu atau pengaturan notifikasi sistem.", false
-					}
-				}
-				if b.testResult != "" {
-					if b.testFailed {
-						ui.Text(c, b.testResult).FontSize(12).TextColor(t.Danger)
-					} else {
-						muted(c, b.testResult)
-					}
-				}
+				description = "Browser mengizinkan Space menampilkan notifikasi."
 			case BrowserPermissionDenied:
-				muted(c, "Notifikasi untuk situs ini diblokir di browser, jadi Space tidak bisa memintanya lagi.")
-				muted(c, "Buka ikon gembok di samping alamat situs, pilih Setelan situs, lalu ubah Notifikasi menjadi Izinkan. Status di sini ikut berubah.")
+				description = "Diblokir di browser. Buka ikon gembok di samping alamat situs, pilih Setelan situs, lalu ubah Notifikasi menjadi Izinkan."
 			case BrowserPermissionDefault:
-				muted(c, "Izinkan agar pengingat dan ping muncul sebagai notifikasi selama Space terbuka.")
-				if ui.Button(c, "Izinkan notifikasi browser").Clicked() && b.Request != nil {
+				description = "Izinkan agar pengingat dan ping muncul sebagai notifikasi."
+			default:
+				description = "Gunakan Chrome, Edge, atau Firefox terbaru, atau aplikasi desktop Space."
+			}
+			SettingRow(c, "Izin notifikasi browser", description, func() {
+				ui.Text(c, status).FontSize(13).FontWeight(500).TextColor(color).Label("Status izin: " + status)
+				if perm == BrowserPermissionDefault && SettingButton(c, "Izinkan notifikasi", "bell").Clicked() && b.Request != nil {
 					b.Request()
 				}
-			default:
-				muted(c, "Gunakan Chrome, Edge, atau Firefox terbaru, atau aplikasi desktop Space.")
+			})
+			if perm == BrowserPermissionGranted {
+				description := "Mengirim satu notifikasi lewat browser."
+				if b.testResult != "" {
+					description = b.testResult
+				}
+				SettingRow(c, "Kirim notifikasi uji", description, func() {
+					if SettingButton(c, "Kirim percobaan", "send").Clicked() && b.Test != nil {
+						if err := b.Test(); err != nil {
+							b.testResult, b.testFailed = err.Error(), true
+						} else {
+							b.testResult, b.testFailed = "Notifikasi uji dikirim. Bila tidak muncul, periksa mode Jangan Ganggu atau pengaturan notifikasi sistem.", false
+						}
+					}
+				})
+				if b.testFailed && b.testResult != "" {
+					ui.Text(c, b.testResult).FontSize(12).TextColor(t.Danger).Padding(0, 16, 12, 16)
+				}
 			}
 		})
-		pageNotice(c, "monitor", "Tray, autostart, dan Ace", "Tersedia di aplikasi desktop Space untuk Windows.")
+		SettingSection(c, "Aplikasi desktop", "", func() {
+			SettingRow(c, "Dynamic Island, tray, dan autostart", "Tersedia di aplikasi Space untuk Windows.", func() {})
+		})
 	})
 }
 
