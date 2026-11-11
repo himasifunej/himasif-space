@@ -124,7 +124,7 @@ func str(e ast.Expr) (string, bool) {
 var sectionCalls = map[string]int{"pageSection": 1, "settingsBody": 1, "deviceSection": 1}
 
 // fieldCalls are labelled inputs: the label argument's index.
-var fieldCalls = map[string]int{"ui.Field": 1, "taskInput": 2, "taskInputHint": 2, "waField": 2, "a.waField": 2}
+var fieldCalls = map[string]int{"ui.Field": 1, "taskInput": 2, "taskInputHint": 2, "a.waField": 2, "a.waTemplateEditor": 2}
 
 // buttonCalls are buttons: the label argument's index.
 var buttonCalls = map[string]int{"spaceButton": 1, "primarySpaceButton": 1, "ui.Button": 1}
@@ -217,7 +217,7 @@ func clean(s string) string {
 		}
 	}
 	s = strings.TrimSpace(strings.TrimRight(s, "…."))
-	if len([]rune(s)) < 3 || strings.ContainsAny(s, "%{") {
+	if len([]rune(s)) < 3 || strings.ContainsAny(s, "%{[") {
 		return ""
 	}
 	return s

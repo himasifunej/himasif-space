@@ -337,7 +337,8 @@ func TestBotWhatsAppAdvancedAndPreview(t *testing.T) {
 	// A preview shows the server's text as a WhatsApp message.
 	pv := "reminder|tpl-reminder"
 	key := fmt.Sprintf("%v", h.app.waPreviewDraft(pv))
-	h.app.whatsapp.previews = map[string]*waPreviewState{pv: {open: true, asked: key, pending: key, pendingAt: time.Now().Add(-time.Second), text: "Halo Mediatek!\nPengingat: #T12 Poster open recruitment"}}
+	h.app.whatsapp.previews = map[string]*waPreviewState{pv: {asked: key, pending: key, pendingAt: time.Now().Add(-time.Second), text: "Halo Mediatek!\nPengingat: #T12 Poster open recruitment"}}
+	h.app.whatsapp.previewOpen = pv
 	h.tt.Frame()
 	h.want("Contoh di grup WhatsApp")
 	h.want("Halo Mediatek!\nPengingat: #T12 Poster open recruitment")
