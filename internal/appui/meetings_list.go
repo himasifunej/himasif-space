@@ -47,7 +47,8 @@ func meetingGroupOf(m api.Meeting, now time.Time) meetingGroup {
 	loc := meetingLoc(m)
 	day, today := timeutil.DateOf(m.StartsAt.In(loc)), timeutil.DateOf(now.In(loc))
 	switch {
-	case day == today:
+	case day == today, m.EndsAt != nil && now.Before(*m.EndsAt) && !now.Before(m.StartsAt):
+		// A meeting going on past midnight stays under Hari ini.
 		return meetingToday
 	case m.StartsAt.After(now):
 		return meetingUpcoming
@@ -282,6 +283,7 @@ func meetingPlace(m api.Meeting) string {
 // meetingArrivalDefault is the arrival filled in when the organizer marks
 // someone Hadir: the start, which the organizer can change. Before the
 // start there is none: the server refuses an arrival in the future.
+// now is the server's time (the device's plus meetingsState.skew).
 func meetingArrivalDefault(m api.Meeting, now time.Time) (time.Time, bool) {
 	if now.Before(m.StartsAt) {
 		return time.Time{}, false

@@ -46,8 +46,11 @@ type meetingsState struct {
 	tab                   int
 	mine                  bool
 	menuOpen, confirmOpen bool
-	mobileDetail          bool
-	toast                 string
+	// confirmID is the meeting the cancel dialog asks about, kept when the
+	// default selection changes under it.
+	confirmID    id.ID
+	mobileDetail bool
+	toast        string
 	// skew is how far the server's clock is ahead of this device's, from
 	// the last shared timer received (stage T2).
 	skew time.Duration
@@ -311,6 +314,13 @@ func (a *App) setMeetingCancelled(m api.Meeting, cancelled bool) {
 	}
 	req := meetingRequestFrom(m)
 	req.Cancelled = cancelled
+	// The server checks every participant again: one who has left the
+	// Space would block the change, and the form cannot remove them.
+	if len(a.meetings.members) > 0 {
+		req.Participants = slices.DeleteFunc(req.Participants, func(uid id.ID) bool {
+			return !slices.ContainsFunc(a.meetings.members, func(p api.PersonRef) bool { return p.ID == uid })
+		})
+	}
 	gen, sid := a.gen, a.meetings.space
 	a.meetings.busy, a.meetings.err = true, ""
 	a.async(func() func() {

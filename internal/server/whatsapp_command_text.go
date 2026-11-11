@@ -39,9 +39,12 @@ func renderWACommandText(response string, v waCommandValues) string {
 		"{args}", v.Args,
 	).Replace(response)
 	// A response naming {args} many times could grow far past a chat
-	// message: it is cut at waCommandTextMax runes.
-	if utf8.RuneCountInString(out) > waCommandTextMax {
-		out = string([]rune(out)[:waCommandTextMax])
+	// message: what the filling adds is cut at waCommandTextMax runes. A
+	// response saved longer than that, which fills nothing in, is sent
+	// whole as before.
+	limit := max(waCommandTextMax, utf8.RuneCountInString(response))
+	if out != response && utf8.RuneCountInString(out) > limit {
+		out = string([]rune(out)[:limit])
 	}
 	return out
 }

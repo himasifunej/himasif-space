@@ -95,6 +95,11 @@ def main():
     installer = Path(args.installer).resolve()
     if not installer.is_file():
         raise PublishError(f'no installer at {installer}')
+    # MyGo names the installer after app/mygo.json's version, which is also
+    # the version the app reports (mygo.App.Version): they must match.
+    if f'-{args.version}-' not in installer.name:
+        raise PublishError(f'{installer.name} is not the installer of {args.version}: set app/mygo.json "version" '
+                           f'to {args.version} and build again')
     if args.channel == 'stable' and '-' in args.version:
         raise PublishError('the stable channel takes releases only, not ' + args.version)
     tag = 'v' + args.version

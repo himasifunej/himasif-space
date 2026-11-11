@@ -45,10 +45,15 @@ func (a *App) meetingsView(c *ui.Context) {
 			})
 		}
 	})
-	if m := a.selectedMeeting(); m != nil {
-		if a.meetings.confirmOpen {
-			a.meetingCancelDialog(c, *m)
+	if a.meetings.confirmOpen {
+		i := slices.IndexFunc(a.meetings.items, func(x api.Meeting) bool { return x.ID == a.meetings.confirmID })
+		if i < 0 {
+			a.meetings.confirmOpen = false
+		} else {
+			a.meetingCancelDialog(c, a.meetings.items[i])
 		}
+	}
+	if m := a.selectedMeeting(); m != nil {
 		if st := &a.notes.summary; st.open && m.NoteID != nil && st.note == *m.NoteID {
 			a.noteSummaryDialog(c)
 		}
@@ -443,7 +448,7 @@ func (a *App) meetingMoreMenu(c *ui.Context, m api.Meeting) {
 				}
 			} else if item("cancel", "Batalkan rapat…", "close", true) {
 				a.meetings.menuOpen = false
-				a.meetings.confirmOpen = true
+				a.meetings.confirmOpen, a.meetings.confirmID = true, m.ID
 			}
 		}
 	})
@@ -625,7 +630,7 @@ func (a *App) meetingAttendance(c *ui.Context, m api.Meeting, mobile bool) {
 	now := c.Now()
 	tally := meetingTallyOf(m)
 	organizer := m.OrganizerID == a.user.ID
-	can := organizer && !m.Cancelled && a.conn == connOnline
+	can := organizer && m.CanManage && !m.Cancelled && a.conn == connOnline
 	ui.Column(c.Key("attendance")).FillWidth().Gap(0).Children(func() {
 		ui.Text(c, fmt.Sprintf("%d hadir · %d izin · %d tidak hadir · %d belum dicatat", tally.present, tally.excused, tally.absent, tally.unrecorded)).FontSize(13).TextColor(t.TextMuted).Padding(0, 0, 8, 0)
 		switch {
@@ -701,7 +706,7 @@ func (a *App) meetingAttendanceRow(c *ui.Context, m api.Meeting, p api.MeetingPa
 			return
 		}
 		if status == "present" {
-			at, ok := meetingArrivalDefault(m, now)
+			at, ok := meetingArrivalDefault(m, now.Add(a.meetings.skew))
 			if p.ArrivedAt != nil {
 				at, ok = *p.ArrivedAt, true
 			}
@@ -749,7 +754,7 @@ func (a *App) beginAttendanceEdit(m api.Meeting, p api.MeetingParticipant, statu
 	a.meetings.arrival = ""
 	at := p.ArrivedAt
 	if at == nil {
-		if def, ok := meetingArrivalDefault(m, time.Now()); ok {
+		if def, ok := meetingArrivalDefault(m, time.Now().Add(a.meetings.skew)); ok {
 			at = &def
 		}
 	}
@@ -814,9 +819,11 @@ func (a *App) meetingNotes(c *ui.Context, m api.Meeting) {
 						a.beginNote()
 						a.notes.templateKind = api.TemplateMeeting
 						a.notes.newTitle = "Notulensi · " + m.Title
+						// Linked to this meeting, not the next one (createNote).
+						a.notes.share.meetingID = m.ID
 					}
 				})
-				muted(c, "Catatan baru belum tertaut otomatis: setelah dibuat, tautkan lewat Ubah.").FontSize(12)
+				muted(c, "Catatan baru langsung tertaut ke rapat ini.").FontSize(12)
 			}
 			return
 		}

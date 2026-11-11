@@ -37,8 +37,10 @@ type noteSharingState struct {
 	tagText string
 	tagBusy bool
 	tagErr  string
-	// fromMeeting fills a new Notulen from the next scheduled meeting.
+	// fromMeeting fills a new Notulen from the next scheduled meeting, or
+	// from meetingID when the Rapat tab asked for that meeting's notes.
 	fromMeeting bool
+	meetingID   id.ID
 }
 
 func (a *App) noteSharingService() (NoteSharingAPI, bool) {

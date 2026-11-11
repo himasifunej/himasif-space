@@ -131,7 +131,7 @@ func TestMeetingsPageListsGroupsAndOpensAttendance(t *testing.T) {
 	upcoming.Location = "Sekretariat HIMASIF"
 	past := meetingAt("[DUMMY Showcase] Koordinasi demo Medhum", today.AddDate(0, 0, -6), nil)
 	past.Location = "Ruang demo HIMASIF"
-	past.OrganizerID = h.app.user.ID
+	past.OrganizerID, past.CanManage = h.app.user.ID, true
 	past.Participants = []api.MeetingParticipant{{UserID: id.New(), DisplayName: "Aruna Desain", AttendanceStatus: "present"}, {UserID: id.New(), DisplayName: "Nara Tekno", AttendanceStatus: "unrecorded"}}
 	coord := meetingAt("Rapat koordinasi mingguan", today, &end)
 	coord.JoinURL = "https://meet.example/abc"

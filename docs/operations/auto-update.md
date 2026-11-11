@@ -68,7 +68,8 @@ Kepercayaan datang dari tanda tangan, bukan dari host. Bila suatu saat ingin pin
 
 ## Langkah rilis
 
-1. Bangun installer. Gunakan `build_release.py`, atau `mygo build -platform windows/amd64` dengan `MYGO_LDFLAGS="-X main.defaultAPIURL=https://db.tiyoouw.app -X main.version=<versi>"` dan wrapper NSIS `windows_installer.py`. Versi yang ditanam harus sama persis dengan `--version` di bawah.
+1. Isi `"version"` di `app/mygo.json` (dan `version` di `app/main.go`) dengan versi rilis yang tepat, misalnya `0.4.5-rc3`. MyGo menanam versi ini ke aplikasi (`mygo.App.Version`) dan ke nama installer; `-X main.version` hanya cadangan. `publish_update.py` menolak installer yang namanya tidak memuat `--version`. Lalu bangun installer: gunakan `build_release.py`, atau `mygo build -platform windows/amd64` dengan `MYGO_LDFLAGS="-X main.defaultAPIURL=https://db.tiyoouw.app -X main.version=<versi>"` dan wrapper NSIS `windows_installer.py`.
+   - **Urutan versi pre-release** dibandingkan per bagian dan secara huruf: `rc2 < rc3 < … < rc9`, tetapi `rc10 < rc2` dan `rc.3 < rc2`. Setelah `0.4.5-rc2`, lanjutkan dengan `0.4.5-rc3` … `0.4.5-rc9`, lalu `0.4.5`. Untuk versi berikutnya, pakai `0.4.6-rc.1`, `0.4.6-rc.2`, dan seterusnya (bagian angka dibandingkan sebagai angka).
 2. Push commit rilis ke origin.
 3. Uji kering, tanpa mengubah GitHub:
    ```sh

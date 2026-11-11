@@ -108,6 +108,7 @@ type islandPresenter struct {
 	blink       island.Eyes
 	gaze        island.Gaze
 	expander    island.Expander
+	breath      island.Breather
 	born        time.Time
 	happyUntil  time.Time
 	media       *islandMediaWatcher
@@ -485,9 +486,15 @@ func (p *islandPresenter) view(c *ui.Context) {
 	if now.Before(p.happyUntil) {
 		eyeH, open = 6, 1 // happy arcs, after an action
 	}
+	// Ace breathes while someone is about or something goes on, and sits
+	// still between blinks once nothing has for a while (Breather).
+	if p.gaze.Following(now) || overPill || f.notice != nil || f.expanded || f.scene != island.SceneIdle || f.second != island.SceneIdle || now.Sub(p.born) < time.Second {
+		p.breath.Wake(now)
+	}
 	scale, bop := 1., 0.
+	breathing := false
 	if !reduced {
-		scale = island.Breath(now.Sub(p.born))
+		scale, breathing = p.breath.Scale(now)
 		if f.scene == island.SceneMedia && f.media.Playing {
 			bop = island.Bop(now.Sub(p.born))
 		}
@@ -540,11 +547,12 @@ func (p *islandPresenter) view(c *ui.Context) {
 		}
 	})
 
-	// Frames: none between motions. Fullscreen and what the app shows are
-	// checked every 500 ms; Ace breathes at 12 frames a second; motion,
-	// fades, blinks and the music's wave ask for more while they last.
+	// Frames: none between motions. Fullscreen, the pointer's reach and
+	// what the app shows are checked every 500 ms; awake, Ace breathes at
+	// 12 frames a second; motion, fades, blinks and the music's wave ask
+	// for more while they last.
 	next := 500 * time.Millisecond
-	if !reduced {
+	if breathing {
 		next = 83 * time.Millisecond
 	}
 	next = min(next, max(time.Millisecond, blinkDue.Sub(now)))
@@ -917,7 +925,8 @@ func (p *islandPresenter) noticeDetails(c *ui.Context, x islandNotice, queued in
 					p.dismiss()
 				}
 			}
-			if p.islandAction(c, "Tutup", nil, false) {
+			// Two actions already fill the row; the second (Nanti) closes too.
+			if len(x.n.Actions) < 2 && p.islandAction(c, "Tutup", nil, false) {
 				p.dismiss()
 			}
 		})

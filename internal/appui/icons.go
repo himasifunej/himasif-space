@@ -42,6 +42,8 @@ func NoticeGlyph(kind string) *ui.SVG {
 		key = "calendar"
 	case "deadline", "reminder":
 		key = "clock"
+	case "update":
+		key = "refresh"
 	}
 	return spaceIcons[key]
 }

@@ -196,15 +196,10 @@ func (u *desktopUpdater) announce(manual bool) {
 	x := appui.Notice{Kind: "update", Title: "Space " + m.Version + " tersedia", Body: body, Tag: "update:" + m.Version,
 		Link: updateLink + "?action=install", OpenLabel: "Perbarui sekarang",
 		Actions: []appui.NoticeAction{{Label: "Lihat perubahan", Link: updateLink + "?action=notes"}, {Label: "Nanti", Link: updateLink + "?action=later"}}}
-	prefs := u.d.notificationPrefs.Load().(devicePreferences)
-	_ = (appui.MultiNotifier{Base: u.d.app.Notifier, Extra: []appui.NoticePresenter{updateIsland{u.d.island}}, ReplaceBase: prefs.IslandReplaceToast}).Present(x)
+	// The app's notifier is the island, with Windows' toast when the island
+	// cannot show it or drops it (islandNotifier).
+	_ = u.d.app.Notifier.Present(x)
 }
-
-// updateIsland offers an update notice to Ace Island; Windows' toast is
-// MultiNotifier's fallback.
-type updateIsland struct{ p *islandPresenter }
-
-func (n updateIsland) Present(x appui.Notice) error { return n.p.offer(x, nil) }
 
 // handleLink answers the actions of the notice.
 func (u *desktopUpdater) handleLink(link *url.URL) {
@@ -227,9 +222,14 @@ func (u *desktopUpdater) handleLink(link *url.URL) {
 	}
 }
 
+// later puts the offer off for updateLater, from the island or the
+// settings alike: the offer comes back at the next check after that.
 func (u *desktopUpdater) later() {
 	u.d.prefs.UpdateLaterUntil = time.Now().Add(updateLater)
 	u.d.save()
+	if u.state == updAvailable || u.state == updReady {
+		u.offer, u.state, u.setup = nil, updIdle, ""
+	}
 }
 
 // install downloads the offer when needed, then hands it to the helper.
@@ -377,7 +377,6 @@ func (d *desktopDevice) updateSettings(c *ui.Context) {
 				}
 				if appui.SettingButton(c, "Nanti", "").Clicked() {
 					u.later()
-					u.offer, u.state = nil, updIdle
 				}
 			})
 		case updDownloading:

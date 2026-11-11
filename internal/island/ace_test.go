@@ -141,3 +141,36 @@ func TestGazeAwayReturnsToTheMiddle(t *testing.T) {
 		t.Fatalf("away pointer kept the gaze at %v,%v", g.X, g.Y)
 	}
 }
+
+// Ace breathes while someone is about and stops at the end of a breath,
+// at rest, once they are gone: no jump, and no frames while it sleeps.
+func TestBreatherSleeps(t *testing.T) {
+	var b Breather
+	t0 := time.Date(2026, 11, 11, 8, 0, 0, 0, time.UTC)
+	if s, on := b.Scale(t0); on || s != 1 {
+		t.Fatalf("asleep at start: %v %v", s, on)
+	}
+	b.Wake(t0)
+	if s, on := b.Scale(t0.Add(time.Second)); !on || s <= 1 {
+		t.Fatalf("awake: %v %v", s, on)
+	}
+	// Still breathing just after awakeUntil, until the breath's end.
+	if _, on := b.Scale(t0.Add(BreathAwake + time.Second)); !on {
+		t.Fatal("stopped mid-breath")
+	}
+	end := t0.Add(BreathAwake + breathCycle)
+	if s, on := b.Scale(end); on || s != 1 {
+		t.Fatalf("still breathing at the end of the cycle: %v %v", s, on)
+	}
+	// Scale just before the stop is at rest within a hair.
+	var c Breather
+	c.Wake(t0)
+	if s, _ := c.Scale(end.Add(-10 * time.Millisecond)); s-1 > .0005 {
+		t.Fatalf("stopped away from rest: %v", s)
+	}
+	// Waking again starts a breath from rest.
+	b.Wake(end.Add(time.Minute))
+	if s, on := b.Scale(end.Add(time.Minute)); !on || s != 1 {
+		t.Fatalf("woke with a jump: %v %v", s, on)
+	}
+}

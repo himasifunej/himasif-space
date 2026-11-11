@@ -207,3 +207,48 @@ func (e *Expander) Tick(now time.Time, hover, click bool) {
 
 // Reset closes the details, as the scene changes.
 func (e *Expander) Reset() { *e = Expander{} }
+
+// BreathAwake is how long Ace keeps breathing after the last sign of
+// someone about: the pointer near, a hover, a click, a notice, an
+// activity. Then the breath ends at its next rest and Ace sits still but
+// for its blinks and glances, which ask for a few frames every few
+// seconds instead of 12 a second (idle CPU, pilot 0.4.5).
+const BreathAwake = 12 * time.Second
+
+// breathCycle is Breath's period.
+const breathCycle = 4 * time.Second
+
+// Breather keeps Ace's breath going while it is awake. Its zero value is
+// asleep.
+type Breather struct {
+	start, awakeUntil time.Time
+	on                bool
+}
+
+// Wake keeps Ace breathing for BreathAwake from now; asleep, a breath
+// starts from its rest, so nothing jumps.
+func (b *Breather) Wake(now time.Time) {
+	b.awakeUntil = now.Add(BreathAwake)
+	if !b.on {
+		b.on, b.start = true, now
+	}
+}
+
+// Scale is the eyes' scale now, and whether Ace still breathes and so
+// wants frames. Past awakeUntil, the breath under way ends at its rest
+// (scale 1), where it stops.
+func (b *Breather) Scale(now time.Time) (float64, bool) {
+	if !b.on {
+		return 1, false
+	}
+	t := now.Sub(b.start)
+	if now.After(b.awakeUntil) {
+		awake := b.awakeUntil.Sub(b.start)
+		stop := (awake/breathCycle + 1) * breathCycle
+		if t >= stop {
+			b.on = false
+			return 1, false
+		}
+	}
+	return Breath(t), true
+}

@@ -26,3 +26,12 @@ func TestRenderWACommandTextIsCapped(t *testing.T) {
 		t.Fatalf("filled response %d runes, valid %v", n, utf8.ValidString(got))
 	}
 }
+
+// A long response saved before 0.4.5 with a brace but nothing to fill is
+// sent whole.
+func TestRenderWACommandTextKeepsLongPlainResponse(t *testing.T) {
+	long := strings.Repeat("a", 6000) + " {bukan isian}"
+	if got := renderWACommandText(long, waCommandValues{At: time.Now()}); got != long {
+		t.Fatalf("long response changed: %d runes", utf8.RuneCountInString(got))
+	}
+}
