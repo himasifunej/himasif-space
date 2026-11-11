@@ -57,6 +57,7 @@ func (a *App) resetWorkspace() {
 	a.notificationSettingsState = notificationSettingsState{}
 	a.pingUI = pingUIState{}
 	a.card = cardState{}
+	a.untuk = untukState{}
 	a.taskNotification = taskNotificationState{}
 	a.resetOrganization()
 }
@@ -244,7 +245,7 @@ func (a *App) toasts(c *ui.Context) {
 
 func (a *App) taskBoardVisible() bool {
 	path := a.router.Path()
-	return path == PathJobdesk || ((path == PathSpaces || path == PathMedhum) && a.chrome.tab == "Board tugas")
+	return path == PathJobdesk || path == PathUntukku || ((path == PathSpaces || path == PathMedhum) && a.chrome.tab == "Board tugas")
 }
 
 // pingDialog opens the shared ping composer (canvas 8f83cee819ac A) over

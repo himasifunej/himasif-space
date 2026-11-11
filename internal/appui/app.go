@@ -135,6 +135,7 @@ type App struct {
 	pingHistory               pingHistoryState
 	pingUI                    pingUIState
 	card                      cardState
+	untuk                     untukState
 	uiPrefs                   uiPreferencesSync
 	taskNotification          taskNotificationState
 	organization              organizationUIState
@@ -203,7 +204,7 @@ func New(api API, tokens TokenStore, update func(func())) *App {
 		api:        api,
 		tokens:     tokens,
 		update:     update,
-		router:     ui.NewRouter(PathJobdesk),
+		router:     ui.NewRouter(PathUntukku),
 		chrome:     chromeState{preferences: DefaultPreferences(), tab: "Beranda", settingsTab: "WhatsApp"},
 		workspace:  workspaceui.New(),
 	}
@@ -364,7 +365,7 @@ func (a *App) toLogin(notice string) {
 	// The next session starts at the first page. A session restored at
 	// launch keeps the page the router starts at, as a browser's reload
 	// of "#/spaces".
-	a.router.Replace(PathJobdesk)
+	a.router.Replace(PathUntukku)
 }
 
 func (a *App) loadPeriods() {

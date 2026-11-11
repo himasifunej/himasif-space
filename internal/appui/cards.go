@@ -147,8 +147,8 @@ func (a *App) cardPage(c *ui.Context, r *ui.Route, kind string) {
 			case st.denied:
 				ui.Text(c, "Kamu tidak punya akses ke "+map[string]string{"task": "tugas", "meeting": "rapat"}[kind]+" ini").FontSize(20).FontWeight(600)
 				muted(c, "Mungkin ini milik divisi lain, kamu belum bergabung di Space-nya, atau sudah dihapus. Minta pengirim pesan menambahkanmu bila perlu.").FontSize(14)
-				if spaceButton(c, "Ke Jobdesk saya", "arrow", false).Border(1, t.Border).Clicked() {
-					a.router.Replace(PathJobdesk)
+				if spaceButton(c, "Ke Untukku", "arrow", false).Border(1, t.Border).Clicked() {
+					a.router.Replace(PathUntukku)
 				}
 			case st.err != "":
 				ui.Text(c, "Belum dapat dimuat").FontSize(20).FontWeight(600)

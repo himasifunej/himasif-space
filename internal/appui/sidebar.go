@@ -24,7 +24,15 @@ func (a *App) sidebar(c *ui.Context) {
 	sb := ui.Column(c.Key("sidebar"))
 	a.tourTarget("sidebar", sb)
 	sb.Transition(ui.ElementTransition{Duration: 180 * time.Millisecond, Size: true}).Width(width).Shrink(0).Padding(14, padX).Gap(2).Background(t.Surface).BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
-		ui.Row(c).Shrink(0).Gap(10).Padding(4, 6, 12, 6).AlignItems(ui.Center).Children(func() {
+		// The logo goes to Space saya (canvas 26495b2dee24, 3A).
+		brand := ui.ButtonBase(c.Key("brand")).Label("Ke daftar Space").Tooltip("Ke daftar Space").Shrink(0).Row().Gap(10).Padding(4, 6, 12, 6).Margin(0, 0, 0, 0).Radius(10).AlignItems(ui.Center)
+		if brand.Hovered() {
+			brand.Background(t.SurfaceHover)
+		}
+		if brand.Clicked() {
+			a.openSpacePicker()
+		}
+		brand.FocusRing(brand.FocusVisible()).Children(func() {
 			ui.Image(c, spaceBrand()).Size(30, 30).Shrink(0).Fit(ui.Contain)
 			if !collapsed {
 				ui.Column(c).MinWidth(0).Gap(1).Children(func() {
@@ -50,11 +58,10 @@ func (a *App) sidebarSections(c *ui.Context, collapsed bool) {
 		sectionLabel(c, "Pribadi")
 	}
 	late, alert := a.jobdeskCount(now)
-	if navRow(c, "Jobdesk saya", path == PathJobdesk, collapsed, iconLead(c, "jobdesk"), late, alert, nil).Clicked() {
-		a.navigate(PathJobdesk)
-	}
-	if navRow(c, "Reminder pribadi", path == PathReminder, collapsed, iconLead(c, "reminder"), a.reminderCount(), false, nil).Clicked() {
-		a.navigate(PathReminder)
+	// Untukku holds the tasks, meetings and reminders of the week;
+	// Jobdesk saya and Reminder pribadi are reached from it.
+	if navRow(c, "Untukku", path == PathUntukku || path == PathJobdesk || path == PathReminder, collapsed, iconLead(c, "home"), late, alert, nil).Clicked() {
+		a.navigate(PathUntukku)
 	}
 
 	if !collapsed {

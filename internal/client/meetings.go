@@ -12,6 +12,14 @@ func (c *Client) SpaceMeetings(ctx context.Context, sid id.ID) ([]api.Meeting, e
 	err := c.do(ctx, http.MethodGet, "/api/spaces/"+sid.String()+"/meetings", nil, &out)
 	return out.Items, err
 }
+
+// MyMeetings are the meetings of period the account organizes or
+// attends, a day ago to eight days ahead, in every Space it may read.
+func (c *Client) MyMeetings(ctx context.Context, pid id.ID) ([]api.Meeting, error) {
+	var out api.List[api.Meeting]
+	err := c.do(ctx, http.MethodGet, "/api/periods/"+pid.String()+"/my-meetings", nil, &out)
+	return out.Items, err
+}
 func (c *Client) GetMeeting(ctx context.Context, mid id.ID) (api.Meeting, error) {
 	var out api.Meeting
 	err := c.do(ctx, http.MethodGet, "/api/meetings/"+mid.String(), nil, &out)

@@ -247,7 +247,7 @@ func TestPhoneShellUsesBottomTabsAndFullScreenPanels(t *testing.T) {
 	if h.tt.HasText("Ciutkan") || h.tt.HasText("Cari di Space") {
 		t.Fatal("phone layout still shows the desktop sidebar or header search")
 	}
-	for _, label := range []string{"Beranda", "Jobdesk", "Board", "Medhum", "Lainnya", "Notifikasi", "Menu profil"} {
+	for _, label := range []string{"Beranda", "Untukku", "Board", "Medhum", "Lainnya", "Notifikasi", "Menu profil"} {
 		r, ok := h.tt.Find(label)
 		if !ok || r.X < 0 || r.X+r.W > 391 || r.Y+r.H > 845 {
 			t.Fatalf("%s missing or outside the phone: %+v exists=%v", label, r, ok)

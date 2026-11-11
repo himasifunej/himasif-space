@@ -32,7 +32,8 @@ type appPage struct {
 // appPages are the router's pages: the topbar titles them, quick
 // navigation lists them.
 var appPages = []appPage{
-	{PathJobdesk, "Jobdesk saya", "task", "tugas saya beranda", true},
+	{PathUntukku, "Untukku", "home", "agenda saya hari ini minggu ini beranda pribadi", true},
+	{PathJobdesk, "Jobdesk saya", "task", "tugas saya", true},
 	{PathReminder, "Reminder pribadi", "bell", "pengingat pribadi", true},
 	{PathSpaces, "Space saya", "grid", "divisi ruang kerja", true},
 	{PathMedhum, "Medhum", "humas", "media humas konten posting", false},

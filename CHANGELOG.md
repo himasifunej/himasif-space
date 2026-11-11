@@ -5,6 +5,18 @@ Versi mengikuti aturan sebelum rilis publik:
 - **Minor** naik untuk pembaruan besar.
 - **1.0.0** untuk rilis publik.
 
+## Belum dirilis · Untukku dan pilih Space (feat/untukku-picker)
+
+- **Untukku** (canvas 26495b2dee24, opsi 1A dengan pita "Berikutnya" dari C) menggantikan "Jobdesk saya" dan "Reminder pribadi" di sidebar dan menjadi halaman pertama.
+  - Satu linimasa per hari: Lewat tenggat, Hari ini, Besok, lalu sisa minggu. Isinya tugas yang PJ-nya kamu (bertenggat), rapat yang kamu ikuti atau selenggarakan, dan pengingatmu, dari semua Space.
+  - Setiap baris bertanda Space dan punya satu aksi (Buka, atau Selesai untuk pengingat pribadi). Paling banyak 4 baris per hari, sisanya "+N lainnya".
+  - Pita "Berikutnya" di atas menghitung mundur ke hal berikutnya.
+  - Ada filter Semua/Tugas/Rapat/Pengingat dan keadaan kosong "Minggu ini lapang". "Semua tugasku" dan "Semua pengingat" tetap membuka halaman lamanya.
+  - Di HP, tab bawah "Jobdesk" menjadi "Untukku".
+- **Server**: `GET /api/periods/{periodId}/my-meetings` memberi rapat periode itu yang kamu ikuti atau selenggarakan, di semua Space yang masih bisa kamu baca. Bawaannya sehari lalu sampai 8 hari ke depan, paling lebar 31 hari. Tanpa migrasi.
+- **Space saya** (2A) kini berupa tabel padat dengan kolom peranmu, rapat berikutnyamu di Space itu, kabar baru (notifikasi perangkat yang belum dilihat), dan tugasmu yang lewat tenggat. Ada pencarian dan pengganti periode, dan Space terakhir dibuka disorot.
+- **Logo** di sidebar membuka Space saya (3A). Header Space kini punya remah roti "Space saya › <Space> › <tab>"; "Space saya" di situ juga kembali ke pemilih.
+
 ## 0.4.6-rc.1 — 2026-11-11 · Tautan kartu di WhatsApp, buka di aplikasi, bar unduh di web, Ace yang luwes (pre-release)
 
 - **Tautan kartu di WhatsApp**: pesan bot tentang tugas atau rapat (tugas baru, hasil diserahkan, perubahan PJ/tenggat, tugas Medhum, rapat baru/berubah/batal, pengingat terjadwal, ping tentang tugas/rapat, dan balasan `!cek`) kini diakhiri "Buka di Space: <SPACE_PUBLIC_URL>/t/<id tugas>" atau "/r/<id rapat>".

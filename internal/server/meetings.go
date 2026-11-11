@@ -104,6 +104,62 @@ func (s *Server) withMeetingAccounts(r *http.Request, p *principal, write bool, 
 		return fn(q, &m)
 	})
 }
+
+// myMeetingsSpan is the window /my-meetings covers by default: from a day
+// ago (today's meetings that began) to eight days ahead (the week).
+const myMeetingsBefore, myMeetingsAhead = 24 * time.Hour, 8 * 24 * time.Hour
+
+// listMyMeetings is "Untukku"'s meetings: those of the period the caller
+// organizes or attends, in every Space they may still read, between from
+// and to (RFC 3339; default a day ago to eight days ahead, at most 31
+// days). A meeting in a Space no longer readable is left out.
+func (s *Server) listMyMeetings(w http.ResponseWriter, r *http.Request, p *principal) error {
+	pid, err := pathID(r, "periodId")
+	if err != nil {
+		return err
+	}
+	now := s.now()
+	from, to := now.Add(-myMeetingsBefore), now.Add(myMeetingsAhead)
+	for name, at := range map[string]*time.Time{"from": &from, "to": &to} {
+		if v := r.URL.Query().Get(name); v != "" {
+			t, err := time.Parse(time.RFC3339, v)
+			if err != nil {
+				return badRequest("Waktu " + name + " harus RFC 3339.")
+			}
+			*at = t
+		}
+	}
+	if !to.After(from) || to.Sub(from) > 31*24*time.Hour {
+		return badRequest("Rentang rapat paling lama 31 hari.")
+	}
+	out := []api.Meeting{}
+	err = s.store.Tx(r.Context(), func(q store.Querier) error {
+		if _, err := s.store.Period(r.Context(), q, pid, store.LockShare); err != nil {
+			return err
+		}
+		ms, err := s.store.MyMeetings(r.Context(), q, pid, p.User.ID, from, to)
+		if err != nil {
+			return err
+		}
+		for _, m := range ms {
+			err := s.meetingRead(r, q, p, &m)
+			if errors.Is(err, errNotFound) || errors.Is(err, errForbidden) {
+				continue
+			}
+			if err != nil {
+				return err
+			}
+			out = append(out, m)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	writeJSON(w, http.StatusOK, api.List[api.Meeting]{Items: out})
+	return nil
+}
+
 func (s *Server) listMeetings(w http.ResponseWriter, r *http.Request, p *principal) error {
 	sid, err := pathID(r, "spaceId")
 	if err != nil {
