@@ -192,9 +192,9 @@ func (a *App) openNoteMeeting() {
 	if n == nil || n.MeetingID == nil {
 		return
 	}
-	a.chrome.tab = "Agenda"
+	a.chrome.tab = "Rapat"
 	a.ensureMeetings()
-	a.meetings.selected = *n.MeetingID
+	a.selectMeeting(*n.MeetingID)
 }
 
 // noteTitleView is the big title: an input without a frame for the

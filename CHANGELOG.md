@@ -19,6 +19,12 @@ Versi mengikuti aturan sebelum rilis publik:
   - Muncul kembali setelah layar penuh atau screenshot.
   - Pilihan **Selalu tampil** aktif bawaan, termasuk untuk pengguna yang memperbarui. Ace beristirahat sebagai pil di atas layar, lalu tampil lagi setelah login.
   - Layar penuh diperiksa setiap 0,5 detik.
+- **Rapat (desain A pilihan owner)**:
+  - Daftar dikelompokkan Hari ini / Akan datang / Sudah lewat menurut zona rapat, di samping detail rapat terpilih. Rapat lewat yang belum dicatat kehadirannya ditandai.
+  - Detail berisi status, Waktu/Tempat/Tautan/Pengingat, serta Mulai rapat (timer bersama), Buka notulen, Ubah, dan menu ⋯ (salin tautan, kirim ringkasan ke WhatsApp, batalkan dengan konfirmasi atau aktifkan kembali).
+  - Sub-tab Ringkasan · Kehadiran · Notulen. Penyelenggara mencatat Hadir/Izin/Tidak hadir langsung di baris; Hadir terisi jam mulai dan bisa diubah bersama catatan.
+  - Rapat tanpa jam selesai ditulis "Jam selesai belum diisi", bukan "— selesai".
+  - Di HP: daftar, lalu halaman detail dengan tombol kembali dan bilah aksi bawah. Notifikasi rapat dan tautan dari catatan membuka tab Rapat.
 - **RAM**: logo divisi dan maskot impor disimpan seukuran tampilannya. Maskot GIF 512×512×60 turun dari 45 MiB menjadi 8,4 MiB.
 - **Perbaikan pilot 0.4.4**:
   - Baris tab tanpa scrollbar yang selalu tampil.

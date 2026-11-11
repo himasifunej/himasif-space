@@ -280,9 +280,9 @@ func (a *App) applyNotificationNavigation() {
 				a.tasks.pendingOpen = nav.delivery.SourceID
 				a.workspace.Open(nav.delivery.SourceID)
 			case "meeting":
-				a.chrome.tab = "Agenda"
+				a.chrome.tab = "Rapat"
 				a.ensureMeetings()
-				a.meetings.selected = nav.delivery.SourceID
+				a.selectMeeting(nav.delivery.SourceID)
 			}
 			a.deliveries.navigation = nil
 			return
