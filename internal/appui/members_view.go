@@ -206,65 +206,96 @@ func memberAction(c *ui.Context, text, label string, on bool) ui.Element {
 	return b
 }
 
+// memberActions are a row's Ping and its ⋯, which holds the rest: they
+// fit the table's last column.
 func (a *App) memberActions(c *ui.Context, member api.Member) {
-	m := &a.access.members
 	if canPing(a.selectedSpace()) && member.UserID != a.user.ID {
-		if memberAction(c, "Ping", "Ping "+member.DisplayName, false).Clicked() {
+		if memberAction(c, "Ping", "Ping "+member.DisplayName, false).Shrink(0).Clicked() {
 			a.pingMember(member.UserID)
-		}
-	}
-	if a.memberCanEdit(member) {
-		if memberAction(c, "Ubah akses", "Ubah akses "+member.DisplayName, m.editing == member.UserID).Disabled(m.busy).Clicked() {
-			a.openMemberAccess(member)
 		}
 	}
 	a.memberRowMenu(c, member)
 }
 
-// memberRowMenu is the row's ⋯ (stage A4): Lihat tugas, and Keluarkan…
-// for who may remove members (the drawer's removal dialog, with its check
-// of active tasks).
+// memberRowMenu is the row's ⋯: who it is for, then Ubah role & akses (for
+// who may edit them), Lihat tugas, and Keluarkan… apart, for who may
+// remove members (the drawer's removal dialog, with its check of active
+// tasks).
 func (a *App) memberRowMenu(c *ui.Context, member api.Member) {
 	m := &a.access.members
+	canEdit := a.memberCanEdit(member)
 	canRemove := a.memberCan(api.CapMembersManage) && member.Role != api.RoleKadiv && !m.access.ReadOnly
-	if a.selectedSpace() == nil && !canRemove {
+	if a.selectedSpace() == nil && !canRemove && !canEdit {
 		return
 	}
-	b := spaceIconButton(c.Key("row-more"), "Lainnya untuk "+member.DisplayName, "more")
+	t := c.Theme()
+	b := ui.ButtonBase(c.Key("row-more")).Label("Lainnya untuk "+member.DisplayName).Tooltip("Lainnya").Size(30, 30).Shrink(0).Center().Radius(7).TextColor(t.TextMuted)
+	open := m.rowMenu == member.UserID
+	if open || m.editing == member.UserID {
+		b.Background(accentSoft(t)).TextColor(t.Text)
+	} else if b.Hovered() {
+		b.Background(t.SurfaceHover).TextColor(t.Text)
+	}
+	b.FocusRing(b.FocusVisible()).Children(func() { ui.Icon(c, spaceIcon("more")).Size(16, 16) })
 	if b.Clicked() {
-		if m.rowMenu == member.UserID {
+		if open {
 			m.rowMenu = id.Nil
 		} else {
 			m.rowMenu = member.UserID
 		}
+		open = !open
 	}
-	open := m.rowMenu == member.UserID
-	popover(c, b, &open, 220, func() {
-		t := c.Theme()
-		item := func(key, label, icon string, danger bool) bool {
-			e := ui.ButtonBase(c.Key(key)).Label(label).Row().FillWidth().Height(32).Padding(0, 8).Gap(8).AlignItems(ui.Center).Radius(7).TextColor(t.Text)
+	popover(c, b, &open, 248, func() {
+		item := func(key, label, text, hint, icon string, danger, disabled bool) bool {
+			e := ui.ButtonBase(c.Key(key)).Label(label).Row().FillWidth().MinHeight(40).Padding(6, 8).Gap(10).AlignItems(ui.Center).Radius(8).TextColor(t.Text).Disabled(disabled)
+			ink := t.TextMuted
 			if danger {
 				e.TextColor(t.Danger)
+				ink = t.Danger
 			}
 			if e.Hovered() {
 				e.Background(t.SurfaceHover)
+				if danger {
+					e.Background(spaceMix(t.Danger, t.Surface, .88))
+				}
 			}
 			clicked := e.Clicked()
 			e.FocusRing(e.FocusVisible()).Children(func() {
-				ui.Icon(c, spaceIcon(icon)).Size(14, 14).Shrink(0)
-				ui.Text(c, label).FontSize(13).MaxLines(1)
+				ui.Box(c).Size(28, 28).Shrink(0).Radius(7).Center().Background(t.SurfacePressed).Children(func() {
+					ui.Icon(c, spaceIcon(icon)).Size(15, 15).TextColor(ink)
+				})
+				ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
+					ui.Text(c, text).FontSize(13).FontWeight(500).MaxLines(1)
+					if hint != "" {
+						ui.Text(c, hint).FontSize(11).TextColor(faint(t)).MaxLines(1)
+					}
+				})
 			})
 			return clicked
 		}
-		if a.selectedSpace() != nil && item("menu-tasks", "Lihat tugas", "board", false) {
+		ui.Row(c).FillWidth().Gap(10).AlignItems(ui.Center).Padding(2, 4, 8, 4).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Margin(0, 0, 4, 0).Children(func() {
+			avatar(c, member.DisplayName, 28)
+			ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+				ui.Text(c, member.DisplayName).FontSize(13).FontWeight(600).MaxLines(1)
+				ui.Text(c, memberRoleBadge(member)).FontSize(11).TextColor(faint(t)).MaxLines(1)
+			})
+		})
+		if canEdit && item("menu-access", "Ubah akses "+member.DisplayName, "Ubah role & akses", "Role dasar, 45, kelompok, role kustom", "shield", false, m.busy) {
+			m.rowMenu = id.Nil
+			a.openMemberAccess(member)
+		}
+		if a.selectedSpace() != nil && item("menu-tasks", "Lihat tugas "+member.DisplayName, "Lihat tugas", "Board tugas, hanya miliknya", "board", false, false) {
 			m.rowMenu = id.Nil
 			a.showMemberTasks(member, id.Nil)
 		}
-		if canRemove && item("menu-remove", "Keluarkan…", "close", true) {
-			m.rowMenu = id.Nil
-			a.openMemberAccess(member)
-			m.removeAsk = true
-			a.loadMemberRemoveTasks(member)
+		if canRemove {
+			ui.Box(c).FillWidth().Height(1).Background(t.Border).Margin(4, 0)
+			if item("menu-remove", "Keluarkan…", "Keluarkan…", "Dari divisi ini", "logout", true, m.busy) {
+				m.rowMenu = id.Nil
+				a.openMemberAccess(member)
+				m.removeAsk = true
+				a.loadMemberRemoveTasks(member)
+			}
 		}
 	})
 	if !open && m.rowMenu == member.UserID {

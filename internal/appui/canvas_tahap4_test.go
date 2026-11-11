@@ -85,7 +85,7 @@ func TestMembersTableOpensAccessDrawer(t *testing.T) {
 		h.want(s)
 	}
 	h.dontWant("Keluarkan Aruna…")
-	h.click("Ubah akses Aruna Desain")
+	openMemberAccessMenu(h, "Aruna Desain")
 	h.tt.Frame()
 	h.want("Keluarkan Aruna…")
 	h.want("Wakil operasional (45) Aruna Desain")

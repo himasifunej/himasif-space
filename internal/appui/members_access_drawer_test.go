@@ -146,7 +146,7 @@ func TestMemberAccessSummary(t *testing.T) {
 func TestMemberAccessDrawerOpensInOrder(t *testing.T) {
 	h, _, _, _ := memberAccessHarness(t, 1440, 1500)
 	h.dontWant("Tunjuk 45 Nara Tekno")
-	h.click("Ubah akses Nara Tekno")
+	openMemberAccessMenu(h, "Nara Tekno")
 	h.tt.Frame()
 	texts := h.tt.Texts()
 	order := []string{"Ubah akses · Nara Tekno", "Role dasar", "Role dasar Anggota", "Role dasar Pendamping kadiv", "Wakil operasional (45)", "Kelompok", "Kelompok Desain", "Role kustom", "Yang bisa dilakukan Nara", "Keluarkan dari Media dan Teknologi", "Belum ada perubahan", "Simpan akses"}
@@ -174,7 +174,7 @@ func TestMemberAccessDrawerOpensInOrder(t *testing.T) {
 // and appoints the new one, in that order.
 func TestMemberAccessDrawerSavesAndReplaces45(t *testing.T) {
 	h, f, _, nara := memberAccessHarness(t, 1440, 1500)
-	h.click("Ubah akses Nara Tekno")
+	openMemberAccessMenu(h, "Nara Tekno")
 	h.click("Role dasar Pendamping kadiv")
 	h.click("Kelompok Desain")
 	h.want("2 perubahan belum disimpan")
@@ -212,7 +212,7 @@ func TestMemberAccessDrawerSavesAndReplaces45(t *testing.T) {
 func TestMemberAccessDrawerReportsPartialSave(t *testing.T) {
 	h, f, _, _ := memberAccessHarness(t, 1440, 1500)
 	f.appointErr = &client.Error{Status: 409, Message: "45 sudah ada."}
-	h.click("Ubah akses Nara Tekno")
+	openMemberAccessMenu(h, "Nara Tekno")
 	h.click("Role dasar Pendamping kadiv")
 	h.click("Wakil operasional (45) Nara Tekno")
 	h.click("Ganti 45")
@@ -231,11 +231,11 @@ func TestMemberAccessDrawerReportsPartialSave(t *testing.T) {
 // Removing asks in the drawer; a 45 is removed from the 45 first.
 func TestMemberAccessDrawerRemoval(t *testing.T) {
 	h, f, aruna, nara := memberAccessHarness(t, 1440, 1500)
-	h.click("Ubah akses Aruna Desain")
+	openMemberAccessMenu(h, "Aruna Desain")
 	h.want("Aruna masih 45. Matikan sakelar 45 dan simpan dulu, lalu keluarkan.")
 	h.dontWant("Keluarkan Aruna…")
 	h.click("Tutup ubah akses")
-	h.click("Ubah akses Nara Tekno")
+	openMemberAccessMenu(h, "Nara Tekno")
 	h.click("Keluarkan Nara…")
 	h.tt.Frame()
 	h.want("Keluarkan Nara Tekno dari Media dan Teknologi?")
@@ -299,7 +299,7 @@ func TestMemberColumnsHideEmptyGroups(t *testing.T) {
 // Leaving with unsaved changes asks first; "Batal" is an explicit discard.
 func TestMemberAccessDrawerAsksBeforeDiscarding(t *testing.T) {
 	h, f, _, _ := memberAccessHarness(t, 1440, 1500)
-	h.click("Ubah akses Nara Tekno")
+	openMemberAccessMenu(h, "Nara Tekno")
 	h.click("Role dasar Pendamping kadiv")
 	h.click("Tutup ubah akses")
 	h.tt.Frame()
@@ -316,7 +316,7 @@ func TestMemberAccessDrawerAsksBeforeDiscarding(t *testing.T) {
 	if h.app.access.members.editing != id.Nil {
 		t.Fatal("discarding kept the drawer open")
 	}
-	h.click("Ubah akses Nara Tekno")
+	openMemberAccessMenu(h, "Nara Tekno")
 	if h.app.access.members.role != api.RoleMember {
 		t.Fatal("a discarded change came back")
 	}
@@ -336,7 +336,7 @@ func TestMemberRemovalBlockedByActiveTasks(t *testing.T) {
 		api.Task{ID: id.New(), Title: "Foto acara", Assignee: api.PersonRef{ID: nara.UserID, DisplayName: nara.DisplayName}, Progress: api.TaskTodo},
 		api.Task{ID: id.New(), Title: "Video recap", Assignee: api.PersonRef{ID: nara.UserID, DisplayName: nara.DisplayName}, Progress: api.TaskSubmitted},
 		api.Task{ID: id.New(), Title: "Selesai", Assignee: api.PersonRef{ID: nara.UserID, DisplayName: nara.DisplayName}, Progress: api.TaskDone})
-	h.click("Ubah akses Nara Tekno")
+	openMemberAccessMenu(h, "Nara Tekno")
 	h.click("Keluarkan Nara…")
 	h.tt.Frame()
 	// The fixture has no active-tasks endpoint (an older server): the
@@ -397,7 +397,7 @@ func TestMemberRemovalUsesServerCount(t *testing.T) {
 	if _, _, ok := h.app.memberWork(nara.UserID, time.Now()); !ok {
 		t.Fatal("tasks not loaded")
 	}
-	h.click("Ubah akses Nara Tekno")
+	openMemberAccessMenu(h, "Nara Tekno")
 	h.click("Keluarkan Nara…")
 	h.settle()
 	h.want("Nara masih PJ 1 tugas aktif (Medhum 1).")
@@ -422,7 +422,7 @@ func TestMemberRemovalRefusedByServer(t *testing.T) {
 		removeErr: &client.Error{Status: 409, Code: api.CodeMemberHasTasks, Message: "Nara Tekno masih PJ 2 tugas aktif.",
 			Data: map[string]any{"count": 2, "spaces": []any{map[string]any{"spaceId": space.ID.String(), "name": space.Name, "count": 2}}}}}
 	h.app.api = f
-	h.click("Ubah akses Nara Tekno")
+	openMemberAccessMenu(h, "Nara Tekno")
 	h.click("Keluarkan Nara…")
 	h.settle()
 	h.want("Nara tidak punya tugas aktif.")
@@ -475,8 +475,8 @@ func TestMemberRowsStayAfterSave(t *testing.T) {
 	if before != "Demo Mediatek,Aruna Desain,Nara Tekno" {
 		t.Fatalf("start order %s", before)
 	}
-	row, _ := h.tt.Find("Ubah akses Nara Tekno")
-	h.click("Ubah akses Nara Tekno")
+	row, _ := h.tt.Find("Lainnya untuk Nara Tekno")
+	openMemberAccessMenu(h, "Nara Tekno")
 	h.click("Role dasar Pendamping kadiv")
 	h.click("Simpan akses")
 	// While the table reloads it stays on screen.
@@ -488,7 +488,7 @@ func TestMemberRowsStayAfterSave(t *testing.T) {
 	if got := order(); got != before {
 		t.Fatalf("rows moved after save: %s", got)
 	}
-	if after, _ := h.tt.Find("Ubah akses Nara Tekno"); after.Y != row.Y {
+	if after, _ := h.tt.Find("Lainnya untuk Nara Tekno"); after.Y != row.Y {
 		t.Fatalf("Nara's row moved from y=%v to y=%v", row.Y, after.Y)
 	}
 	if m := h.app.memberByID(h.app.access.members.members[2].UserID); m == nil {
