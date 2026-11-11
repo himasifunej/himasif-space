@@ -37,7 +37,8 @@ func TestPhoneAgendaMonthCellShowsDotsNotOverflowText(t *testing.T) {
 }
 
 // The custom roles card used text buttons "Edit role <nama>" that ran past
-// a phone's right edge; they are icon buttons now and stay on screen.
+// a phone's right edge; they are icon buttons now and stay on screen, in
+// the Role kustom dialog (pilot 0.4.4).
 func TestPhoneCustomRoleActionsStayOnScreen(t *testing.T) {
 	h := newChromeHarness(t, nil)
 	h.tt.SetSize(390, 844)
@@ -51,6 +52,8 @@ func TestPhoneCustomRoleActionsStayOnScreen(t *testing.T) {
 	h.app.router.Push(PathSpaces)
 	h.app.chrome.tab = "Anggota"
 	h.tt.Advance(400 * time.Millisecond)
+	h.tt.Frame()
+	h.click("Role kustom")
 	h.tt.Frame()
 	for _, label := range []string{"Edit role " + name, "Hapus role " + name} {
 		h.tt.Scroll(200, 500, 0, 0)
