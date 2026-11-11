@@ -99,6 +99,10 @@ type App struct {
 	SessionChanged func(id.ID)
 	// Version is the app's version, shown in the settings.
 	Version string
+	// WhatsNew, set by the device after Space updated itself, shows once
+	// what the new version brought; SeenWhatsNew is told when it is closed.
+	WhatsNew     *WhatsNew
+	SeenWhatsNew func(version string)
 	// ClientName names the app to the server at login: "desktop" or "web".
 	ClientName string
 	// Notifier is the device's notification layer (notifier.go); nil where
@@ -125,6 +129,7 @@ type App struct {
 	offlineSync               offlineUIState
 	notificationSettingsState notificationSettingsState
 	pingHistory               pingHistoryState
+	pingUI                    pingUIState
 	uiPrefs                   uiPreferencesSync
 	taskNotification          taskNotificationState
 	organization              organizationUIState

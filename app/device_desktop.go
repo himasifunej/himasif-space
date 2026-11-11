@@ -24,6 +24,7 @@ import (
 	"github.com/himasifunej/himasif-space/internal/appui"
 	"github.com/himasifunej/himasif-space/internal/id"
 	"github.com/himasifunej/himasif-space/internal/island"
+	"github.com/himasifunej/himasif-space/internal/update"
 )
 
 type devicePreferences struct {
@@ -33,17 +34,60 @@ type devicePreferences struct {
 	IslandReduceMotion bool   `json:"islandReduceMotion"`
 	// IslandAlwaysOn keeps Ace on screen as a small pill between notices.
 	// Missing from older files, it takes the default: on.
-	IslandAlwaysOn bool    `json:"islandAlwaysOn"`
-	Autostart      bool    `json:"autostart"`
-	Audio          string  `json:"audio"`
-	Volume         float64 `json:"volume"`
-	Sound          bool    `json:"sound"`
+	IslandAlwaysOn bool `json:"islandAlwaysOn"`
+	// IslandAnchor is where the island sits along the top of the screen,
+	// dragged there: 0 the left edge, .5 the middle (missing: the middle),
+	// 1 the right edge.
+	IslandAnchor float64 `json:"islandAnchor"`
+	// IslandTheme is the island's style: "" Ikut tema (the default, and
+	// what those who never chose get), "hitam", "kaca" or "custom" with
+	// IslandColor ("#rrggbb") and IslandOpacity (.4 to 1). IslandStyle, the
+	// A/B/C of 0.4.4, is no longer read.
+	IslandTheme   string  `json:"islandTheme,omitempty"`
+	IslandColor   string  `json:"islandColor,omitempty"`
+	IslandOpacity float64 `json:"islandOpacity,omitempty"`
+	Autostart     bool    `json:"autostart"`
+	Audio         string  `json:"audio"`
+	Volume        float64 `json:"volume"`
+	Sound         bool    `json:"sound"`
 	// UpdateChannel is "stable" (or empty, older files) or "rc";
 	// UpdateAnnounced the version last announced, UpdateLaterUntil when
 	// Nanti stops holding announcements back (updater_desktop.go).
 	UpdateChannel    string    `json:"updateChannel,omitempty"`
 	UpdateAnnounced  string    `json:"updateAnnounced,omitempty"`
 	UpdateLaterUntil time.Time `json:"updateLaterUntil,omitzero"`
+	// SeenVersion is the version whose "Yang baru" the user has seen, or
+	// that was installed fresh; UpdateNotes the signed notes of the version
+	// being installed, kept for that dialog.
+	SeenVersion  string `json:"seenVersion,omitempty"`
+	UpdateNotes  string `json:"updateNotes,omitempty"`
+	UpdateNotesV string `json:"updateNotesVersion,omitempty"`
+}
+
+// whatsNew is what to show once on starting version: nil on a fresh
+// install (fresh: no preferences file yet), on the version already seen,
+// and after a downgrade. The signed notes kept at install come first, the
+// notes bundled with the app otherwise.
+func whatsNew(prefs devicePreferences, fresh bool, version string) *appui.WhatsNew {
+	if fresh || !update.ValidVersion(version) || prefs.SeenVersion == version {
+		return nil
+	}
+	if prefs.SeenVersion != "" && update.ValidVersion(prefs.SeenVersion) && update.Compare(version, prefs.SeenVersion) <= 0 {
+		return nil
+	}
+	var lines []string
+	if prefs.UpdateNotesV == version {
+		lines = appui.NoteLines(prefs.UpdateNotes)
+	}
+	if len(lines) == 0 {
+		if r, ok := appui.ChangelogFor(version); ok {
+			lines = r.Notes
+		}
+	}
+	if len(lines) == 0 {
+		return nil
+	}
+	return &appui.WhatsNew{Version: version, Notes: lines}
 }
 
 // legacyDeviceKeys are what preferences.json kept for the star mascot's
@@ -54,11 +98,12 @@ var legacyDeviceKeys = []string{"aceMode", "aceName", "mascot", "X", "Y"}
 // reports keys of the removed mascot window, for the caller to write the
 // file again without them and drop the imported picture.
 func loadDevicePreferences(data []byte) (prefs devicePreferences, legacy bool) {
-	prefs = devicePreferences{Volume: .45, Sound: true, IslandEnabled: true, IslandStyle: "C", IslandReplaceToast: true, IslandAlwaysOn: true}
+	prefs = devicePreferences{Volume: .45, Sound: true, IslandEnabled: true, IslandStyle: "C", IslandReplaceToast: true, IslandAlwaysOn: true, IslandAnchor: .5}
 	if len(data) == 0 {
 		return prefs, false
 	}
 	_ = json.Unmarshal(data, &prefs)
+	prefs.IslandAnchor = islandAnchor(prefs.IslandAnchor)
 	var raw map[string]json.RawMessage
 	if json.Unmarshal(data, &raw) == nil {
 		for _, k := range legacyDeviceKeys {
@@ -93,10 +138,14 @@ type desktopDevice struct {
 	err                 string
 	notificationTest    string
 	testingNotification bool
-	volume              float64   // the bell's volume slider, 0–100
-	volumeAt            time.Time // when the slider last moved; saved once it rests
-	savedAt             time.Time
-	journal             map[string]string
+	volume              float64 // the bell's volume slider, 0–100
+	// islandHex and islandClear are Custom's color field and its
+	// transparency slider (0–60), as typed.
+	islandHex   string
+	islandClear float64
+	volumeAt    time.Time // when the slider last moved; saved once it rests
+	savedAt     time.Time
+	journal     map[string]string
 }
 
 func atomicDeviceFile(path string, data []byte) error {
@@ -133,6 +182,16 @@ func attachDevice(win *mygo.Window, app *appui.App) {
 	data, _ := os.ReadFile(filepath.Join(d.root, "preferences.json"))
 	prefs, legacy := loadDevicePreferences(data)
 	d.prefs = prefs
+	// After Space updated itself: what the version brought, once. A fresh
+	// install starts with onboarding instead, and has seen this version.
+	// It counts as seen once shown, closed or not.
+	if wn := whatsNew(prefs, len(data) == 0, appVersion()); wn != nil {
+		app.WhatsNew = wn
+	}
+	if d.prefs.SeenVersion != appVersion() && update.ValidVersion(appVersion()) {
+		d.prefs.SeenVersion, d.prefs.UpdateNotes, d.prefs.UpdateNotesV = appVersion(), "", ""
+		defer d.save()
+	}
 	if legacy {
 		// The star mascot's window is gone: forget its place and name, and
 		// the picture imported for it. The bell and the island stay.

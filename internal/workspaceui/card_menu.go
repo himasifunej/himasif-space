@@ -11,6 +11,7 @@ var (
 	toBottomIcon  = ui.MustParseSVG([]byte(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20h12M12 4v11M7.5 10.5 12 15l4.5-4.5"/></svg>`))
 	editIcon      = ui.MustParseSVG([]byte(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4zM13.5 6.5l4 4"/></svg>`))
 	duplicateIcon = ui.MustParseSVG([]byte(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>`))
+	remindIcon    = ui.MustParseSVG([]byte(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9z"/><path d="M10.3 20a1.9 1.9 0 0 0 3.4 0"/></svg>`))
 	cancelIcon    = ui.MustParseSVG([]byte(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="m9 9 6 6M15 9l-6 6"/></svg>`))
 )
 
@@ -40,10 +41,13 @@ const (
 
 // cardMenuHeight is the height the menu's content wants: its group
 // titles, rows and separators.
-func (s *State) cardMenuHeight() float32 {
+func (s *State) cardMenuHeight(task Task) float32 {
 	rows, groups := 6, 2 // four lanes, two orders
 	if s.OnAction != nil {
 		rows, groups = rows+3, groups+1
+		if task.Remind != "" {
+			rows++
+		}
 	}
 	return float32(rows*34+groups*26+(groups-1)*9) + 2*6
 }
@@ -96,7 +100,7 @@ func (s *State) moveMenu(c *ui.Context, anchor ui.Element, task Task) {
 		})
 		return
 	}
-	at, self, maxH := cardMenuPlace(anchor.Bounds(), vw, vh, s.cardMenuHeight())
+	at, self, maxH := cardMenuPlace(anchor.Bounds(), vw, vh, s.cardMenuHeight(task))
 	ui.PopoverBase(c, anchor, &s.menuOpen, func(panel ui.Element) {
 		panel.AttachTo(anchor, at, self).Width(cardMenuWidth).Radius(10).Background(t.Surface).Border(1, t.Border).FocusGroup(ui.Vertical)
 		switch {
@@ -225,6 +229,10 @@ func (s *State) cardMenuContent(c *ui.Context, task Task, phone bool) {
 			s.menuOpen = false
 			s.OnAction(task.ID, a.key)
 		}
+	}
+	if task.Remind != "" && row("remind", task.Remind, task.Remind, "", false, icon(remindIcon, t.TextMuted), nil) {
+		s.menuOpen = false
+		s.OnAction(task.ID, "remind")
 	}
 	separator("sep-cancel")
 	// Cancelling asks for a reason in the caller's dialog: no silent loss.

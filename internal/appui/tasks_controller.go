@@ -58,8 +58,17 @@ type tasksUIState struct {
 	filter, comment, help, evidenceURL, evidenceNote, reason string
 	cancelID                                                 id.ID
 	cancelOpen                                               bool
-	cancelReason, checklistNew                               string
-	detailSplit                                              bool
+	// rejecting: the detail's "Bukti tidak sesuai" asks for its correction.
+	rejecting bool
+	// evidenceErr is the last submission's failure, shown in its form;
+	// errToast a failed save's, shown once as a red toast.
+	evidenceErr, errToast string
+	// evidenceFiles are files uploaded for the submission being written.
+	evidenceFiles              []api.TaskAttachment
+	evidenceMode               int // 0 link, 1 file
+	evidenceUploading          bool
+	cancelReason, checklistNew string
+	detailSplit                bool
 	// Board toolbar and the detail modal's popovers and folded parts.
 	mineOnly, filterOpen                    bool
 	statusOpen, moreOpen, labelOpen, pjOpen bool
@@ -268,6 +277,9 @@ func (a *App) projectTasks() {
 			}
 		}
 		card.Attachments = len(t.Attachments) + len(t.Evidence)
+		if !a.tasks.personal && a.taskRemindable(t) {
+			card.Remind = "Ingatkan " + firstName(t.Assignee.DisplayName)
+		}
 		tasks = append(tasks, card)
 	}
 	for i, color := range a.chrome.preferences.LaneColors {
@@ -297,6 +309,12 @@ func (a *App) taskWriteBlocked() bool {
 	return a.tasks.busy || a.tasks.loading || a.conn == connOffline
 }
 func (a *App) mutateTask(action string, work func(TasksAPI) error, after func()) {
+	a.mutateTaskOr(action, work, after, nil)
+}
+
+// mutateTaskOr is mutateTask that also tells failed what went wrong, for
+// a form to show it beside its fields. Every failure shows as a red toast.
+func (a *App) mutateTaskOr(action string, work func(TasksAPI) error, after func(), failed func(string)) {
 	service, ok := a.taskService()
 	if !ok || a.taskWriteBlocked() {
 		return
@@ -316,6 +334,10 @@ func (a *App) mutateTask(action string, work func(TasksAPI) error, after func())
 			a.tasks.busy = false
 			if err != nil {
 				a.tasks.err = a.taskFailure(err)
+				a.tasks.errToast = action + " gagal: " + a.tasks.err
+				if failed != nil {
+					failed(a.tasks.err)
+				}
 				a.projectTasks()
 				return
 			}
@@ -601,6 +623,8 @@ func (a *App) taskAction(tid id.ID, action string) {
 		a.tasks.draft.title = t.Title + " (salinan)"
 		a.workspace.Close()
 		a.tasks.notice = "Periksa salinan, lalu simpan untuk membuat tugas baru."
+	case "remind":
+		a.remindTask(*t)
 	case "cancel":
 		a.tasks.cancelID, a.tasks.cancelOpen, a.tasks.cancelReason = tid, true, ""
 	}

@@ -109,9 +109,10 @@ type islandRect struct{ Left, Top, Right, Bottom int32 }
 // GWL_STYLE and GWL_EXSTYLE.
 var islandGWLStyle, islandGWLExStyle = int32(-16), int32(-20)
 
-// Use physical Win32 monitor coordinates at the boundary. MyGo's public DIP
-// coordinates are per-monitor and can overlap when DPI differs across screens.
-func islandPosition(hwnd, space uintptr, cursor bool, w, h int) bool {
+// islandWorkArea is the work area, in physical pixels, and the scale of
+// the monitor the island belongs on: Space's, or the pointer's while Space
+// is hidden or minimized.
+func islandWorkArea(space uintptr, cursor bool) (islandRect, float64, bool) {
 	iconic, _, _ := procIslandIsIconic.Call(space)
 	var monitor uintptr
 	if cursor || iconic != 0 {
@@ -130,22 +131,50 @@ func islandPosition(hwnd, space uintptr, cursor bool, w, h int) bool {
 	}{Size: 40}
 	ok, _, _ := procIslandGetMonitorInfo.Call(monitor, uintptr(unsafe.Pointer(&info)))
 	if ok == 0 {
-		return false
+		return islandRect{}, 1, false
 	}
 	dpiX, dpiY := uint32(96), uint32(96)
 	if procIslandGetDpiForMonitor.Find() == nil {
 		procIslandGetDpiForMonitor.Call(monitor, 0, uintptr(unsafe.Pointer(&dpiX)), uintptr(unsafe.Pointer(&dpiY)))
 	}
-	scale := float64(dpiX) / 96
+	return info.Work, float64(dpiX) / 96, true
+}
+
+// islandTravel is how far, in physical pixels, a shape group DIP wide
+// moves from the work area's left edge to its right one.
+func islandTravel(space uintptr, cursor bool, group float64) float64 {
+	work, scale, ok := islandWorkArea(space, cursor)
+	if !ok {
+		return 0
+	}
+	return float64(work.Right-work.Left) - (2*islandTopGap+group)*scale
+}
+
+// islandCursorX is the pointer's x on screen, in physical pixels.
+func islandCursorX() (float64, bool) {
+	var pt struct{ X, Y int32 }
+	ok, _, _ := procIslandGetCursorPos.Call(uintptr(unsafe.Pointer(&pt)))
+	return float64(pt.X), ok != 0
+}
+
+// islandPosition puts the island's window, w×h DIP, at the top of its
+// monitor's work area: anchor 0 at the left edge, 1 at the right one, in
+// physical Win32 coordinates at the boundary. MyGo's public DIP coordinates
+// are per-monitor and can overlap when DPI differs across screens.
+func islandPosition(hwnd, space uintptr, cursor bool, w, h int, anchor float64) bool {
+	work, scale, ok := islandWorkArea(space, cursor)
+	if !ok {
+		return false
+	}
 	pw, ph := int(float64(w)*scale+.5), int(float64(h)*scale+.5)
-	x := int(info.Work.Left) + (int(info.Work.Right-info.Work.Left)-pw)/2
-	y := int(info.Work.Top) + int(islandTopGap*scale+.5)
+	gap := int(islandTopGap*scale + .5)
+	x := int(work.Left) + gap + int(anchor*float64(int(work.Right-work.Left)-2*gap-pw)+.5)
+	y := int(work.Top) + gap
 	// Moving to a monitor of another DPI makes Windows send WM_DPICHANGED
 	// during the move, and MyGo applies the rectangle it suggests, scaled
 	// once more. A second move, now in the new DPI, puts it right.
 	for range 2 {
-		ok, _, _ = procIslandSetWindowPos.Call(hwnd, 0, uintptr(x), uintptr(y), uintptr(pw), uintptr(ph), 0x0014) // NOZORDER | NOACTIVATE
-		if ok == 0 {
+		if moved, _, _ := procIslandSetWindowPos.Call(hwnd, 0, uintptr(x), uintptr(y), uintptr(pw), uintptr(ph), 0x0014); moved == 0 { // NOZORDER | NOACTIVATE
 			return false
 		}
 		var r islandRect
@@ -180,11 +209,11 @@ func islandPrepareWindow(hwnd uintptr) {
 	procIslandSetWindowLongPtr.Call(hwnd, uintptr(islandGWLExStyle), style|0x08000000|0x00000080)
 }
 
-// islandWindowShape cuts the window to the pill (g: width, height,
-// radius) and the second activity's circle (g[3]) beside it, in a window
-// w×h DIP. A native region, rather than global click-through polling,
-// removes the transparent corners from Windows hit testing.
-func islandWindowShape(hwnd uintptr, g [4]float64, w, h int) {
+// islandWindowShape cuts the window, w DIP wide, to the pill (g: width,
+// height, radius) ox DIP from its left, and the second activity's circle
+// (g[3]) beside it. The region is all Windows shows and hit-tests of the
+// window: the rest of it, kept for the largest shape, is the desktop's.
+func islandWindowShape(hwnd uintptr, g [4]float64, ox float64, w int) {
 	var client islandRect
 	ok, _, _ := procIslandGetClientRect.Call(hwnd, uintptr(unsafe.Pointer(&client)))
 	if ok == 0 || w == 0 {
@@ -193,12 +222,12 @@ func islandWindowShape(hwnd uintptr, g [4]float64, w, h int) {
 	s := float64(client.Right) / float64(w)
 	px := func(v float64) uintptr { return uintptr(int(v*s + .5)) }
 	radius := px(2 * math.Min(g[2], g[1]/2))
-	region, _, _ := procIslandCreateRoundRectRgn.Call(0, 0, px(g[0])+1, px(g[1])+1, radius, radius)
+	region, _, _ := procIslandCreateRoundRectRgn.Call(px(ox), 0, px(ox+g[0])+1, px(g[1])+1, radius, radius)
 	if region == 0 {
 		return
 	}
 	if g[3] > .5 {
-		x := g[0] + 8 // island.BubbleGap
+		x := ox + g[0] + 8 // island.BubbleGap
 		if dot, _, _ := procIslandCreateEllipticRgn.Call(px(x), 0, px(x+g[3])+1, px(g[3])+1); dot != 0 {
 			procIslandCombineRgn.Call(region, region, dot, 2) // RGN_OR
 			procIslandDeleteObject.Call(dot)

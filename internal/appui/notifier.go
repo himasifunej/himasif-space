@@ -1,5 +1,7 @@
 package appui
 
+import "github.com/himasifunej/himasif-space/internal/id"
+
 // The device's notification layer, shared by onboarding, the settings page
 // and, in time, deliveries. The web app shows browser popups (the
 // Notification API), the desktop app the operating system's
@@ -34,6 +36,11 @@ type Notice struct {
 	OpenLabel string
 	// AccountID scopes transient desktop content to its signed-in recipient.
 	AccountID string
+	// Group gathers a burst of notices alike (several "Rapat baru" in one
+	// Space within seconds) into one, where a presenter can: GroupLabel
+	// names them ("rapat baru"), Space is where they are.
+	Group, GroupLabel string
+	Space             id.ID
 }
 
 type NoticeAction struct{ Label, Link string }

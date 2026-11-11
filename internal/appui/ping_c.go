@@ -23,7 +23,7 @@ var pingFilters = []struct{ key, label string }{{"", "Semua"}, {"unseen", "Belum
 func (a *App) pingComposerState(sp *api.Space) *notificationSettingsState {
 	st := &a.notificationSettingsState
 	if st.period != sp.PeriodID || st.space != sp.ID {
-		*st = notificationSettingsState{period: sp.PeriodID, space: sp.ID, division: st.division, device: true, pingKind: "general"}
+		a.resetPingState(sp, st.division)
 	}
 	return st
 }

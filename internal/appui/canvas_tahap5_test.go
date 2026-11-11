@@ -47,7 +47,7 @@ func reviewHarness(t *testing.T, review bool) (*harness, *reviewTestAPI) {
 	f.items[0].Progress = api.TaskSubmitted
 	f.items[0].MatchStatus = api.MatchPending
 	f.items[0].Permissions.Review = review
-	f.items[0].Evidence = []api.TaskEvidence{{ID: id.New(), SubmittedBy: api.PersonRef{ID: f.user.ID, DisplayName: "Aruna"}, URL: "https://contoh.test/poster", MatchStatus: api.MatchPending, SubmittedAt: time.Now()}}
+	f.items[0].Evidence = []api.TaskEvidence{{ID: id.New(), SubmittedBy: api.PersonRef{ID: id.New(), DisplayName: "Aruna"}, URL: "https://contoh.test/poster", MatchStatus: api.MatchPending, SubmittedAt: time.Now()}}
 	h.app.selectSpace(sp.ID)
 	h.app.chrome.tab = "Tinjauan"
 	h.app.router.Push(PathSpaces)

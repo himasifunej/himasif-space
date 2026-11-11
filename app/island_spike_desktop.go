@@ -34,7 +34,7 @@ func runIslandSpike() bool {
 		// 2 s, and drops the window 3 s later, as an idle island does after
 		// 10 minutes: what it then costs is what an idle island costs.
 		if mode == "banner" || mode == "idle" {
-			d := &desktopDevice{win: anchor, prefs: devicePreferences{IslandEnabled: true, IslandStyle: "C", IslandReplaceToast: true}}
+			d := &desktopDevice{win: anchor, prefs: devicePreferences{IslandEnabled: true, IslandStyle: "C", IslandReplaceToast: true, IslandAnchor: .5}}
 			mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { d.quitting = true })
 			d.notificationPrefs.Store(d.prefs)
 			p := &islandPresenter{d: d, environmentCheck: func() bool { return true }, idleAfter: 3 * time.Second}
@@ -61,8 +61,18 @@ func runIslandSpike() bool {
 		// ace-timer, ace-media, ace-split and ace-ping show Ace with an
 		// activity, ace-*-open its details, to look at each scene.
 		if strings.HasPrefix(mode, "ace") {
-			d := &desktopDevice{win: anchor, prefs: devicePreferences{IslandEnabled: true, IslandStyle: "A", IslandAlwaysOn: true, IslandReduceMotion: mode == "ace-still"}}
+			d := &desktopDevice{win: anchor, prefs: devicePreferences{IslandEnabled: true, IslandStyle: "A", IslandAlwaysOn: true, IslandReduceMotion: mode == "ace-still", IslandAnchor: .5}}
 			mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { d.quitting = true })
+			// ace-hitam, ace-kaca, ace-custom: Ace at rest in that style (the
+			// idle CPU of each); plain ace follows the theme.
+			for _, th := range []string{islandThemeBlack, islandThemeGlass, islandThemeCustom} {
+				if strings.HasSuffix(mode, "-"+th) {
+					d.prefs.IslandTheme = th
+				}
+			}
+			if d.prefs.IslandTheme == islandThemeCustom {
+				d.prefs.IslandColor, d.prefs.IslandOpacity = "#14213d", .7
+			}
 			d.notificationPrefs.Store(d.prefs)
 			// ace-fullscreen: as if a fullscreen app covered the screen.
 			fullscreen := strings.Contains(mode, "fullscreen")
@@ -89,7 +99,7 @@ func runIslandSpike() bool {
 			a := mygo.Screen.PrimaryDisplay().WorkArea
 			w.SetPosition(a.X+(a.Width-200)/2, a.Y+8)
 			islandPrepareWindow(w.NativeHandle())
-			islandWindowShape(w.NativeHandle(), [4]float64{200, 36, 18, 0}, 200, 36)
+			islandWindowShape(w.NativeHandle(), [4]float64{200, 36, 18, 0}, 0, 200)
 			islandClearBackdrop(w.NativeHandle())
 			if mode == "pill" {
 				w.ShowInactive()

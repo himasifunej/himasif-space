@@ -55,6 +55,7 @@ func (a *App) resetWorkspace() {
 	a.deliveries = deliveriesState{}
 	a.offlineSync = offlineUIState{}
 	a.notificationSettingsState = notificationSettingsState{}
+	a.pingUI = pingUIState{}
 	a.taskNotification = taskNotificationState{}
 	a.resetOrganization()
 }
@@ -143,6 +144,7 @@ func (a *App) shell(c *ui.Context) {
 		a.chrome.preferences.SidebarCollapsed = !a.chrome.preferences.SidebarCollapsed
 		a.savePreferences(c)
 	}
+	a.whatsNewDialog(c)
 	// Escape closes the appearance panel, as it closes the popovers. A
 	// popover open this frame takes the key itself, so one press closes
 	// one thing.
@@ -243,16 +245,24 @@ func (a *App) taskBoardVisible() bool {
 	return path == PathJobdesk || ((path == PathSpaces || path == PathMedhum) && a.chrome.tab == "Board tugas")
 }
 
-// pingDialog opens the shared ping composer over the window. On phones it
-// takes the full width as a sheet from the bottom.
+// pingDialog opens the shared ping composer (canvas 8f83cee819ac A) over
+// the window: the list scrolls, the message and Kirim stay below it. On
+// phones it takes the full width as a sheet from the bottom.
 func (a *App) pingDialog(c *ui.Context) {
+	a.showPingToast(c)
 	if !a.chrome.pingOpen {
+		if a.pingUI.sent != nil {
+			st := &a.notificationSettingsState
+			st.recipients, st.pingMessage, st.err = nil, "", ""
+			a.pingUI.sent = nil
+		}
 		return
 	}
 	if !canPing(a.selectedSpace()) {
 		a.chrome.pingOpen = false
 		return
 	}
+	a.pingUI.boxOpen = false
 	t := c.Theme()
 	w, h := c.Size()
 	phone := w < mobileMaxWidth
@@ -262,7 +272,7 @@ func (a *App) pingDialog(c *ui.Context) {
 			backdrop.Justify(ui.End)
 			panel.Width(w).MaxHeight(h-40).Radius(18, 18, 0, 0)
 		} else {
-			panel.Width(min(float32(600), w-48)).MaxHeight(h - 80).Radius(16)
+			panel.Width(min(float32(560), w-48)).MaxHeight(h - 80).Radius(16)
 		}
 		panel.Column().Background(t.Surface).Border(1, t.Border).Children(func() {
 			ui.Row(c).FillWidth().Padding(14, 18).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
@@ -274,9 +284,17 @@ func (a *App) pingDialog(c *ui.Context) {
 					a.chrome.pingOpen = false
 				}
 			})
+			if !a.pingComposerReady() {
+				return
+			}
+			if a.pingUI.sent != nil {
+				ui.Column(c).FillWidth().Padding(18).Gap(10).Children(func() { a.pingSentView(c) })
+				return
+			}
 			ui.Scroll(c.Key("ping-scroll")).Grow(1).MinHeight(0).FillWidth().Children(func() {
-				ui.Column(c).FillWidth().Padding(18).Gap(10).Children(func() { a.pingComposer(c) })
+				ui.Column(c).FillWidth().Padding(18, 18, 12, 18).Gap(12).Children(func() { a.pingComposerBody(c) })
 			})
+			ui.Column(c).FillWidth().Padding(14, 18, 18, 18).BorderWidth(1, 0, 0, 0).BorderColor(t.Border).Children(func() { a.pingComposerFooter(c) })
 		})
 	})
 }

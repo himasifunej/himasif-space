@@ -137,8 +137,9 @@ var sectionFuncs = map[string]string{"waAdvanced": "Pengaturan lanjutan"}
 // skipCalls are not settings: notices and empty or loading states.
 var skipCalls = map[string]bool{"pageNotice": true, "pageEmpty": true, "pageUnavailable": true, "muted": true}
 
-// skipFuncs draw states, not settings: waHero is the bot's status line.
-var skipFuncs = map[string]bool{"waHero": true}
+// skipFuncs draw states, not settings: waHero is the bot's status line;
+// the ping composer's parts are its states, found by its heading.
+var skipFuncs = map[string]bool{"waHero": true, "pingComposerBody": true, "pingComposerFooter": true, "pingSentView": true}
 
 // generic labels say nothing on their own in a search: confirmations,
 // closing, reloading, and the channels and sides of a comparison that

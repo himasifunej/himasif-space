@@ -14,6 +14,10 @@ type Preferences struct {
 	ColorCardsByTag  bool      `json:"colorCardsByTag,omitempty"`
 	// CardColor colors board cards by "" (their label), "status", "pj" or "plain".
 	CardColor string `json:"cardColor,omitempty"`
+	// MeetingListWidth is the Rapat page's list, dragged to this width in
+	// DIP; 0 the layout's own. From meetingListNarrow it shows the dates
+	// only.
+	MeetingListWidth float32 `json:"meetingListWidth,omitempty"`
 	// SpaceTabs keeps each account's Space tab bar, by "user/space" ID. It
 	// is a pointer, replaced on every change, so Preferences stays
 	// comparable.
@@ -32,6 +36,7 @@ func DefaultPreferences() Preferences {
 // NormalizePreferences accepts only supported themes and accent values. It is
 // safe to call for imported, partially populated or older preference records.
 func NormalizePreferences(p Preferences) Preferences {
+	p.MeetingListWidth = meetingListWidth(p.MeetingListWidth)
 	p.Palette = strings.ToLower(strings.TrimSpace(p.Palette))
 	switch p.Palette {
 	case "", "champagne", "obsidian", "midnight", "copper", "graphite":

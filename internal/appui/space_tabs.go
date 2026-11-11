@@ -616,7 +616,7 @@ func (a *App) spaceReviewRow(c *ui.Context, task api.Task, divider, wide bool) {
 				}
 				if a.canReviewInRow(task, e) {
 					if primarySpaceButton(c.Key("match"), "Cocok", "check").Label("Cocok " + task.Title).Disabled(a.taskWriteBlocked()).Clicked() {
-						a.reviewFromRow(task, e, true, reviewDefaultReason)
+						a.reviewFromRow(task, e, true, a.rowApproveReason(e))
 					}
 					if spaceButton(c.Key("reject"), "Tidak cocok", "close", a.spaceTabs.rejecting == e.ID).Label("Tidak cocok "+task.Title).Border(1, t.Border).Disabled(a.taskWriteBlocked()).Clicked() {
 						a.spaceTabs.rejecting, a.spaceTabs.rejectReason = e.ID, ""
@@ -643,7 +643,7 @@ func (a *App) spaceReviewRow(c *ui.Context, task api.Task, divider, wide bool) {
 // canReviewInRow reports whether the Tinjauan row may match its latest
 // evidence: the reviewer's permission, a pending match, a live task.
 func (a *App) canReviewInRow(task api.Task, e api.TaskEvidence) bool {
-	return task.Permissions.Review && e.MatchStatus == api.MatchPending && task.Progress != api.TaskCancelled
+	return task.Permissions.Review && e.MatchStatus == api.MatchPending && task.Progress != api.TaskCancelled && !a.selfReviewBlocked(task, e)
 }
 
 // reviewFromRow sends a Tinjauan row's Cocok or Tidak cocok, the same
@@ -668,4 +668,13 @@ func reviewInitials(name string) string {
 		return "?"
 	}
 	return out
+}
+
+// rowApproveReason is what a Tinjauan row's "Cocok" says: its submitter's
+// own approval as such, another's as matched from this tab.
+func (a *App) rowApproveReason(e api.TaskEvidence) string {
+	if e.SubmittedBy.ID == a.user.ID {
+		return api.SelfApprovedReason
+	}
+	return reviewDefaultReason
 }

@@ -137,3 +137,9 @@ func (a *App) loginView(c *ui.Context) {
 		})
 	})
 }
+
+// IslandTheme is Space's theme as the window draws it, for the desktop
+// island's "Ikut tema" (UI thread): systemDark is the system's mode.
+func (a *App) IslandTheme(systemDark bool) *ui.Theme {
+	return paletteTheme(a.DarkAppearance(systemDark), a.chrome.preferences)
+}

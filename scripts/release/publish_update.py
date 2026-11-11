@@ -17,6 +17,7 @@ GitHub. Never prints the key.
 import argparse
 import hashlib
 import json
+import os
 import shutil
 from pathlib import Path
 import re
@@ -51,8 +52,19 @@ def sha256(path):
     return h.hexdigest()
 
 
+def updatesign_command():
+    """tools/updatesign: a binary built elsewhere (SPACE_UPDATESIGN), for a
+    machine that must not compile, else go run."""
+    built = os.environ.get('SPACE_UPDATESIGN')
+    if built:
+        if not Path(built).is_file():
+            raise PublishError(f'SPACE_UPDATESIGN names no file: {built}')
+        return [built]
+    return ['go', 'run', './tools/updatesign']
+
+
 def updatesign(*args):
-    return run(['go', 'run', './tools/updatesign', *args])
+    return run([*updatesign_command(), *args])
 
 
 def release_exists(tag):
@@ -77,8 +89,24 @@ def published_version(channel):
 
 def newer(a, b):
     """Whether version a is newer than b, by the app's own rule."""
-    out = run(['go', 'run', './tools/updatesign', 'compare', a, b])
+    out = run([*updatesign_command(), 'compare', a, b])
     return out.strip() == '1'
+
+
+# The app's limit (update.MaxNotes): longer notes are refused when signed.
+MAX_NOTES = 600
+
+
+def changelog_notes(version):
+    """The version's notes as the app bundles them, one bullet a line, as
+    the "Yang baru" dialog and older clients' single line both read them. A
+    release candidate takes its release's (0.4.6-rc2: 0.4.6)."""
+    base = version.lstrip('v').split('-', 1)[0]
+    entries = json.loads((ROOT / 'internal' / 'appui' / 'changelog.json').read_text(encoding='utf-8'))
+    for entry in entries:
+        if entry['version'] == base:
+            return '\n'.join('• ' + line for line in entry['notes'])
+    raise PublishError(f'internal/appui/changelog.json has no notes for {base}: add them, or pass --notes')
 
 
 def main():
@@ -86,12 +114,17 @@ def main():
     parser.add_argument('--installer', required=True, help='space-setup-*.exe built for this version')
     parser.add_argument('--version', required=True, help='version the app reports, e.g. 0.4.6 or 0.4.6-rc')
     parser.add_argument('--channel', required=True, choices=('stable', 'rc'))
-    parser.add_argument('--notes', required=True, help='short notes, at most 600 characters')
+    parser.add_argument('--notes', help="short notes, at most 600 characters; by default the version's bullets "
+                        'from internal/appui/changelog.json')
     parser.add_argument('--target', default='HEAD', help='commit for a new release tag (must be pushed)')
     parser.add_argument('--key-file', help='private key file instead of SPACE_UPDATE_SIGNING_KEY')
     parser.add_argument('--out', default=str(ROOT / 'dist' / 'update'), help='where the envelope is written')
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args()
+    if not args.notes:
+        args.notes = changelog_notes(args.version)
+    if len(args.notes) > MAX_NOTES:
+        raise PublishError(f'notes are {len(args.notes)} characters; the manifest takes {MAX_NOTES}')
 
     installer = Path(args.installer).resolve()
     if not installer.is_file():
