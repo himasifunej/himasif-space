@@ -5,7 +5,7 @@ Versi mengikuti aturan sebelum rilis publik:
 - **Minor** naik untuk pembaruan besar.
 - **1.0.0** untuk rilis publik.
 
-## Belum dirilis · kartu pembaruan
+## 0.4.6-rc.3 — 2026-11-11 · Kartu pembaruan (pre-release)
 
 - **Kartu pembaruan** di pojok kiri bawah jendela Space, seperti enowX. Sebelumnya versi baru diunduh diam-diam dan hanya tampak di Pengaturan › Status layanan.
   - "Space X tersedia" dengan satu baris catatan: **Perbarui**, **Lihat perubahan**, **Nanti**.
@@ -13,6 +13,9 @@ Versi mengikuti aturan sebelum rilis publik:
   - "Siap dipasang": **Mulai ulang sekarang** atau **Nanti (saat Space ditutup)**, yang memasang versi itu saat jendela ditutup.
   - Tidak mengambil fokus, menunggu selama kamu menulis, dan tidak muncul selama onboarding. Nanti menyembunyikannya sampai versi berikutnya atau Space dibuka lagi.
 - **Kabar pembaruan di kotak masuk Ace** (ikon pembaruan), agar tidak terlewat saat Space tersembunyi di tray.
+- Tes: Untukku tidak lagi gagal setelah pukul 22.30 WIB; board menyempit saat drawer Tugas baru terbuka.
+
+Server tidak berubah sejak 0.4.6-rc.2; tidak di-deploy ulang.
 
 ## 0.4.6-rc.2 — 2026-11-11 · Untukku, Space saya baru, logo dan remah roti, kotak masuk Ace (pre-release)
 
