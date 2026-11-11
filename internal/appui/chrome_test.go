@@ -66,7 +66,7 @@ func TestChromeSearchShortcutAndEscape(t *testing.T) {
 	h.want("Navigasi cepat")
 	h.want("Ketik untuk mencari halaman, Space, aksi, catatan, tugas, dan setiap pengaturan.")
 	h.tt.Type("halaman-yang-tidak-ada")
-	h.want("Tidak ada yang cocok. Coba kata lain, misalnya \"tema\" atau \"maskot\".")
+	h.want("Tidak ada yang cocok. Coba kata lain, misalnya \"tema\" atau \"island\".")
 	if h.app.chrome.search != "halaman-yang-tidak-ada" {
 		t.Fatalf("search did not receive keyboard input: %q", h.app.chrome.search)
 	}

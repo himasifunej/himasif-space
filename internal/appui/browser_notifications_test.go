@@ -38,27 +38,27 @@ func TestBrowserNotificationSettingsFollowPermission(t *testing.T) {
 	tt.Frame()
 	want("Diizinkan", true)
 	want("Kirim notifikasi uji", true)
-	want("Izinkan notifikasi browser", false)
-	click("Kirim notifikasi uji")
+	want("Izinkan notifikasi", false)
+	click("Kirim percobaan")
 	if tested != 1 {
 		t.Fatalf("test notification sent %d times", tested)
 	}
 	want("Notifikasi uji dikirim. Bila tidak muncul, periksa mode Jangan Ganggu atau pengaturan notifikasi sistem.", true)
 	testErr = errors.New("Izin notifikasi browser belum diberikan.")
-	click("Kirim notifikasi uji")
+	click("Kirim percobaan")
 	want("Izin notifikasi browser belum diberikan.", true)
 
 	perm = "denied"
 	tt.Frame()
 	want("Diblokir", true)
 	want("Kirim notifikasi uji", false)
-	want("Izinkan notifikasi browser", false)
-	want("Buka ikon gembok di samping alamat situs, pilih Setelan situs, lalu ubah Notifikasi menjadi Izinkan. Status di sini ikut berubah.", true)
+	want("Izinkan notifikasi", false)
+	want("Buka ikon gembok di samping alamat situs, pilih Setelan situs, lalu ubah Notifikasi menjadi Izinkan.", true)
 
 	perm = "default"
 	tt.Frame()
 	want("Belum diizinkan", true)
-	click("Izinkan notifikasi browser")
+	click("Izinkan notifikasi")
 	if requested != 1 {
 		t.Fatalf("permission requested %d times", requested)
 	}
@@ -66,5 +66,5 @@ func TestBrowserNotificationSettingsFollowPermission(t *testing.T) {
 	perm = "unsupported"
 	tt.Frame()
 	want("Browser ini tidak mendukung notifikasi", true)
-	want("Izinkan notifikasi browser", false)
+	want("Izinkan notifikasi", false)
 }

@@ -102,6 +102,7 @@ Keputusan terakhir pengguna mengalahkan rekomendasi awal asisten. Baris yang men
 15. **H-2/H-1/H-0 pukul 06.00 WIB.** Jangan membawa bawaan Reo H-1/H-0 atau usulan asisten yang belum dikoreksi.
 16. **Overdue harian dan rekap divisi.** Window tujuh hari dan DM pemilik pada Reo bukan kebijakan baru Space.
 17. **Tahapan tidak menghapus scope.** Rapat, notes dan template tetap ada; AI/CMS/fitur TBC tetap dicatat sebagai lanjutan.
+18. **Ace = Dynamic Island (11 Nov 2026, owner).** Maskot bintang dan jendelanya (mengambang/tepi layar, impor PNG/GIF) dihapus; ACE-02–07 di PRD tidak berlaku lagi. Ace hidup sebagai pil bermata di Dynamic Island.
 
 ## Status keputusan vs rincian teknis
 

@@ -121,13 +121,14 @@ func str(e ast.Expr) (string, bool) {
 
 // sectionCalls name the section containers: the title argument and the
 // function holding the section's contents.
-var sectionCalls = map[string]int{"pageSection": 1, "settingsBody": 1, "deviceSection": 1}
+var sectionCalls = map[string]int{"pageSection": 1, "settingsBody": 1, "SettingSection": 1, "appui.SettingSection": 1}
 
 // fieldCalls are labelled inputs: the label argument's index.
-var fieldCalls = map[string]int{"ui.Field": 1, "taskInput": 2, "taskInputHint": 2, "a.waField": 2, "a.waTemplateEditor": 2}
+var fieldCalls = map[string]int{"ui.Field": 1, "SettingRow": 1, "appui.SettingRow": 1, "taskInput": 2, "taskInputHint": 2, "a.waField": 2, "a.waTemplateEditor": 2}
 
 // buttonCalls are buttons: the label argument's index.
-var buttonCalls = map[string]int{"spaceButton": 1, "primarySpaceButton": 1, "ui.Button": 1}
+var buttonCalls = map[string]int{"spaceButton": 1, "primarySpaceButton": 1, "ui.Button": 1,
+	"SettingSwitch": 1, "appui.SettingSwitch": 1, "SettingButton": 1, "appui.SettingButton": 1}
 
 // sectionFuncs are methods drawing a section of their own that no
 // pageSection names: their items sit in it.
@@ -143,7 +144,7 @@ var skipFuncs = map[string]bool{"waHero": true}
 // closing, reloading, and the channels and sides of a comparison that
 // share their names with whole tabs.
 var generic = map[string]bool{"Batal": true, "Tutup": true, "Salin": true, "Selesai": true, "Coba lagi": true, "Muat ulang": true,
-	"Divisi": true, "Pratinjau": true, "Tutup pratinjau": true, "Perangkat": true, "WhatsApp": true, "Server": true, "Pesan": true}
+	"Divisi": true, "Pratinjau": true, "Putar": true, "Ganti": true, "Pakai bawaan": true, "Kirim percobaan": true, "Tutup pratinjau": true, "Perangkat": true, "WhatsApp": true, "Server": true, "Pesan": true}
 
 type walker struct {
 	p        *pkg

@@ -37,7 +37,7 @@ func (a *App) settingsGroups() []settingsGroup {
 			{"Akun", "Profil dan keamanan", "Nama, email, kata sandi, keluar", "user"},
 		}},
 		{"Perangkat ini", []settingsEntry{
-			{"Perangkat", "Notifikasi, suara, dan Ace", "Toast, bel, maskot, aplikasi desktop", "bell"},
+			{"Perangkat", "Notifikasi dan Dynamic Island", "Island, toast, bel, aplikasi desktop", "bell"},
 			{"Tampilan", "Tampilan dan tema", "Tema, palet, aksen, warna board", "palette"},
 			{"Sinkronisasi", "Offline dan sinkronisasi", "Antrean perubahan di perangkat ini", "refresh"},
 		}},
@@ -71,8 +71,8 @@ func (a *App) settings(c *ui.Context, r *ui.Route) {
 			if a.DeviceSettings != nil {
 				a.DeviceSettings(c)
 			} else {
-				settingsBody(c, "Notifikasi, suara, dan Ace", "Pengaturan ini hanya untuk perangkat ini.", func() {
-					pageNotice(c, "monitor", "Tersedia di aplikasi desktop", "Toast, bel, dan Ace diatur pada aplikasi Space untuk Windows. Di browser, notifikasi mengikuti izin browser.")
+				settingsBody(c, "Notifikasi dan Dynamic Island", "Pengaturan ini hanya untuk perangkat ini.", func() {
+					pageNotice(c, "monitor", "Tersedia di aplikasi desktop", "Dynamic Island, toast, dan bel diatur pada aplikasi Space untuk Windows. Di browser, notifikasi mengikuti izin browser.")
 				})
 			}
 		case "Akun":
