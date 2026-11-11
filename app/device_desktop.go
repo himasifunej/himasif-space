@@ -24,6 +24,7 @@ import (
 	"github.com/himasifunej/himasif-space/internal/appui"
 	"github.com/himasifunej/himasif-space/internal/id"
 	"github.com/himasifunej/himasif-space/internal/island"
+	"github.com/himasifunej/himasif-space/internal/update"
 )
 
 type devicePreferences struct {
@@ -48,6 +49,38 @@ type devicePreferences struct {
 	UpdateChannel    string    `json:"updateChannel,omitempty"`
 	UpdateAnnounced  string    `json:"updateAnnounced,omitempty"`
 	UpdateLaterUntil time.Time `json:"updateLaterUntil,omitzero"`
+	// SeenVersion is the version whose "Yang baru" the user has seen, or
+	// that was installed fresh; UpdateNotes the signed notes of the version
+	// being installed, kept for that dialog.
+	SeenVersion  string `json:"seenVersion,omitempty"`
+	UpdateNotes  string `json:"updateNotes,omitempty"`
+	UpdateNotesV string `json:"updateNotesVersion,omitempty"`
+}
+
+// whatsNew is what to show once on starting version: nil on a fresh
+// install (fresh: no preferences file yet), on the version already seen,
+// and after a downgrade. The signed notes kept at install come first, the
+// notes bundled with the app otherwise.
+func whatsNew(prefs devicePreferences, fresh bool, version string) *appui.WhatsNew {
+	if fresh || !update.ValidVersion(version) || prefs.SeenVersion == version {
+		return nil
+	}
+	if prefs.SeenVersion != "" && update.ValidVersion(prefs.SeenVersion) && update.Compare(version, prefs.SeenVersion) <= 0 {
+		return nil
+	}
+	var lines []string
+	if prefs.UpdateNotesV == version {
+		lines = appui.NoteLines(prefs.UpdateNotes)
+	}
+	if len(lines) == 0 {
+		if r, ok := appui.ChangelogFor(version); ok {
+			lines = r.Notes
+		}
+	}
+	if len(lines) == 0 {
+		return nil
+	}
+	return &appui.WhatsNew{Version: version, Notes: lines}
 }
 
 // legacyDeviceKeys are what preferences.json kept for the star mascot's
@@ -138,6 +171,16 @@ func attachDevice(win *mygo.Window, app *appui.App) {
 	data, _ := os.ReadFile(filepath.Join(d.root, "preferences.json"))
 	prefs, legacy := loadDevicePreferences(data)
 	d.prefs = prefs
+	// After Space updated itself: what the version brought, once. A fresh
+	// install starts with onboarding instead, and has seen this version.
+	// It counts as seen once shown, closed or not.
+	if wn := whatsNew(prefs, len(data) == 0, appVersion()); wn != nil {
+		app.WhatsNew = wn
+	}
+	if d.prefs.SeenVersion != appVersion() && update.ValidVersion(appVersion()) {
+		d.prefs.SeenVersion, d.prefs.UpdateNotes, d.prefs.UpdateNotesV = appVersion(), "", ""
+		defer d.save()
+	}
 	if legacy {
 		// The star mascot's window is gone: forget its place and name, and
 		// the picture imported for it. The bell and the island stay.

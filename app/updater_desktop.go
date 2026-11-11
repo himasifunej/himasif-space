@@ -314,6 +314,9 @@ func (u *desktopUpdater) runInstaller() {
 		return
 	}
 	u.state = updInstalling
+	// The signed notes go with the version, for its "Yang baru" once it runs.
+	u.d.prefs.UpdateNotes, u.d.prefs.UpdateNotesV = m.Notes, m.Version
+	u.d.save()
 	if err := startUpdateHelper(updateJob{Setup: u.setup, Installer: *m.Windows, Version: m.Version, Dir: u.dir()}); err != nil {
 		u.state = updReady
 		u.err = "Pemasang tidak dapat dijalankan: " + err.Error()
