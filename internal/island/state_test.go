@@ -181,3 +181,27 @@ func TestMachineHold(t *testing.T) {
 		t.Fatal("closed at the default banner time")
 	}
 }
+
+// A notice that times out is lapsed (kept for the inbox); one closed by
+// the user is not; Show opens an item at once.
+func TestMachineLapsedAndShow(t *testing.T) {
+	var m Machine
+	now := time.Now()
+	m.Push(Item{Tag: "a"}, now)
+	m.Tick(now.Add(BannerDuration), false, false, false)
+	if len(m.Lapsed) != 1 || m.Lapsed[0].Tag != "a" {
+		t.Fatalf("lapsed %+v", m.Lapsed)
+	}
+	m.Lapsed = nil
+	m.Tick(now.Add(BannerDuration+time.Second), false, false, false)
+	m.Push(Item{Tag: "b"}, now.Add(2*BannerDuration))
+	m.Dismiss(now.Add(2 * BannerDuration))
+	m.Tick(now.Add(3*BannerDuration), false, false, false)
+	if len(m.Lapsed) != 0 {
+		t.Fatalf("a dismissed notice lapsed: %+v", m.Lapsed)
+	}
+	m.Show(Item{Tag: "c"}, now)
+	if m.Current == nil || m.Current.Tag != "c" || m.State != Expanded {
+		t.Fatalf("show %+v", m)
+	}
+}

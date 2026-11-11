@@ -264,3 +264,21 @@ func islandClearBackdrop(hwnd uintptr) {
 		procIslandDwmSetWindowAttribute.Call(hwnd, 34, uintptr(unsafe.Pointer(&border)), 4)
 	}
 }
+
+// islandSpikeAcrylic asks for Windows' acrylic blur behind the window
+// (ACCENT_ENABLE_ACRYLICBLURBEHIND, a faint tint), for the spike only: the
+// window's region should keep it to the pill. 0.4.4 saw the accent paint
+// the whole rectangle (the purple box), so the app does not use it until
+// this is seen clean on Windows 10 and 11.
+func islandSpikeAcrylic(hwnd uintptr) {
+	if procIslandSetCompositionAttr.Find() != nil {
+		return
+	}
+	policy := struct{ State, Flags, Color, Animation uint32 }{State: 4, Flags: 2, Color: 0x30202020}
+	data := struct {
+		Attribute uint32
+		Data      uintptr
+		Size      uintptr
+	}{19, uintptr(unsafe.Pointer(&policy)), unsafe.Sizeof(policy)} // WCA_ACCENT_POLICY
+	procIslandSetCompositionAttr.Call(hwnd, uintptr(unsafe.Pointer(&data)))
+}

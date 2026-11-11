@@ -32,16 +32,23 @@ var spaceBrandSVG = ui.MustParseSVG(spaceBrandData)
 
 // NoticeGlyph shares Space's established icon set with desktop presenters.
 func NoticeGlyph(kind string) *ui.SVG {
+	// One icon per kind, the same in the pill, its peek and its details:
+	// a bell for a ping, a calendar for a meeting or a reminder, a check
+	// for a task or a review, a chat for WhatsApp, a clock for a deadline.
 	key := "bell"
 	switch kind {
 	case "ping":
-		key = "chat"
-	case "task":
+		key = "bell"
+	case "task", "review", "evidence":
 		key = "check"
-	case "meeting":
+	case "meeting", "reminder":
 		key = "calendar"
-	case "deadline", "reminder":
+	case "deadline", "overdue":
 		key = "clock"
+	case "whatsapp", "wa":
+		key = "chat"
+	case "note":
+		key = "note"
 	case "update":
 		key = "refresh"
 	}

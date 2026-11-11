@@ -177,6 +177,11 @@ func IndonesianDateTime(t time.Time, zone string) string {
 // DeliveryKind is what a delivery is about, for its label and grouping:
 // a meeting's change comes as a ping related to the meeting.
 func DeliveryKind(d api.Delivery) string {
+	// A ping someone sent ("Ping · Mediatek") is a ping, even about a task
+	// or a meeting: its icon is the bell, not the task's.
+	if d.SourceKind == "ping" && strings.HasPrefix(d.Title, "Ping · ") {
+		return "ping"
+	}
 	if d.RelatedKind != "" {
 		return d.RelatedKind
 	}

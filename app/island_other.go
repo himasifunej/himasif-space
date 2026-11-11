@@ -7,6 +7,7 @@ func islandEnvironmentAllowed() bool                                   { return 
 func islandPrepareWindow(uintptr)                                      {}
 func islandWindowShape(uintptr, [4]float64, float64, int)              {}
 func islandClearBackdrop(uintptr)                                      {}
+func islandSpikeAcrylic(uintptr)                                       {}
 func islandObstructed() bool                                           { return false }
 func islandPosition(uintptr, uintptr, bool, int, int, float64) bool    { return false }
 func islandPointer(uintptr, float64, float64) (float64, float64, bool) { return 0, 0, false }
