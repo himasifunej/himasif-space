@@ -120,6 +120,24 @@ func (d *desktopDevice) islandSettings(c *ui.Context) {
 				}
 			}
 		})
+		where := "Di tengah atas layar."
+		switch a := d.prefs.IslandAnchor; {
+		case a <= .02:
+			where = "Di pojok kiri atas."
+		case a >= .98:
+			where = "Di pojok kanan atas."
+		case a < .48 || a > .52:
+			where = "Digeser dari tengah."
+		}
+		appui.SettingRow(c, "Posisi island", where+" Tarik island ke kiri atau kanan di sepanjang tepi atas layar.", func() {
+			if appui.SettingButton(c, "Ke tengah", "").Disabled(d.prefs.IslandAnchor == .5).Clicked() {
+				d.prefs.IslandAnchor = .5
+				d.save()
+				if d.island.win != nil {
+					d.island.win.Update(func() {})
+				}
+			}
+		})
 		appui.SettingRow(c, "Coba Dynamic Island", "Kirim kabar percobaan. Arahkan kursor 300 ms atau klik untuk membuka detail.", func() {
 			if appui.SettingButton(c, "Coba island", "play").Clicked() {
 				_ = d.app.Notifier.Present(appui.Notice{Kind: appui.NoticeTest, Title: "Dynamic Island siap", Body: "Arahkan kursor selama 300 ms atau klik untuk membuka detail.", Tag: "island-test"})

@@ -148,7 +148,7 @@ func (a *App) meetingsPage(c *ui.Context) {
 		ui.Box(c).FillWidth().Height(1).Background(t.Border)
 		if mobile {
 			ui.Scroll(c.Key("meetings-list")).Grow(1).MinHeight(0).FillWidth().Children(func() {
-				ui.Column(c).FillWidth().Padding(8, 8, 24, 8).Children(func() { a.meetingList(c, true) })
+				ui.Column(c).FillWidth().Padding(8, 8, 24, 8).Children(func() { a.meetingList(c, true, false) })
 			})
 			return
 		}
@@ -156,9 +156,24 @@ func (a *App) meetingsPage(c *ui.Context) {
 		if viewportMode(c) == layoutTablet {
 			listW = 280
 		}
+		if w := a.chrome.preferences.MeetingListWidth; w > 0 {
+			listW = w
+		}
+		// The detail keeps room to read (the sidebar and the detail's own
+		// columns); the list gives way first.
+		w, _ := c.Size()
+		listW = min(listW, meetingListMax(w))
+		narrow := listW < meetingListCompact
 		ui.Row(c).Grow(1).MinHeight(0).FillWidth().Children(func() {
-			ui.Scroll(c.Key("meetings-list")).Width(listW).Shrink(0).FillHeight().Children(func() {
-				ui.Column(c).FillWidth().Padding(12).Children(func() { a.meetingList(c, false) })
+			ui.Column(c.Key("meetings-list-column")).Width(listW).Shrink(0).FillHeight().MinHeight(0).Children(func() {
+				ui.Scroll(c.Key("meetings-list")).Grow(1).MinHeight(0).FillWidth().Children(func() {
+					pad := float32(12)
+					if narrow {
+						pad = 6
+					}
+					ui.Column(c).FillWidth().Padding(pad).Children(func() { a.meetingList(c, false, narrow) })
+				})
+				a.meetingListEdge(c, listW, w)
 			})
 			ui.Box(c).Width(1).FillHeight().Background(t.Border)
 			ui.Scroll(c.Key("meeting-detail")).Grow(1).MinWidth(0).FillHeight().Children(func() {
@@ -187,8 +202,68 @@ func (a *App) meetingsEmpty(c *ui.Context) {
 	})
 }
 
-// meetingList draws the grouped list.
-func (a *App) meetingList(c *ui.Context, mobile bool) {
+// The Rapat page's list is dragged between meetingListNarrow, the dates
+// alone, and meetingListWidest; below meetingListCompact it shows the
+// dates only, a drag ending there snapping to the narrow width.
+const (
+	meetingListNarrow  float32 = 72
+	meetingListCompact float32 = 180
+	meetingListWidest  float32 = 640
+)
+
+// meetingListWidth is a saved width within the range, or 0 for the
+// layout's own.
+func meetingListWidth(w float32) float32 {
+	if w <= 0 || w != w {
+		return 0
+	}
+	return min(max(w, meetingListNarrow), meetingListWidest)
+}
+
+// meetingListMax is the widest the list may be in a window w wide: the
+// sidebar and a readable detail keep their room.
+func meetingListMax(w float32) float32 {
+	return max(meetingListNarrow, min(meetingListWidest, w-640))
+}
+
+// meetingListEdge is the list's right edge, dragged (or moved with the
+// arrow keys) to resize it; letting go keeps the width on the device.
+func (a *App) meetingListEdge(c *ui.Context, shown, window float32) {
+	edge := ui.Box(c.Key("meetings-list-resize")).Label("Ubah lebar daftar rapat").Tooltip("Tarik untuk mengubah lebar · panah kiri/kanan").
+		Absolute().Right(0).Top(0).Width(6).FillHeight().Cursor(ui.CursorResizeEW).Focusable()
+	holdTouchPan(edge)
+	set := func(w float32) {
+		a.chrome.preferences.MeetingListWidth = min(max(w, meetingListNarrow), meetingListMax(window))
+	}
+	dx, _, held := edge.Dragged()
+	if held && dx != 0 {
+		set(shown + dx)
+	}
+	if _, _, ended := edge.DragEnded(); ended {
+		if a.chrome.preferences.MeetingListWidth < meetingListCompact {
+			set(meetingListNarrow) // between the two, it goes to the dates
+		}
+		a.savePreferences(c)
+	}
+	step := float32(24)
+	if shown <= meetingListCompact {
+		step = meetingListCompact - meetingListNarrow // the dates, or a list again
+	}
+	if edge.Shortcut(0, ui.KeyLeft) {
+		set(shown - step)
+		a.savePreferences(c)
+	}
+	if edge.Shortcut(0, ui.KeyRight) {
+		set(shown + step)
+		a.savePreferences(c)
+	}
+	if edge.Hovered() || held || edge.FocusVisible() {
+		edge.Background(c.Theme().Accent)
+	}
+}
+
+// meetingList draws the grouped list; narrow, the dates alone.
+func (a *App) meetingList(c *ui.Context, mobile, narrow bool) {
 	t := c.Theme()
 	now := c.Now()
 	items := a.visibleMeetings()
@@ -211,21 +286,33 @@ func (a *App) meetingList(c *ui.Context, mobile bool) {
 		}
 	}
 	for _, s := range meetingSections(items, now) {
-		ui.Row(c.Key(fmt.Sprint("group-", s.group))).FillWidth().Padding(14, 10, 6, 10).Children(func() {
-			ui.Text(c, strings.ToUpper(meetingGroupNames[s.group])).FontSize(11).FontWeight(600).TextColor(faint(t)).Grow(1)
-			ui.Text(c, fmt.Sprint(len(s.items))).Font(FontMono).FontSize(11).TextColor(faint(t))
-		})
+		if narrow {
+			// The group as a rule between the dates, named on hover.
+			ui.Box(c.Key(fmt.Sprint("group-", s.group))).FillWidth().Padding(10, 8, 6, 8).Tooltip(meetingGroupNames[s.group]).Children(func() {
+				ui.Box(c).FillWidth().Height(1).Background(t.Border)
+			})
+		} else {
+			ui.Row(c.Key(fmt.Sprint("group-", s.group))).FillWidth().Padding(14, 10, 6, 10).Children(func() {
+				ui.Text(c, strings.ToUpper(meetingGroupNames[s.group])).FontSize(11).FontWeight(600).TextColor(faint(t)).Grow(1)
+				ui.Text(c, fmt.Sprint(len(s.items))).Font(FontMono).FontSize(11).TextColor(faint(t))
+			})
+		}
 		for _, m := range s.items {
-			a.meetingRow(c, m, m.ID == sel, now)
+			a.meetingRow(c, m, m.ID == sel, now, narrow)
 		}
 	}
 }
 
-func (a *App) meetingRow(c *ui.Context, m api.Meeting, selected bool, now time.Time) {
+func (a *App) meetingRow(c *ui.Context, m api.Meeting, selected bool, now time.Time, narrow bool) {
 	t := c.Theme()
 	loc := meetingLoc(m)
 	start := m.StartsAt.In(loc)
 	b := ui.ButtonBase(c.Key(m.ID)).Label(m.Title).FillWidth().Row().AlignItems(ui.Start).Gap(14).Padding(10, 12).MinHeight(56).Radius(10).Border(1, ui.RGBA(0, 0, 0, 0))
+	if narrow {
+		// The date alone; the title and time on hover.
+		meta, _ := meetingRowMeta(m, now)
+		b.Justify(ui.Center).Padding(10, 0).Tooltip(m.Title + " · " + meta)
+	}
 	switch {
 	case selected:
 		b.Background(accentSoft(t)).BorderColor(ui.RGBA(t.Accent.R, t.Accent.G, t.Accent.B, .45))
@@ -236,7 +323,13 @@ func (a *App) meetingRow(c *ui.Context, m api.Meeting, selected bool, now time.T
 		ui.Column(c).Width(32).Shrink(0).AlignItems(ui.Center).Gap(0).Children(func() {
 			ui.Text(c, strings.ToUpper(shortDays[start.Weekday()])).FontSize(10).TextColor(faint(t))
 			ui.Text(c, fmt.Sprintf("%02d", start.Day())).Font(FontMono).FontSize(18).FontWeight(500).TextColor(t.Text)
+			if narrow {
+				ui.Text(c, strings.ToUpper(noteMonths[start.Month()-1])).FontSize(10).TextColor(faint(t))
+			}
 		})
+		if narrow {
+			return
+		}
 		ui.Column(c).Grow(1).MinWidth(0).Gap(3).Children(func() {
 			title := ui.Text(c, m.Title).FontSize(14).FontWeight(500).MaxLines(2)
 			if m.Cancelled {

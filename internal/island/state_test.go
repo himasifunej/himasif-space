@@ -123,3 +123,43 @@ func TestSpringContinuityAndSettling(t *testing.T) {
 		t.Fatal("ease endpoints")
 	}
 }
+
+// Owner's batch of 8 meetings: closing the open details shows the next
+// notice still open; the island folds only when the queue is empty, and a
+// notice that lapses by itself folds it too. Tutup semua drops the queue.
+func TestDismissKeepsTheDetailsOpenThroughTheQueue(t *testing.T) {
+	now := time.Unix(0, 0)
+	var m Machine
+	for _, tag := range []string{"a", "b", "c"} {
+		m.Push(Item{Tag: tag}, now)
+	}
+	m.Tick(now, true, true, false)
+	if m.State != Expanded {
+		t.Fatal("not open")
+	}
+	m.Dismiss(now)
+	now = now.Add(150 * time.Millisecond)
+	m.Tick(now, true, false, false)
+	if m.Current == nil || m.Current.Tag != "b" || m.State != Expanded {
+		t.Fatalf("after Tutup: %+v state %v", m.Current, m.State)
+	}
+	// The pointer leaves: b lapses, and the island folds to c's banner.
+	m.Tick(now, false, false, false)
+	now = now.Add(1600 * time.Millisecond)
+	m.Tick(now, false, false, false)
+	now = now.Add(150 * time.Millisecond)
+	m.Tick(now, false, false, false)
+	if m.Current == nil || m.Current.Tag != "c" || m.State != Banner {
+		t.Fatalf("after lapse: %+v state %v", m.Current, m.State)
+	}
+	m.Push(Item{Tag: "d"}, now)
+	m.Push(Item{Tag: "e"}, now)
+	if dropped := m.DismissAll(now); len(dropped) != 2 {
+		t.Fatalf("dropped %d", len(dropped))
+	}
+	now = now.Add(150 * time.Millisecond)
+	m.Tick(now, false, false, false)
+	if m.Current != nil || m.State != Hidden {
+		t.Fatalf("after Tutup semua: %+v", m.Current)
+	}
+}

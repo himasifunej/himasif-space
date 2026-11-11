@@ -33,11 +33,15 @@ type devicePreferences struct {
 	IslandReduceMotion bool   `json:"islandReduceMotion"`
 	// IslandAlwaysOn keeps Ace on screen as a small pill between notices.
 	// Missing from older files, it takes the default: on.
-	IslandAlwaysOn bool    `json:"islandAlwaysOn"`
-	Autostart      bool    `json:"autostart"`
-	Audio          string  `json:"audio"`
-	Volume         float64 `json:"volume"`
-	Sound          bool    `json:"sound"`
+	IslandAlwaysOn bool `json:"islandAlwaysOn"`
+	// IslandAnchor is where the island sits along the top of the screen,
+	// dragged there: 0 the left edge, .5 the middle (missing: the middle),
+	// 1 the right edge.
+	IslandAnchor float64 `json:"islandAnchor"`
+	Autostart    bool    `json:"autostart"`
+	Audio        string  `json:"audio"`
+	Volume       float64 `json:"volume"`
+	Sound        bool    `json:"sound"`
 	// UpdateChannel is "stable" (or empty, older files) or "rc";
 	// UpdateAnnounced the version last announced, UpdateLaterUntil when
 	// Nanti stops holding announcements back (updater_desktop.go).
@@ -54,11 +58,12 @@ var legacyDeviceKeys = []string{"aceMode", "aceName", "mascot", "X", "Y"}
 // reports keys of the removed mascot window, for the caller to write the
 // file again without them and drop the imported picture.
 func loadDevicePreferences(data []byte) (prefs devicePreferences, legacy bool) {
-	prefs = devicePreferences{Volume: .45, Sound: true, IslandEnabled: true, IslandStyle: "C", IslandReplaceToast: true, IslandAlwaysOn: true}
+	prefs = devicePreferences{Volume: .45, Sound: true, IslandEnabled: true, IslandStyle: "C", IslandReplaceToast: true, IslandAlwaysOn: true, IslandAnchor: .5}
 	if len(data) == 0 {
 		return prefs, false
 	}
 	_ = json.Unmarshal(data, &prefs)
+	prefs.IslandAnchor = islandAnchor(prefs.IslandAnchor)
 	var raw map[string]json.RawMessage
 	if json.Unmarshal(data, &raw) == nil {
 		for _, k := range legacyDeviceKeys {
