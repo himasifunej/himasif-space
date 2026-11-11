@@ -128,6 +128,11 @@ func (a *App) membersPage(c *ui.Context) {
 							a.navigate(PathArchiveAccess)
 						}
 					}
+					if a.memberCan(api.CapRolesManage) {
+						if outlineButton(c.Key("member-roles"), "Role kustom", "shield", false).Tooltip("Kelola role kustom").Disabled(m.busy).Clicked() {
+							a.openRoles()
+						}
+					}
 					if a.memberCan(api.CapInvitationsManage) {
 						if primarySpaceButton(c, "Undang anggota", "plus").Disabled(m.busy).Clicked() {
 							m.inviteOpen = !m.inviteOpen
@@ -186,9 +191,7 @@ func (a *App) membersPage(c *ui.Context) {
 			a.memberTable(c, phone)
 			a.memberAccessPanel(c)
 			a.memberBottomPanel(c)
-			if a.memberCan(api.CapRolesManage) {
-				a.memberRoles(c)
-			}
+			a.memberRolesDialog(c)
 		})
 	})
 }
@@ -337,6 +340,17 @@ func (a *App) memberBottomPanel(c *ui.Context) {
 					ui.Text(c, r.role).FontSize(12).FontWeight(600).Width(84).Shrink(0)
 					ui.Text(c, r.text).FontSize(12).TextColor(t.TextMuted).LineHeight(1.5).Grow(1).MinWidth(0)
 				})
+			}
+			for _, r := range a.access.members.roles {
+				ui.Row(c.Key(r.ID)).FillWidth().MinWidth(0).Gap(10).AlignItems(ui.Start).Children(func() {
+					ui.Text(c, r.Name).FontSize(12).FontWeight(600).Width(84).Shrink(0).MaxLines(2)
+					ui.Text(c, memberCapLabels(r.Capabilities)+".").FontSize(12).TextColor(t.TextMuted).LineHeight(1.5).Grow(1).MinWidth(0)
+				})
+			}
+			if a.memberCan(api.CapRolesManage) {
+				if onbLink(c, "Kelola role kustom", "Kelola role kustom").Clicked() {
+					a.openRoles()
+				}
 			}
 		})
 	})
