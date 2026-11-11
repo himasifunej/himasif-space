@@ -51,16 +51,45 @@ func runIslandSpike() bool {
 				})
 			}
 			p.ensureWindow()
-			p.position(200, 36)
-			p.win.ShowInactive()
+			p.show()
+			p.shown = true
 			p.win.Update(func() {})
+		}
+		// ace is Ace at rest with "Selalu tampil": breathing, blinking,
+		// glancing; what it costs is what an idle Space pays for its island.
+		// ace-still is the same with reduced motion: blinks only.
+		// ace-timer, ace-media, ace-split and ace-ping show Ace with an
+		// activity, ace-*-open its details, to look at each scene.
+		if strings.HasPrefix(mode, "ace") {
+			d := &desktopDevice{win: anchor, prefs: devicePreferences{IslandEnabled: true, IslandStyle: "A", IslandAlwaysOn: true, IslandReduceMotion: mode == "ace-still"}}
+			mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { d.quitting = true })
+			d.notificationPrefs.Store(d.prefs)
+			// ace-fullscreen: as if a fullscreen app covered the screen.
+			fullscreen := strings.Contains(mode, "fullscreen")
+			p := &islandPresenter{d: d, environmentCheck: func() bool { return !fullscreen }}
+			d.island = p
+			start := time.Now()
+			timer := strings.Contains(mode, "timer") || strings.Contains(mode, "split")
+			media := strings.Contains(mode, "media") || strings.Contains(mode, "split")
+			p.spikeLive = func(now time.Time) (appui.IslandTimer, bool, islandMedia, bool) {
+				left := 25*time.Minute - now.Sub(start)
+				t := appui.IslandTimer{Title: "Rapat Divisi", Agenda: "Evaluasi proker", Clock: fmt.Sprintf("%02d:%02d", int(left.Minutes()), int(left.Seconds())%60), Countdown: true, Control: true}
+				m := islandMedia{Title: "Judul lagu (contoh)", Artist: "Artis", App: "Spotify", Playing: true, Position: time.Minute, Duration: 3 * time.Minute, At: start, Since: start}
+				return t, timer, m, media
+			}
+			if strings.Contains(mode, "ping") {
+				p.m.Push(island.Item{Tag: "spike", Priority: 3, Value: islandNotice{n: appui.Notice{Kind: "ping", Title: "Ping · Mediatek", Body: "Cek grup divisi ya, ada info penting.", Tag: "spike"}}}, time.Now())
+				p.m.Until = time.Now().Add(time.Hour)
+			}
+			p.spikeOpen = strings.HasSuffix(mode, "-open")
+			p.resume()
 		}
 		if mode == "hidden" || mode == "pill" {
 			w := mygo.NewWindow(mygo.WindowOptions{Title: "Space island spike", Width: 200, Height: 36, Hidden: true, Frameless: true, Transparent: true, AlwaysOnTop: true, SkipTaskbar: true, DisableResize: true, Panel: true, Content: ui.View(func(c *ui.Context) { ui.Column(c).Fill().Radius(18).Background(ui.RGBA(30, 30, 32, .78)) })})
 			a := mygo.Screen.PrimaryDisplay().WorkArea
 			w.SetPosition(a.X+(a.Width-200)/2, a.Y+8)
 			islandPrepareWindow(w.NativeHandle())
-			islandWindowShape(w.NativeHandle(), 200, 36, 18)
+			islandWindowShape(w.NativeHandle(), [4]float64{200, 36, 18, 0}, 200, 36)
 			islandClearBackdrop(w.NativeHandle())
 			if mode == "pill" {
 				w.ShowInactive()
