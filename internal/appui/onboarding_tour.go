@@ -45,7 +45,7 @@ func tourSteps(role string, visibleTab func(string) bool) []tourStep {
 		return out
 	}
 	waBot := choice{"Bot WhatsApp", "Bot WhatsApp", "Tautkan nomormu di sini. Ping dari kadiv dan pengingat tenggat lalu masuk ke WhatsApp-mu; di grup, ketik !tugas untuk melihat tugasmu."}
-	sidebar := tourStep{"sidebar", "Sidebar", "Pindah antara Jobdesk saya, Reminder pribadi, dan Space divisimu. Panduan dan Pengaturan ada di bawah.", ""}
+	sidebar := tourStep{"sidebar", "Sidebar", "Untukku berisi tugas, rapat, dan pengingatmu minggu ini; di bawahnya Space divisimu. Logo membuka daftar Space; Panduan dan Pengaturan ada di bawah.", ""}
 	help := tourStep{"help", "Tombol ?", "Bingung di halaman mana pun? Tombol ini membuka panduan untuk halaman itu di panel samping.", ""}
 	var out []tourStep
 	switch role {

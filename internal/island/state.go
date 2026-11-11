@@ -40,6 +40,9 @@ type Machine struct {
 	// queued; the next notice opens in their place, and the island folds
 	// only when the queue is empty.
 	stayOpen bool
+	// Lapsed are the notices that closed by themselves, nobody having
+	// acted on them, for the caller to keep (Ace's inbox) and clear.
+	Lapsed []Item
 }
 
 // Push replaces a tagged entry without changing its queue position. Bounded
@@ -115,8 +118,21 @@ func (m *Machine) DismissAll(now time.Time) []Item {
 // lapse closes the current notice by itself (its time ran out, or the
 // pointer left the details): the island folds back.
 func (m *Machine) lapse(now time.Time) {
+	if m.Current != nil && m.Closing.IsZero() {
+		m.Lapsed = append(m.Lapsed, *m.Current)
+	}
 	m.Dismiss(now)
 	m.stayOpen = false
+}
+
+// Show puts n in front at once, open in its details: a notice brought
+// back from the inbox, or the next one paged to. What was shown leaves
+// without lapsing.
+func (m *Machine) Show(n Item, now time.Time) {
+	m.Current = &n
+	m.State = Expanded
+	m.Closing, m.hoverSince, m.leaveSince = time.Time{}, time.Time{}, time.Time{}
+	m.Until = now.Add(n.hold())
 }
 
 // Tick pauses banner expiry under the pointer. Expansion needs 300 ms dwell,

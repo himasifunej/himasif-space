@@ -16,6 +16,13 @@ import (
 type NotificationSink interface {
 	Notify(id.ID, api.Delivery) error
 }
+
+// QuietNotificationSink takes deliveries during quiet hours silently: into
+// the island's inbox, with no banner, toast or bell. A sink without it
+// gets them after the quiet hours instead.
+type QuietNotificationSink interface {
+	NotifyQuiet(id.ID, []api.Delivery) error
+}
 type NotificationBatchSink interface {
 	NotifyBatch(id.ID, []api.Delivery) error
 }
@@ -85,8 +92,9 @@ func (a *App) PollDeliveries() {
 			// after them brings them as one catch-up notice, without the bell
 			// ringing in the night.
 			quiet := a.Ace != nil && a.Ace.Quiet(time.Now())
+			_, silent := a.Notifications.(QuietNotificationSink)
 			for _, d := range items {
-				if quiet {
+				if quiet && !silent {
 					break
 				}
 				key := d.ID.String() + ":" + d.AvailableAt.Format(time.RFC3339Nano)
@@ -99,7 +107,9 @@ func (a *App) PollDeliveries() {
 				sink := a.Notifications
 				a.async(func() func() {
 					var err error
-					if batch, ok := sink.(NotificationBatchSink); ok {
+					if q, ok := sink.(QuietNotificationSink); ok && quiet {
+						err = q.NotifyQuiet(uid, pending)
+					} else if batch, ok := sink.(NotificationBatchSink); ok {
 						err = batch.NotifyBatch(uid, pending)
 					} else {
 						err = sink.Notify(uid, pending[0])

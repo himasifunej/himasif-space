@@ -68,7 +68,11 @@ func TestSidebarMatchesCanvas(t *testing.T) {
 	if !h.tt.HasText("2") {
 		t.Errorf("active task count missing: %q", h.tt.Texts())
 	}
-	for _, s := range []string{"space.", "Space saya", "Arsip periode", "Penampilan", h.api.user.Email, "Tersinkron · terakhir", "Sinkronisasi", "Esc · Tutup menu"} {
+	// "Space saya" is now only the breadcrumb back to the picker (3A).
+	if _, ok := h.tt.Find("Kembali ke Space saya"); !ok {
+		t.Error("no breadcrumb back to Space saya")
+	}
+	for _, s := range []string{"space.", "Arsip periode", "Penampilan", h.api.user.Email, "Tersinkron · terakhir", "Sinkronisasi", "Esc · Tutup menu"} {
 		if _, ok := h.tt.Find(s); ok {
 			t.Errorf("old chrome %q still shown", s)
 		}
@@ -105,7 +109,7 @@ func TestTopbarMatchesCanvas(t *testing.T) {
 	h.tt.Advance(400 * time.Millisecond)
 	h.tt.Frame()
 	p := h.app.period()
-	for _, s := range []string{"Space · Periode " + p.Label, "3 anggota", "AD", "NT", "DM", "Tersinkron"} {
+	for _, s := range []string{"Space saya", "›", "3 anggota", "AD", "NT", "DM", "Tersinkron"} {
 		h.want(s)
 	}
 	for _, s := range []string{"[A", "[N"} {

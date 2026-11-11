@@ -228,7 +228,7 @@ func TestLoginSuccess(t *testing.T) {
 	if h.app.screen != screenShell {
 		t.Fatalf("screen %d after login, texts %q", h.app.screen, h.tt.Texts())
 	}
-	h.want("Jobdesk saya")
+	h.want("Untukku")
 	h.want("Ani Wulandari")
 	h.want("Tersambung")
 	h.want("Layanan tugas belum tersedia.")
@@ -332,7 +332,7 @@ func TestSavedTokenValid(t *testing.T) {
 	if h.app.screen != screenShell {
 		t.Fatalf("screen %d, texts %q", h.app.screen, h.tt.Texts())
 	}
-	h.want("Jobdesk saya")
+	h.want("Untukku")
 	h.dontWant("Kata sandi")
 	if len(f.logins) != 0 {
 		t.Error("signed in again")
@@ -376,7 +376,7 @@ func TestSavedTokenOffline(t *testing.T) {
 	if h.app.screen != screenShell {
 		t.Fatalf("retry: screen %d, texts %q", h.app.screen, h.tt.Texts())
 	}
-	h.want("Jobdesk saya")
+	h.want("Untukku")
 }
 
 func TestAdminSeesOrganization(t *testing.T) {
@@ -471,7 +471,7 @@ func TestPages(t *testing.T) {
 		item, want string
 		profile    bool
 	}{
-		{"Reminder pribadi", "Reminder belum dapat dimuat", false},
+		{"Semua pengingat", "Reminder belum dapat dimuat", false},
 		{"Evaluasi SOP", "Layanan evaluasi SOP belum tersedia.", false},
 		{"Arsip", "Periode yang ditutup menjadi hanya-baca. Pengurus baru perlu izin kadiv periode aktif.", false},
 		{"Space saya", "Layanan akses Space belum tersedia.", false},
@@ -529,7 +529,7 @@ func TestLogout(t *testing.T) {
 	if h.app.screen != screenShell {
 		t.Fatalf("signing in again: screen %d, texts %q", h.app.screen, h.tt.Texts())
 	}
-	if h.app.router.Path() != PathJobdesk {
+	if h.app.router.Path() != PathUntukku {
 		t.Errorf("page %q after signing in again", h.app.router.Path())
 	}
 }
