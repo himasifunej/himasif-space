@@ -5,8 +5,11 @@ Versi mengikuti aturan sebelum rilis publik:
 - **Minor** naik untuk pembaruan besar.
 - **1.0.0** untuk rilis publik.
 
-## Belum dirilis (branch fix/rc-045-feedback) · masukan uji owner 0.4.5-rc2
+## 0.4.5-rc3 — 2026-11-11 · Masukan uji rc2, Kirim ping A + C, riwayat perubahan (pre-release)
 
+- **Kirim ping (A + C)**:
+  - Dialog satu layar, tanpa tab: cari nama (Enter mencentang), grup cepat (Semua, PJ tugas aktif, Belum baca ping terakhir), sakelar "Juga ke WhatsApp" yang diingat, dan tombol "Kirim ke N orang". Setelah terkirim, dialog berganti ringkasan; bila gagal, pilihan tetap tersimpan.
+  - "Ingatkan <PJ>" di detail dan menu kartu tugas, serta "Ingatkan peserta" di detail rapat, sekali klik. Tombolnya menjadi "Diingatkan HH.MM" selama satu menit.
 - **Ace island**:
   - Jendela island kini berukuran tetap. Bentuknya bergerak di dalam jendela, dan region Windows mengikuti bentuk itu. Sebelumnya jendela diubah ukuran dan dipusatkan ulang di setiap frame pegas, sehingga kadang tampil frame lama yang diregangkan dan kotak yang belum tergambar.
   - Blur konten dihapus, dan tinggi mata berubah halus saat kursor datang.

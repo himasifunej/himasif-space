@@ -4,12 +4,12 @@
     "date": "2026-11-11",
     "title": "Ace di atas layar, Rapat dan Pengaturan baru, pembaruan otomatis",
     "notes": [
-      "Ace, pil bermata di atas layar, menampilkan timer rapat, musik dan kabar. Tarik ke kiri/kanan bila menutupi tab browser.",
-      "Halaman Rapat baru: Hari ini, Akan datang dan Sudah lewat. Lebar daftarnya bisa ditarik sampai tinggal tanggal.",
-      "Klik \"Buka rapat\" di Ace untuk langsung ke rapat yang timernya berjalan.",
-      "Hasil tugas bisa berupa tautan, berkas, atau keduanya. \"Bukti sesuai\" cukup sekali klik; kadiv boleh menyetujui hasilnya sendiri.",
-      "Pengaturan ditata ulang, dan Space memperbarui dirinya sendiri di latar.",
-      "Ctrl K membuka pencarian semua halaman, aksi dan pengaturan."
+      "Ace, pil bermata di atas layar: timer rapat, musik dan kabar. Tarik ke kiri/kanan; gayanya ikut tema Space.",
+      "Kabar beruntun digabung (\"8 rapat baru\"); Tutup hanya menutup satu kabar.",
+      "Rapat: Hari ini, Akan datang, Sudah lewat; daftar bisa disempitkan sampai tanggal.",
+      "Hasil tugas berupa tautan dan/atau berkas; \"Bukti sesuai\" sekali klik.",
+      "Kirim ping satu layar, dan \"Ingatkan\" langsung dari tugas dan rapat.",
+      "Space memperbarui diri di latar; Ctrl K mencari semua halaman."
     ]
   },
   {
