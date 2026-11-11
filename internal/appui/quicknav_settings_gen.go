@@ -41,6 +41,7 @@ var settingsSearchItems = []settingsSearchItem{
 	{"Perangkat", "Perangkat, notifikasi, dan Ace", "", "heading", "desktop"},
 	{"Perangkat", "Dynamic Island", "Dynamic Island", "section", "desktop"},
 	{"Perangkat", "Tampilkan Dynamic Island", "Dynamic Island", "button", "desktop"},
+	{"Perangkat", "Selalu tampil", "Dynamic Island", "button", "desktop"},
 	{"Perangkat", "Gantikan toast Windows", "Dynamic Island", "button", "desktop"},
 	{"Perangkat", "Kurangi gerak", "Dynamic Island", "button", "desktop"},
 	{"Perangkat", "Gaya Dynamic Island", "Dynamic Island", "heading", "desktop"},
