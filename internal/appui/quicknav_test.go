@@ -144,7 +144,6 @@ func TestQuicknavMatching(t *testing.T) {
 		"sandi":         "Ubah kata sandi",
 		"balasan grup":  "Balasan perintah di grup",
 		"island":        "Notifikasi dan Dynamic Island",
-		"gaya island":   "Gaya Dynamic Island",
 	} {
 		if it := first(q); it.title != want {
 			t.Errorf("%q → %q (%s), want %q", q, it.title, it.trail, want)
