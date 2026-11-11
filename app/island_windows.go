@@ -3,6 +3,7 @@
 package main
 
 import (
+	"math"
 	"syscall"
 	"unsafe"
 )
@@ -32,6 +33,8 @@ var (
 	procIslandSetCompositionAttr    = islandUser32.NewProc("SetWindowCompositionAttribute")
 	procIslandCreateRoundRectRgn    = islandGDI32.NewProc("CreateRoundRectRgn")
 	procIslandDeleteObject          = islandGDI32.NewProc("DeleteObject")
+	procIslandCreateEllipticRgn     = islandGDI32.NewProc("CreateEllipticRgn")
+	procIslandCombineRgn            = islandGDI32.NewProc("CombineRgn")
 	procIslandGetDpiForMonitor      = syscall.NewLazyDLL("shcore.dll").NewProc("GetDpiForMonitor")
 	procIslandDwmSetWindowAttribute = syscall.NewLazyDLL("dwmapi.dll").NewProc("DwmSetWindowAttribute")
 )
@@ -48,10 +51,11 @@ func islandEnvironmentAllowed() bool {
 
 // islandObstructed tells whether the island, already on screen, should
 // step aside: a fullscreen app or game (QUNS_BUSY=2, QUNS_RUNNING_D3D_FULL_SCREEN=3,
-// QUNS_APP=7), a presentation (4), or a borderless window over the monitor.
+// QUNS_APP=7), a presentation (4), a locked screen (QUNS_NOT_PRESENT=1),
+// or a borderless window over the monitor.
 // Quiet time and an unknown state keep it, unlike a new interruption.
 func islandObstructed() bool {
-	if state, ok := islandUserState(); ok && (state == 2 || state == 3 || state == 4 || state == 7) {
+	if state, ok := islandUserState(); ok && (state == 1 || state == 2 || state == 3 || state == 4 || state == 7) {
 		return true
 	}
 	return islandForegroundFullscreen()
@@ -152,19 +156,21 @@ func islandPosition(hwnd, space uintptr, cursor bool, w, h int) bool {
 	return true
 }
 
-func islandPointer(hwnd uintptr, g [3]float64) (bool, bool) {
+// islandPointer is where the pointer is over the window, in the DIP of a
+// window w×h: physical pixels at the boundary, as islandPosition.
+func islandPointer(hwnd uintptr, w, h float64) (float64, float64, bool) {
 	var pt struct{ X, Y int32 }
 	var rect islandRect
 	ok, _, _ := procIslandGetCursorPos.Call(uintptr(unsafe.Pointer(&pt)))
 	if ok == 0 {
-		return false, false
+		return 0, 0, false
 	}
 	procIslandScreenToClient.Call(hwnd, uintptr(unsafe.Pointer(&pt)))
 	ok, _, _ = procIslandGetClientRect.Call(hwnd, uintptr(unsafe.Pointer(&rect)))
 	if ok == 0 || rect.Right == 0 || rect.Bottom == 0 {
-		return false, false
+		return 0, 0, false
 	}
-	return insideIsland(float64(pt.X)*g[0]/float64(rect.Right), float64(pt.Y)*g[1]/float64(rect.Bottom), g), true
+	return float64(pt.X) * w / float64(rect.Right), float64(pt.Y) * h / float64(rect.Bottom), true
 }
 
 func islandPrepareWindow(hwnd uintptr) {
@@ -174,18 +180,29 @@ func islandPrepareWindow(hwnd uintptr) {
 	procIslandSetWindowLongPtr.Call(hwnd, uintptr(islandGWLExStyle), style|0x08000000|0x00000080)
 }
 
-func islandWindowShape(hwnd uintptr, w, h int, r float64) {
-	// A native region, rather than global click-through polling, removes the
-	// transparent rounded corners from Windows hit testing at every frame.
+// islandWindowShape cuts the window to the pill (g: width, height,
+// radius) and the second activity's circle (g[3]) beside it, in a window
+// w×h DIP. A native region, rather than global click-through polling,
+// removes the transparent corners from Windows hit testing.
+func islandWindowShape(hwnd uintptr, g [4]float64, w, h int) {
 	var client islandRect
 	ok, _, _ := procIslandGetClientRect.Call(hwnd, uintptr(unsafe.Pointer(&client)))
 	if ok == 0 || w == 0 {
 		return
 	}
-	radius := int(r * float64(client.Right) / float64(w) * 2)
-	region, _, _ := procIslandCreateRoundRectRgn.Call(0, 0, uintptr(client.Right+1), uintptr(client.Bottom+1), uintptr(radius), uintptr(radius))
+	s := float64(client.Right) / float64(w)
+	px := func(v float64) uintptr { return uintptr(int(v*s + .5)) }
+	radius := px(2 * math.Min(g[2], g[1]/2))
+	region, _, _ := procIslandCreateRoundRectRgn.Call(0, 0, px(g[0])+1, px(g[1])+1, radius, radius)
 	if region == 0 {
 		return
+	}
+	if g[3] > .5 {
+		x := g[0] + 8 // island.BubbleGap
+		if dot, _, _ := procIslandCreateEllipticRgn.Call(px(x), 0, px(x+g[3])+1, px(g[3])+1); dot != 0 {
+			procIslandCombineRgn.Call(region, region, dot, 2) // RGN_OR
+			procIslandDeleteObject.Call(dot)
+		}
 	}
 	ok, _, _ = procIslandSetWindowRgn.Call(hwnd, region, 1)
 	if ok == 0 {

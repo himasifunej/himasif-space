@@ -5,6 +5,15 @@ Versi mengikuti aturan sebelum rilis publik:
 - **Minor** naik untuk pembaruan besar.
 - **1.0.0** untuk rilis publik.
 
+## Belum dirilis · Ace island A (branch feat/ace-island-a)
+
+- **Ace = Dynamic Island** (arah A "Pil Mata", canvas dde22eb04942): pil hitam dengan dua mata kapsul. Saat diam, mata di tengah, berkedip tiap 3–6 detik, bernapas halus, sesekali melirik, dan mengikuti kursor dalam jarak 600 DIP. Ada kabar: mata bergeser ke kiri menjadi ikon aktivitas.
+- **Keadaan**: ping/notifikasi (360×56), timer rapat live (240×40, hijau; merah saat lewat waktu), media yang sedang diputar lewat SMTC Windows (300×40, gelombang biru), detail (hover 300 ms atau klik; 440×168), dan dua aktivitas sekaligus (gelembung 36 px di samping pil; klik untuk menukar).
+- **Timer rapat**: timer catatan yang terbuka (dengan agenda), atau timer bersama rapat yang sudah dimuat. Jeda/Lanjutkan dari island untuk yang berhak.
+- **Media**: judul, artis, aplikasi, progres; tombol sebelumnya, putar/jeda, berikutnya. Dibaca tiap 1,5 detik hanya selama island tampil. Butuh Windows 10 1809 atau lebih baru.
+- **Hemat**: tanpa loop 60 Hz saat diam (12 fps untuk napas, 60 fps hanya saat bergerak). Kurangi gerak mematikan napas, lirikan, anggukan, dan gelombang. Island berhenti menggambar dan berhenti membaca media saat tersembunyi, saat layar penuh, atau saat layar terkunci.
+- **Koordinasi**: pilihan "Gaya A/B/C" di Pengaturan tidak lagi memengaruhi island; pilnya selalu hitam. Pengaturan (feat/pengaturan-a) bebas menghapusnya. Branch ini tidak mengubah halaman Pengaturan dan jendela maskot bintang.
+
 ## 0.4.5 — 2026-11-11 · Navigasi cepat, template WA, island v2, perbaikan pilot 0.4.4 (rc)
 
 - **Navigasi cepat (Ctrl K)**: mencari semua halaman, tab Space, aksi, catatan, tugas, dan setiap seksi atau field pengaturan, dengan jejak seperti "Ace dan suara · Pengaturan › Perangkat". Ctrl K membuka dan menutup palet. Enter menjalankan hasil hanya saat daftar hasil tampil. "Izin arsip" hanya muncul untuk pengelola arsip.

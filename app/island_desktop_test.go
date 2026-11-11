@@ -74,3 +74,46 @@ func TestIslandObstructionGrace(t *testing.T) {
 		t.Fatal("an allowed environment obstructs")
 	}
 }
+
+func TestIslandMediaShownProgressAndApp(t *testing.T) {
+	now := time.Now()
+	m := islandMedia{Title: "Lagu", Playing: true, Position: time.Minute, Duration: 4 * time.Minute, At: now.Add(-time.Minute), Since: now.Add(-time.Hour)}
+	if !m.Shown(now) || m.Progress(now) != .5 {
+		t.Fatalf("playing: shown %v progress %v", m.Shown(now), m.Progress(now))
+	}
+	m.Playing = false
+	if m.Shown(now) || m.Progress(now) != .25 {
+		t.Fatal("media paused an hour ago still holds the island")
+	}
+	m.Since = now.Add(-10 * time.Second)
+	if !m.Shown(now) {
+		t.Fatal("just paused media left the island")
+	}
+	if (islandMedia{Playing: true}).Shown(now) {
+		t.Fatal("media without a title shown")
+	}
+	if (islandMedia{Title: "x"}).Progress(now) != -1 {
+		t.Fatal("a stream has a progress")
+	}
+	for in, want := range map[string]string{
+		"Spotify.exe": "Spotify",
+		"SpotifyAB.SpotifyMusic_zpdnekdrzrea0!Spotify": "Spotify",
+		"chrome":          "Chrome",
+		`C:\x\msedge.exe`: "Edge",
+		"":                "",
+	} {
+		if got := islandMediaApp(in); got != want {
+			t.Errorf("%q: %q, want %q", in, got, want)
+		}
+	}
+}
+
+// The window holds the pill, and the second activity's circle 8 DIP right.
+func TestIslandWindowSize(t *testing.T) {
+	if w, h := islandWindowSize([4]float64{240, 40, 20, 0}); w != 240 || h != 40 {
+		t.Fatalf("%v×%v", w, h)
+	}
+	if w, h := islandWindowSize([4]float64{240, 40, 20, 36}); w != 284 || h != 40 {
+		t.Fatalf("with circle %v×%v", w, h)
+	}
+}

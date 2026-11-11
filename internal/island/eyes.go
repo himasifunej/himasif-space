@@ -11,7 +11,7 @@ import (
 // seconds and now and then glance aside; between those moments nothing
 // moves, so the island asks for no frames at all.
 const (
-	BlinkDuration  = 180 * time.Millisecond
+	BlinkDuration  = 140 * time.Millisecond
 	GlanceDuration = 1600 * time.Millisecond
 	glanceTurn     = 280 * time.Millisecond
 )
