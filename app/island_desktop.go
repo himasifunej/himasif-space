@@ -25,8 +25,17 @@ var errIslandUnavailable = errors.New("dynamic island unavailable; use OS toast"
 // DIP, as in the approved canvas.
 const islandTopGap = 6
 
-// islandIdleDestroy is how long an empty island keeps its window.
+// islandIdleDestroy is how long an empty island keeps its window, when it
+// does not stay on screen.
 const islandIdleDestroy = 10 * time.Minute
+
+// islandIdleGeometry is Ace at rest: a small pill with two eyes, as the
+// iPhone's island at rest (width, height, radius in DIP).
+var islandIdleGeometry = [3]float64{124, 32, 16}
+
+// islandObstructionGrace is how long fullscreen must last before the island
+// steps aside: a screenshot overlay or a splash screen comes and goes.
+const islandObstructionGrace = 1500 * time.Millisecond
 
 type islandNotice struct {
 	n        appui.Notice
@@ -52,8 +61,12 @@ type islandPresenter struct {
 	geometry, velocity, start                [3]float64
 	target                                   [3]float64
 	lastWidth, lastHeight                    int
-	glass                                    bool
 	dark                                     bool
+	// idle is set while the window shows Ace at rest; watching while a
+	// goroutine waits for fullscreen to end to bring the island back.
+	idle, watching  bool
+	obstructedSince time.Time
+	eyes            island.Eyes
 }
 
 func (p *islandPresenter) environmentAllowed() bool {
@@ -61,6 +74,17 @@ func (p *islandPresenter) environmentAllowed() bool {
 		return p.environmentCheck()
 	}
 	return islandEnvironmentAllowed()
+}
+
+// obstructed tells whether a fullscreen app, a game or a presentation
+// covers the screen: the island hides until it ends, keeping what it shows.
+// It is looser than environmentAllowed, which decides whether a new notice
+// may interrupt at all.
+func (p *islandPresenter) obstructed() bool {
+	if p.environmentCheck != nil {
+		return !p.environmentCheck()
+	}
+	return islandObstructed()
 }
 
 type islandNotifier struct {
@@ -139,11 +163,14 @@ func (p *islandPresenter) offer(n appui.Notice, fallback func()) error {
 		if !hasCurrent {
 			return
 		}
-		if !p.environmentAllowed() || !p.d.notificationPrefs.Load().(devicePreferences).IslandEnabled {
+		if !p.d.notificationPrefs.Load().(devicePreferences).IslandEnabled {
 			p.reset(true)
 			return
 		}
 		p.ensureWindow()
+		if p.watching {
+			return // shown when fullscreen ends.
+		}
 		if !p.win.IsVisible() {
 			p.position(200, 36)
 			islandWindowShape(p.win.NativeHandle(), 200, 36, 18)
@@ -165,8 +192,10 @@ func (p *islandPresenter) ensureWindow() {
 	p.contentChanged = time.Time{}
 	p.lastWidth, p.lastHeight = 0, 0
 	p.last = time.Time{}
+	p.idle = false
 	p.win = mygo.NewWindow(mygo.WindowOptions{Title: "Dynamic Island · Space", Width: 200, Height: 36, Hidden: true, Frameless: true, Transparent: true, AlwaysOnTop: true, SkipTaskbar: true, DisableResize: true, Panel: true, Content: ui.View(p.view)})
 	islandPrepareWindow(p.win.NativeHandle())
+	islandClearBackdrop(p.win.NativeHandle())
 	p.win.OnClose(func(e *mygo.CloseEvent) {
 		if !p.d.quitting {
 			e.PreventDefault()
@@ -190,6 +219,7 @@ func (p *islandPresenter) reset(fallback bool) {
 	}
 	p.current, p.shown, p.previous = nil, nil, nil
 	p.state = island.Hidden
+	p.idle = false
 	p.geometry = [3]float64{200, 36, 18}
 	p.velocity = [3]float64{}
 	p.contentChanged = time.Time{}
@@ -223,7 +253,8 @@ func (p *islandPresenter) scheduleIdleDestroy() {
 				return
 			}
 			p.idleSince = time.Time{}
-			if empty && p.win != nil {
+			prefs := p.d.notificationPrefs.Load().(devicePreferences)
+			if empty && p.win != nil && !(prefs.IslandEnabled && prefs.IslandAlwaysOn) {
 				p.win.Destroy()
 				p.win = nil
 				// The renderer's buffers are garbage now; return them to
@@ -260,29 +291,37 @@ func (p *islandPresenter) refreshPosition() {
 }
 
 func (p *islandPresenter) view(c *ui.Context) {
+	// What the pill leaves out stays clear: the desktop shows through.
+	c.Root().Background(ui.Transparent)
 	prefs := p.d.notificationPrefs.Load().(devicePreferences)
-	if !prefs.IslandEnabled || !p.environmentAllowed() {
+	if !prefs.IslandEnabled {
 		p.reset(true)
 		return
 	}
 	now := c.Now()
+	if p.obstructed() {
+		if p.obstructedSince.IsZero() {
+			p.obstructedSince = now
+		}
+		if now.Sub(p.obstructedSince) >= islandObstructionGrace {
+			p.suspend()
+			return
+		}
+	} else {
+		p.obstructedSince = time.Time{}
+	}
 	p.mu.Lock()
 	if p.m.Current == nil {
 		p.mu.Unlock()
-		p.hideEmpty()
+		p.idleView(c, prefs, now)
 		return
 	}
-	point := mygo.Screen.CursorScreenPoint()
-	b := p.win.Bounds()
-	hover := insideIsland(float64(point.X-b.X), float64(point.Y-b.Y), p.geometry)
-	if inside, ok := islandPointer(p.win.NativeHandle(), p.geometry); ok {
-		hover = inside
-	}
+	hover := p.hovered()
 	wasClosing := !p.m.Closing.IsZero()
 	p.m.Tick(now, hover, false, c.Shortcut(0, ui.KeyEscape))
 	if p.m.Current == nil {
 		p.mu.Unlock()
-		p.hideEmpty()
+		p.idleView(c, prefs, now)
 		return
 	}
 	x := p.m.Current.Value.(islandNotice)
@@ -305,61 +344,22 @@ func (p *islandPresenter) view(c *ui.Context) {
 	}
 	if state != p.state {
 		p.state = state
-		p.changed = now
-		p.start = p.geometry
-		p.contentChanged = now
-		p.target = [3]float64{380, 64, 32}
+		p.idle = false
+		target := [3]float64{380, 64, 32}
 		if state == island.Expanded {
-			p.target = [3]float64{440, 184, 30}
+			target = [3]float64{440, 184, 30}
 		}
-		// The shape starts moving now: the time since the last frame (up to
-		// 2 s while a banner rests, minutes since the island last hid) must
-		// not advance the spring, or it lands at once without its motion.
-		p.last = now
+		p.retarget(now, target)
 	}
-	dt := islandFrameStep(p.last, now)
-	p.last = now
-	moving := false
-	for i := range p.geometry {
-		if reduced {
-			q := island.Ease(now.Sub(p.changed).Seconds() / .18)
-			p.geometry[i] = p.start[i] + (p.target[i]-p.start[i])*q
-			p.velocity[i] = 0
-		} else {
-			p.geometry[i], p.velocity[i] = island.Spring(p.geometry[i], p.velocity[i], p.target[i], dt)
-		}
-		if math.Abs(p.geometry[i]-p.target[i]) > .1 || math.Abs(p.velocity[i]) > .1 {
-			moving = true
-		} else {
-			p.geometry[i] = p.target[i]
-			p.velocity[i] = 0
-		}
-	}
-	w, h := int(math.Round(p.geometry[0])), int(math.Round(p.geometry[1]))
-	if w != p.lastWidth || h != p.lastHeight {
-		p.win.SetSize(w, h)
-		p.position(w, h)
-		islandWindowShape(p.win.NativeHandle(), w, h, p.geometry[2])
-		p.lastWidth, p.lastHeight = w, h
-	}
+	w, h, moving := p.step(now, reduced)
 	if newContent {
 		p.position(w, h)
 		islandWindowShape(p.win.NativeHandle(), w, h, p.geometry[2])
 	}
-	glass := prefs.IslandStyle == "C"
-	dark := c.Theme().Dark
-	if p.d.app != nil {
-		dark = p.d.app.DarkAppearance(dark)
-	}
-	if glass != p.glass || p.dark != dark || p.changed == now {
-		islandGlass(p.win.NativeHandle(), glass, dark)
-		p.glass = glass
-		p.dark = dark
-	}
 	if !p.win.IsVisible() {
 		p.win.ShowInactive()
 	}
-	bg, fg, muted, accent := islandPalette(prefs.IslandStyle, dark)
+	bg, fg, muted, accent, dark := p.palette(c, prefs)
 	theme := *c.Theme()
 	theme.Dark = dark
 	theme.Text = fg
@@ -416,12 +416,215 @@ func (p *islandPresenter) view(c *ui.Context) {
 	if moving || alpha < 1 || !closing.IsZero() || now.Sub(p.contentChanged) < 300*time.Millisecond {
 		next = 16 * time.Millisecond
 	}
-	c.After(next)
+	c.After(p.obstructionDeadline(now, next))
+}
+
+// idleView is Ace at rest, when "Selalu tampil" keeps the island on screen:
+// a small pill whose eyes blink and glance, and follow the pointer over it.
+// A click opens Space.
+func (p *islandPresenter) idleView(c *ui.Context, prefs devicePreferences, now time.Time) {
+	if !prefs.IslandAlwaysOn {
+		p.hideEmpty()
+		return
+	}
+	reduced := prefs.IslandReduceMotion || c.Preferences().ReduceMotion
+	if !p.idle {
+		p.idle = true
+		p.state = island.Hidden
+		p.current, p.shown, p.previous = nil, nil, nil
+		p.retarget(now, islandIdleGeometry)
+		if !p.win.IsVisible() {
+			// Appearing, it rests at once; from a banner, it shrinks back.
+			p.geometry, p.velocity = islandIdleGeometry, [3]float64{}
+		}
+	}
+	p.idleSince = time.Time{}
+	w, h, moving := p.step(now, reduced)
+	if !p.win.IsVisible() {
+		p.position(w, h)
+		islandWindowShape(p.win.NativeHandle(), w, h, p.geometry[2])
+		p.win.ShowInactive()
+	}
+	bg, fg, _, _, _ := p.palette(c, prefs)
+	hover := p.hovered()
+	open, gaze, due := p.eyes.Frame(now, reduced)
+	if hover {
+		// Ace looks at the pointer, eyes a little wider.
+		point := mygo.Screen.CursorScreenPoint()
+		b := p.win.Bounds()
+		gaze = math.Max(-1, math.Min(1, (float64(point.X-b.X)-p.geometry[0]/2)/(p.geometry[0]/2)))
+		if reduced {
+			gaze = 0
+		}
+	}
+	alpha := float32(island.Ease((now.Sub(p.contentChanged).Seconds() - .06) / .24))
+	if reduced {
+		alpha = float32(math.Min(1, now.Sub(p.contentChanged).Seconds()/.15))
+	}
+	eye := float32(12)
+	if hover {
+		eye = 14
+	}
+	root := ui.Row(c).Fill().Radius(float32(p.geometry[2])).Background(bg).Border(1, ui.RGBA(255, 255, 255, .12)).Clip().Center().Gap(14)
+	_ = root.Hovered()
+	if root.Clicked() {
+		p.act("")
+	}
+	root.Children(func() {
+		for range 2 {
+			ui.Box(c).Size(7, max(1.5, eye*float32(open))).Radius(3.5).Background(fg).Opacity(alpha).Translate(float32(gaze*4), 0)
+		}
+	})
+	next := max(time.Millisecond, due.Sub(now))
+	if hover {
+		next = min(next, 33*time.Millisecond)
+	}
+	if moving || alpha < 1 {
+		next = 16 * time.Millisecond
+	}
+	// Fullscreen is checked at least every 2 s, as with a banner.
+	c.After(p.obstructionDeadline(now, min(next, 2*time.Second)))
+}
+
+// hovered tells whether the pointer is over the pill, not its clear corners.
+func (p *islandPresenter) hovered() bool {
+	point := mygo.Screen.CursorScreenPoint()
+	b := p.win.Bounds()
+	hover := insideIsland(float64(point.X-b.X), float64(point.Y-b.Y), p.geometry)
+	if inside, ok := islandPointer(p.win.NativeHandle(), p.geometry); ok {
+		hover = inside
+	}
+	return hover
+}
+
+func (p *islandPresenter) palette(c *ui.Context, prefs devicePreferences) (bg, fg, muted, accent ui.Color, dark bool) {
+	dark = c.Theme().Dark
+	if p.d.app != nil {
+		dark = p.d.app.DarkAppearance(dark)
+	}
+	p.dark = dark
+	bg, fg, muted, accent = islandPalette(prefs.IslandStyle, dark)
+	return bg, fg, muted, accent, dark
+}
+
+// obstructionDeadline brings the next frame forward to when fullscreen,
+// still on, has lasted its grace.
+func (p *islandPresenter) obstructionDeadline(now time.Time, next time.Duration) time.Duration {
+	if p.obstructedSince.IsZero() {
+		return next
+	}
+	return max(time.Millisecond, min(next, p.obstructedSince.Add(islandObstructionGrace).Sub(now)))
+}
+
+// retarget starts the shape moving toward target. The time since the last
+// frame (up to 2 s while a banner rests, minutes since the island last hid)
+// must not advance the spring, or it lands at once without its motion.
+func (p *islandPresenter) retarget(now time.Time, target [3]float64) {
+	p.changed = now
+	p.start = p.geometry
+	p.contentChanged = now
+	p.target = target
+	p.last = now
+}
+
+// step advances the shape a frame and fits the window to it.
+func (p *islandPresenter) step(now time.Time, reduced bool) (int, int, bool) {
+	dt := islandFrameStep(p.last, now)
+	p.last = now
+	moving := false
+	for i := range p.geometry {
+		if reduced {
+			q := island.Ease(now.Sub(p.changed).Seconds() / .18)
+			p.geometry[i] = p.start[i] + (p.target[i]-p.start[i])*q
+			p.velocity[i] = 0
+		} else {
+			p.geometry[i], p.velocity[i] = island.Spring(p.geometry[i], p.velocity[i], p.target[i], dt)
+		}
+		if math.Abs(p.geometry[i]-p.target[i]) > .1 || math.Abs(p.velocity[i]) > .1 {
+			moving = true
+		} else {
+			p.geometry[i] = p.target[i]
+			p.velocity[i] = 0
+		}
+	}
+	w, h := int(math.Round(p.geometry[0])), int(math.Round(p.geometry[1]))
+	if w != p.lastWidth || h != p.lastHeight {
+		p.win.SetSize(w, h)
+		p.position(w, h)
+		islandWindowShape(p.win.NativeHandle(), w, h, p.geometry[2])
+		p.lastWidth, p.lastHeight = w, h
+	}
+	return w, h, moving
+}
+
+// suspend hides the island while fullscreen lasts, keeping its queue, and
+// brings it back when fullscreen ends. The wait polls Windows from a
+// goroutine, once a second, and redraws nothing meanwhile.
+// wake puts Ace on screen when "Selalu tampil" is on: at start, and when
+// the setting is turned on.
+func (p *islandPresenter) wake() {
+	p.d.win.Update(p.resume)
+}
+
+func (p *islandPresenter) suspend() {
+	p.obstructedSince = time.Time{}
+	if p.win != nil && p.win.IsVisible() {
+		p.win.Hide()
+	}
+	if p.watching {
+		return
+	}
+	p.watching = true
+	go func() {
+		for {
+			time.Sleep(time.Second)
+			if !p.d.notificationPrefs.Load().(devicePreferences).IslandEnabled || !p.obstructed() {
+				break
+			}
+		}
+		p.d.win.Update(func() {
+			p.watching = false
+			p.resume()
+		})
+	}()
+}
+
+// resume shows the island again where it was, with what it held; a banner
+// gets its full time back. Off, or with nothing to show, it stays hidden.
+func (p *islandPresenter) resume() {
+	if p.watching {
+		return
+	}
+	prefs := p.d.notificationPrefs.Load().(devicePreferences)
+	if !prefs.IslandEnabled || !islandSupported() {
+		return
+	}
+	p.mu.Lock()
+	has := p.m.Current != nil
+	if has && p.m.State == island.Banner {
+		p.m.Until = time.Now().Add(island.BannerDuration)
+	}
+	p.mu.Unlock()
+	if !has && !prefs.IslandAlwaysOn {
+		return
+	}
+	p.ensureWindow()
+	if !p.win.IsVisible() {
+		w, h := int(math.Round(p.geometry[0])), int(math.Round(p.geometry[1]))
+		if p.idle || !has {
+			w, h = int(islandIdleGeometry[0]), int(islandIdleGeometry[1])
+		}
+		p.position(w, h)
+		islandWindowShape(p.win.NativeHandle(), w, h, p.geometry[2])
+		p.win.ShowInactive()
+	}
+	p.win.Update(func() {})
 }
 
 func (p *islandPresenter) hideEmpty() {
 	p.win.Hide()
 	p.state = island.Hidden
+	p.idle = false
 	p.current, p.shown, p.previous = nil, nil, nil
 	p.contentChanged = time.Time{}
 	p.last = time.Time{}
@@ -556,10 +759,12 @@ func islandPalette(style string, dark bool) (ui.Color, ui.Color, ui.Color, ui.Co
 	case "B":
 		return ui.RGB(36, 33, 28), ui.RGB(246, 241, 230), ui.RGB(207, 198, 182), ui.RGB(199, 116, 79)
 	case "C":
+		// No blur behind it any more (islandClearBackdrop): a denser tint
+		// keeps the text legible over any wallpaper.
 		if !dark {
-			return ui.RGBA(250, 249, 246, .55), ui.RGB(29, 29, 31), ui.RGB(80, 80, 84), ui.RGB(29, 29, 31)
+			return ui.RGBA(250, 249, 246, .9), ui.RGB(29, 29, 31), ui.RGB(80, 80, 84), ui.RGB(29, 29, 31)
 		}
-		return ui.RGBA(30, 30, 32, .42), fg, muted, ui.RGB(255, 159, 10)
+		return ui.RGBA(30, 30, 32, .88), fg, muted, ui.RGB(255, 159, 10)
 	default:
 		return ui.RGB(0, 0, 0), fg, muted, ui.RGB(255, 159, 10)
 	}
@@ -616,6 +821,8 @@ func (d *desktopDevice) islandSettings(c *ui.Context) {
 			d.save()
 			if !d.prefs.IslandEnabled {
 				d.island.reset(true)
+			} else {
+				d.island.wake()
 			}
 		}
 		ui.Text(c, "Gaya Dynamic Island").FontSize(13).Bold()
@@ -634,6 +841,20 @@ func (d *desktopDevice) islandSettings(c *ui.Context) {
 				}
 			}
 		})
+		label = "Selalu tampil: mati"
+		if d.prefs.IslandAlwaysOn {
+			label = "Selalu tampil: aktif"
+		}
+		if ui.Button(c, label).Clicked() {
+			d.prefs.IslandAlwaysOn = !d.prefs.IslandAlwaysOn
+			d.save()
+			if d.prefs.IslandAlwaysOn {
+				d.island.wake()
+			} else if d.island.win != nil {
+				d.island.win.Update(func() {})
+			}
+		}
+		ui.Text(c, "Selalu tampil: Ace menunggu sebagai pil kecil di atas tengah layar dan berubah menjadi kabar saat ada notifikasi. Klik untuk membuka Space. Island menyingkir selama aplikasi layar penuh, lalu kembali.").FontSize(12).TextColor(c.Theme().TextMuted)
 		label = "Gantikan toast Windows: mati"
 		if d.prefs.IslandReplaceToast {
 			label = "Gantikan toast Windows: aktif"

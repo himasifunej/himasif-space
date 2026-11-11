@@ -61,7 +61,7 @@ func runIslandSpike() bool {
 			w.SetPosition(a.X+(a.Width-200)/2, a.Y+8)
 			islandPrepareWindow(w.NativeHandle())
 			islandWindowShape(w.NativeHandle(), 200, 36, 18)
-			islandGlass(w.NativeHandle(), true, true)
+			islandClearBackdrop(w.NativeHandle())
 			if mode == "pill" {
 				w.ShowInactive()
 			}

@@ -51,3 +51,26 @@ func TestIslandGlyphColorsFollowTheCanvas(t *testing.T) {
 		t.Fatalf("label color stays translucent: %v", c)
 	}
 }
+
+// Fullscreen hides the island only once it has lasted its grace: the next
+// frame is brought forward to then, and never past it.
+func TestIslandObstructionGrace(t *testing.T) {
+	now := time.Now()
+	p := &islandPresenter{}
+	if got := p.obstructionDeadline(now, 2*time.Second); got != 2*time.Second {
+		t.Fatalf("unobstructed deadline moved to %v", got)
+	}
+	p.obstructedSince = now.Add(-time.Second)
+	if got := p.obstructionDeadline(now, 2*time.Second); got != islandObstructionGrace-time.Second {
+		t.Fatalf("obstructed deadline %v", got)
+	}
+	p.obstructedSince = now.Add(-time.Hour)
+	if got := p.obstructionDeadline(now, 2*time.Second); got <= 0 {
+		t.Fatalf("deadline must stay positive, got %v", got)
+	}
+	// The spike's environment override also answers for obstruction.
+	p.environmentCheck = func() bool { return true }
+	if p.obstructed() {
+		t.Fatal("an allowed environment obstructs")
+	}
+}
