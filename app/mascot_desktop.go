@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"image"
 	"image/gif"
+	_ "image/png"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/himasifunej/himasif-space/internal/appui"
 )
 
 // Inspect records before DecodeAll allocates frame images. A small compressed
@@ -102,6 +104,14 @@ func decodeMascot(data []byte) (*gif.GIF, *ui.Bitmap, error) {
 		g, err := gif.DecodeAll(bytes.NewReader(data))
 		return g, nil, err
 	}
-	bitmap, err := ui.DecodeBitmap(data)
-	return nil, bitmap, err
+	img, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil, nil, err
+	}
+	return nil, ui.NewBitmap(appui.FitImage(img, mascotSide)), nil
 }
+
+// mascotSide is the size mascot frames are kept at: Ace shows them at
+// 88 DIP, so a 2048 px PNG or a GIF of many large frames would otherwise
+// keep up to 64 MB of pixels for an 88 DIP picture.
+const mascotSide = 192

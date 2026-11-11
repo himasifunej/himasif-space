@@ -397,9 +397,7 @@ func (d *desktopDevice) loadMascot() {
 			previous = image.NewRGBA(canvas.Bounds())
 			draw.Draw(previous, previous.Bounds(), canvas, image.Point{}, draw.Src)
 			draw.Draw(canvas, f.Bounds(), f, f.Bounds().Min, draw.Over)
-			cp := image.NewRGBA(canvas.Bounds())
-			draw.Draw(cp, cp.Bounds(), canvas, image.Point{}, draw.Src)
-			d.frames = append(d.frames, ui.NewBitmap(cp))
+			d.frames = append(d.frames, ui.NewBitmap(appui.FitImage(canvas, mascotSide)))
 			d.delays = append(d.delays, time.Duration(max(g.Delay[i], 10))*10*time.Millisecond)
 		}
 		return
