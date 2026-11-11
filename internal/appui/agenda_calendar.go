@@ -172,7 +172,7 @@ func agendaClock(e agendaEvent) string {
 // participants in the Rapat tab.
 func (a *App) openAgendaEvent(e agendaEvent) {
 	if e.meeting != id.Nil {
-		a.meetings.selected = e.meeting
+		a.selectMeeting(e.meeting)
 		a.chrome.tab = "Rapat"
 		return
 	}

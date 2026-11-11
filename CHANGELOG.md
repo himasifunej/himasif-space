@@ -28,9 +28,15 @@ Versi mengikuti aturan sebelum rilis publik:
   - Muncul kembali setelah layar penuh atau screenshot.
   - Pilihan **Selalu tampil** aktif bawaan, termasuk untuk pengguna yang memperbarui. Ace beristirahat sebagai pil di atas layar, lalu tampil lagi setelah login.
   - Layar penuh diperiksa setiap 0,5 detik.
+- **Rapat (desain A pilihan owner)**:
+  - Daftar dikelompokkan Hari ini / Akan datang / Sudah lewat menurut zona rapat, di samping detail rapat terpilih. Rapat lewat yang belum dicatat kehadirannya ditandai.
+  - Detail berisi status, Waktu/Tempat/Tautan/Pengingat, serta Mulai rapat (timer bersama), Buka notulen, Ubah, dan menu ⋯ (salin tautan, kirim ringkasan ke WhatsApp, batalkan dengan konfirmasi atau aktifkan kembali).
+  - Sub-tab Ringkasan · Kehadiran · Notulen. Penyelenggara mencatat Hadir/Izin/Tidak hadir langsung di baris; Hadir terisi jam mulai dan bisa diubah bersama catatan.
+  - Rapat tanpa jam selesai ditulis "Jam selesai belum diisi", bukan "— selesai".
+  - Di HP: daftar, lalu halaman detail dengan tombol kembali dan bilah aksi bawah. Notifikasi rapat dan tautan dari catatan membuka tab Rapat.
 - **RAM**: logo divisi disimpan seukuran tampilannya.
 - **Pengaturan › Perangkat (canvas A)**:
-  - Bagian di kolom kiri, masing-masing dengan statusnya (misalnya "Selalu tampil · Kaca"), dan kotak "Cari di Perangkat ini".
+  - Bagian di kolom kiri, masing-masing dengan statusnya (misalnya "Selalu tampil"), dan kotak "Cari di Perangkat ini".
   - Baris label dengan saklar yang langsung tersimpan, menggantikan tombol "…: aktif". Ada pratinjau kecil island.
   - Volume bel memakai slider dengan tombol Putar.
   - Di layar sempit dan HP, pencarian pindah ke atas dan kontrol lebar turun ke bawah labelnya. Browser memakai susunan yang sama.
