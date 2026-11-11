@@ -17,6 +17,7 @@ GitHub. Never prints the key.
 import argparse
 import hashlib
 import json
+import os
 import shutil
 from pathlib import Path
 import re
@@ -51,8 +52,19 @@ def sha256(path):
     return h.hexdigest()
 
 
+def updatesign_command():
+    """tools/updatesign: a binary built elsewhere (SPACE_UPDATESIGN), for a
+    machine that must not compile, else go run."""
+    built = os.environ.get('SPACE_UPDATESIGN')
+    if built:
+        if not Path(built).is_file():
+            raise PublishError(f'SPACE_UPDATESIGN names no file: {built}')
+        return [built]
+    return ['go', 'run', './tools/updatesign']
+
+
 def updatesign(*args):
-    return run(['go', 'run', './tools/updatesign', *args])
+    return run([*updatesign_command(), *args])
 
 
 def release_exists(tag):
@@ -77,7 +89,7 @@ def published_version(channel):
 
 def newer(a, b):
     """Whether version a is newer than b, by the app's own rule."""
-    out = run(['go', 'run', './tools/updatesign', 'compare', a, b])
+    out = run([*updatesign_command(), 'compare', a, b])
     return out.strip() == '1'
 
 
