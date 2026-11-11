@@ -322,7 +322,9 @@ func info(c *ui.Context, rows [][2]string) {
 
 func pageSection(c *ui.Context, title, description string, fn func()) {
 	t := c.Theme()
-	ui.Column(c).FillWidth().MinWidth(0).Padding(20).Gap(15).Radius(11).Background(t.Surface).Border(1, t.Border).Children(func() {
+	section := ui.Column(c).FillWidth().MinWidth(0).Padding(20).Gap(15).Radius(11).Background(t.Surface).Border(1, t.Border)
+	RevealSection(c, section, title)
+	section.Children(func() {
 		ui.Text(c, title).FontSize(15).Bold()
 		if description != "" {
 			muted(c, description)

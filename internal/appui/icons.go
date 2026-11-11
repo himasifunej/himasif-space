@@ -121,21 +121,24 @@ var spaceIcons = func() map[string]*ui.SVG {
 // litbang, mediatek, psdm. Only the divisions whose emblem is published by
 // himasif.id are listed; BPH has no published division emblem, so it keeps the
 // neutral mark. "kaderisasi" is accepted as an alias for the full name.
-var spaceDivisionLogos = map[string]*ui.Bitmap{
-	"mediatek":   mustDivisionBitmap(mediatekLogoData),
-	"humas":      mustDivisionBitmap(humasLogoData),
-	"psdm":       mustDivisionBitmap(psdmLogoData),
-	"kader":      mustDivisionBitmap(kaderisasiLogoData),
-	"kaderisasi": mustDivisionBitmap(kaderisasiLogoData),
-	"litbang":    mustDivisionBitmap(litbangLogoData),
+var spaceDivisionLogoData = map[string][]byte{
+	"mediatek": mediatekLogoData,
+	"humas":    humasLogoData,
+	"psdm":     psdmLogoData,
+	"kader":    kaderisasiLogoData,
+	"litbang":  litbangLogoData,
 }
 
-func mustDivisionBitmap(data []byte) *ui.Bitmap {
-	bitmap, err := ui.DecodeBitmap(data)
-	if err != nil {
-		panic("appui: invalid embedded division logo: " + err.Error())
+// normalizedSlug is slug's key in spaceDivisionLogoData. divisionLogo
+// (images.go) returns nil for unknown divisions, including shared Medhum,
+// so the caller draws a neutral mark rather than another division's
+// logo; show it with ui.Image, untinted, to keep the original artwork.
+func normalizedSlug(slug string) string {
+	slug = strings.ToLower(strings.TrimSpace(slug))
+	if slug == "kaderisasi" {
+		return "kader" // one bitmap for both names
 	}
-	return bitmap
+	return slug
 }
 
 // spaceIcon returns a shared monochrome icon, tinted by ui.Icon.
@@ -148,10 +151,3 @@ func spaceIcon(name string) *ui.SVG {
 
 // spaceBrand must be displayed with ui.Image to preserve its identity colors.
 func spaceBrand() *ui.SVG { return spaceBrandSVG }
-
-// divisionLogo returns nil for unknown divisions, including shared Medhum.
-// The caller can then render a neutral mark rather than another division's logo.
-// Use ui.Image without tinting to retain the original artwork.
-func divisionLogo(slug string) *ui.Bitmap {
-	return spaceDivisionLogos[strings.ToLower(strings.TrimSpace(slug))]
-}

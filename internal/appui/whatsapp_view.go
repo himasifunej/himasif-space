@@ -50,6 +50,13 @@ type whatsappUIState struct {
 	step         int
 	advancedOpen bool
 	previews     map[string]*waPreviewState
+	// previewOpen is the one preview shown: the field typed in last, until
+	// it is closed or another field opens its own.
+	previewOpen string
+	editors     map[string]*waEditorState
+	// commandText is the custom command's response being edited, with
+	// words for its placeholders.
+	commandText string
 }
 
 func waQRBitmap(value string) *ui.Bitmap {
@@ -215,7 +222,7 @@ func (a *App) finishWALoad(gen int, seq uint64, connection *api.WAConnection, se
 		st.language = connection.Language
 		st.greeting = connection.Greeting
 		for i, key := range waTemplateKeys {
-			st.templates[i] = connection.Templates[key]
+			st.templates[i] = waFriendly(connection.Templates[key])
 		}
 	}
 }
@@ -325,22 +332,27 @@ func (a *App) commandSettings(c *ui.Context) {
 		disabled := st.busy || st.loading || a.offlineMode() || cl == nil
 		conn := *st.connection
 		muted(c, "Command inti tetap mengikuti izin tugas. Balas media dengan !setsticker damn untuk menyimpan stiker melalui WhatsApp.")
-		if spaceButton(c, "Tambah command teks", "plus", false).Disabled(disabled).Clicked() {
+		if spaceButton(c, "Buat perintah baru", "plus", false).Disabled(disabled).Clicked() {
 			st.command = &api.WACustomCommand{ID: id.New(), GroupIDs: []id.ID{}}
+			st.commandText = ""
 		}
 		for _, command := range st.commands {
 			if spaceButton(c.Key(command.ID.String()), "!"+command.Trigger, "terminal", st.command != nil && st.command.ID == command.ID).Disabled(disabled).Clicked() {
 				copy := command
 				copy.GroupIDs = slices.Clone(command.GroupIDs)
 				st.command = &copy
+				st.commandText = waFriendlyWith(waCommandTokens, command.Response)
 			}
 		}
 		draft := st.command
 		if draft == nil {
 			return
 		}
-		ui.Field(c, "Pemicu, misalnya damn", func() { ui.TextInput(c, &draft.Trigger).Label("Pemicu, misalnya damn").FillWidth() })
-		ui.Field(c, "Respons teks", func() { ui.TextInput(c, &draft.Response).Label("Respons teks").FillWidth() })
+		ui.Field(c, "Nama perintah", func() {
+			ui.TextInput(c, &draft.Trigger).Label("Nama perintah").Placeholder("misalnya halo, lalu anggota mengetik !halo").FillWidth()
+		})
+		pv := "command|" + draft.ID.String()
+		a.waTemplateEditor(c, "command-response-"+draft.ID.String(), "Balasan bot", &st.commandText, waCommandTokens, true, pv, func() { waCommandPreview(c, st.commandText, c.Now()) })
 		if draft.AssetID != "" {
 			muted(c, "Media tersimpan: "+draft.MediaType)
 			if spaceButton(c, "Lepaskan media dari command", "close", false).Disabled(disabled).Clicked() {
@@ -360,7 +372,8 @@ func (a *App) commandSettings(c *ui.Context) {
 			}
 		}
 		if spaceButton(c, "Simpan command", "check", false).Disabled(disabled).Clicked() {
-			req := api.WACustomCommandRequest{Trigger: draft.Trigger, Response: draft.Response, AssetID: draft.AssetID, MediaType: draft.MediaType, GroupIDs: slices.Clone(draft.GroupIDs), ExpectedVersion: draft.Version}
+			trigger := strings.TrimPrefix(strings.TrimSpace(draft.Trigger), "!")
+			req := api.WACustomCommandRequest{Trigger: trigger, Response: waServerWith(waCommandTokens, st.commandText), AssetID: draft.AssetID, MediaType: draft.MediaType, GroupIDs: slices.Clone(draft.GroupIDs), ExpectedVersion: draft.Version}
 			commandID := draft.ID
 			a.waRun(func() error { _, err := cl.SaveWACommand(context.Background(), conn.ID, commandID, req); return err })
 		}

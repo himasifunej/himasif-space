@@ -397,9 +397,7 @@ func (d *desktopDevice) loadMascot() {
 			previous = image.NewRGBA(canvas.Bounds())
 			draw.Draw(previous, previous.Bounds(), canvas, image.Point{}, draw.Src)
 			draw.Draw(canvas, f.Bounds(), f, f.Bounds().Min, draw.Over)
-			cp := image.NewRGBA(canvas.Bounds())
-			draw.Draw(cp, cp.Bounds(), canvas, image.Point{}, draw.Src)
-			d.frames = append(d.frames, ui.NewBitmap(cp))
+			d.frames = append(d.frames, ui.NewBitmap(appui.FitImage(canvas, mascotSide)))
 			d.delays = append(d.delays, time.Duration(max(g.Delay[i], 10))*10*time.Millisecond)
 		}
 		return
@@ -596,7 +594,9 @@ func (d *desktopDevice) settings(c *ui.Context) {
 
 func deviceSection(c *ui.Context, title, description string, body func()) {
 	t := c.Theme()
-	ui.Column(c).FillWidth().MinWidth(0).Padding(20).Gap(14).Radius(11).Background(t.Surface).Border(1, t.Border).Children(func() {
+	section := ui.Column(c).FillWidth().MinWidth(0).Padding(20).Gap(14).Radius(11).Background(t.Surface).Border(1, t.Border)
+	appui.RevealSection(c, section, title)
+	section.Children(func() {
 		ui.Text(c, title).FontSize(15).Bold()
 		ui.Text(c, description).FontSize(12).TextColor(t.TextMuted)
 		body()

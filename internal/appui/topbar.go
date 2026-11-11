@@ -29,7 +29,7 @@ func (a *App) header(c *ui.Context) {
 		}
 	}
 	path := a.router.Path()
-	title := map[string]string{PathJobdesk: "Jobdesk saya", PathReminder: "Reminder pribadi", PathArsip: "Arsip periode", PathArchiveAccess: "Izin arsip", PathPengaturan: "Pengaturan", PathOrganisasi: "Organisasi", PathEvaluasi: "Evaluasi SOP", PathLainnya: "Lainnya", PathPanduan: "Panduan"}[path]
+	title := pageTitle(path)
 	if title == "" {
 		title = a.spaceTitle()
 	}
@@ -94,6 +94,9 @@ func (a *App) header(c *ui.Context) {
 	})
 }
 
+// searchPlaceholder says what quick navigation finds.
+const searchPlaceholder = "Cari halaman, pengaturan, aksi, tugas"
+
 func (a *App) headerSearch(c *ui.Context, width float32) {
 	t := c.Theme()
 	ui.Column(c).Width(width).Shrink(0).Children(func() {
@@ -101,15 +104,15 @@ func (a *App) headerSearch(c *ui.Context, width float32) {
 		shortcut := c.Shortcut(ui.Ctrl, ui.KeyK) || c.Shortcut(ui.Cmd, ui.KeyK)
 		anchor := ui.Row(c).FillWidth().Height(34).Padding(0, 10).Gap(8).AlignItems(ui.Center).Radius(8).Background(t.Surface).Border(1, t.Border).Children(func() {
 			ui.Icon(c, chromeIcon("search")).Size(16, 16).TextColor(faint(t)).Shrink(0)
-			input = ui.TextInput(c.Key("global-search"), &a.chrome.search).Label("Cari di Space").Placeholder("Cari tugas, catatan, anggota").Grow(1).MinWidth(0).Background(ui.RGBA(0, 0, 0, 0)).BorderWidth(0)
-			if shortcut {
+			input = ui.TextInput(c.Key("global-search"), &a.chrome.search).Label("Cari di Space").Placeholder(searchPlaceholder).Grow(1).MinWidth(0).Background(ui.RGBA(0, 0, 0, 0)).BorderWidth(0)
+			if shortcut && a.toggleSearch() {
 				input.Focus()
 			}
-			if input.Clicked() || input.Changed() || shortcut {
-				a.chrome.searchOpen = true
-				a.chrome.membersOpen = false
-				a.chrome.notificationsOpen = false
-				a.chrome.profileOpen = false
+			if !a.chrome.searchOpen && (input.Clicked() || input.Changed()) {
+				a.toggleSearch()
+			}
+			if input.Submitted() {
+				a.chrome.searchOpen, a.chrome.searchSubmit = true, true
 			}
 			if width >= 200 {
 				kbd(c, "Ctrl K")
@@ -129,17 +132,14 @@ func (a *App) headerSearchButton(c *ui.Context) {
 		b.Background(t.SurfaceHover).TextColor(t.Text)
 	}
 	b.FocusRing(b.FocusVisible()).Children(func() { ui.Icon(c, chromeIcon("search")).Size(16, 16) })
-	focus := shortcut || b.Clicked()
-	if focus {
-		a.chrome.searchOpen = true
-		a.chrome.membersOpen = false
-		a.chrome.notificationsOpen = false
-		a.chrome.profileOpen = false
-	}
-	popover(c, b, &a.chrome.searchOpen, 300, func() {
-		input := ui.TextInput(c.Key("global-search"), &a.chrome.search).Label("Cari di Space").Placeholder("Cari tugas, catatan, anggota").FillWidth()
+	focus := (shortcut || b.Clicked()) && a.toggleSearch()
+	popover(c, b, &a.chrome.searchOpen, 320, func() {
+		input := ui.TextInput(c.Key("global-search"), &a.chrome.search).Label("Cari di Space").Placeholder(searchPlaceholder).FillWidth()
 		if focus {
 			input.Focus()
+		}
+		if input.Submitted() {
+			a.chrome.searchSubmit = true
 		}
 		a.searchResults(c)
 	})
