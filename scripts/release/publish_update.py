@@ -23,6 +23,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -141,8 +142,13 @@ def main():
                         'Diganti oleh scripts/release/publish_update.py; jangan diubah tangan.'])
     run(['gh', 'release', 'upload', FEED_TAG, str(envelope), '--repo', REPO, '--clobber'])
 
-    if published_version(args.channel) != args.version:
-        raise PublishError('the public feed does not offer the new version yet; check the update-feed release')
+    # GitHub's CDN takes a little while to serve the replaced asset.
+    for _ in range(18):
+        if published_version(args.channel) == args.version:
+            break
+        time.sleep(5)
+    else:
+        raise PublishError('the public feed does not offer the new version after 90 s; check the update-feed release')
     with tempfile.TemporaryDirectory() as tmp:
         back = Path(tmp) / asset
         urllib.request.urlretrieve(url, back)
