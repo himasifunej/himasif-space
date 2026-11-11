@@ -48,7 +48,18 @@ Kepercayaan datang dari tanda tangan, bukan dari host. Bila suatu saat ingin pin
 ## Kunci
 
 - Kunci publik ditanam di `internal/update/feed.go`, id `869a5e520c539842`.
-- Kunci privat berupa seed ed25519 base64. Usulan tempatnya: vault enowX dengan nama **`space-update-signing`** (platform Env file), yang mengisi `SPACE_UPDATE_SIGNING_KEY`. Jangan disimpan di repo atau handoff, dan jangan dicetak.
+- Kunci privat berupa seed ed25519 base64. Tempatnya: vault enowX **`space-update-signing`** (platform Env file), yang mengisi `SPACE_UPDATE_SIGNING_KEY`. Tersimpan sejak 11 Nov 2026 dan sudah diperiksa dengan dry-run publish. `tools/updatesign` dan `publish_update.py` membaca kunci dari `SPACE_UPDATE_SIGNING_KEY`, atau dari berkas `--key-file`. Untuk yang kedua, pakai `~/.config/space-release/space-update-signing.key` (dir 0700, berkas 0600) hanya saat vault tidak bisa dipakai, lalu hapus berkas itu dengan `shred -u` setelah selesai. Kunci tidak boleh masuk repo atau handoff, dan tidak boleh dicetak.
+- Cadangan terenkripsi age untuk penerima backup Space (`age1xwgxku6n2nre6wu6gfxjjrw50samdmx6qm3l3a9lugkp3w6uzydqppyex8`, identitasnya di vault `space-backup-age-key`): `~/.config/space-release/space-update-signing.key.age` di instabox. Salinan lain ada di repo restic backup Space di R2: `s3:$R2_ENDPOINT/$R2_BUCKET/space` (kredensial vault `r2-tiyoouw` dan `restic-space`), snapshot `57779d3a`, host `instabox-space-release`, tag `space-update-signing`. Kedua salinan sudah dicocokkan lewat hash, dan isinya sama dengan kunci di vault.
+- Memulihkan kunci bila vault hilang:
+  ```sh
+  install -d -m 700 ~/.config/space-release
+  # bila berkas .age lokal juga hilang, ambil dari R2:
+  enowx creds use r2-tiyoouw restic-space -- sh -c 'restic -r "s3:$R2_ENDPOINT/$R2_BUCKET/space" dump latest --tag space-update-signing /space-update-signing.key.age > ~/.config/space-release/space-update-signing.key.age'
+  enowx creds use space-backup-age-key -- sh -c 'age -d -i "$KEY_FILE" -o ~/.config/space-release/space-update-signing.key ~/.config/space-release/space-update-signing.key.age'
+  chmod 600 ~/.config/space-release/space-update-signing.key
+  go run ./tools/updatesign sign … -key-file ~/.config/space-release/space-update-signing.key   # menolak kunci yang bukan 869a5e520c539842
+  ```
+  Simpan kembali ke vault (`enowx creds add space-update-signing --platform env-file --value -` dengan isi `SPACE_UPDATE_SIGNING_KEY=<seed>` lewat stdin), lalu `shred -u` berkas polosnya.
 - Rotasi:
   1. Buat kunci baru (`go run ./tools/updatesign keygen -out FILE`).
   2. Tambahkan kunci publiknya ke `publicKeys`, lalu rilis versi itu dengan kunci lama.
