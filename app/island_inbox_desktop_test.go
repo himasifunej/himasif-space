@@ -63,6 +63,7 @@ func TestIslandInboxFlow(t *testing.T) {
 	d.notificationPrefs.Store(devicePreferences{IslandEnabled: true})
 	p := &islandPresenter{d: d}
 	d.island = p
+	t.Cleanup(p.inbox.saves.Wait) // before the folder goes
 	account := uid.String()
 	now := time.Now()
 	for i := range 3 {

@@ -4,6 +4,7 @@ package main
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -26,6 +27,7 @@ type inboxState struct {
 	root    string
 	loaded  bool
 	changed bool
+	saves   sync.WaitGroup // writes still going
 }
 
 // account is the signed-in account, as notices name it.
@@ -59,7 +61,11 @@ func (p *islandPresenter) saveInbox() {
 	p.inbox.changed = false
 	box := islandInbox{Entries: append([]inboxEntry(nil), p.inbox.box.Entries...)}
 	root := p.inbox.root
-	go func() { _ = saveIslandInbox(root, box) }()
+	p.inbox.saves.Add(1)
+	go func() {
+		defer p.inbox.saves.Done()
+		_ = saveIslandInbox(root, box)
+	}()
 }
 
 // keepLapsed moves what closed by itself into the inbox: a notice already
