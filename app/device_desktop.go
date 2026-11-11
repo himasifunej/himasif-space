@@ -596,7 +596,9 @@ func (d *desktopDevice) settings(c *ui.Context) {
 
 func deviceSection(c *ui.Context, title, description string, body func()) {
 	t := c.Theme()
-	ui.Column(c).FillWidth().MinWidth(0).Padding(20).Gap(14).Radius(11).Background(t.Surface).Border(1, t.Border).Children(func() {
+	section := ui.Column(c).FillWidth().MinWidth(0).Padding(20).Gap(14).Radius(11).Background(t.Surface).Border(1, t.Border)
+	appui.RevealSection(c, section, title)
+	section.Children(func() {
 		ui.Text(c, title).FontSize(15).Bold()
 		ui.Text(c, description).FontSize(12).TextColor(t.TextMuted)
 		body()

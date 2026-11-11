@@ -785,7 +785,9 @@ func (a *App) waMembersPanel(c *ui.Context, s waStatus) {
 func (a *App) waAdvanced(c *ui.Context, phone bool) {
 	t := c.Theme()
 	st := &a.whatsapp
-	ui.Column(c.Key("wa-advanced")).FillWidth().MinWidth(0).Radius(12).Background(t.Surface).Border(1, t.Border).Children(func() {
+	advanced := ui.Column(c.Key("wa-advanced")).FillWidth().MinWidth(0).Radius(12).Background(t.Surface).Border(1, t.Border)
+	RevealSection(c, advanced, "Pengaturan lanjutan")
+	advanced.Children(func() {
 		head := ui.ButtonBase(c.Key("adv-toggle")).Label("Pengaturan lanjutan").FillWidth().Row().AlignItems(ui.Center).Gap(12).Padding(14, 20)
 		if head.Hovered() {
 			head.Background(t.SurfaceHover)
