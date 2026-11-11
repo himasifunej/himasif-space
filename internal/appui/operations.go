@@ -107,6 +107,9 @@ func (a *App) operationsView(c *ui.Context) {
 		zone = a.period().TimeZone
 	}
 	settingsBody(c, "Status layanan", "Periksa versi dan keadaan server, pekerja, serta layanan yang boleh kamu lihat.", func() {
+		if a.AppUpdates != nil {
+			a.AppUpdates(c)
+		}
 		if st.err != "" {
 			pageNotice(c, "alert", "Status belum dapat dimuat", st.err)
 		}

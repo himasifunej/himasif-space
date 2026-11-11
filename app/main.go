@@ -33,6 +33,10 @@ func appVersion() string {
 }
 
 func main() {
+	// The copy of Space that installs an update (updater_windows.go).
+	if runUpdateHelper() {
+		return
+	}
 	if runIslandSpike() {
 		return
 	}

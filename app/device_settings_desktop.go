@@ -56,6 +56,7 @@ func (d *desktopDevice) settings(c *ui.Context) {
 		{Title: "Notifikasi Windows", Icon: "bell", Status: d.prefs.toastSummary()},
 		{Title: "Mulai bersama Windows", Icon: "monitor", Status: onOff(d.prefs.Autostart)},
 		{Title: "Suara bel", Icon: "play", Status: d.prefs.bellSummary()},
+		{Title: "Pembaruan aplikasi", Icon: "refresh", Status: d.updater.navStatus()},
 	}
 	appui.SettingsLayout(c, "Notifikasi dan Dynamic Island", "Laptop ini · Space untuk Windows. Tidak ikut ke perangkat lain.", nav, func() { appui.SettingsSaved(c, d.savedAt) }, func() {
 		if d.err != "" {
@@ -76,6 +77,7 @@ func (d *desktopDevice) settings(c *ui.Context) {
 			}
 		})
 		d.bellSettings(c)
+		d.updateSettings(c)
 		appui.SettingsNote(c, "Notifikasi mengikuti izin dan mode senyap Windows. Keluar aplikasi tersedia di ikon tray.")
 	})
 }

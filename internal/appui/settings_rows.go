@@ -310,3 +310,18 @@ func SettingsNote(c *ui.Context, text string) {
 	}
 	muted(c, text).FontSize(13)
 }
+
+// SettingsBlock draws sections of the device page's kind (SettingSection)
+// outside it, as the app's updates in Status layanan: the page's search
+// does not hide them.
+func SettingsBlock(c *ui.Context, fn func()) {
+	query, narrow := settingsPage.query, settingsPage.narrow
+	settingsPage.query = ""
+	w, _ := c.Size()
+	settingsPage.narrow = w < 1400
+	if settingsPage.words == nil {
+		settingsPage.words = map[string][]string{}
+	}
+	fn()
+	settingsPage.query, settingsPage.narrow = query, narrow
+}

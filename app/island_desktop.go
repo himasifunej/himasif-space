@@ -894,7 +894,7 @@ func (p *islandPresenter) noticeDetails(c *ui.Context, x islandNotice, queued in
 				ui.Text(c, fmtIslandQueue(queued)).FontSize(13).TextColor(islandMuted)
 			}
 		})
-		kind := map[string]string{"ping": "Ping", "task": "Tugas", "meeting": "Rapat", "reminder": "Pengingat", "deadline": "Tenggat"}[x.n.Kind]
+		kind := map[string]string{"ping": "Ping", "task": "Tugas", "meeting": "Rapat", "reminder": "Pengingat", "deadline": "Tenggat", "update": "Pembaruan"}[x.n.Kind]
 		if kind == "" {
 			kind = "Pengingat"
 		}
@@ -903,7 +903,11 @@ func (p *islandPresenter) noticeDetails(c *ui.Context, x islandNotice, queued in
 		ui.Text(c, x.n.Body).FontSize(14).MaxLines(2)
 		ui.Box(c).Height(12)
 		ui.Row(c).Gap(8).Children(func() {
-			if p.islandAction(c, "Buka", nil, true) {
+			open := x.n.OpenLabel
+			if open == "" {
+				open = "Buka"
+			}
+			if p.islandAction(c, open, nil, true) {
 				p.act(x.n.Link)
 				p.dismiss()
 			}
@@ -1109,6 +1113,12 @@ func (p *islandPresenter) act(link string) {
 	p.d.win.Update(func() {
 		if link != "" {
 			u, _ := url.Parse(link)
+			// An update's actions come from the island only, never from a
+			// link opened outside Space.
+			if u != nil && u.Scheme == "himasif-space" && u.Host == "update" {
+				p.d.updater.handleLink(u)
+				return
+			}
 			activate := u == nil || u.Query().Get("action") != "snooze"
 			p.d.handleNotificationLink(link, activate)
 		} else {

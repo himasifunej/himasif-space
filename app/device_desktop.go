@@ -19,6 +19,7 @@ import (
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/audio"
+	"github.com/egoist/mygo/ui"
 	"github.com/himasifunej/himasif-space/internal/api"
 	"github.com/himasifunej/himasif-space/internal/appui"
 	"github.com/himasifunej/himasif-space/internal/id"
@@ -37,6 +38,12 @@ type devicePreferences struct {
 	Audio          string  `json:"audio"`
 	Volume         float64 `json:"volume"`
 	Sound          bool    `json:"sound"`
+	// UpdateChannel is "stable" (or empty, older files) or "rc";
+	// UpdateAnnounced the version last announced, UpdateLaterUntil when
+	// Nanti stops holding announcements back (updater_desktop.go).
+	UpdateChannel    string    `json:"updateChannel,omitempty"`
+	UpdateAnnounced  string    `json:"updateAnnounced,omitempty"`
+	UpdateLaterUntil time.Time `json:"updateLaterUntil,omitzero"`
 }
 
 // legacyDeviceKeys are what preferences.json kept for the star mascot's
@@ -71,6 +78,7 @@ func loadDevicePreferences(data []byte) (prefs devicePreferences, legacy bool) {
 
 type desktopDevice struct {
 	island              *islandPresenter
+	updater             *desktopUpdater
 	mu                  sync.Mutex
 	deliveryMu          sync.Mutex
 	notificationPrefs   atomic.Value
@@ -133,6 +141,7 @@ func attachDevice(win *mygo.Window, app *appui.App) {
 		_ = os.Remove(filepath.Join(d.root, "mascot"))
 	}
 	d.island = &islandPresenter{d: d}
+	d.updater = newDesktopUpdater(d)
 	if data, err := os.ReadFile(filepath.Join(d.root, "delivery-journal.json")); err == nil {
 		_ = json.Unmarshal(data, &d.journal)
 	}
@@ -213,6 +222,8 @@ func attachDevice(win *mygo.Window, app *appui.App) {
 	}
 	app.Notifications = d
 	app.DeviceSettings = d.settings
+	app.AppUpdates = func(c *ui.Context) { appui.SettingsBlock(c, func() { d.updateSettings(c) }) }
+	d.updater.start()
 	mygo.App.OnOpenURL(func(raw string) { d.handleLink(raw) })
 	mygo.App.OnSecondInstance(func([]string, string) { win.Show(); win.Focus() })
 	for _, arg := range os.Args[1:] {

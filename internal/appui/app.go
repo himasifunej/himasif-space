@@ -93,6 +93,9 @@ type App struct {
 	ExportFile     func(name, mediaType string, data []byte) (string, error)
 	Notifications  NotificationSink
 	DeviceSettings func(*ui.Context)
+	// AppUpdates draws the app's own updates in Status layanan: the
+	// desktop app's updater; nil on the web, which updates with the page.
+	AppUpdates     func(*ui.Context)
 	SessionChanged func(id.ID)
 	// Version is the app's version, shown in the settings.
 	Version string
