@@ -299,7 +299,7 @@ func attachDevice(win *mygo.Window, app *appui.App) {
 	mygo.App.OnOpenURL(func(raw string) { d.handleLink(raw) })
 	mygo.App.OnSecondInstance(func([]string, string) { win.Show(); win.Focus() })
 	for _, arg := range os.Args[1:] {
-		if strings.HasPrefix(arg, "himasif-space://") {
+		if strings.HasPrefix(arg, "himasif-space://") || strings.HasPrefix(arg, appui.AppScheme+"://") {
 			d.handleLink(arg)
 		}
 	}

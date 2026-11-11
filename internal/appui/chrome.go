@@ -56,6 +56,7 @@ func (a *App) resetWorkspace() {
 	a.offlineSync = offlineUIState{}
 	a.notificationSettingsState = notificationSettingsState{}
 	a.pingUI = pingUIState{}
+	a.card = cardState{}
 	a.taskNotification = taskNotificationState{}
 	a.resetOrganization()
 }
@@ -180,6 +181,7 @@ func (a *App) shell(c *ui.Context) {
 		return
 	}
 	ui.Column(c).Fill().Children(func() {
+		a.webBanner(c)
 		ui.Row(c).Grow(1).MinHeight(0).FillWidth().AlignItems(ui.Stretch).Children(func() {
 			a.sidebar(c)
 			ui.Column(c.Key("main-area")).Transition(ui.ElementTransition{Duration: 180 * time.Millisecond, Size: true, Position: true}).Grow(1).MinWidth(0).Children(func() {

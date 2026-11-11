@@ -24,6 +24,7 @@ func attachDevice(win *mygo.Window, app *appui.App) {
 	notifications := &webNotifications{app: app, win: win}
 	app.Notifications = notifications
 	app.Notifier = notifications
+	app.Web = webPlatform{}
 	appui.HoldTouchPan = func() { js.Global().Set("space_pan_hold", true) }
 	app.SessionChanged = func(uid id.ID) {
 		notifications.mu.Lock()
