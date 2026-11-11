@@ -238,3 +238,20 @@ func TestBuiltInKeysAndFeed(t *testing.T) {
 		}
 	}
 }
+
+// A feed that answers 404 has nothing published: ErrNoFeed, which callers
+// tell from a failed check; other statuses stay errors.
+func TestFetchNoFeed(t *testing.T) {
+	status := http.StatusNotFound
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(status) }))
+	defer srv.Close()
+	_, err := Fetch(context.Background(), srv.Client(), srv.URL+"/stable.json", "0.4.5-rc2")
+	if !errors.Is(err, ErrNoFeed) {
+		t.Fatalf("404: %v", err)
+	}
+	status = http.StatusBadGateway
+	_, err = Fetch(context.Background(), srv.Client(), srv.URL+"/stable.json", "0.4.5-rc2")
+	if err == nil || errors.Is(err, ErrNoFeed) {
+		t.Fatalf("502: %v", err)
+	}
+}

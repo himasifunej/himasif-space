@@ -16,6 +16,18 @@ Versi mengikuti aturan sebelum rilis publik:
   - Halaman kartu di web punya "Buka di aplikasi Space". Setelah sekali berhasil, browser itu mengingatnya (localStorage) dan berikutnya mencoba sendiri; bila tidak ada jawaban dalam 2,5 detik, tetap di web. HP tidak pernah mencoba.
 - **Bar unduh di web** (hanya browser Windows desktop): "Pakai Space untuk Windows — notifikasi, Ace Island, lebih cepat" dengan Unduh (`/unduh/windows`, installer stabil terbaru dari feed pembaruan yang ditandatangani, atau rc bila belum ada yang stabil), Nanti (14 hari), dan Jangan ingatkan lagi (tanda akun `webAppBannerOff`, berlaku di semua browser). Bar hilang setelah aplikasi pernah terbuka dari web.
 - **Tanpa migrasi**: `related_kind`/`related_id` di `delivery_events` sudah ada dan kini diisi saat event dibuat. Tanda bar unduh memakai kunci baru di `user_onboarding.marks` (JSON).
+## Belum dirilis · Pembaruan rc dan gerak Ace (fix/updater-ace-motion)
+
+- **Pembaruan**:
+  - Build rc (versi berisi `-rc`) yang kanalnya belum pernah dipilih memakai kanal Uji coba (rc). Pilihan pengguna tetap menang.
+  - Feed yang menjawab 404 berarti belum ada yang terbit (`update.ErrNoFeed`), bukan gagal. Di Stabil statusnya "Belum ada versi stabil baru"; klien rc tetap membaca `rc.json`.
+  - Status tidak pernah "terbaru" bila pemeriksaan terakhir gagal ("pemeriksaan terakhir gagal, HH.MM"). Sebelumnya rc2 di Stabil menampilkan "terbaru, diperiksa 18.50" bersama galat `stable.json: HTTP 404`.
+- **Gerak Ace**:
+  - Memilih Kiri/Tengah/Kanan (dialog "Yang baru" + Ace dan Pengaturan) menggeser Ace dengan pegas ±400 ms dan sedikit melewati tujuan, tidak lagi melompat.
+  - Saat bergeser atau ditarik, Ace bergoyang seperti jeli: memanjang searah gerak sesuai kecepatannya (paling banyak 16%, luasnya tetap), mata sedikit tertinggal, lalu memantul kecil saat berhenti.
+  - Kurangi gerak: tanpa goyangan, geser singkat 160 ms.
+  - Jendela island tetap berukuran sama; hanya bentuk dan region-nya yang mengikuti goyangan.
+  - Setelah berhenti, frame kembali ke irama diam. Mode `--island-spike=ace-slide`/`ace-slide-still` mengukurnya.
 
 ## Belum dirilis · Onboarding dipandu Ace (feat/onboarding-ace-a)
 

@@ -61,6 +61,9 @@ type desktopUpdater struct {
 	cancel  context.CancelFunc
 	// background: the install under way is automatic (autoInstall).
 	background bool
+	// failed: the last check could not read a feed; noFeed: it found
+	// nothing published (idleStatus).
+	failed, noFeed bool
 }
 
 func newDesktopUpdater(d *desktopDevice) *desktopUpdater {
@@ -69,12 +72,10 @@ func newDesktopUpdater(d *desktopDevice) *desktopUpdater {
 
 func (u *desktopUpdater) dir() string { return filepath.Join(u.d.root, "updates") }
 
-// channel is the device's choice: Stabil unless Uji coba was chosen.
+// channel is the device's choice, else rc on a release candidate, else
+// Stabil (updateChannel).
 func (u *desktopUpdater) channel() string {
-	if u.d.prefs.UpdateChannel == update.ChannelRC {
-		return update.ChannelRC
-	}
-	return update.ChannelStable
+	return updateChannel(u.d.prefs.UpdateChannel, appVersion())
 }
 
 // start reads what a finished update left, cleans up, and checks soon
@@ -130,36 +131,30 @@ func (u *desktopUpdater) check(manual bool) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		channels := []string{update.ChannelStable}
-		if channel == update.ChannelRC {
-			channels = append(channels, update.ChannelRC)
-		}
-		var found []update.Manifest
-		var firstErr error
-		for _, ch := range channels {
-			data, err := update.Fetch(ctx, u.client, update.FeedURL(ch), current)
-			if err == nil {
-				var m update.Manifest
-				if m, err = update.Open(data, update.PublicKeys(), ch); err == nil {
-					found = append(found, m)
-				}
+		var results []feedResult
+		for _, ch := range updateFeeds(channel) {
+			var r feedResult
+			var data []byte
+			if data, r.err = update.Fetch(ctx, u.client, update.FeedURL(ch), current); r.err == nil {
+				r.manifest, r.err = update.Open(data, update.PublicKeys(), ch)
 			}
-			if err != nil && firstErr == nil {
-				firstErr = err
-			}
+			results = append(results, r)
 		}
-		m, ok := update.Newest(current, found...)
+		out := summarizeCheck(current, results)
 		u.d.win.Update(func() {
 			if u.state == updChecking {
 				u.state = updIdle
 			}
 			u.checked = time.Now()
-			if !ok {
-				if len(found) == 0 && firstErr != nil && manual {
-					u.err = "Pembaruan belum dapat diperiksa: " + friendlyUpdateError(firstErr)
+			u.failed, u.noFeed = out.err != nil, out.noFeed
+			if out.offer == nil {
+				if out.err != nil && manual {
+					u.err = "Pembaruan belum dapat diperiksa: " + friendlyUpdateError(out.err)
 				}
 				return
 			}
+			u.err = ""
+			m := *out.offer
 			if u.offer != nil && u.offer.Version == m.Version && u.state != updIdle {
 				return // already being handled
 			}
@@ -454,10 +449,7 @@ func (u *desktopUpdater) statusText() string {
 	case updInstalling:
 		return "memasang…"
 	}
-	if u.checked.IsZero() {
-		return "belum diperiksa"
-	}
-	return "terbaru, diperiksa " + u.checked.Format("15.04")
+	return idleStatus(u.channel(), u.checked, u.failed, u.noFeed)
 }
 
 // navStatus is the section's state in the column of sections.

@@ -61,7 +61,7 @@ func runIslandSpike() bool {
 		// ace-timer, ace-media, ace-split and ace-ping show Ace with an
 		// activity, ace-*-open its details, to look at each scene.
 		if strings.HasPrefix(mode, "ace") {
-			d := &desktopDevice{win: anchor, prefs: devicePreferences{IslandEnabled: true, IslandStyle: "A", IslandAlwaysOn: true, IslandReduceMotion: mode == "ace-still", IslandAnchor: .5}}
+			d := &desktopDevice{win: anchor, prefs: devicePreferences{IslandEnabled: true, IslandStyle: "A", IslandAlwaysOn: true, IslandReduceMotion: strings.HasSuffix(mode, "-still"), IslandAnchor: .5}}
 			mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { d.quitting = true })
 			// ace-hitam, ace-kaca, ace-custom: Ace at rest in that style (the
 			// idle CPU of each); plain ace follows the theme.
@@ -93,6 +93,26 @@ func runIslandSpike() bool {
 			}
 			p.spikeOpen = strings.HasSuffix(mode, "-open")
 			p.resume()
+			// ace-slide: Kiri at 4 s, Kanan at 7 s, Tengah at 10 s, then
+			// rest, as the settings' choice moves Ace; ace-slide-still with
+			// reduced motion. What the slide costs, and that it stops.
+			if strings.HasPrefix(mode, "ace-slide") {
+				for _, step := range []struct {
+					at     time.Duration
+					anchor float64
+				}{{4 * time.Second, 0}, {7 * time.Second, 1}, {10 * time.Second, .5}} {
+					step := step
+					time.AfterFunc(step.at, func() {
+						anchor.Update(func() {
+							d.prefs.IslandAnchor = step.anchor
+							d.notificationPrefs.Store(d.prefs)
+							if p.win != nil {
+								p.win.Update(func() {})
+							}
+						})
+					})
+				}
+			}
 		}
 		if mode == "hidden" || mode == "pill" {
 			w := mygo.NewWindow(mygo.WindowOptions{Title: "Space island spike", Width: 200, Height: 36, Hidden: true, Frameless: true, Transparent: true, AlwaysOnTop: true, SkipTaskbar: true, DisableResize: true, Panel: true, Content: ui.View(func(c *ui.Context) { ui.Column(c).Fill().Radius(18).Background(ui.RGBA(30, 30, 32, .78)) })})
