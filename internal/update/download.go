@@ -12,6 +12,10 @@ import (
 	"time"
 )
 
+// ErrNoFeed is a channel with no manifest published yet (HTTP 404): there
+// is nothing to install from it, which is not a failed check.
+var ErrNoFeed = errors.New("update: nothing published on this channel")
+
 // UserAgent is all an update check tells about the device: the app and
 // its version. No account, device ID, cookie or query string is sent.
 func UserAgent(version string) string { return "Space-Updater/" + version }
@@ -43,6 +47,10 @@ func get(ctx context.Context, client *http.Client, url, version string) (io.Read
 	res, err := client.Do(req)
 	if err != nil {
 		return nil, err
+	}
+	if res.StatusCode == http.StatusNotFound {
+		res.Body.Close()
+		return nil, fmt.Errorf("%w: %s", ErrNoFeed, url)
 	}
 	if res.StatusCode != http.StatusOK {
 		res.Body.Close()

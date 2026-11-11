@@ -5,6 +5,19 @@ Versi mengikuti aturan sebelum rilis publik:
 - **Minor** naik untuk pembaruan besar.
 - **1.0.0** untuk rilis publik.
 
+## Belum dirilis · Pembaruan rc dan gerak Ace (fix/updater-ace-motion)
+
+- **Pembaruan**:
+  - Build rc (versi berisi `-rc`) yang kanalnya belum pernah dipilih memakai kanal Uji coba (rc). Pilihan pengguna tetap menang.
+  - Feed yang menjawab 404 berarti belum ada yang terbit (`update.ErrNoFeed`), bukan gagal. Di Stabil statusnya "Belum ada versi stabil baru"; klien rc tetap membaca `rc.json`.
+  - Status tidak pernah "terbaru" bila pemeriksaan terakhir gagal ("pemeriksaan terakhir gagal, HH.MM"). Sebelumnya rc2 di Stabil menampilkan "terbaru, diperiksa 18.50" bersama galat `stable.json: HTTP 404`.
+- **Gerak Ace**:
+  - Memilih Kiri/Tengah/Kanan (dialog "Yang baru" + Ace dan Pengaturan) menggeser Ace dengan pegas ±400 ms dan sedikit melewati tujuan, tidak lagi melompat.
+  - Saat bergeser atau ditarik, Ace bergoyang seperti jeli: memanjang searah gerak sesuai kecepatannya (paling banyak 16%, luasnya tetap), mata sedikit tertinggal, lalu memantul kecil saat berhenti.
+  - Kurangi gerak: tanpa goyangan, geser singkat 160 ms.
+  - Jendela island tetap berukuran sama; hanya bentuk dan region-nya yang mengikuti goyangan.
+  - Setelah berhenti, frame kembali ke irama diam. Mode `--island-spike=ace-slide`/`ace-slide-still` mengukurnya.
+
 ## Belum dirilis · Onboarding dipandu Ace (feat/onboarding-ace-a)
 
 - **Onboarding dipandu Ace** (canvas db456de51efb, opsi A): kartu langkah menggantikan dialog "Undangan diterima". Langkahnya Profil, Kenalan dengan Ace (posisi dan gaya), Kapan Ace muncul (selalu atau saat ada kabar, jam tenang, kabar percobaan Buka/Tunda/Tutup), Supaya kabar sampai (izin notifikasi, WhatsApp opsional, Mulai bersama Windows, pembaruan otomatis), lalu Selesai dengan tur opsional. Setiap langkah bisa dilewati dan punya bawaan; "Lewati semua" memakai semuanya.
