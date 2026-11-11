@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -120,6 +121,7 @@ func (d *desktopDevice) islandSettings(c *ui.Context) {
 				}
 			}
 		})
+		d.islandStyleSettings(c)
 		where := "Di tengah atas layar."
 		switch a := d.prefs.IslandAnchor; {
 		case a <= .02:
@@ -158,8 +160,9 @@ func (d *desktopDevice) islandPreview(c *ui.Context) {
 			})
 			return
 		}
-		fg := ui.RGB(245, 245, 247)
-		pill := ui.Row(c.Key("pill")).Size(112, 30).Radius(15).Background(islandInk).Border(1, islandRing).Center().Gap(6).Label("Pratinjau Dynamic Island")
+		pal := islandPaletteFor(d.prefs, d.app.IslandTheme(t.Dark))
+		fg := pal.text
+		pill := ui.Row(c.Key("pill")).Size(112, 30).Radius(15).Background(pal.ink).Border(1, pal.ring).Center().Gap(6).Label("Pratinjau Dynamic Island")
 		if !d.prefs.IslandAlwaysOn {
 			pill.Background(ui.RGBA(0, 0, 0, 0)).Border(1, t.Border)
 			fg = t.TextMuted
@@ -261,4 +264,82 @@ func (d *desktopDevice) saveVolumeAtRest(c *ui.Context) {
 	}
 	d.volumeAt = time.Time{}
 	d.save()
+}
+
+// islandStyleSettings is Gaya: Ikut tema (default), Hitam, Kaca, Custom;
+// Custom with a color (presets or hex) and its transparency.
+func (d *desktopDevice) islandStyleSettings(c *ui.Context) {
+	sel := 0
+	for i, th := range islandThemes {
+		if th.key == d.prefs.IslandTheme {
+			sel = i
+		}
+	}
+	labels := make([]string, len(islandThemes))
+	for i, th := range islandThemes {
+		labels[i] = th.label
+	}
+	desc := map[string]string{
+		islandThemeFollow: "Mengikuti tema terang/gelap dan aksen Space.",
+		islandThemeBlack:  "Pil hitam, sama di semua tema.",
+		islandThemeGlass:  "Tembus pandang, tanpa blur Windows: blur Windows menutupi kotak di sekitar island.",
+		islandThemeCustom: "Warna dan transparansi pilihanmu; teks dan mata menyesuaikan agar terbaca.",
+	}[d.prefs.IslandTheme]
+	appui.SettingRow(c, "Gaya", desc, func() {
+		if i := appui.Segmented(c, "Gaya island", labels, sel); i >= 0 && i != sel {
+			d.prefs.IslandTheme = islandThemes[i].key
+			if d.prefs.IslandTheme == islandThemeCustom && d.prefs.IslandColor == "" {
+				d.prefs.IslandColor, d.prefs.IslandOpacity = "#2b2d31", 1
+			}
+			d.saveIslandLook()
+		}
+	})
+	if d.prefs.IslandTheme != islandThemeCustom {
+		return
+	}
+	t := c.Theme()
+	appui.SettingRow(c, "Warna", "Pilih atau tulis kode #rrggbb.", func() {
+		ui.Row(c).Gap(6).AlignItems(ui.Center).Wrap().Children(func() {
+			for _, pr := range islandPresets {
+				col, _ := parseIslandHex(pr.hex)
+				b := ui.ButtonBase(c.Key("preset-"+pr.hex)).Label(pr.name).Tooltip(pr.name).Size(22, 22).Radius(11).Background(col).Border(1, t.Border)
+				if strings.EqualFold(d.prefs.IslandColor, pr.hex) {
+					b.Border(2, t.Accent)
+				}
+				if b.Clicked() {
+					d.prefs.IslandColor, d.islandHex = pr.hex, pr.hex
+					d.saveIslandLook()
+				}
+			}
+			if d.islandHex == "" {
+				d.islandHex = d.prefs.IslandColor
+			}
+			in := ui.TextInput(c.Key("island-hex"), &d.islandHex).Width(96).Label("Kode warna island").Placeholder("#2b2d31")
+			if _, ok := parseIslandHex(d.islandHex); ok && !strings.EqualFold(d.islandHex, d.prefs.IslandColor) {
+				d.prefs.IslandColor = "#" + strings.ToLower(strings.TrimPrefix(strings.TrimSpace(d.islandHex), "#"))
+				d.saveIslandLook()
+			} else if !ok && strings.TrimSpace(d.islandHex) != "" {
+				in.Border(1, t.Danger)
+			}
+		})
+	})
+	if d.islandClear == 0 {
+		d.islandClear = math.Round((1 - islandOpacity(d.prefs.IslandOpacity)) * 100)
+	}
+	appui.SettingRow(c, "Transparansi", "0% pekat, 60% paling tembus.", func() {
+		before := d.islandClear
+		ui.StepSlider(c.Key("island-clear"), &d.islandClear, 0, 60, 5).Width(180).Label("Transparansi island")
+		if d.islandClear != before {
+			d.prefs.IslandOpacity = 1 - d.islandClear/100
+			d.saveIslandLook()
+		}
+	})
+}
+
+// saveIslandLook keeps the style and redraws the island with it.
+func (d *desktopDevice) saveIslandLook() {
+	d.save()
+	if d.island.win != nil {
+		d.island.win.Update(func() {})
+	}
 }

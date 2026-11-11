@@ -82,18 +82,20 @@ func islandAnchor(v float64) float64 {
 	return math.Max(0, math.Min(1, v))
 }
 
-// The island's colors (direction A): a black pill, white eyes and text,
-// the system's accents for each activity.
+// The island's colors, of its style (islandPaletteFor), set at the start
+// of every frame on the UI thread: the pill, its eyes and text, the ring,
+// the buttons. The activities keep the system's accents.
 var (
-	islandInk     = ui.RGB(0, 0, 0)
-	islandText    = ui.RGB(245, 245, 247)
-	islandMuted   = ui.RGBA(245, 245, 247, .72)
-	islandRing    = ui.RGBA(255, 255, 255, .06)
-	islandButton  = ui.RGB(44, 44, 46)
-	islandPing    = ui.RGB(255, 159, 10)
-	islandMeeting = ui.RGB(48, 209, 88)
-	islandMusic   = ui.RGB(10, 132, 255)
-	islandOver    = ui.RGB(255, 69, 58)
+	islandInk         = ui.RGB(0, 0, 0)
+	islandText        = ui.RGB(245, 245, 247)
+	islandMuted       = ui.RGBA(245, 245, 247, .72)
+	islandRing        = ui.RGBA(255, 255, 255, .06)
+	islandButton      = ui.RGB(44, 44, 46)
+	islandButtonHover = ui.RGB(58, 58, 60)
+	islandPing        = ui.RGB(255, 159, 10)
+	islandMeeting     = ui.RGB(48, 209, 88)
+	islandMusic       = ui.RGB(10, 132, 255)
+	islandOver        = ui.RGB(255, 69, 58)
 )
 
 type islandNotice struct {
@@ -705,12 +707,14 @@ func (p *islandPresenter) view(c *ui.Context) {
 		alpha *= float32(1 - island.ExitEase(now.Sub(f.closing).Seconds()/.16))
 	}
 	theme := *c.Theme()
-	theme.Dark = true
+	pal := islandPaletteFor(prefs, p.spaceTheme(c))
+	pal.use()
+	theme.Dark = pal.dark
 	theme.Text, theme.TextMuted = islandText, islandMuted
-	theme.Surface, theme.SurfaceHover = islandButton, ui.RGB(58, 58, 60)
-	theme.Border = ui.RGBA(255, 255, 255, .12)
+	theme.Surface, theme.SurfaceHover = islandButton, islandButtonHover
+	theme.Border = islandRing
 	theme.FontSize = 13
-	theme.Accent, theme.AccentText = islandText, islandInk
+	theme.Accent, theme.AccentText = islandText, opaque(islandInk)
 	c.SetTheme(&theme)
 
 	gw, gh, gr := float32(p.geometry[0]), float32(p.geometry[1]), float32(p.geometry[2])
@@ -1077,7 +1081,7 @@ func (p *islandPresenter) islandAction(c *ui.Context, label string, icon *ui.SVG
 	fg := islandText
 	if primary {
 		b.Background(islandText)
-		fg = islandInk
+		fg = opaque(islandInk)
 	}
 	if icon != nil {
 		b.MinWidth(32).Padding(0, 8)

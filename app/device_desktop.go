@@ -39,10 +39,17 @@ type devicePreferences struct {
 	// dragged there: 0 the left edge, .5 the middle (missing: the middle),
 	// 1 the right edge.
 	IslandAnchor float64 `json:"islandAnchor"`
-	Autostart    bool    `json:"autostart"`
-	Audio        string  `json:"audio"`
-	Volume       float64 `json:"volume"`
-	Sound        bool    `json:"sound"`
+	// IslandTheme is the island's style: "" Ikut tema (the default, and
+	// what those who never chose get), "hitam", "kaca" or "custom" with
+	// IslandColor ("#rrggbb") and IslandOpacity (.4 to 1). IslandStyle, the
+	// A/B/C of 0.4.4, is no longer read.
+	IslandTheme   string  `json:"islandTheme,omitempty"`
+	IslandColor   string  `json:"islandColor,omitempty"`
+	IslandOpacity float64 `json:"islandOpacity,omitempty"`
+	Autostart     bool    `json:"autostart"`
+	Audio         string  `json:"audio"`
+	Volume        float64 `json:"volume"`
+	Sound         bool    `json:"sound"`
 	// UpdateChannel is "stable" (or empty, older files) or "rc";
 	// UpdateAnnounced the version last announced, UpdateLaterUntil when
 	// Nanti stops holding announcements back (updater_desktop.go).
@@ -131,10 +138,14 @@ type desktopDevice struct {
 	err                 string
 	notificationTest    string
 	testingNotification bool
-	volume              float64   // the bell's volume slider, 0–100
-	volumeAt            time.Time // when the slider last moved; saved once it rests
-	savedAt             time.Time
-	journal             map[string]string
+	volume              float64 // the bell's volume slider, 0–100
+	// islandHex and islandClear are Custom's color field and its
+	// transparency slider (0–60), as typed.
+	islandHex   string
+	islandClear float64
+	volumeAt    time.Time // when the slider last moved; saved once it rests
+	savedAt     time.Time
+	journal     map[string]string
 }
 
 func atomicDeviceFile(path string, data []byte) error {

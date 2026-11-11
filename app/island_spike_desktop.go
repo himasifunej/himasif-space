@@ -63,6 +63,16 @@ func runIslandSpike() bool {
 		if strings.HasPrefix(mode, "ace") {
 			d := &desktopDevice{win: anchor, prefs: devicePreferences{IslandEnabled: true, IslandStyle: "A", IslandAlwaysOn: true, IslandReduceMotion: mode == "ace-still", IslandAnchor: .5}}
 			mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { d.quitting = true })
+			// ace-hitam, ace-kaca, ace-custom: Ace at rest in that style (the
+			// idle CPU of each); plain ace follows the theme.
+			for _, th := range []string{islandThemeBlack, islandThemeGlass, islandThemeCustom} {
+				if strings.HasSuffix(mode, "-"+th) {
+					d.prefs.IslandTheme = th
+				}
+			}
+			if d.prefs.IslandTheme == islandThemeCustom {
+				d.prefs.IslandColor, d.prefs.IslandOpacity = "#14213d", .7
+			}
 			d.notificationPrefs.Store(d.prefs)
 			// ace-fullscreen: as if a fullscreen app covered the screen.
 			fullscreen := strings.Contains(mode, "fullscreen")

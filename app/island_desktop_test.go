@@ -201,3 +201,33 @@ func TestIslandGathersABurst(t *testing.T) {
 		t.Fatal("a meeting's notice reads as", islandKindLabel(x.n.Kind))
 	}
 }
+
+// Styles: those who never chose follow Space's theme; Custom keeps its
+// text readable on light and dark colors; a bad color falls back to black.
+func TestIslandStyles(t *testing.T) {
+	prefs, _ := loadDevicePreferences([]byte(`{"islandEnabled":true,"islandStyle":"C"}`))
+	if prefs.IslandTheme != islandThemeFollow {
+		t.Fatalf("upgrade keeps %q", prefs.IslandTheme)
+	}
+	light := &ui.Theme{Surface: ui.RGB(250, 248, 244), Text: ui.RGB(30, 28, 25), Dark: false}
+	if p := islandPaletteFor(prefs, light); p.ink != light.Surface || p.text != light.Text || p.dark {
+		t.Fatalf("follow %+v", p)
+	}
+	sand := islandPaletteFor(devicePreferences{IslandTheme: islandThemeCustom, IslandColor: "#e8dcc4", IslandOpacity: .7}, nil)
+	if sand.text.R > 100 || sand.ink.A > 190 || sand.ink.A < 170 {
+		t.Fatalf("light custom %+v", sand)
+	}
+	night := islandPaletteFor(devicePreferences{IslandTheme: islandThemeCustom, IslandColor: "#14213d"}, nil)
+	if night.text.R < 200 || night.ink.A != 255 {
+		t.Fatalf("dark custom %+v", night)
+	}
+	if bad := islandPaletteFor(devicePreferences{IslandTheme: islandThemeCustom, IslandColor: "biru"}, nil); bad.ink.R != 0 || bad.ink.G != 0 {
+		t.Fatalf("bad color %+v", bad)
+	}
+	if g := islandPaletteFor(devicePreferences{IslandTheme: islandThemeGlass}, nil); g.ink.A == 255 || !g.dark {
+		t.Fatalf("glass %+v", g)
+	}
+	if islandOpacity(.1) != .4 || islandOpacity(0) != 1 {
+		t.Fatal("opacity bounds")
+	}
+}
