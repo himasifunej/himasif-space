@@ -248,7 +248,7 @@ func TestChromeSessionStateCleared(t *testing.T) {
 				t.Fatalf("session not cleared: screen=%d token=%q", h.app.screen, h.tokens.get())
 			}
 			h.login("ani@himasif.id", "rahasia")
-			if h.app.screen != screenShell || h.app.router.Path() != PathJobdesk {
+			if h.app.screen != screenShell || h.app.router.Path() != PathUntukku {
 				t.Fatal("next session did not start at its own default page")
 			}
 			h.dontWant("Private previous session task")

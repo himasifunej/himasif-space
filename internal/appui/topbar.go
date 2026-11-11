@@ -2,6 +2,7 @@ package appui
 
 import (
 	"fmt"
+	"github.com/himasifunej/himasif-space/internal/api"
 	"strings"
 	"time"
 
@@ -57,7 +58,10 @@ func (a *App) header(c *ui.Context) {
 	}
 	bar.Children(func() {
 		ui.Column(c).Shrink(1).MinWidth(0).Gap(1).Children(func() {
-			if crumb != "" && !narrow {
+			switch sp := a.selectedSpace(); {
+			case (path == PathSpaces || path == PathMedhum) && sp != nil && !narrow:
+				a.spaceCrumbs(c, *sp)
+			case crumb != "" && !narrow:
 				ui.Text(c, crumb).FontSize(11).TextColor(faint(t)).MaxLines(1)
 			}
 			ui.Text(c, title).FontSize(20).FontWeight(600).MaxLines(1)
@@ -305,4 +309,27 @@ func (a *App) syncPill(c *ui.Context, compact bool) {
 			a.navigate(PathPengaturan)
 		}
 	}
+}
+
+// spaceCrumbs are the breadcrumbs over a Space's title: Space saya (back
+// to the picker) › the Space › its tab.
+func (a *App) spaceCrumbs(c *ui.Context, sp api.Space) {
+	t := c.Theme()
+	ui.Row(c.Key("crumbs")).Gap(4).AlignItems(ui.Center).MinWidth(0).Children(func() {
+		back := ui.ButtonBase(c.Key("crumb-spaces")).Label("Kembali ke Space saya").Padding(0, 2).Radius(4).TextColor(faint(t))
+		if back.Hovered() {
+			back.TextColor(t.Text)
+		}
+		back.FocusRing(back.FocusVisible()).Children(func() { ui.Text(c, "Space saya").FontSize(11) })
+		if back.Clicked() {
+			a.openSpacePicker()
+		}
+		sep := func() { ui.Text(c, "›").FontSize(11).TextColor(faint(t)) }
+		sep()
+		ui.Text(c, sp.Name).FontSize(11).TextColor(t.TextMuted).MaxLines(1).MinWidth(0)
+		if tab := a.chrome.tab; tab != "" {
+			sep()
+			ui.Text(c, tab).FontSize(11).TextColor(faint(t)).MaxLines(1).MinWidth(0)
+		}
+	})
 }

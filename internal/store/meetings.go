@@ -6,6 +6,7 @@ import (
 	"github.com/himasifunej/himasif-space/internal/api"
 	"github.com/himasifunej/himasif-space/internal/id"
 	"github.com/jackc/pgx/v5"
+	"time"
 )
 
 const meetingColumns = `id,period_id,space_id,owner_division_id,organizer_id,title,description,location,join_url,starts_at,ends_at,time_zone,note_id,cancelled,reminder_minutes,version,created_at,updated_at`
@@ -42,6 +43,25 @@ func (s *Store) SetMeetingTimer(ctx context.Context, q Querier, mid id.ID, t *ap
 }
 func (s *Store) Meetings(ctx context.Context, q Querier, sid id.ID) ([]api.Meeting, error) {
 	rows, err := q.Query(ctx, `select `+meetingRead+` from meetings where space_id=$1 order by starts_at,id`, sid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []api.Meeting{}
+	for rows.Next() {
+		m, err := scanMeeting(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+// MyMeetings are the meetings of period that uid organizes or attends,
+// starting from from up to to, not cancelled, soonest first.
+func (s *Store) MyMeetings(ctx context.Context, q Querier, pid, uid id.ID, from, to time.Time) ([]api.Meeting, error) {
+	rows, err := q.Query(ctx, `select `+meetingRead+` from meetings m where m.period_id=$1 and not m.cancelled and m.starts_at>=$3 and m.starts_at<$4 and (m.organizer_id=$2 or exists(select 1 from meeting_participants mp where mp.meeting_id=m.id and mp.user_id=$2)) order by m.starts_at,m.id`, pid, uid, from, to)
 	if err != nil {
 		return nil, err
 	}

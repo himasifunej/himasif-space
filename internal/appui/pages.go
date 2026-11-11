@@ -15,6 +15,9 @@ import (
 // membership and bot services never turn into local sample data or saves.
 func (a *App) page(c *ui.Context, r *ui.Route) {
 	switch {
+	case r.Match(PathUntukku):
+		r.Title("Untukku")
+		a.untukkuView(c)
 	case r.Match(PathJobdesk):
 		r.Title("Jobdesk saya")
 		a.markOnboarding(api.OnboardTasks)
@@ -52,8 +55,8 @@ func (a *App) page(c *ui.Context, r *ui.Route) {
 		r.Title("Tidak ditemukan")
 		pageBody(c, "Halaman tidak ditemukan", func() {
 			muted(c, "Halaman ini tidak ada atau tidak tersedia untuk akunmu.")
-			if spaceButton(c, "Ke Jobdesk saya", "arrow", false).Clicked() {
-				a.router.Replace(PathJobdesk)
+			if spaceButton(c, "Ke Untukku", "arrow", false).Clicked() {
+				a.router.Replace(PathUntukku)
 			}
 		})
 	}
@@ -94,43 +97,7 @@ func (a *App) spaces(c *ui.Context, r *ui.Route) {
 		return
 	}
 	r.Title("Space saya")
-	pageBody(c, "Space saya", func() {
-		a.periodLine(c)
-		muted(c, "Ruang yang dapat kamu akses pada kepengurusan ini.")
-		if a.access.notice != "" {
-			pageNotice(c, "lock", "Akses diperbarui", a.access.notice)
-		}
-		if a.access.loading {
-			pageUnavailable(c, "refresh", "Memuat Space…", "Memeriksa akses dari server.")
-			return
-		}
-		if a.access.err != "" {
-			pageNotice(c, "alert", "Space belum dapat dimuat", a.access.err)
-		}
-		if spaceButton(c, "Muat ulang Space", "refresh", false).Disabled(a.access.loading).Clicked() {
-			a.loadSpaces()
-		}
-		if len(a.access.spaces) == 0 && a.access.err == "" {
-			pageEmpty(c, "lock", "Belum ada Space", "Gunakan undangan dari kadiv atau hubungi pengelola untuk mendapatkan akses.")
-		}
-		for _, s := range a.access.spaces {
-			desc := "Ruang divisi"
-			if s.Kind == api.SpaceShared {
-				desc = "Kolaborasi lintas divisi"
-			}
-			if s.ReadOnly {
-				desc += " · Hanya baca"
-			}
-			pageSection(c.Key(s.ID), s.Name, desc, func() {
-				for _, d := range s.Divisions {
-					pageDivisionMark(c, d)
-				}
-				if spaceButton(c, "Buka "+s.Name, "arrow", false).Clicked() {
-					a.selectSpace(s.ID)
-				}
-			})
-		}
-	})
+	a.spacePicker(c)
 }
 
 func (a *App) divisionCatalog(c *ui.Context) {

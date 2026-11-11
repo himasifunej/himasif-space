@@ -41,6 +41,10 @@ type workspaceAccessState struct {
 	notice   string
 	seq      uint64
 	members  memberManagementState
+	// lastSpace is the Space opened last, highlighted on Space saya;
+	// pickerQuery the page's search.
+	lastSpace   id.ID
+	pickerQuery string
 }
 
 // workspaceService binds queued operations to the bearer that authorized them.
@@ -80,6 +84,9 @@ func (a *App) selectSpace(sid id.ID) {
 		return
 	}
 	a.resetNotes()
+	if sid != id.Nil {
+		a.access.lastSpace = sid
+	}
 	a.access.selected = sid
 	a.access.notice = ""
 	a.access.members = memberManagementState{seq: a.access.members.seq + 1}
