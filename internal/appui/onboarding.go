@@ -58,8 +58,10 @@ type onboardingState struct {
 	err     string
 	data    api.Onboarding
 	fetched time.Time
-	// welcome is the welcome dialog, open until dismissed once.
+	// welcome is the onboarding guided by Ace (onboarding_ace.go), open
+	// until finished or skipped once.
 	welcome bool
+	ace     aceWizardState
 	tour    tourState
 	// profile is the "Lengkapi profil" dialog.
 	profileOpen bool
@@ -525,7 +527,7 @@ func (a *App) handoverCard(c *ui.Context, phone bool) {
 func (a *App) onboardingOverlays(c *ui.Context) {
 	if a.onboardingActive() {
 		if a.onb.welcome && !a.onb.tour.open {
-			a.welcomeDialog(c)
+			a.aceWizard(c)
 		}
 		if a.onb.profileOpen {
 			a.profileDialog(c)
@@ -534,77 +536,13 @@ func (a *App) onboardingOverlays(c *ui.Context) {
 	if a.onb.tour.open {
 		a.tourOverlay(c)
 	}
+	a.aceUpdateDialog(c)
 	if isMobile(c) && a.guide.panel {
 		a.guideSheet(c)
 	}
 	if a.chrome.notice != "" {
 		c.AddToast(ui.Toast{Title: a.chrome.notice, Type: "info", Timeout: 6 * time.Second})
 		a.chrome.notice = ""
-	}
-}
-
-func (a *App) welcomeDialog(c *ui.Context) {
-	t := c.Theme()
-	w, h := c.Size()
-	phone := w < mobileMaxWidth
-	open := true
-	sp := a.onboardingSpace()
-	role := a.onboardRole()
-	ui.DialogBase(c.Key("welcome"), &open, func(backdrop, panel ui.Element) {
-		backdrop.Background(ui.RGBA(0, 0, 0, .45))
-		if phone {
-			backdrop.Justify(ui.End)
-			panel.Width(w).MaxHeight(h-40).Radius(18, 18, 0, 0).Padding(20, 20, 24, 20)
-		} else {
-			panel.Width(min(float32(520), w-48)).Radius(16).Padding(28)
-		}
-		panel.Column().Gap(12).Background(t.Surface).Border(1, t.Border).Transition(onbPop).Children(func() {
-			ui.Text(c, "UNDANGAN DITERIMA").FontSize(11).TextColor(faint(t))
-			name := "Space"
-			if sp != nil {
-				name = sp.Name
-			}
-			ui.Text(c, "Kamu sudah bergabung di "+name).FontSize(22).FontWeight(600)
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				onbRoleChip(c, role)
-				if p := a.period(); p != nil {
-					muted(c, "Periode "+p.Label).FontSize(13)
-				}
-			})
-			ui.Column(c).FillWidth().Gap(10).Padding(6, 0).Children(func() {
-				for i, line := range [][2]string{{"board", "Tugas dari kadiv muncul di Board tugas."}, {"whatsapp", "Pengingat dan ping dikirim ke WhatsApp-mu."}, {"note", "Notulen setiap rapat ada di Catatan."}} {
-					ui.Row(c.Key(i)).FillWidth().Gap(10).AlignItems(ui.Center).Transition(ui.ElementTransition{Animation: &ui.Animation{Duration: 240 * time.Millisecond, Ease: ui.EaseOut, Delay: time.Duration(i+1) * 50 * time.Millisecond}, Enter: &ui.Motion{Opacity: 0, X: -8}}).Children(func() {
-						ui.Box(c).Size(30, 30).Shrink(0).Radius(8).Center().Background(spaceMix(t.Accent, t.Surface, .88)).Children(func() {
-							ui.Icon(c, spaceIcon(line[0])).Size(16, 16).TextColor(t.Accent)
-						})
-						ui.Text(c, line[1]).FontSize(13)
-					})
-				}
-			})
-			buttons := ui.Row(c).FillWidth().Gap(8)
-			if phone {
-				buttons.Column()
-			}
-			buttons.Children(func() {
-				start := onbPrimary(c, "Mulai tur · 1 menit", "Mulai tur · 1 menit", false)
-				later := onbSecondary(c, "Nanti, ke Beranda", "Nanti, ke Beranda", false)
-				if phone {
-					start.FillWidth().MinHeight(44)
-					later.FillWidth().MinHeight(44)
-				}
-				if start.Clicked() {
-					a.dismissWelcome()
-					a.startTour()
-				}
-				if later.Clicked() {
-					a.dismissWelcome()
-				}
-			})
-			muted(c, "Checklist \"Langkah pertama\" menunggu di Beranda.").FontSize(12)
-		})
-	})
-	if !open {
-		a.dismissWelcome()
 	}
 }
 
@@ -703,6 +641,9 @@ func (a *App) saveProfile() {
 			st.profileBusy = false
 			if err != nil {
 				st.profileErr = a.failed(err)
+				if a.onb.welcome {
+					a.addNotice("Nama belum tersimpan: " + st.profileErr)
+				}
 				return
 			}
 			a.user.DisplayName = u.DisplayName

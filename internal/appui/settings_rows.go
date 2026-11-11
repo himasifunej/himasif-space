@@ -325,3 +325,16 @@ func SettingsBlock(c *ui.Context, fn func()) {
 	fn()
 	settingsPage.query, settingsPage.narrow = query, narrow
 }
+
+// settingsApart draws setting rows outside a settings page (the
+// onboarding): no search hides them, and what they say is not kept for it.
+func settingsApart(fn func()) {
+	query, section := settingsPage.query, settingsPage.section
+	settingsPage.query, settingsPage.section = "", "\x00apart"
+	if settingsPage.words == nil {
+		settingsPage.words = map[string][]string{}
+	}
+	fn()
+	delete(settingsPage.words, "\x00apart")
+	settingsPage.query, settingsPage.section = query, section
+}
