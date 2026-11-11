@@ -21,7 +21,10 @@ const (
 type Item struct {
 	Tag      string
 	Priority int
-	Value    any
+	// Hold is how long the banner stays when the pointer is not on it:
+	// BannerDuration when zero.
+	Hold  time.Duration
+	Value any
 }
 
 const Capacity = 64
@@ -45,7 +48,7 @@ func (m *Machine) Push(n Item, now time.Time) bool {
 	if n.Tag != "" {
 		if m.Current != nil && m.Current.Tag == n.Tag {
 			m.Current = &n
-			m.Until = now.Add(BannerDuration)
+			m.Until = now.Add(n.hold())
 			m.Closing = time.Time{}
 			return true
 		}
@@ -66,6 +69,13 @@ func (m *Machine) Push(n Item, now time.Time) bool {
 	return true
 }
 
+func (n Item) hold() time.Duration {
+	if n.Hold > 0 {
+		return n.Hold
+	}
+	return BannerDuration
+}
+
 func (m *Machine) next(now time.Time) {
 	m.hoverSince, m.leaveSince, m.Closing = time.Time{}, time.Time{}, time.Time{}
 	if len(m.Queue) == 0 {
@@ -82,7 +92,7 @@ func (m *Machine) next(now time.Time) {
 		m.State = Expanded
 	}
 	m.stayOpen = false
-	m.Until = now.Add(BannerDuration)
+	m.Until = now.Add(n.hold())
 }
 
 // Dismiss closes the current notice, by the user's hand (Tutup, Buka,

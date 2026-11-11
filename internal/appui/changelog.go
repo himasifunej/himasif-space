@@ -85,6 +85,11 @@ func (a *App) whatsNewDialog(c *ui.Context) {
 	if wn == nil || a.screen != screenShell || len(wn.Notes) == 0 {
 		return
 	}
+	// A device yet to meet Ace shows the notes in Ace's dialog, and a new
+	// account's onboarding covers them: one dialog, never two.
+	if (a.Ace != nil && !a.Ace.Introduced()) || a.onb.welcome {
+		return
+	}
 	t := c.Theme()
 	open := true
 	ui.DialogBase(c.Key("whats-new"), &open, func(backdrop, panel ui.Element) {

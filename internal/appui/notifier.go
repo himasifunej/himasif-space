@@ -41,6 +41,8 @@ type Notice struct {
 	// names them ("rapat baru"), Space is where they are.
 	Group, GroupLabel string
 	Space             id.ID
+	// Face is Ace's eyes for a NoticeAce (AceFaceHappy…); "" wide open.
+	Face string
 }
 
 type NoticeAction struct{ Label, Link string }

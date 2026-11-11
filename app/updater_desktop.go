@@ -59,6 +59,8 @@ type desktopUpdater struct {
 	notice  string // after an update: "Space diperbarui ke …"
 	notes   bool   // the notes of offer are open
 	cancel  context.CancelFunc
+	// background: the install under way is automatic (autoInstall).
+	background bool
 }
 
 func newDesktopUpdater(d *desktopDevice) *desktopUpdater {
@@ -162,6 +164,13 @@ func (u *desktopUpdater) check(manual bool) {
 				return // already being handled
 			}
 			u.offer, u.state, u.setup = &m, updAvailable, ""
+			// Automatic updates fetch the version quietly and install it
+			// once Space's window is closed (autoInstall); asked, or with
+			// them off, the version is announced instead.
+			if !manual && !u.d.prefs.UpdateManual && installerUpdatesSupported() {
+				u.download(false)
+				return
+			}
 			u.announce(manual)
 		})
 	}()
@@ -281,9 +290,24 @@ func (u *desktopUpdater) download(then bool) {
 			u.state, u.setup = updReady, path
 			if then {
 				u.runInstaller()
+			} else {
+				u.autoInstall()
 			}
 		})
 	}()
+}
+
+// autoInstall installs a version downloaded by the automatic updates while
+// nobody uses Space, its window closed to the tray; Space comes back to the
+// tray. Called when the download ends, when the window closes, and with
+// the deliveries' poll.
+func (u *desktopUpdater) autoInstall() {
+	if u.state != updReady || u.d.prefs.UpdateManual || u.d.win.IsVisible() || u.d.quitting {
+		return
+	}
+	u.background = true
+	u.runInstaller()
+	u.background = false
 }
 
 // safeVersion keeps a version to the characters of a file name.
@@ -317,7 +341,7 @@ func (u *desktopUpdater) runInstaller() {
 	// The signed notes go with the version, for its "Yang baru" once it runs.
 	u.d.prefs.UpdateNotes, u.d.prefs.UpdateNotesV = m.Notes, m.Version
 	u.d.save()
-	if err := startUpdateHelper(updateJob{Setup: u.setup, Installer: *m.Windows, Version: m.Version, Dir: u.dir()}); err != nil {
+	if err := startUpdateHelper(updateJob{Setup: u.setup, Installer: *m.Windows, Version: m.Version, Dir: u.dir(), Background: u.background}); err != nil {
 		u.state = updReady
 		u.err = "Pemasang tidak dapat dijalankan: " + err.Error()
 		return
@@ -338,19 +362,18 @@ func (d *desktopDevice) updateSettings(c *ui.Context) {
 				u.check(true)
 			}
 		})
-		appui.SettingRow(c, "Kanal pembaruan", "Uji coba menerima versi rc lebih dulu, dan tetap menerima rilis Stabil yang lebih baru.", func() {
-			sel := 0
-			if u.channel() == update.ChannelRC {
-				sel = 1
+		auto := !d.prefs.UpdateManual
+		if appui.SettingSwitch(c, "Pembaruan otomatis", "Versi baru diunduh di latar dan dipasang saat jendela Space tertutup. Mati: versi baru hanya diumumkan.", &auto) {
+			d.prefs.UpdateManual = !auto
+			d.save()
+			if auto {
+				u.autoInstall()
 			}
-			if i := appui.Segmented(c, "Kanal pembaruan", []string{"Stabil", "Uji coba (rc)"}, sel); i >= 0 && i != sel && !busy {
-				d.prefs.UpdateChannel = []string{update.ChannelStable, update.ChannelRC}[i]
-				d.prefs.UpdateAnnounced = ""
-				d.save()
-				u.offer, u.state, u.setup = nil, updIdle, ""
-				u.check(true)
-			}
-		})
+		}
+		// The channel is for testers: shown on a test build, or once chosen.
+		if strings.Contains(appVersion(), "-") || u.channel() == update.ChannelRC {
+			u.channelRow(c, busy)
+		}
 		if u.notice != "" || u.err != "" {
 			appui.SettingRow(c, "Kabar pembaruan", "", func() {
 				if u.notice != "" {
@@ -397,6 +420,24 @@ func (d *desktopDevice) updateSettings(c *ui.Context) {
 			})
 		case updInstalling:
 			appui.SettingRow(c, "Memasang pembaruan", "Space akan tertutup sebentar dan terbuka lagi.", func() {})
+		}
+	})
+}
+
+// channelRow is the choice of Stabil or Uji coba (rc).
+func (u *desktopUpdater) channelRow(c *ui.Context, busy bool) {
+	d := u.d
+	appui.SettingRow(c, "Kanal pembaruan", "Uji coba menerima versi rc lebih dulu, dan tetap menerima rilis Stabil yang lebih baru.", func() {
+		sel := 0
+		if u.channel() == update.ChannelRC {
+			sel = 1
+		}
+		if i := appui.Segmented(c, "Kanal pembaruan", []string{"Stabil", "Uji coba (rc)"}, sel); i >= 0 && i != sel && !busy {
+			d.prefs.UpdateChannel = []string{update.ChannelStable, update.ChannelRC}[i]
+			d.prefs.UpdateAnnounced = ""
+			d.save()
+			u.offer, u.state, u.setup = nil, updIdle, ""
+			u.check(true)
 		}
 	})
 }

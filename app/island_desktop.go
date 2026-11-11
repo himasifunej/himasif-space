@@ -177,6 +177,8 @@ func noticeBody(x islandNotice) string {
 // All machine access is serialized. Native window and animation fields belong
 // only to MyGo's UI thread; delivery workers only enqueue and request Update.
 type islandPresenter struct {
+	// hold is the next offered notice's Item.Hold (offerHeld).
+	hold time.Duration
 	// Only the isolated spike supplies an override, to measure rendering even
 	// when this Windows session currently has Focus Assist or fullscreen on.
 	environmentCheck func() bool
@@ -320,7 +322,7 @@ func (p *islandPresenter) offer(n appui.Notice, fallback func()) error {
 		if n.Group != "" {
 			n.Tag = "group:" + n.Group + "#" + strconv.FormatInt(now.UnixNano(), 36) // the first of a possible burst
 		}
-		item = island.Item{Tag: n.Tag, Priority: priority, Value: islandNotice{n: n, fallback: fallback, count: 1, first: now, latest: n.Title}}
+		item = island.Item{Tag: n.Tag, Priority: priority, Hold: p.hold, Value: islandNotice{n: n, fallback: fallback, count: 1, first: now, latest: n.Title}}
 	}
 	ok := p.m.Push(item, now)
 	p.mu.Unlock()
@@ -674,6 +676,14 @@ func (p *islandPresenter) view(c *ui.Context) {
 	if now.Before(p.happyUntil) {
 		eyeH, open = 6, 1 // happy arcs, after an action
 	}
+	// Ace speaking in the onboarding has a face of its own.
+	faceH, wink, down, speaking := aceFace(f.notice)
+	if speaking {
+		eyeH, gy = faceH, gy+down
+		if faceH < island.EyeHeight {
+			open = 1
+		}
+	}
 	// The eyes widen and narrow over about 100 ms, as the pointer comes and
 	// goes, rather than jumping a frame: the jump read as a glitch.
 	if p.eyeH == 0 || reduced {
@@ -737,6 +747,10 @@ func (p *islandPresenter) view(c *ui.Context) {
 			cy := float32(p.eyes[1] + gy + bop)
 			for _, side := range [2]float64{-1, 1} {
 				cx := float32(p.eyes[0] + side*(island.EyePair-island.EyeWidth)/2*scale + gx)
+				h := h
+				if wink && side < 0 {
+					h = 1.4
+				}
 				ui.Box(c).Absolute().Left(cx-w/2).Top(cy-h/2).Size(w, h).Radius(min(w, h) / 2).Background(islandText)
 			}
 			p.content(c, f, now, alpha, reduced)
@@ -1007,6 +1021,11 @@ func (p *islandPresenter) content(c *ui.Context, f islandFrame, now time.Time, a
 		switch {
 		case f.scene == island.SceneNotice && f.expanded:
 			p.noticeDetails(c, *f.notice, f.queued)
+		case f.scene == island.SceneNotice && f.notice.n.Kind == appui.NoticeAce:
+			// Ace speaks: its line on two lines, nothing else.
+			ui.Row(c).Fill().AlignItems(ui.Center).Children(func() {
+				ui.Text(c, f.notice.n.Body).FontSize(13).LineHeight(1.3).MaxLines(2).Grow(1).MinWidth(0)
+			})
 		case f.scene == island.SceneNotice:
 			ui.Row(c).Fill().AlignItems(ui.Center).Gap(10).Children(func() {
 				ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
@@ -1345,7 +1364,7 @@ func insideIsland(x, y float64, g [3]float64) bool {
 // islandKindLabel names where a notice comes from: "Rapat" for a
 // meeting's, whatever channel carried it.
 func islandKindLabel(kind string) string {
-	if l, ok := map[string]string{"ping": "Ping", "task": "Tugas", "meeting": "Rapat", "reminder": "Pengingat", "deadline": "Tenggat", "update": "Pembaruan", "note": "Catatan"}[kind]; ok {
+	if l, ok := map[string]string{"ping": "Ping", "task": "Tugas", "meeting": "Rapat", "reminder": "Pengingat", "deadline": "Tenggat", "update": "Pembaruan", "note": "Catatan", appui.NoticeAce: "Kenalan", appui.NoticeTest: "Percobaan"}[kind]; ok {
 		return l
 	}
 	return "Pengingat"
@@ -1373,6 +1392,10 @@ func (p *islandPresenter) act(link string) {
 			// link opened outside Space.
 			if u != nil && u.Scheme == "himasif-space" && u.Host == "update" {
 				p.d.updater.handleLink(u)
+				return
+			}
+			if u != nil && u.Scheme == "himasif-space" && u.Host == "ace" {
+				p.d.handleAceLink(u)
 				return
 			}
 			activate := u == nil || u.Query().Get("action") != "snooze"

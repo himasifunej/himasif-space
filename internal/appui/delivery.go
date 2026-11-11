@@ -81,7 +81,14 @@ func (a *App) PollDeliveries() {
 			// A single catch-up toast represents the batch; individual objects remain
 			// available in the inbox. Opening the app after a month never rings 200 bells.
 			pending := []api.Delivery{}
+			// Quiet hours hold device notices back, unoffered: the first poll
+			// after them brings them as one catch-up notice, without the bell
+			// ringing in the night.
+			quiet := a.Ace != nil && a.Ace.Quiet(time.Now())
 			for _, d := range items {
+				if quiet {
+					break
+				}
 				key := d.ID.String() + ":" + d.AvailableAt.Format(time.RFC3339Nano)
 				if d.Channel == "device" && (d.Status == "queued" || d.Status == "accepted") && d.SeenAt == nil && !d.AvailableAt.After(time.Now()) && d.AvailableAt.After(time.Now().Add(-24*time.Hour)) && !a.deliveries.offered[key] {
 					a.deliveries.offered[key] = true

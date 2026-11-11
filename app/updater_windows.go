@@ -98,6 +98,9 @@ func runUpdateHelper() bool {
 	// Space opens again either way: the new version, or the old one with
 	// the report of what failed.
 	space := exec.Command(filepath.Join(job.InstallDir, job.Exe))
+	if job.Background {
+		space.Args = append(space.Args, "--background")
+	}
 	space.Dir = job.InstallDir
 	_ = space.Start()
 	return true
