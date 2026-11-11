@@ -5,6 +5,11 @@ Versi mengikuti aturan sebelum rilis publik:
 - **Minor** naik untuk pembaruan besar.
 - **1.0.0** untuk rilis publik.
 
+## Belum dirilis · alasan pembatalan sekali ketuk
+
+- **Batalkan tugas**: pilih alasan sekali ketuk (Salah input / duplikat, Tidak jadi dikerjakan, Digabung ke tugas lain, Diganti rencana, Lainnya). Catatan boleh kosong, kecuali untuk Lainnya. Riwayat mencatat "alasan: catatan".
+- Alasan terakhir sudah terpilih saat membatalkan tugas berikutnya, selama Space terbuka.
+
 ## 0.4.6-rc.3 — 2026-11-11 · Kartu pembaruan (pre-release)
 
 - **Kartu pembaruan** di pojok kiri bawah jendela Space, seperti enowX. Sebelumnya versi baru diunduh diam-diam dan hanya tampak di Pengaturan › Status layanan.

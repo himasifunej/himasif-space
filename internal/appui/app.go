@@ -117,14 +117,17 @@ type App struct {
 	// PreferencesStore persists appearance on this device, separately from tokens.
 	PreferencesStore PreferencesStore
 	// NoteDrafts keeps account-scoped recovery copies on this device.
-	PendingFiles              PendingFileStore
-	NoteDrafts                NoteDraftStore
-	preferencesLoaded         bool
-	chrome                    chromeState
-	realtime                  realtimeUIState
-	workspace                 *workspaceui.State
-	access                    workspaceAccessState
-	tasks                     tasksUIState
+	PendingFiles      PendingFileStore
+	NoteDrafts        NoteDraftStore
+	preferencesLoaded bool
+	chrome            chromeState
+	realtime          realtimeUIState
+	workspace         *workspaceui.State
+	access            workspaceAccessState
+	tasks             tasksUIState
+	// lastCancelReason is the reason chip last used to cancel a task,
+	// picked first next time; it lasts the session.
+	lastCancelReason          string
 	reminders                 remindersUIState
 	notes                     notesUIState
 	meetings                  meetingsState

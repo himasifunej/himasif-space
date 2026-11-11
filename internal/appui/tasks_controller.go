@@ -68,7 +68,10 @@ type tasksUIState struct {
 	evidenceMode               int // 0 link, 1 file
 	evidenceUploading          bool
 	cancelReason, checklistNew string
-	detailSplit                bool
+	// cancelChoice is the reason chip picked in "Batalkan tugas";
+	// cancelReason is then the optional note.
+	cancelChoice string
+	detailSplit  bool
 	// Board toolbar and the detail modal's popovers and folded parts.
 	mineOnly, filterOpen                    bool
 	statusOpen, moreOpen, labelOpen, pjOpen bool
@@ -627,15 +630,43 @@ func (a *App) taskAction(tid id.ID, action string) {
 		a.remindTask(*t)
 	case "cancel":
 		a.tasks.cancelID, a.tasks.cancelOpen, a.tasks.cancelReason = tid, true, ""
+		a.tasks.cancelChoice = a.lastCancelReason
 	}
 }
 
+// cancelReasons are the one-tap reasons of "Batalkan tugas"; with
+// cancelOther the note is the reason and is required.
+var cancelReasons = []string{"Salah input / duplikat", "Tidak jadi dikerjakan", "Digabung ke tugas lain", "Diganti rencana", cancelOther}
+
+const cancelOther = "Lainnya"
+
+// cancelReasonText is the reason as saved in the task's history: the chip,
+// then the note when there is one ("Digabung ke tugas lain: ke #T12").
+// "" when it is not complete yet.
+func cancelReasonText(choice, note string) string {
+	note = strings.TrimSpace(note)
+	switch {
+	case choice == "":
+		return ""
+	case choice == cancelOther && note == "":
+		return ""
+	case note == "":
+		return choice
+	}
+	return choice + ": " + note
+}
+
 func (a *App) confirmCancelTask() {
-	reason := strings.TrimSpace(a.tasks.cancelReason)
+	reason := cancelReasonText(a.tasks.cancelChoice, a.tasks.cancelReason)
 	if reason == "" {
-		a.tasks.err = "Tulis alasan pembatalan."
+		a.tasks.err = "Pilih alasan pembatalan."
+		if a.tasks.cancelChoice == cancelOther {
+			a.tasks.err = "Tulis alasan pembatalan."
+		}
 		return
 	}
+	// The same reason is picked first next time, for this session.
+	a.lastCancelReason = a.tasks.cancelChoice
 	a.tasks.cancelOpen = false
 	a.tasks.reason = reason
 	a.moveTask(workspaceui.MoveRequest{TaskID: a.tasks.cancelID, Destination: workspaceui.Cancelled})

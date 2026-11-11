@@ -838,13 +838,43 @@ func (a *App) cancelTaskDialog(c *ui.Context) {
 		panel.Width(min(float32(460), w-32)).Column().Padding(20).Gap(12).Radius(14).Background(th.Surface).Border(1, th.Border).Children(func() {
 			ui.Text(c, "Batalkan “"+t.Title+"”?").FontSize(17).Bold()
 			muted(c, "Tugas pindah ke lajur Dibatalkan dan pengingatnya berhenti. Riwayat, komentar dan bukti tetap tersimpan untuk evaluasi.")
-			taskInput(c, "cancel-reason", "Alasan pembatalan *", &a.tasks.cancelReason)
+			ui.Text(c, "Alasan pembatalan *").FontSize(12).Bold()
+			ui.Row(c.Key("cancel-reasons")).FillWidth().Gap(6).Wrap().Children(func() {
+				for _, r := range cancelReasons {
+					on := a.tasks.cancelChoice == r
+					b := ui.ButtonBase(c.Key(r)).Label("Alasan: "+r).Height(32).Padding(0, 12).Radius(16).Border(1, th.Border).Center()
+					switch {
+					case on:
+						b.Background(th.Accent).BorderColor(th.Accent).TextColor(th.AccentText)
+					case b.Hovered():
+						b.Background(th.SurfaceHover)
+					}
+					b.FocusRing(b.FocusVisible()).Children(func() {
+						label := ui.Text(c, r).FontSize(13)
+						if on {
+							label.FontWeight(600)
+						}
+					})
+					if b.Clicked() {
+						a.tasks.cancelChoice = r
+						a.tasks.err = ""
+					}
+				}
+			})
+			note := "Catatan (opsional)"
+			if a.tasks.cancelChoice == cancelOther {
+				note = "Tulis alasannya *"
+			}
+			taskInputHint(c, "cancel-reason", note, "Misalnya: digabung ke #T12", &a.tasks.cancelReason)
+			if reason := cancelReasonText(a.tasks.cancelChoice, a.tasks.cancelReason); reason != "" {
+				muted(c, "Tercatat di riwayat: "+reason).FontSize(12)
+			}
 			ui.Row(c).FillWidth().Gap(8).Children(func() {
 				ui.Box(c).Grow(1)
 				if spaceButton(c, "Kembali", "", false).Clicked() {
 					a.tasks.cancelOpen = false
 				}
-				b := spaceButton(c, "Batalkan tugas", "archive", false).Background(th.Danger).TextColor(ui.Hex("#ffffff")).Disabled(strings.TrimSpace(a.tasks.cancelReason) == "")
+				b := spaceButton(c, "Batalkan tugas", "archive", false).Background(th.Danger).TextColor(ui.Hex("#ffffff")).Disabled(cancelReasonText(a.tasks.cancelChoice, a.tasks.cancelReason) == "")
 				if b.Clicked() {
 					a.confirmCancelTask()
 				}
