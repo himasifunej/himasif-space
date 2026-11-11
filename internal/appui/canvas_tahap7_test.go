@@ -383,3 +383,34 @@ func TestAppearancePopoverFourAccents(t *testing.T) {
 		t.Fatal("full panel lacks lavender")
 	}
 }
+
+// The note "Perbaikan Selanjutnya pilot 0.5": opening "Tugas baru" makes
+// the board narrower, all four lanes still in view beside the drawer, and
+// closing it gives the width back.
+func TestNewTaskDrawerNarrowsBoard(t *testing.T) {
+	h, _ := drawerHarness(t, nil)
+	h.tt.Frame() // the lanes follow the width of the frame before
+	edge, ok := h.tt.Find("Ubah lebar drawer")
+	if !ok {
+		t.Fatal("no drawer")
+	}
+	narrow := map[string]float32{}
+	for _, lane := range []string{"Belum mulai", "Dikerjakan", "Perlu tinjauan", "Selesai"} {
+		r, ok := h.tt.Find("Kolom " + lane)
+		if !ok {
+			t.Fatalf("lane %q missing", lane)
+		}
+		if r.X+r.W > edge.X+1 {
+			t.Fatalf("lane %q under the drawer: lane %+v, drawer at %v", lane, r, edge.X)
+		}
+		narrow[lane] = r.W
+	}
+	h.app.tasks.draft = nil
+	for range 3 {
+		h.tt.Advance(500 * time.Millisecond)
+		h.tt.Frame()
+	}
+	if r, ok := h.tt.Find("Kolom Selesai"); !ok || r.W <= narrow["Selesai"] {
+		t.Fatalf("closing the drawer did not widen the lanes: %+v (was %v)", r, narrow["Selesai"])
+	}
+}

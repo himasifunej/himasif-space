@@ -29,6 +29,7 @@ func untukFixture(t *testing.T) (*harness, *myMeetingsFake, time.Time) {
 	t.Helper()
 	h := newChromeHarness(t, nil)
 	h.tt.SetSize(1440, 900)
+	h.app.period().TimeZone = noonZone(h.tt.Now())
 	sp := testAuthorizedSpace(h.app, h.api.divisions[0])
 	shared := api.Space{ID: id.New(), PeriodID: h.app.periodID, Name: "Medhum", Kind: api.SpaceShared, Divisions: h.api.divisions[:2]}
 	h.app.access.spaces = append(h.app.access.spaces, shared)
@@ -175,3 +176,15 @@ func TestUntukCountdown(t *testing.T) {
 }
 
 func ptrTime(t time.Time) *time.Time { return &t }
+
+// noonZone is a zone where now falls at midday, so that "in 90 minutes"
+// stays today and "tomorrow" stays tomorrow whatever hour the tests run.
+func noonZone(now time.Time) string {
+	switch off := 12 - now.UTC().Hour(); {
+	case off > 0:
+		return fmt.Sprintf("Etc/GMT-%d", off)
+	case off < 0:
+		return fmt.Sprintf("Etc/GMT+%d", -off)
+	}
+	return "Etc/GMT"
+}
