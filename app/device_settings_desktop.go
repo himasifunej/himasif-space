@@ -16,35 +16,15 @@ import (
 // saved as they change, and a small preview of the island. Ace is the
 // Dynamic Island; the star mascot's window is gone.
 
-var islandStyleNames = map[string]string{"A": "Hitam", "B": "Aksen Space", "C": "Kaca"}
-
-// islandStyleOrder is the order the styles are offered in.
-var islandStyleOrder = []string{"A", "B", "C"}
-
-// islandPreviewColors are the pill's background and eyes in the preview:
-// close to the island's own, without its window.
-func islandPreviewColors(style string, dark bool) (bg, fg ui.Color) {
-	switch style {
-	case "B":
-		return ui.RGB(36, 33, 28), ui.RGB(246, 241, 230)
-	case "C":
-		if !dark {
-			return ui.RGBA(250, 249, 246, .9), ui.RGB(29, 29, 31)
-		}
-		return ui.RGBA(30, 30, 32, .88), ui.RGB(245, 245, 247)
-	}
-	return ui.RGB(0, 0, 0), ui.RGB(245, 245, 247)
-}
-
 // islandSummary is the island's state in the column of sections.
 func (p devicePreferences) islandSummary() string {
 	if !p.IslandEnabled {
 		return "Mati"
 	}
 	if p.IslandAlwaysOn {
-		return "Selalu tampil · " + islandStyleNames[p.IslandStyle]
+		return "Selalu tampil"
 	}
-	return islandStyleNames[p.IslandStyle]
+	return "Saat ada kabar"
 }
 
 // toastSummary says when Windows shows its own toast.
@@ -122,7 +102,6 @@ func (d *desktopDevice) islandSettings(c *ui.Context) {
 				d.island.win.Update(func() {})
 			}
 		}
-		appui.SettingRow(c, "Gaya Dynamic Island", "Hitam paling kontras. Kaca mengikuti terang atau gelap tema.", func() { d.islandStyles(c) })
 		if appui.SettingSwitch(c, "Gantikan toast Windows", "Kabar cukup muncul di island. Saat layar penuh, presentasi, atau Focus Assist, Windows tetap menampilkan toast.", &d.prefs.IslandReplaceToast) {
 			d.save()
 		}
@@ -147,8 +126,9 @@ func (d *desktopDevice) islandSettings(c *ui.Context) {
 	})
 }
 
-// islandPreview is Ace at rest as the island now looks: the pill and its
-// eyes in the chosen style, or what shows instead when it is off.
+// islandPreview is Ace at rest as the island looks: the black pill with
+// its eyes (Ace island A has one look; the old styles A/B/C are gone), or
+// what shows instead when it is off.
 func (d *desktopDevice) islandPreview(c *ui.Context) {
 	t := c.Theme()
 	ui.Column(c).Fill().AlignItems(ui.Center).Padding(16, 16).Gap(12).Children(func() {
@@ -158,8 +138,8 @@ func (d *desktopDevice) islandPreview(c *ui.Context) {
 			})
 			return
 		}
-		bg, fg := islandPreviewColors(d.prefs.IslandStyle, t.Dark)
-		pill := ui.Row(c.Key("pill")).Size(112, 30).Radius(15).Background(bg).Center().Gap(6).Label("Pratinjau Dynamic Island")
+		fg := ui.RGB(245, 245, 247)
+		pill := ui.Row(c.Key("pill")).Size(112, 30).Radius(15).Background(islandInk).Border(1, islandRing).Center().Gap(6).Label("Pratinjau Dynamic Island")
 		if !d.prefs.IslandAlwaysOn {
 			pill.Background(ui.RGBA(0, 0, 0, 0)).Border(1, t.Border)
 			fg = t.TextMuted
@@ -175,38 +155,6 @@ func (d *desktopDevice) islandPreview(c *ui.Context) {
 		}
 		ui.Text(c, caption).FontSize(12).TextColor(t.TextMuted)
 	})
-}
-
-// islandStyles is the choice of style: a small pill of each.
-func (d *desktopDevice) islandStyles(c *ui.Context) {
-	t := c.Theme()
-	for _, s := range islandStyleOrder {
-		on := d.prefs.IslandStyle == s
-		b := ui.ButtonBase(c.Key("style-"+s)).Label("Gaya "+islandStyleNames[s]).Column().Width(104).Padding(8).Gap(8).Radius(10).Border(1, t.Border).AlignItems(ui.Center).TextColor(t.TextMuted)
-		switch {
-		case on:
-			b.Border(2, t.Accent).TextColor(t.Text)
-		case b.Hovered():
-			b.Background(t.SurfaceHover)
-		}
-		b.FocusRing(b.FocusVisible()).Children(func() {
-			bg, _ := islandPreviewColors(s, t.Dark)
-			ui.Column(c).FillWidth().Height(30).Radius(7).Background(t.SurfaceHover).Center().Children(func() {
-				ui.Column(c).Size(48, 14).Radius(7).Background(bg)
-			})
-			label := ui.Text(c, islandStyleNames[s]).FontSize(12).MaxLines(1)
-			if on {
-				label.FontWeight(500)
-			}
-		})
-		if b.Clicked() && !on {
-			d.prefs.IslandStyle = s
-			d.save()
-			if d.island.win != nil {
-				d.island.win.Update(func() {})
-			}
-		}
-	}
 }
 
 func (d *desktopDevice) notificationSettings(c *ui.Context) {
