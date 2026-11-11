@@ -29,6 +29,9 @@ type Notice struct {
 	Link string
 	// Actions are optional Space deep links; OS presenters may ignore them.
 	Actions []NoticeAction
+	// OpenLabel names the button that opens Link where a presenter shows
+	// one ("Buka" when empty).
+	OpenLabel string
 	// AccountID scopes transient desktop content to its signed-in recipient.
 	AccountID string
 }

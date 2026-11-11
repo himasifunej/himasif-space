@@ -689,7 +689,11 @@ func (p *islandPresenter) content(c *ui.Context, x islandNotice, state island.St
 					primary = accent
 				}
 				// C's surface is translucent: its color would leave the label faint.
-				if ui.Button(c, "Buka").Background(primary).TextColor(opaque(bg)).Clicked() && interactive {
+				open := x.n.OpenLabel
+				if open == "" {
+					open = "Buka"
+				}
+				if ui.Button(c, open).Background(primary).TextColor(opaque(bg)).Clicked() && interactive {
 					p.act(x.n.Link)
 					p.dismiss()
 				}
@@ -787,6 +791,12 @@ func (p *islandPresenter) act(link string) {
 	p.d.win.Update(func() {
 		if link != "" {
 			u, _ := url.Parse(link)
+			// An update's actions come from the island only, never from a
+			// link opened outside Space.
+			if u != nil && u.Scheme == "himasif-space" && u.Host == "update" {
+				p.d.updater.handleLink(u)
+				return
+			}
 			activate := u == nil || u.Query().Get("action") != "snooze"
 			p.d.handleNotificationLink(link, activate)
 		} else {

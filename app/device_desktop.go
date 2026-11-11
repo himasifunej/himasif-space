@@ -46,9 +46,16 @@ type devicePreferences struct {
 	Volume         float64 `json:"volume"`
 	Sound          bool    `json:"sound"`
 	X, Y           int
+	// UpdateChannel is "stable" (or empty, older files) or "rc";
+	// UpdateAnnounced the version last announced, UpdateLaterUntil when
+	// Nanti stops holding announcements back (updater_desktop.go).
+	UpdateChannel    string    `json:"updateChannel,omitempty"`
+	UpdateAnnounced  string    `json:"updateAnnounced,omitempty"`
+	UpdateLaterUntil time.Time `json:"updateLaterUntil,omitzero"`
 }
 type desktopDevice struct {
 	island              *islandPresenter
+	updater             *desktopUpdater
 	mu                  sync.Mutex
 	deliveryMu          sync.Mutex
 	notificationPrefs   atomic.Value
@@ -112,6 +119,7 @@ func attachDevice(win *mygo.Window, app *appui.App) {
 		d.prefs.IslandStyle = "C"
 	}
 	d.island = &islandPresenter{d: d}
+	d.updater = newDesktopUpdater(d)
 	if data, err := os.ReadFile(filepath.Join(d.root, "delivery-journal.json")); err == nil {
 		_ = json.Unmarshal(data, &d.journal)
 	}
@@ -231,6 +239,8 @@ func attachDevice(win *mygo.Window, app *appui.App) {
 	}
 	app.Notifications = d
 	app.DeviceSettings = d.settings
+	app.AppUpdates = d.updateSettings
+	d.updater.start()
 	mygo.App.OnOpenURL(func(raw string) { d.handleLink(raw) })
 	mygo.App.OnSecondInstance(func([]string, string) { win.Show(); win.Focus() })
 	for _, arg := range os.Args[1:] {
@@ -498,6 +508,7 @@ func (d *desktopDevice) settings(c *ui.Context) {
 				ui.Text(c, d.err).TextColor(c.Theme().Danger)
 			}
 			d.islandSettings(c)
+			d.updateSettings(c)
 			deviceSection(c, "Notifikasi perangkat", "Periksa izin Windows dan mode jangan ganggu bila notifikasi tidak terlihat.", func() {
 				if ui.Button(c, "Buka pengaturan notifikasi Windows").Clicked() {
 					go func() {

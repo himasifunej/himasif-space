@@ -5,6 +5,13 @@ Versi mengikuti aturan sebelum rilis publik:
 - **Minor** naik untuk pembaruan besar.
 - **1.0.0** untuk rilis publik.
 
+## Belum dirilis · Pembaruan otomatis desktop
+
+- Space desktop memeriksa versi baru saat dibuka dan setiap 6 jam tanpa data akun, lalu mengumumkan "Space X tersedia" di Ace Island atau toast. Tombolnya: Perbarui sekarang, Lihat perubahan, dan Nanti.
+- Installer diunduh di latar dengan progres dan diperiksa SHA-256-nya. Pemasangan berjalan diam-diam (NSIS /S), lalu Space terbuka lagi. Ada kanal Stabil (bawaan) dan Uji coba (rc).
+- Manifest di GitHub Releases (`update-feed`) ditandatangani ed25519. Aplikasi menolak manifest tanpa tanda tangan yang sah, manifest dari kanal lain, dan downgrade. Langkah rilis ada di `docs/operations/auto-update.md`, dengan `scripts/release/publish_update.py` dan `tools/updatesign`.
+- Server dan web tidak berubah.
+
 ## 0.4.5 — 2026-11-11 · Navigasi cepat, template WA, island v2, perbaikan pilot 0.4.4 (rc)
 
 - **Navigasi cepat (Ctrl K)**: mencari semua halaman, tab Space, aksi, catatan, tugas, dan setiap seksi atau field pengaturan, dengan jejak seperti "Ace dan suara · Pengaturan › Perangkat". Ctrl K membuka dan menutup palet. Enter menjalankan hasil hanya saat daftar hasil tampil. "Izin arsip" hanya muncul untuk pengelola arsip.
