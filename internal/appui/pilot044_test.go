@@ -173,3 +173,50 @@ func TestCustomRoleFromAccessDrawer(t *testing.T) {
 		t.Fatalf("created %d, drawer %v %v role %q", len(f.created), m.editing, m.drawerOpen, m.role)
 	}
 }
+
+// The PJ chip of an action item without a PJ shows only while its row is
+// hovered; its picker lies below the row. Going over to the picker kept
+// the picker only while the row was hovered, so it vanished on the way.
+func TestNotePJPickerStaysWhilePointerMovesToIt(t *testing.T) {
+	aruna := id.New()
+	e := c3Editable(api.NoteBlock{Type: api.BlockChecklist, Items: []api.NoteListItem{{Spans: []api.Span{{Text: "Revisi poster"}}}, {Spans: []api.Span{{Text: "Storyboard"}}}}})
+	e.Members = func() []noteMember { return []noteMember{{aruna, "Aruna Desain"}, {id.New(), "Nara Tekno"}} }
+	e.MemberName = func(uid id.ID) string { return map[id.ID]string{aruna: "Aruna Desain"}[uid] }
+	tt := c3Tester(e, 900, 700)
+	row, ok := tt.Find("Butir 1 blok 1")
+	if !ok {
+		t.Fatal("no item")
+	}
+	tt.Move(row.X+4, row.Y+row.H/2)
+	c3Frames(tt)
+	c3Click(t, tt, "PJ butir 1 blok 1")
+	pick, ok := tt.Find("Pilih PJ Aruna Desain")
+	if !ok {
+		t.Fatalf("no picker: %q", tt.Texts())
+	}
+	// Over to the picker, off the row.
+	tt.Move(pick.X+pick.W/2, pick.Y+pick.H/2)
+	c3Frames(tt)
+	tt.Advance(time.Second)
+	c3Frames(tt)
+	if !tt.HasText("Penanggung jawab") {
+		t.Fatal("the picker went when the pointer left the row")
+	}
+	c3Click(t, tt, "Pilih PJ Aruna Desain")
+	if it := e.Content()[0].Items[0]; it.AssigneeID == nil || *it.AssigneeID != aruna {
+		t.Fatalf("PJ not set: %+v", it)
+	}
+	// Due date the same way.
+	tt.Move(row.X+4, row.Y+row.H/2)
+	c3Frames(tt)
+	c3Click(t, tt, "Tenggat butir 1 blok 1")
+	day, ok := tt.Find("Pakai tanggal")
+	if !ok {
+		t.Fatalf("no due picker: %q", tt.Texts())
+	}
+	tt.Move(day.X+day.W/2, day.Y+day.H/2)
+	c3Frames(tt)
+	if !tt.HasText("Tanggal tenggat") {
+		t.Fatal("the due picker went when the pointer left the row")
+	}
+}

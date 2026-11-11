@@ -799,7 +799,11 @@ func (e *noteDocumentEditor) listView(c *ui.Context, index int, b api.NoteBlock)
 	start, end := p.items*noteItemsPerPage, min((p.items+1)*noteItemsPerPage, len(b.Items))
 	for i := start; i < end; i++ {
 		row := ui.Row(c.Key(i)).FillWidth().MinWidth(0).Gap(6).AlignItems(ui.Start)
-		shown := row.Hovered() || (e.Compact && (e.reveal == index+1 || e.editable && e.selected == index && e.item == i))
+		// An item whose PJ, tenggat or durasi picker is open keeps its
+		// chips while the pointer goes over to the picker, which lies
+		// outside the row: else the chip, and the picker on it, would go.
+		picking := e.pick.kind != "" && e.pick.block == index && e.pick.item == i
+		shown := row.Hovered() || picking || (e.Compact && (e.reveal == index+1 || e.editable && e.selected == index && e.item == i))
 		row.Children(func() {
 			switch b.Type {
 			case api.BlockChecklist:
