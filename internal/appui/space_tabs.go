@@ -75,6 +75,11 @@ type spaceTabDrag struct{ key string }
 
 type spaceTabsUIState struct {
 	menuOpen bool
+	// scroll is where the tab row is scrolled; scrolledAt when the wheel
+	// last moved it, which shows its thin bar for a moment
+	// (spaceTabScrollbar).
+	scroll     ui.ScrollState
+	scrolledAt time.Time
 	// reviewFilter is the Tinjauan page's filter: a task match status.
 	reviewFilter string
 	// rejecting is the evidence whose "Tidak cocok" reason is being typed
@@ -296,7 +301,13 @@ func (a *App) spaceTabBar(c *ui.Context, sp *api.Space) {
 	all := a.spaceTabsAll(sp)
 	tabs := a.spaceTabsVisible(sp)
 	ui.Row(c.Key("space-tab-bar")).FillWidth().Height(46).Shrink(0).Background(t.Background).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).AlignItems(ui.Center).Children(func() {
-		ui.ScrollHorizontal(c.Key("space-tabs")).Grow(1).MinWidth(0).FillHeight().Label("Tab space").Children(func() {
+		// The engine's bar would show over the tabs whenever the pointer is
+		// on them, which is always while picking one: it goes below the row,
+		// which clips it, and a thin bar shows only while the row scrolls.
+		strip := ui.ScrollHorizontal(c.Key("space-tabs")).Grow(1).MinWidth(0).FillHeight().Label("Tab space").
+			ScrollbarInsets(0, 0, -(t.ScrollbarWidth + 8), 0).TrackScroll(&a.spaceTabs.scroll)
+		strip.HandleInput(a.spaceTabWheel)
+		strip.Children(func() {
 			list := ui.Row(c.Key("space-tab-list")).FillHeight().Padding(0, pad).Gap(2).AlignItems(ui.End)
 			list.Children(func() {
 				buttons := make(map[string]ui.Element, len(tabs))
@@ -317,8 +328,52 @@ func (a *App) spaceTabBar(c *ui.Context, sp *api.Space) {
 				ui.Box(c.Key("space-tab-ink")).Absolute().Left(x).Bottom(0).Width(w).Height(2).Radius(2).Background(t.Accent)
 			})
 		})
+		a.spaceTabScrollbar(c, strip)
 		a.spaceTabMenu(c, sp, all, mobile)
-	})
+	}).Clip()
+}
+
+// spaceTabShowBar is how long the tab row's bar stays after it scrolls.
+const spaceTabShowBar = 900 * time.Millisecond
+
+// spaceTabWheel turns a mouse wheel's vertical notches into scrolling the
+// tab row sideways, as a mouse has no other way to, and notes that the
+// row scrolled. Sideways scrolling (a touchpad, Shift) goes on as usual.
+func (a *App) spaceTabWheel(ev ui.InputEvent) bool {
+	if ev.Kind != ui.InputScroll {
+		return false
+	}
+	st := &a.spaceTabs
+	if st.scroll.MaxX <= 0 {
+		return false
+	}
+	st.scrolledAt = ev.Time
+	if ev.DX != 0 || ev.DY == 0 {
+		return false
+	}
+	st.scroll.X = max(0, min(st.scroll.X+ev.DY, st.scroll.MaxX))
+	return true
+}
+
+// spaceTabScrollbar is the tab row's thin bar at its bottom edge: only
+// while the row has more tabs than fit and has just scrolled, fading out
+// after.
+func (a *App) spaceTabScrollbar(c *ui.Context, strip ui.Element) {
+	st := &a.spaceTabs
+	b := strip.Bounds()
+	if st.scroll.MaxX <= 0 || b.W <= 0 {
+		return
+	}
+	show := !st.scrolledAt.IsZero() && c.Now().Sub(st.scrolledAt) < spaceTabShowBar
+	if show {
+		c.After(spaceTabShowBar - c.Now().Sub(st.scrolledAt))
+	}
+	bar := ui.Box(c.Key("space-tabs-bar")).Absolute().Left(0).Bottom(1).Height(3).Radius(2).Background(c.Theme().Scrollbar)
+	o := bar.Animate("o", b2f(show), 180*time.Millisecond)
+	content := b.W + st.scroll.MaxX
+	w := max(24, b.W*b.W/content)
+	x := b.X + (b.W-w)*min(1, st.scroll.X/st.scroll.MaxX)
+	bar.Left(x - b.X).Width(w).Opacity(o)
 }
 
 func (a *App) spaceTabButton(c *ui.Context, sp *api.Space, tabs []spaceTabDef, index int) ui.Element {
