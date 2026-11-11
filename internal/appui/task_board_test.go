@@ -95,8 +95,8 @@ func TestTaskDetailModalFollowsCanvas(t *testing.T) {
 	for _, want := range []string{"Status: Belum mulai", taskRef(task.ID), "Serahkan hasil", "Lampiran", "Desain", "Urgent", "Lewat", "Hasil yang diminta", "Deskripsi", "Komentar dan aktivitas", "Draf pertama sudah di Drive", "membuat tugas dan menetapkan Aruna Desain sebagai PJ"} {
 		h.want(want)
 	}
-	// Without manage rights there is no Label, PJ, Ping PJ or task menu.
-	for _, absent := range []string{"Ping PJ", "Ajukan bantuan", "Menu tugas", "Simpan label"} {
+	// Without manage rights there is no Label, PJ, Ingatkan or task menu.
+	for _, absent := range []string{"Ingatkan Aruna", "Ajukan bantuan", "Menu tugas", "Simpan label"} {
 		h.dontWant(absent)
 	}
 	if _, ok := h.tt.Find("Label"); ok {

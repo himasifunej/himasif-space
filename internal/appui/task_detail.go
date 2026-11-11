@@ -246,20 +246,6 @@ func (a *App) quickUpdateTask(t api.Task, action string, change func(*api.TaskWr
 	a.mutateTask(action, func(s TasksAPI) error { _, err := s.UpdateTask(context.Background(), tid, req); return err }, after)
 }
 
-// pingTask opens the ping dialog about this task, as the canvas's "Ping PJ".
-func (a *App) pingTask(t api.Task) {
-	sp := a.selectedSpace()
-	if !canPing(sp) {
-		return
-	}
-	st := &a.notificationSettingsState
-	if st.period != sp.PeriodID || st.space != sp.ID {
-		*st = notificationSettingsState{period: sp.PeriodID, space: sp.ID, division: st.division, device: true}
-	}
-	st.pingKind, st.pingTarget = "task", t.ID
-	a.chrome.pingOpen = true
-}
-
 // taskDetailMain is the task's own content, as the canvas's modal: title,
 // actions, PJ/label/deadline/output, description, checklist, attachments
 // and evidence. taskDetailSide holds comments and activity.
@@ -364,9 +350,14 @@ func (a *App) taskActionRow(c *ui.Context, t api.Task) {
 		if canSubmit && outlineButton(c.Key("act-attach"), "Lampiran", "clip", false).Clicked() {
 			a.tasks.evidenceOpen = true
 		}
-		if t.Permissions.Manage && canPing(a.selectedSpace()) && t.Assignee.ID != id.Nil {
-			if outlineButton(c.Key("act-ping"), "Ping PJ", "ping", false).Clicked() {
-				a.pingTask(t)
+		if a.taskRemindable(t) {
+			label, ready := a.pingRemindLabel(t.ID, firstName(t.Assignee.DisplayName), c.Now())
+			b := outlineButton(c.Key("act-ping"), label, "ping", false).Tooltip("Kirim ping tentang tugas ini ke " + t.Assignee.DisplayName).Disabled(!ready || a.conn != connOnline)
+			if !ready {
+				c.After(pingRemindGap)
+			}
+			if b.Clicked() {
+				a.remindTask(t)
 			}
 		}
 		if t.Permissions.Help && outlineButton(c.Key("act-help"), "Ajukan bantuan", "help", false).Clicked() {

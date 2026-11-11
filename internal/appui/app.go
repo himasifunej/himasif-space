@@ -129,6 +129,7 @@ type App struct {
 	offlineSync               offlineUIState
 	notificationSettingsState notificationSettingsState
 	pingHistory               pingHistoryState
+	pingUI                    pingUIState
 	uiPrefs                   uiPreferencesSync
 	taskNotification          taskNotificationState
 	organization              organizationUIState
