@@ -186,7 +186,9 @@ func (a *App) spacePage(c *ui.Context, r *ui.Route, shared bool) {
 		}
 	}
 	a.resolveSpaceTab(sp)
-	ui.Column(c).Fill().MinWidth(0).Children(func() {
+	page := ui.Column(c).Fill().MinWidth(0)
+	a.tourTarget("space-page", page)
+	page.Children(func() {
 		a.spaceTabBar(c, sp)
 		if s := a.selectedSpace(); s != nil && s.ReadOnly {
 			pageNotice(c, "lock", "Hanya baca", "Periode atau akses arsip ini tidak mengizinkan perubahan.")

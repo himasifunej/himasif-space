@@ -300,7 +300,9 @@ func (a *App) spaceTabBar(c *ui.Context, sp *api.Space) {
 	a.ensureUIPreferences()
 	all := a.spaceTabsAll(sp)
 	tabs := a.spaceTabsVisible(sp)
-	ui.Row(c.Key("space-tab-bar")).FillWidth().Height(46).Shrink(0).Background(t.Background).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).AlignItems(ui.Center).Children(func() {
+	bar := ui.Row(c.Key("space-tab-bar"))
+	a.tourTarget("space-tab-bar", bar)
+	bar.FillWidth().Height(46).Shrink(0).Background(t.Background).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).AlignItems(ui.Center).Children(func() {
 		// The engine's bar would show over the tabs whenever the pointer is
 		// on them, which is always while picking one: it goes below the row,
 		// which clips it, and a thin bar shows only while the row scrolls.
@@ -425,6 +427,10 @@ func (a *App) spaceTabButton(c *ui.Context, sp *api.Space, tabs []spaceTabDef, i
 		}
 	})
 	a.tourTarget("tab:"+tab.title, b)
+	if a.tourAsksFor(tab.title) {
+		// The tour asks to press this tab: bring it into view.
+		b.ScrollIntoView()
+	}
 	if b.Clicked() {
 		a.chrome.tab = tab.title
 	}
