@@ -5,6 +5,21 @@ Versi mengikuti aturan sebelum rilis publik:
 - **Minor** naik untuk pembaruan besar.
 - **1.0.0** untuk rilis publik.
 
+## Belum dirilis · Ace: kaca, ikon jenis kabar, kotak masuk (feat/ace-glass-inbox)
+
+- **Kotak masuk Ace**: kabar yang tidak disentuh (Buka, Tunda, Tutup) tidak lagi hilang saat island melipat.
+  - Kabar itu masuk ke kotak masuk perangkat, dan pil menampilkan "+N". Klik Ace untuk membuka yang terbaru.
+  - Di detail ada ‹ "3 dari 8" ›, Tutup (lalu kabar berikutnya muncul), dan Tutup semua.
+  - Kotak masuk disimpan di `island-inbox.json`, per akun, paling banyak 50 kabar selama 7 hari. Selama ada kabar yang belum dibuka, Ace tetap tampil walau "Selalu tampil" mati.
+  - Jam tenang kini memasukkan kabar ke kotak masuk tanpa banner, toast, atau bel, alih-alih menahannya sampai pagi.
+- **Ikon jenis kabar** di samping mata, di pil maupun di detail: lonceng untuk ping, kalender untuk rapat dan pengingat, centang untuk tugas dan tinjauan, obrolan untuk WhatsApp, jam untuk tenggat. Ping yang dikirim seseorang tetap berikon lonceng walau tentang tugas.
+- **Kaca** lebih terang dan tembus pandang, dengan tepi terang dan kilau lembut di separuh atas. Tetap tanpa blur Windows:
+  - akrilik dan blur Windows melukis seluruh persegi jendela di luar region (kotak ungu di 0.4.4);
+  - `DwmEnableBlurBehindWindow` tidak lagi memburamkan sejak Windows 8;
+  - backdrop Windows 11 hanya untuk bingkai jendela, bukan bentuk pil.
+  - Mode uji `--island-spike=ace-kaca-blur` mencoba akrilik bersama region di PC Windows, untuk melihat apakah kotaknya muncul.
+- CPU diam tidak berubah: ±0,7% satu inti untuk Ace diam, Kaca, maupun dengan "+8" (diukur di Linux).
+
 ## 0.4.6-rc.1 — 2026-11-11 · Tautan kartu di WhatsApp, buka di aplikasi, bar unduh di web, Ace yang luwes (pre-release)
 
 - **Tautan kartu di WhatsApp**: pesan bot tentang tugas atau rapat (tugas baru, hasil diserahkan, perubahan PJ/tenggat, tugas Medhum, rapat baru/berubah/batal, pengingat terjadwal, ping tentang tugas/rapat, dan balasan `!cek`) kini diakhiri "Buka di Space: <SPACE_PUBLIC_URL>/t/<id tugas>" atau "/r/<id rapat>".

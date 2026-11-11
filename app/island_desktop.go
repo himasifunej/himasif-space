@@ -179,6 +179,8 @@ func noticeBody(x islandNotice) string {
 type islandPresenter struct {
 	// hold is the next offered notice's Item.Hold (offerHeld).
 	hold time.Duration
+	// inbox keeps what lapsed unseen (island_inbox_view_desktop.go).
+	inbox inboxState
 	// Only the isolated spike supplies an override, to measure rendering even
 	// when this Windows session currently has Focus Assist or fullscreen on.
 	environmentCheck func() bool
@@ -186,6 +188,7 @@ type islandPresenter struct {
 	// spike, which has neither.
 	spikeLive func(time.Time) (appui.IslandTimer, bool, islandMedia, bool)
 	spikeOpen bool          // the spike holds the details open
+	spikeBlur bool          // the spike tries Windows' acrylic (ace-kaca-blur)
 	idleAfter time.Duration // 0: islandIdleDestroy; the spike shortens it
 	d         *desktopDevice
 	mu        sync.Mutex
@@ -382,6 +385,11 @@ func (p *islandPresenter) ensureWindow() {
 	p.win = mygo.NewWindow(mygo.WindowOptions{Title: "Dynamic Island · Space", Width: w, Height: h, Hidden: true, Frameless: true, Transparent: true, AlwaysOnTop: true, SkipTaskbar: true, DisableResize: true, Panel: true, Content: ui.View(p.view)})
 	islandPrepareWindow(p.win.NativeHandle())
 	islandClearBackdrop(p.win.NativeHandle())
+	if p.spikeBlur {
+		// Only the spike tries the system's acrylic, to see on a real
+		// Windows whether it stays inside the region (it did not in 0.4.4).
+		islandSpikeAcrylic(p.win.NativeHandle())
+	}
 	p.win.OnClose(func(e *mygo.CloseEvent) {
 		if !p.d.quitting {
 			e.PreventDefault()
@@ -458,6 +466,7 @@ func (p *islandPresenter) reset(fallback bool) {
 		items = append(items, *p.m.Current)
 	}
 	p.m = island.Machine{}
+	p.inbox.open = false
 	p.mu.Unlock()
 	if p.win != nil {
 		p.win.Hide()
@@ -589,6 +598,7 @@ type islandFrame struct {
 	notice        *islandNotice
 	item          *island.Item
 	queued        int
+	inbox         int // notices kept unseen, for the account
 	closing       time.Time
 	until         time.Time
 	timer         appui.IslandTimer
@@ -656,7 +666,8 @@ func (p *islandPresenter) view(c *ui.Context) {
 	// A press that drags the island neither hovers nor opens it.
 	overPill := pointerOK && !p.drag.moved && insideIsland(px, py, [3]float64{p.geometry[0], p.geometry[1], p.geometry[2]})
 	f := p.frame(c, now, prefs, overPill)
-	if f.scene == island.SceneIdle && !prefs.IslandAlwaysOn && f.notice == nil {
+	// Notices kept unseen hold Ace on screen even without "Selalu tampil".
+	if f.scene == island.SceneIdle && !prefs.IslandAlwaysOn && f.notice == nil && f.inbox == 0 {
 		p.hideEmpty()
 		return
 	}
@@ -804,6 +815,11 @@ func (p *islandPresenter) view(c *ui.Context) {
 			c.After(0)
 		}
 		pill.Children(func() {
+			// Kaca reads as glass without the system's blur: a soft light
+			// sheen over the top half, under a light edge (the ring).
+			if prefs.IslandTheme == islandThemeGlass {
+				ui.Box(c.Key("sheen")).Absolute().Left(0).Top(0).Size(gw, gh*.5).Radius(gr, gr, 0, 0).Background(ui.RGBA(255, 255, 255, .09))
+			}
 			// The eyes: two capsules, nodding to music, blinking, looking.
 			h := float32(math.Max(1.4, eyeH*open*scale))
 			w := float32(island.EyeWidth * scale)
@@ -817,6 +833,9 @@ func (p *islandPresenter) view(c *ui.Context) {
 				ui.Box(c).Absolute().Left(cx-w/2).Top(cy-h/2).Size(w, h).Radius(min(w, h) / 2).Background(islandText)
 			}
 			p.content(c, f, now, alpha, reduced)
+			if f.notice == nil && !f.expanded && f.scene == island.SceneIdle {
+				inboxBadge(c, f.inbox, gw, gh)
+			}
 		})
 		if p.geometry[3] > 1 {
 			b := float32(p.geometry[3])
@@ -898,8 +917,11 @@ func (p *islandPresenter) frame(c *ui.Context, now time.Time, prefs devicePrefer
 	} else if p.swap {
 		live[0], live[1] = live[1], live[0]
 	}
+	account := p.account() // before p.mu: offer takes p.d.mu, then p.mu
 	p.mu.Lock()
 	p.m.Tick(now, overPill || p.spikeOpen, false, c.Shortcut(0, ui.KeyEscape))
+	p.keepLapsed(now)
+	f.inbox = p.inboxCount(account)
 	if it := p.m.Current; it != nil {
 		x := it.Value.(islandNotice)
 		f.scene, f.notice, f.item = island.SceneNotice, &x, it
@@ -937,6 +959,14 @@ func (p *islandPresenter) click(now time.Time, f islandFrame) {
 		p.mu.Lock()
 		p.m.Tick(now, true, true, false)
 		p.mu.Unlock()
+		return
+	}
+	// Ace at rest with notices kept: the newest opens, to page through.
+	account := p.account()
+	p.mu.Lock()
+	opened := f.inbox > 0 && p.openInbox(now, account)
+	p.mu.Unlock()
+	if opened {
 		return
 	}
 	p.expander.Tick(now, true, true)
@@ -1091,14 +1121,18 @@ func (p *islandPresenter) content(c *ui.Context, f islandFrame, now time.Time, a
 			})
 		case f.scene == island.SceneNotice:
 			ui.Row(c).Fill().AlignItems(ui.Center).Gap(10).Children(func() {
+				// The kind's icon, beside the eyes: a ping, a meeting, a task.
+				islandKindIcon(c, f.notice.n.Kind, 18)
 				ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
 					ui.Text(c, p.noticeTitle(*f.notice)).FontSize(14).FontWeight(600).MaxLines(1)
 					ui.Text(c, noticeBody(*f.notice)).FontSize(13).MaxLines(1).TextColor(islandMuted)
 				})
-				if f.queued > 0 {
+				switch {
+				case f.queued > 0:
 					ui.Text(c, fmtIslandQueue(f.queued)).FontSize(13).TextColor(islandMuted)
+				case f.inbox > 1:
+					ui.Text(c, fmtIslandQueue(f.inbox-1)).FontSize(13).TextColor(islandMuted)
 				}
-				ui.Icon(c, appui.NoticeGlyph(f.notice.n.Kind)).Size(18, 18).TextColor(islandGlyphColor("A", f.notice.n.Kind))
 			})
 		case f.scene == island.SceneTimer && f.expanded:
 			p.timerDetails(c, f.timer)
@@ -1184,16 +1218,19 @@ func (p *islandPresenter) islandAction(c *ui.Context, label string, icon *ui.SVG
 
 func (p *islandPresenter) noticeDetails(c *ui.Context, x islandNotice, queued int) {
 	ui.Column(c).FillWidth().Gap(2).Children(func() {
-		ui.Row(c).FillWidth().Gap(8).Children(func() {
+		ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
+			islandKindIcon(c, x.n.Kind, 16)
 			ui.Text(c, p.noticeTitle(x)).FontSize(15).FontWeight(600).MaxLines(1).Grow(1).MinWidth(0)
 			if queued > 0 {
 				ui.Text(c, fmtIslandQueue(queued)).FontSize(13).TextColor(islandMuted)
 			}
+			p.inboxPager(c, x)
 		})
 		ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, "Space · "+islandKindLabel(x.n.Kind)).FontSize(13).TextColor(islandMuted).Grow(1).MinWidth(0)
-			// With more waiting, all of them can go at once: small, aside.
-			if queued > 0 {
+			// With more waiting, or paging the inbox, all of them can go at
+			// once: small, aside.
+			if queued > 0 || p.inboxShowing(x.n.Tag) {
 				b := ui.ButtonBase(c.Key("island-dismiss-all")).Label("Tutup semua").Padding(2, 8).Radius(10)
 				fg := islandMuted
 				if b.Hovered() {
@@ -1435,15 +1472,27 @@ func islandKindLabel(kind string) string {
 
 // dismissAll closes the notice and drops the ones waiting: Tutup semua.
 func (p *islandPresenter) dismissAll() {
+	account := p.account()
 	p.mu.Lock()
 	p.m.DismissAll(time.Now())
+	p.ensureInbox(time.Now())
+	if p.inbox.box.clear(account) {
+		p.inbox.changed = true
+		p.saveInbox()
+	}
+	p.inbox.open = false
 	p.mu.Unlock()
 	p.win.Update(func() {})
 }
 
 func (p *islandPresenter) dismiss() {
+	account := p.account()
 	p.mu.Lock()
-	p.m.Dismiss(time.Now())
+	// Acted on (Buka, Tunda, Tutup): out of the inbox; in the inbox, the
+	// next one kept follows.
+	if !p.handled(time.Now(), account) {
+		p.m.Dismiss(time.Now())
+	}
 	p.mu.Unlock()
 	p.win.Update(func() {})
 }
@@ -1487,11 +1536,20 @@ type deliveryIsland struct {
 func (n deliveryIsland) Present(x appui.Notice) error {
 	return n.p.offer(x, func() { n.p.reportFallback(showDeviceNotification(n.n, n.link)) })
 }
-func (d *desktopDevice) presentDelivery(uid id.ID, n api.Delivery, link string, prefs devicePreferences) error {
+
+// deliveryNotice is a delivery as the island and Windows show it.
+func deliveryNotice(uid id.ID, n api.Delivery) appui.Notice {
+	link := notificationLink(uid, n, "open")
 	x := appui.Notice{Kind: appui.DeliveryKind(n), Title: n.Title, Body: appui.NoticeDate(n.Body), Tag: uid.String() + ":" + n.ID.String(), Link: link, AccountID: uid.String(), Actions: []appui.NoticeAction{{Label: "Tunda 15 menit", Link: notificationLink(uid, n, "snooze")}}}
 	x.Group, x.GroupLabel = appui.DeliveryGroup(n)
 	if n.SpaceID != nil {
 		x.Space = *n.SpaceID
 	}
+	return x
+}
+
+func (d *desktopDevice) presentDelivery(uid id.ID, n api.Delivery, link string, prefs devicePreferences) error {
+	x := deliveryNotice(uid, n)
+	x.Link = link
 	return (appui.MultiNotifier{Base: deliveryToast{d.app.Notifier, n, link}, Extra: []appui.NoticePresenter{deliveryIsland{d.island, n, link}}, ReplaceBase: prefs.IslandReplaceToast}).Present(x)
 }

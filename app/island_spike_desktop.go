@@ -12,6 +12,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/himasifunej/himasif-space/internal/appui"
+	"github.com/himasifunej/himasif-space/internal/id"
 	"github.com/himasifunej/himasif-space/internal/island"
 )
 
@@ -66,7 +67,7 @@ func runIslandSpike() bool {
 			// ace-hitam, ace-kaca, ace-custom: Ace at rest in that style (the
 			// idle CPU of each); plain ace follows the theme.
 			for _, th := range []string{islandThemeBlack, islandThemeGlass, islandThemeCustom} {
-				if strings.HasSuffix(mode, "-"+th) {
+				if strings.HasSuffix(mode, "-"+th) || strings.HasSuffix(mode, "-"+th+"-blur") {
 					d.prefs.IslandTheme = th
 				}
 			}
@@ -92,6 +93,17 @@ func runIslandSpike() bool {
 				p.m.Until = time.Now().Add(time.Hour)
 			}
 			p.spikeOpen = strings.HasSuffix(mode, "-open")
+			// ace-kaca-blur: Kaca over Windows' acrylic, to see whether it
+			// stays inside the pill (no box) on this PC.
+			p.spikeBlur = strings.HasSuffix(mode, "-blur")
+			// ace-inbox: Ace at rest with eight notices kept unseen ("+8").
+			if strings.Contains(mode, "inbox") {
+				d.activeUser = id.New()
+				p.inbox.loaded = true
+				for i := range 8 {
+					p.inbox.box.add(appui.Notice{Kind: []string{"ping", "task", "meeting", "reminder"}[i%4], Title: fmt.Sprintf("Kabar %d", i+1), Body: "Contoh kabar yang belum dibuka", Tag: fmt.Sprintf("spike:%d", i), AccountID: d.activeUser.String()}, time.Now())
+				}
+			}
 			p.resume()
 			// ace-slide: Kiri at 4 s, Kanan at 7 s, Tengah at 10 s, then
 			// rest, as the settings' choice moves Ace; ace-slide-still with

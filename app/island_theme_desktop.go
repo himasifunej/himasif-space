@@ -62,7 +62,12 @@ func islandPaletteFor(prefs devicePreferences, base *ui.Theme) islandPalette {
 		// Translucent, without the system's blur: Windows draws an acrylic
 		// or blur accent over the whole window, past the region, which
 		// brought back the box around the island (0.4.4's purple corners).
-		return islandOn(ui.RGB(30, 31, 36), .62)
+		// Frosted: lighter and more see-through than before, with a light
+		// edge that shows on dark wallpapers and a dark one under it that
+		// shows on light ones (the sheen is drawn with the pill).
+		pal := islandOn(ui.RGB(40, 42, 50), .5)
+		pal.ring = ui.RGBA(255, 255, 255, .34)
+		return pal
 	case islandThemeCustom:
 		c, ok := parseIslandHex(prefs.IslandColor)
 		if !ok {
