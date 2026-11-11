@@ -12,6 +12,8 @@ Versi mengikuti aturan sebelum rilis publik:
   - Blur konten dihapus, dan tinggi mata berubah halus saat kursor datang.
   - Island bisa ditarik di sepanjang tepi atas, dari pojok kiri sampai kanan. Posisinya disimpan (`islandAnchor`), dan Pengaturan › Perangkat punya tombol "Ke tengah".
   - Timer di island: "Buka rapat" membuka rapatnya di tab Rapat, atau catatannya untuk timer catatan.
+- **Gaya island**: Ikut tema (bawaan, juga untuk pengguna lama), Hitam, Kaca (tembus pandang tanpa blur Windows, karena blur Windows mewarnai seluruh persegi jendela), dan Custom (warna dan transparansi, kontras teks otomatis). CPU diam per gaya ±0,1–0,3% satu core.
+- **Antrean kabar**: Tutup, Buka dan Tunda hanya berlaku untuk kabar yang tampil, lalu kabar berikutnya muncul dengan detail tetap terbuka. Ada "Tutup semua". Kabar sejenis yang datang dalam 10 detik digabung ("8 rapat baru di Medhum"). Kabar rapat berlabel "Space · Rapat", dengan tanggal "5 Des 2026 · 08.00 WIB".
 - **Rapat**: lebar daftar bisa ditarik dari 72 sampai 640 px. Di bawah 180 px, daftar menampilkan tanggal saja. Lebarnya disimpan di perangkat.
 - **Tinjauan hasil**:
   - "Bukti sesuai" cukup sekali klik. Alasan hanya diminta untuk "Bukti tidak sesuai".
