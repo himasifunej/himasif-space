@@ -87,7 +87,6 @@ var settingsSearchItems = []settingsSearchItem{
 	{"Pengingat", "Jadwal tugas", "Jadwal tugas", "section", ""},
 	{"Pengingat", "Simpan jadwal divisi", "Jadwal tugas", "button", ""},
 	{"Pengingat", "Kirim ping", "Pengingat dan ping", "heading", ""},
-	{"Pengingat", "Kirim ping sekarang", "Pengingat dan ping", "button", ""},
 	{"Command", "Command bot", "Command bot", "section", ""},
 	{"Command", "Buat perintah baru", "Command bot", "button", ""},
 	{"Command", "Nama perintah", "Command bot", "field", ""},

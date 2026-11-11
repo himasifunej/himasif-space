@@ -45,7 +45,7 @@ func (a *App) notificationSettings(c *ui.Context) {
 			}
 		}
 		if st.division != did || st.period != sp.PeriodID || st.space != sp.ID {
-			*st = notificationSettingsState{period: sp.PeriodID, space: sp.ID, division: did, device: true, pingKind: "general"}
+			a.resetPingState(sp, did)
 		}
 		if st.err != "" {
 			ui.Text(c, st.err).TextColor(c.Theme().Danger)
@@ -157,47 +157,6 @@ func (a *App) saveNotificationPolicy() {
 				a.notificationSettingsState.err = a.failed(err)
 			} else {
 				a.notificationSettingsState.err = "Jadwal tersimpan di server."
-			}
-		}
-	})
-}
-func (a *App) sendManualPing() {
-	svc, ok := a.deliveryService()
-	sp := a.selectedSpace()
-	if !ok || sp == nil {
-		return
-	}
-	st := &a.notificationSettingsState
-	req := api.PingRequest{Message: st.pingMessage, Recipients: slices.Clone(st.recipients)}
-	if st.pingKind != "general" {
-		req.SourceKind = st.pingKind
-		target := st.pingTarget
-		req.SourceID = &target
-	}
-	if st.device {
-		req.Channels = append(req.Channels, "device")
-	}
-	if st.whatsapp {
-		req.Channels = append(req.Channels, "whatsapp")
-	}
-	if len(req.Channels) == 0 {
-		st.err = "Pilih setidaknya satu kanal."
-		return
-	}
-	gen, sid := a.gen, sp.ID
-	st.busy = true
-	a.async(func() func() {
-		err := svc.SendPing(context.Background(), sid, req)
-		return func() {
-			if gen != a.gen || sid != a.selectedSpaceID() {
-				return
-			}
-			a.notificationSettingsState.busy = false
-			if err != nil {
-				a.notificationSettingsState.err = a.failed(err)
-			} else {
-				a.notificationSettingsState.err = "Ping dibuat. Status perangkat dan WhatsApp dicatat terpisah."
-				a.pingHistory.loaded = false
 			}
 		}
 	})
@@ -337,72 +296,4 @@ func (a *App) notificationClient() *client.Client {
 
 func canPing(sp *api.Space) bool {
 	return sp != nil && !sp.ReadOnly && slices.Contains(sp.Capabilities, api.CapPingSend)
-}
-
-// pingComposer is the manual ping form (PRD REM-03): general, task or
-// meeting, a message, recipients and channels. Settings, the header button
-// and the Space overview share it, so the state lives on the App.
-func (a *App) pingComposer(c *ui.Context) {
-	a.ensureMeetings()
-	sp := a.selectedSpace()
-	if !canPing(sp) {
-		return
-	}
-	st := &a.notificationSettingsState
-	if st.period != sp.PeriodID || st.space != sp.ID {
-		*st = notificationSettingsState{period: sp.PeriodID, space: sp.ID, division: st.division, device: true, pingKind: "general"}
-	}
-	if st.err != "" {
-		muted(c, st.err)
-	}
-	ui.Row(c).Wrap().Gap(6).Children(func() {
-		for _, k := range []string{"general", "task", "meeting"} {
-			k := k
-			if spaceButton(c, map[string]string{"general": "Umum", "task": "Tugas", "meeting": "Rapat"}[k], "", st.pingKind == k).Clicked() {
-				st.pingKind = k
-				st.pingTarget = id.Nil
-			}
-		}
-	})
-	if st.pingKind == "task" {
-		a.ensureTasks(false)
-		for _, t := range a.tasks.items {
-			t := t
-			if t.Permissions.Manage && spaceButton(c, t.Title, "task", st.pingTarget == t.ID).Clicked() {
-				st.pingTarget = t.ID
-			}
-		}
-	}
-	if st.pingKind == "meeting" {
-		for _, m := range a.meetings.items {
-			m := m
-			if m.CanManage && spaceButton(c, m.Title, "calendar", st.pingTarget == m.ID).Clicked() {
-				st.pingTarget = m.ID
-			}
-		}
-	}
-	ui.Field(c, "Pesan · kosong memakai pesan bawaan", func() { ui.TextInput(c, &st.pingMessage).Label("Pesan · kosong memakai pesan bawaan").FillWidth() })
-	ui.Row(c).Wrap().Gap(8).Children(func() {
-		if spaceButton(c, "Perangkat", "monitor", st.device).Clicked() {
-			st.device = !st.device
-		}
-		if spaceButton(c, "WhatsApp", "whatsapp", st.whatsapp).Clicked() {
-			st.whatsapp = !st.whatsapp
-		}
-	})
-	muted(c, "Kanal WhatsApp mencatat kegagalan adapter sampai bridge tahap 4 terhubung; tidak mengklaim pesan terkirim.")
-	for _, m := range a.meetings.members {
-		m := m
-		selected := slices.Contains(st.recipients, m.ID)
-		if spaceButton(c, m.DisplayName, "user", selected).Clicked() {
-			if selected {
-				st.recipients = slices.DeleteFunc(st.recipients, func(uid id.ID) bool { return uid == m.ID })
-			} else {
-				st.recipients = append(st.recipients, m.ID)
-			}
-		}
-	}
-	if spaceButton(c, "Kirim ping sekarang", "bell", true).Disabled(st.busy || a.conn != connOnline).Clicked() {
-		a.sendManualPing()
-	}
 }

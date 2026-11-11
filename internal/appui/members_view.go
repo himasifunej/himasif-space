@@ -66,7 +66,7 @@ func (a *App) pingMember(uid id.ID) {
 	}
 	st := &a.notificationSettingsState
 	if st.period != sp.PeriodID || st.space != sp.ID {
-		*st = notificationSettingsState{period: sp.PeriodID, space: sp.ID, division: st.division, device: true, pingKind: "general"}
+		a.resetPingState(sp, st.division)
 	}
 	st.recipients = []id.ID{uid}
 	a.chrome.pingOpen = true

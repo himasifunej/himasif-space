@@ -449,7 +449,7 @@ func (a *App) waReminderStep(c *ui.Context) {
 		}
 	}
 	if st.division != did || st.period != sp.PeriodID || st.space != sp.ID {
-		*st = notificationSettingsState{period: sp.PeriodID, space: sp.ID, division: did, device: true, pingKind: "general"}
+		a.resetPingState(sp, did)
 	}
 	if did == id.Nil || sp.ReadOnly {
 		muted(c, "Jadwal diatur oleh pengelola tugas divisi.").FontSize(12)

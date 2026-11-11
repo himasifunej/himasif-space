@@ -465,7 +465,7 @@ func (a *App) quickPing(c *ui.Context, now time.Time) {
 	sp := a.selectedSpace()
 	st := &a.notificationSettingsState
 	if st.period != sp.PeriodID || st.space != sp.ID {
-		*st = notificationSettingsState{period: sp.PeriodID, space: sp.ID, division: st.division, device: true, pingKind: "general"}
+		a.resetPingState(sp, st.division)
 	}
 	var late []id.ID
 	for _, task := range a.tasks.items {

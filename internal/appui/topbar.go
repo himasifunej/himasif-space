@@ -77,7 +77,7 @@ func (a *App) header(c *ui.Context) {
 			if narrow {
 				ping.Width(36).Padding(0)
 			}
-			if ping.Hovered() || a.chrome.pingOpen {
+			if ping.Hovered() || a.chrome.pingOpen || a.pingUI.boxOpen {
 				ping.Background(t.SurfaceHover)
 			}
 			ping.FocusRing(ping.FocusVisible()).Children(func() {
@@ -86,8 +86,17 @@ func (a *App) header(c *ui.Context) {
 					ui.Text(c, "Ping")
 				}
 			})
+			// Wide windows get option C's name box under the button; narrow
+			// ones the dialog, which fits them.
 			if ping.Clicked() {
-				a.chrome.pingOpen = true
+				if narrow {
+					a.chrome.pingOpen = true
+				} else {
+					a.pingUI.boxOpen = !a.pingUI.boxOpen
+				}
+			}
+			if !narrow {
+				a.pingNameBox(c, ping)
 			}
 		}
 		a.taskHeaderAction(c)

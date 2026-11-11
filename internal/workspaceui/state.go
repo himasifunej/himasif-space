@@ -61,6 +61,9 @@ type Task struct {
 	AssigneeColor ui.Color
 	// Checklist and attachment counts shown on the card's last line.
 	ChecklistDone, ChecklistTotal, Attachments int
+	// Remind, when set, is the card menu's "Ingatkan …" row (as
+	// "Ingatkan Rani"); choosing it sends OnAction the action "remind".
+	Remind string
 }
 
 // Label is one colored tag chip on a card.
@@ -85,7 +88,8 @@ type State struct {
 	OnMove         func(MoveRequest)
 	InspectorWidth float32
 	LaneColors     [5]ui.Color
-	// OnAction receives card menu actions: "edit", "duplicate", "cancel".
+	// OnAction receives card menu actions: "edit", "duplicate", "remind",
+	// "cancel".
 	OnAction func(id.ID, string)
 	// Details supplies a caller-owned inspector body, inside the right panel.
 	Details func(*ui.Context, id.ID)

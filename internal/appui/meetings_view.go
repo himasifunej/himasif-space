@@ -282,6 +282,15 @@ func (a *App) meetingDetail(c *ui.Context, m api.Meeting, mobile bool) {
 			a.meetingMoreMenu(c, m)
 		})
 	}
+	if mobile && a.meetingRemindable(m, c.Now()) {
+		label, ready := a.pingRemindLabel(m.ID, "peserta", c.Now())
+		if !ready {
+			c.After(pingRemindGap)
+		}
+		if outlineButton(c.Key("meeting-remind-mobile"), label, "ping", false).Height(44).FillWidth().Justify(ui.Center).Disabled(!ready || a.conn != connOnline).Clicked() {
+			a.remindMeeting(m)
+		}
+	}
 	if m.Timer != nil && !m.Cancelled {
 		a.meetingTimerBar(c, m)
 	}
@@ -359,6 +368,15 @@ func (a *App) meetingPrimaryActions(c *ui.Context, m api.Meeting) {
 	if !m.Cancelled && m.Timer == nil && m.CanRunTimer {
 		if outlineButton(c.Key("meeting-start"), "Mulai rapat", "play", true).Disabled(!online || a.notes.timerBusy).Tooltip("Mulai timer bersama: semua yang membuka rapat ini melihat waktu yang sama").Clicked() {
 			a.runMeetingTimer(m.ID, m.TimerVersion, api.TimerStart)
+		}
+	}
+	if a.meetingRemindable(m, c.Now()) {
+		label, ready := a.pingRemindLabel(m.ID, "peserta", c.Now())
+		if !ready {
+			c.After(pingRemindGap)
+		}
+		if outlineButton(c.Key("meeting-remind"), label, "ping", false).Tooltip("Kirim ping tentang rapat ini ke pesertanya").Disabled(!ready || !online).Clicked() {
+			a.remindMeeting(m)
 		}
 	}
 	if m.NoteID != nil {
