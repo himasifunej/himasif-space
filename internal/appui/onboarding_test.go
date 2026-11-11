@@ -100,15 +100,15 @@ func onbHarness(t *testing.T, role string, marks ...string) (*harness, *onbFake)
 
 func TestOnboardingWelcomeThenChecklist(t *testing.T) {
 	h, f := onbHarness(t, api.RoleMember)
-	h.want("UNDANGAN DITERIMA")
-	h.want("Kamu sudah bergabung di Media dan Teknologi")
-	h.want("Checklist \"Langkah pertama\" menunggu di Beranda.")
-	h.click("Nanti, ke Beranda")
+	// The web has no island: profile, notices, done.
+	h.want("1 DARI 3 · PROFIL")
+	h.want("Halo, aku Ace! Aku nyolek kamu kalau ada tugas, ping, atau rapat.")
+	h.click("Lewati semua langkah, pakai bawaan")
 	h.settle()
 	if !f.marked(api.OnboardWelcome) {
 		t.Fatal("welcome not recorded")
 	}
-	h.dontWant("UNDANGAN DITERIMA")
+	h.dontWant("1 DARI 3 · PROFIL")
 	h.want("Langkah pertama")
 	h.want("0 dari 4")
 	for _, s := range []string{"Tautkan WhatsApp", "Lengkapi profil", "Lihat tugasmu", "Kenali tab Space"} {
@@ -135,6 +135,10 @@ func TestOnboardingWelcomeThenChecklist(t *testing.T) {
 
 func TestOnboardingTourByRoleSkipAndReplay(t *testing.T) {
 	h, f := onbHarness(t, api.RoleMember)
+	h.click("Lewati langkah ini")
+	h.click("Lewati langkah ini")
+	h.tt.Frame()
+	h.want("Ace siap menemani")
 	h.click("Mulai tur · 1 menit")
 	h.settle()
 	h.want("TUR UNTUK ANGGOTA")

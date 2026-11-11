@@ -182,6 +182,7 @@ func (d *desktopDevice) islandPreview(c *ui.Context) {
 
 func (d *desktopDevice) notificationSettings(c *ui.Context) {
 	appui.SettingSection(c, "Notifikasi Windows", "Jalur cadangan island, dan jalur utama saat island mati.", func() {
+		d.quietSettings(c)
 		appui.SettingRow(c, "Pengaturan notifikasi Windows", "Izinkan Space dan periksa mode Jangan Ganggu bila notifikasi tidak terlihat.", func() {
 			if appui.SettingButton(c, "Buka pengaturan Windows", "link").Clicked() {
 				go func() {
@@ -342,4 +343,33 @@ func (d *desktopDevice) saveIslandLook() {
 	if d.island.win != nil {
 		d.island.win.Update(func() {})
 	}
+}
+
+// quietHours are the quiet hours offered, from and to.
+var quietHours = [][2]int{{21, 5}, {22, 6}, {23, 7}}
+
+// quietSettings is Jam tenang: notices wait, without the bell, until the
+// hours end, then come as one.
+func (d *desktopDevice) quietSettings(c *ui.Context) {
+	p := &d.prefs
+	if appui.SettingSwitch(c, "Jam tenang", fmt.Sprintf("%02d.00–%02d.00: Ace diam dan bel tidak berbunyi; kabar menunggu sampai jam tenang selesai.", p.QuietFrom, p.QuietTo), &p.QuietHours) {
+		d.save()
+	}
+	if !p.QuietHours {
+		return
+	}
+	sel := -1
+	labels := make([]string, len(quietHours))
+	for i, q := range quietHours {
+		labels[i] = fmt.Sprintf("%02d–%02d", q[0], q[1])
+		if q[0] == p.QuietFrom && q[1] == p.QuietTo {
+			sel = i
+		}
+	}
+	appui.SettingRow(c, "Rentang jam tenang", "Waktu perangkat ini.", func() {
+		if i := appui.Segmented(c, "Rentang jam tenang", labels, sel); i >= 0 && i != sel {
+			p.QuietFrom, p.QuietTo = quietHours[i][0], quietHours[i][1]
+			d.save()
+		}
+	})
 }

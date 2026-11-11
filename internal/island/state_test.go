@@ -163,3 +163,21 @@ func TestDismissKeepsTheDetailsOpenThroughTheQueue(t *testing.T) {
 		t.Fatalf("after Tutup semua: %+v", m.Current)
 	}
 }
+
+// A notice with a Hold stays that long, and keeps it when replaced.
+func TestMachineHold(t *testing.T) {
+	var m Machine
+	now := time.Now()
+	m.Push(Item{Tag: "ace", Hold: time.Minute}, now)
+	if got := m.Until.Sub(now); got != time.Minute {
+		t.Fatalf("until %v", got)
+	}
+	m.Push(Item{Tag: "ace", Hold: time.Minute}, now.Add(time.Second))
+	if got := m.Until.Sub(now); got != time.Minute+time.Second {
+		t.Fatalf("replaced until %v", got)
+	}
+	m.Tick(now.Add(BannerDuration+time.Second), false, false, false)
+	if m.Current == nil || !m.Closing.IsZero() {
+		t.Fatal("closed at the default banner time")
+	}
+}

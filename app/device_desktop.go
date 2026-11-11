@@ -62,6 +62,17 @@ type devicePreferences struct {
 	SeenVersion  string `json:"seenVersion,omitempty"`
 	UpdateNotes  string `json:"updateNotes,omitempty"`
 	UpdateNotesV string `json:"updateNotesVersion,omitempty"`
+	// AceIntroduced: this device met Ace, in the onboarding or the dialog
+	// after an update (appui.AceDevice).
+	AceIntroduced bool `json:"aceIntroduced,omitempty"`
+	// QuietHours holds device notices back from QuietFrom to QuietTo
+	// (hours, local time; 22 to 6 when never set), bell and island alike.
+	QuietHours bool `json:"quietHours,omitempty"`
+	QuietFrom  int  `json:"quietFrom"`
+	QuietTo    int  `json:"quietTo"`
+	// UpdateManual turns the automatic updates off: a new version is then
+	// only announced, as before 0.4.6.
+	UpdateManual bool `json:"updateManual,omitempty"`
 }
 
 // whatsNew is what to show once on starting version: nil on a fresh
@@ -98,7 +109,7 @@ var legacyDeviceKeys = []string{"aceMode", "aceName", "mascot", "X", "Y"}
 // reports keys of the removed mascot window, for the caller to write the
 // file again without them and drop the imported picture.
 func loadDevicePreferences(data []byte) (prefs devicePreferences, legacy bool) {
-	prefs = devicePreferences{Volume: .45, Sound: true, IslandEnabled: true, IslandStyle: "C", IslandReplaceToast: true, IslandAlwaysOn: true, IslandAnchor: .5}
+	prefs = devicePreferences{Volume: .45, Sound: true, IslandEnabled: true, IslandStyle: "C", IslandReplaceToast: true, IslandAlwaysOn: true, IslandAnchor: .5, QuietFrom: 22, QuietTo: 6}
 	if len(data) == 0 {
 		return prefs, false
 	}
@@ -241,6 +252,7 @@ func attachDevice(win *mygo.Window, app *appui.App) {
 			e.PreventDefault()
 			if app.FlushNoteDraft() == nil {
 				win.Hide()
+				d.updater.autoInstall()
 			}
 		}
 	})
@@ -281,6 +293,7 @@ func attachDevice(win *mygo.Window, app *appui.App) {
 	}
 	app.Notifications = d
 	app.DeviceSettings = d.settings
+	app.Ace = aceDevice{d}
 	app.AppUpdates = func(c *ui.Context) { appui.SettingsBlock(c, func() { d.updateSettings(c) }) }
 	d.updater.start()
 	mygo.App.OnOpenURL(func(raw string) { d.handleLink(raw) })
@@ -310,7 +323,10 @@ func attachDevice(win *mygo.Window, app *appui.App) {
 			case <-done:
 				return
 			case <-tick.C:
-				win.Update(func() { app.PollDeliveries() })
+				win.Update(func() {
+					app.PollDeliveries()
+					d.updater.autoInstall()
+				})
 			}
 		}
 	}()

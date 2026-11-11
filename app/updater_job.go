@@ -30,6 +30,9 @@ type updateJob struct {
 	InstallDir string `json:"installDir"`
 	Exe        string `json:"exe"`
 	PID        int    `json:"pid"`
+	// Background: Space opens again in the tray, as it was (an automatic
+	// update while its window was closed).
+	Background bool `json:"background,omitempty"`
 }
 
 // updateResult is what the helper reports.
