@@ -217,27 +217,63 @@ func (d *desktopDevice) NotifyQuiet(uid id.ID, ns []api.Delivery) error {
 	if p == nil || !d.notificationPrefs.Load().(devicePreferences).IslandEnabled {
 		return errIslandUnavailable
 	}
+	xs := make([]appui.Notice, len(ns))
+	for i, n := range ns {
+		xs[i] = deliveryNotice(uid, n)
+	}
+	p.store(xs)
+	if d.win != nil {
+		d.win.Update(p.refresh)
+	}
+	return nil
+}
+
+// store puts notices into the inbox; it reports whether one was kept.
+func (p *islandPresenter) store(xs []appui.Notice) bool {
 	now := time.Now()
 	p.mu.Lock()
+	defer p.mu.Unlock()
 	p.ensureInbox(now)
-	for _, n := range ns {
-		x := deliveryNotice(uid, n)
+	kept := false
+	for _, x := range xs {
 		if p.inbox.box.add(x, now) {
-			p.inbox.changed = true
+			p.inbox.changed, kept = true, true
 		}
 	}
 	p.saveInbox()
-	p.mu.Unlock()
-	if d.win != nil {
-		d.win.Update(func() {
-			if p.win != nil {
-				p.win.Update(func() {})
-			} else {
-				p.resume()
-			}
-		})
+	return kept
+}
+
+// refresh redraws the island for its "+N", waking it at rest. On the main
+// window's thread.
+func (p *islandPresenter) refresh() {
+	if p.win != nil {
+		p.win.Update(func() {})
+	} else {
+		p.resume()
 	}
-	return nil
+}
+
+// keep puts n straight into the inbox, without a banner: an update the
+// window's card already tells. On the main window's thread; false when
+// the island is off or n is not kept.
+func (p *islandPresenter) keep(n appui.Notice) bool {
+	if !p.d.notificationPrefs.Load().(devicePreferences).IslandEnabled || !p.store([]appui.Notice{n}) {
+		return false
+	}
+	p.refresh()
+	return true
+}
+
+// unkeep takes the notice tagged tag out of the inbox.
+func (p *islandPresenter) unkeep(tag string) {
+	p.mu.Lock()
+	p.ensureInbox(time.Now())
+	if p.inbox.box.remove(tag) {
+		p.inbox.changed = true
+		p.saveInbox()
+	}
+	p.mu.Unlock()
 }
 
 var _ appui.QuietNotificationSink = (*desktopDevice)(nil)

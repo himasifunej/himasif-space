@@ -16,7 +16,16 @@ Space desktop (Windows) memeriksa versi baru sendiri dan memasangnya dengan seka
    - URL-nya bukan https;
    - hash-nya tidak berupa 64 digit hex;
    - versinya tidak lebih baru dari versi terpasang. Ini sekaligus menolak downgrade dan manifest lama yang diputar ulang.
-4. **Pemberitahuan.** "Space X tersedia" muncul di Ace Island, atau sebagai toast Windows bila island mati atau tidak tersedia. Tombolnya: **Perbarui sekarang**, **Lihat perubahan**, dan **Nanti** (menahan pemberitahuan otomatis selama 24 jam). Setiap versi diumumkan sekali. Bagian **Pembaruan aplikasi** ada di Pengaturan › Perangkat dan di Status layanan; Ctrl K juga menemukannya.
+4. **Pemberitahuan.** Setiap versi baru diberitahukan, juga saat pembaruan otomatis menyala:
+   - **Kartu di jendela Space**, pojok kiri bawah. Tiga tahap:
+     1. "Space X tersedia" dengan satu baris catatan dan tombol **Perbarui**, **Lihat perubahan**, **Nanti**. **Perbarui** mulai mengunduh (pembaruan otomatis yang menyala sudah mengunduh sendiri).
+     2. "Mengunduh Space X" dengan progres. Kartu bisa dikecilkan menjadi pil persen.
+     3. "Siap dipasang" setelah SHA-256 cocok, dengan **Mulai ulang sekarang** dan **Nanti (saat Space ditutup)**. Nanti di tahap ini memasang versi itu begitu jendela Space ditutup, juga saat pembaruan otomatis mati.
+
+     Kartu tidak mengambil fokus. Kartu menunggu selama pengguna menulis (tugas, pengingat, ping, catatan, pencarian), tetapi tetap tampil bila sudah muncul. Kartu tidak muncul selama onboarding, tur, dan dialog "Yang baru". **Nanti** menyembunyikannya sampai versi berikutnya atau Space dibuka lagi.
+   - **Kotak masuk Ace**, berikon pembaruan. Saat jendela terbuka, kabar langsung masuk ke kotak masuk tanpa banner; saat jendela tersembunyi di tray, Ace Island (atau toast Windows bila island mati) menampilkannya lalu menyimpannya. Kabar versi yang sudah terpasang hilang sendiri. Tombol Nanti di island sama dengan Nanti di kartu.
+
+   Setiap versi diumumkan sekali. Bagian **Pembaruan aplikasi** ada di Pengaturan › Perangkat dan di Status layanan; Ctrl K juga menemukannya. Nanti di Pengaturan tetap menahan versi itu selama 24 jam.
 5. **Unduh.** Berjalan di latar dengan progres dan bisa dibatalkan. Installer disimpan ke `%APPDATA%\himasif-space\device\updates`. Ukuran dan SHA-256 diperiksa; berkas yang tidak cocok langsung dihapus.
 6. **Pasang.** Langkahnya:
    1. SHA-256 diperiksa sekali lagi.

@@ -99,7 +99,9 @@ type App struct {
 	Web WebPlatform
 	// AppUpdates draws the app's own updates in Status layanan: the
 	// desktop app's updater; nil on the web, which updates with the page.
-	AppUpdates     func(*ui.Context)
+	AppUpdates func(*ui.Context)
+	// Updater feeds the update card (update_card.go); nil on the web.
+	Updater        Updater
 	SessionChanged func(id.ID)
 	// Version is the app's version, shown in the settings.
 	Version string
@@ -128,6 +130,7 @@ type App struct {
 	meetings                  meetingsState
 	agenda                    agendaState
 	deliveries                deliveriesState
+	updates                   updateCardState
 	operations                operationsUIState
 	emergency                 emergencyUIState
 	offlineSync               offlineUIState

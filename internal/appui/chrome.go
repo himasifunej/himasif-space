@@ -178,6 +178,7 @@ func (a *App) shell(c *ui.Context) {
 		a.mobileShell(c)
 		a.pingDialog(c)
 		a.onboardingOverlays(c)
+		a.updateCardView(c)
 		a.toasts(c)
 		return
 	}
@@ -212,6 +213,7 @@ func (a *App) shell(c *ui.Context) {
 	})
 	a.pingDialog(c)
 	a.onboardingOverlays(c)
+	a.updateCardView(c)
 	a.toasts(c)
 }
 

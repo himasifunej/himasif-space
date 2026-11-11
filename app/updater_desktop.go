@@ -61,6 +61,9 @@ type desktopUpdater struct {
 	cancel  context.CancelFunc
 	// background: the install under way is automatic (autoInstall).
 	background bool
+	// onClose: Nanti on a downloaded version installs it once the window
+	// closes, even with automatic updates off.
+	onClose bool
 	// failed: the last check could not read a feed; noFeed: it found
 	// nothing published (idleStatus).
 	failed, noFeed bool
@@ -158,15 +161,14 @@ func (u *desktopUpdater) check(manual bool) {
 			if u.offer != nil && u.offer.Version == m.Version && u.state != updIdle {
 				return // already being handled
 			}
-			u.offer, u.state, u.setup = &m, updAvailable, ""
-			// Automatic updates fetch the version quietly and install it
-			// once Space's window is closed (autoInstall); asked, or with
-			// them off, the version is announced instead.
+			u.offer, u.state, u.setup, u.onClose = &m, updAvailable, "", false
+			// Every new version is told (the window's card, Ace); automatic
+			// updates also fetch it and install it once Space's window is
+			// closed (autoInstall).
+			u.announce(manual)
 			if !manual && !u.d.prefs.UpdateManual && installerUpdatesSupported() {
 				u.download(false)
-				return
 			}
-			u.announce(manual)
 		})
 	}()
 }
@@ -183,8 +185,10 @@ func friendlyUpdateError(err error) string {
 	return err.Error()
 }
 
-// announce shows the offer on Ace Island, or as a Windows toast when the
-// island cannot, once per version unless asked or put off with Nanti.
+// announce tells of the offer once per version, unless asked or put off
+// with Nanti: with the window open its card tells, and the notice goes
+// quietly into Ace's inbox; with the window in the tray Ace Island shows
+// it (or a Windows toast when the island cannot), and keeps it after.
 func (u *desktopUpdater) announce(manual bool) {
 	m := u.offer
 	p := &u.d.prefs
@@ -193,36 +197,102 @@ func (u *desktopUpdater) announce(manual bool) {
 	}
 	p.UpdateAnnounced = m.Version
 	u.d.save()
-	body := m.Notes
-	if body == "" {
-		body = "Versi baru Space siap dipasang."
+	account := ""
+	if u.d.island != nil {
+		account = u.d.island.account()
 	}
-	x := appui.Notice{Kind: "update", Title: "Space " + m.Version + " tersedia", Body: body, Tag: "update:" + m.Version,
-		Link: updateLink + "?action=install", OpenLabel: "Perbarui sekarang",
-		Actions: []appui.NoticeAction{{Label: "Lihat perubahan", Link: updateLink + "?action=notes"}, {Label: "Nanti", Link: updateLink + "?action=later"}}}
+	x := updateNotice(*m, !p.UpdateManual && installerUpdatesSupported(), account)
+	if u.d.win.IsVisible() && u.d.island != nil && u.d.island.keep(x) {
+		return
+	}
 	// The app's notifier is the island, with Windows' toast when the island
 	// cannot show it or drops it (islandNotifier).
 	_ = u.d.app.Notifier.Present(x)
+}
+
+// updateNotice is the notice of a version on offer, for account.
+func updateNotice(m update.Manifest, auto bool, account string) appui.Notice {
+	body := m.Notes
+	if body == "" {
+		body = "Versi baru Space."
+	}
+	if auto {
+		body = "Diunduh di latar, dipasang saat Space ditutup.\n" + body
+	}
+	return appui.Notice{Kind: "update", AccountID: account, Title: "Space " + m.Version + " tersedia", Body: body, Tag: "update:" + m.Version,
+		Link: updateLink + "?action=install", OpenLabel: "Perbarui",
+		Actions: []appui.NoticeAction{{Label: "Lihat perubahan", Link: updateLink + "?action=notes"}, {Label: "Nanti", Link: updateLink + "?action=later"}}}
 }
 
 // handleLink answers the actions of the notice.
 func (u *desktopUpdater) handleLink(link *url.URL) {
 	switch link.Query().Get("action") {
 	case "install":
+		// The window's card carries on: the download, then "Siap
+		// dipasang".
 		u.d.win.Show()
 		u.d.win.Focus()
-		u.d.app.OpenDeviceSettings()
-		u.install()
+		u.InstallUpdate()
 	case "notes":
 		u.d.win.Show()
 		u.d.win.Focus()
-		u.d.app.OpenDeviceSettings()
-		u.notes = true
-		if u.offer != nil && u.offer.NotesURL != "" {
-			_ = mygo.Shell.OpenExternal(u.offer.NotesURL)
-		}
+		u.UpdateNotes()
 	case "later":
-		u.later()
+		if u.offer != nil {
+			u.d.app.UpdateLater(u.offer.Version)
+		}
+	}
+}
+
+// UpdateStatus is the offer for the window's card (appui.Updater).
+func (u *desktopUpdater) UpdateStatus() (appui.UpdateStatus, bool) {
+	if u.offer == nil {
+		return appui.UpdateStatus{}, false
+	}
+	stage := map[string]string{updAvailable: appui.UpdateAvailable, updDownloading: appui.UpdateDownloading, updReady: appui.UpdateReady}[u.state]
+	if stage == "" {
+		return appui.UpdateStatus{}, false
+	}
+	return appui.UpdateStatus{Stage: stage, Version: u.offer.Version, Note: appui.FirstNoteLine(u.offer.Notes), Done: u.done, Total: u.total,
+		Auto: !u.d.prefs.UpdateManual && installerUpdatesSupported(), Err: u.err}, true
+}
+
+// InstallUpdate is the card's Perbarui, which downloads (the card then
+// says "Siap dipasang"), and Mulai ulang sekarang.
+func (u *desktopUpdater) InstallUpdate() {
+	if u.offer == nil {
+		return
+	}
+	if !installerUpdatesSupported() {
+		u.err = "Pembaruan otomatis hanya untuk Space yang dipasang dengan installer Windows. Unduh installer dari halaman rilis."
+		return
+	}
+	switch u.state {
+	case updAvailable:
+		u.download(false)
+	case updReady:
+		u.runInstaller()
+	}
+}
+
+// UpdateNotes is Lihat perubahan: the release's page, else the settings.
+func (u *desktopUpdater) UpdateNotes() {
+	u.notes = true
+	if u.offer != nil && u.offer.NotesURL != "" {
+		_ = mygo.Shell.OpenExternal(u.offer.NotesURL)
+		return
+	}
+	u.d.app.OpenDeviceSettings()
+}
+
+// UpdateLater is the card's Nanti: a downloaded version then installs
+// when the window closes; Ace's inbox lets the notice go.
+func (u *desktopUpdater) UpdateLater() {
+	if u.state == updReady {
+		u.onClose = true
+	}
+	if u.offer != nil && u.d.island != nil {
+		u.d.island.unkeep("update:" + u.offer.Version)
 	}
 }
 
@@ -231,6 +301,9 @@ func (u *desktopUpdater) handleLink(link *url.URL) {
 func (u *desktopUpdater) later() {
 	u.d.prefs.UpdateLaterUntil = time.Now().Add(updateLater)
 	u.d.save()
+	if u.offer != nil && u.d.island != nil {
+		u.d.island.unkeep("update:" + u.offer.Version)
+	}
 	if u.state == updAvailable || u.state == updReady {
 		u.offer, u.state, u.setup = nil, updIdle, ""
 	}
@@ -297,7 +370,7 @@ func (u *desktopUpdater) download(then bool) {
 // tray. Called when the download ends, when the window closes, and with
 // the deliveries' poll.
 func (u *desktopUpdater) autoInstall() {
-	if u.state != updReady || u.d.prefs.UpdateManual || u.d.win.IsVisible() || u.d.quitting {
+	if u.state != updReady || u.d.prefs.UpdateManual && !u.onClose || u.d.win.IsVisible() || u.d.quitting {
 		return
 	}
 	u.background = true
