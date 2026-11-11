@@ -7,7 +7,6 @@ import (
 	"github.com/himasifunej/himasif-space/internal/api"
 	"github.com/himasifunej/himasif-space/internal/client"
 	"github.com/himasifunej/himasif-space/internal/id"
-	"github.com/himasifunej/himasif-space/internal/workspaceui"
 	"slices"
 	"strconv"
 	"strings"
@@ -41,6 +40,17 @@ type meetingsState struct {
 	selected              id.ID
 	participant           id.ID
 	arrival, note         string
+	// Rapat A: the detail's sub-tab (Ringkasan · Kehadiran · Notulen), the
+	// "Saya diundang" filter, the … menu, the cancel dialog and, on a
+	// phone, whether the detail page is open.
+	tab                   int
+	mine                  bool
+	menuOpen, confirmOpen bool
+	// confirmID is the meeting the cancel dialog asks about, kept when the
+	// default selection changes under it.
+	confirmID    id.ID
+	mobileDetail bool
+	toast        string
 	// skew is how far the server's clock is ahead of this device's, from
 	// the last shared timer received (stage T2).
 	skew time.Duration
@@ -242,32 +252,32 @@ func (a *App) saveMeeting() {
 		}
 	})
 }
-func (a *App) attendance(mid, uid id.ID, version int64, status string) {
+
+// attendance records one participant: status with, for Hadir, the arrival
+// typed as "YYYY-MM-DD HH:MM" in the meeting's zone. The answer replaces
+// the meeting in the list (attendance does not change its version).
+func (a *App) attendance(mid, uid id.ID, version int64, status, arrival, note string) {
 	svc, ok := a.meetingsService()
 	if !ok || a.meetings.busy {
 		return
 	}
-	req := api.AttendanceRequest{Status: status, Note: a.meetings.note, ExpectedVersion: version}
+	req := api.AttendanceRequest{Status: status, Note: note, ExpectedVersion: version}
 	if status == "present" {
 		m := slices.IndexFunc(a.meetings.items, func(m api.Meeting) bool { return m.ID == mid })
 		if m < 0 {
 			return
 		}
-		loc, err := time.LoadLocation(a.meetings.items[m].TimeZone)
+		at, err := time.ParseInLocation("2006-01-02 15:04", strings.TrimSpace(arrival), meetingLoc(a.meetings.items[m]))
 		if err != nil {
-			return
-		}
-		at, err := time.ParseInLocation("2006-01-02 15:04", a.meetings.arrival, loc)
-		if err != nil {
-			a.meetings.err = "Isi waktu datang aktual: YYYY-MM-DD HH:MM."
+			a.meetings.err = "Isi waktu datang: YYYY-MM-DD HH:MM."
 			return
 		}
 		req.ArrivedAt = &at
 	}
 	gen, sid := a.gen, a.meetings.space
-	a.meetings.busy = true
+	a.meetings.busy, a.meetings.err = true, ""
 	a.async(func() func() {
-		_, err := svc.RecordAttendance(context.Background(), mid, uid, req)
+		m, err := svc.RecordAttendance(context.Background(), mid, uid, req)
 		return func() {
 			if gen != a.gen || sid != a.selectedSpaceID() {
 				return
@@ -275,145 +285,67 @@ func (a *App) attendance(mid, uid id.ID, version int64, status string) {
 			a.meetings.busy = false
 			if err != nil {
 				a.meetings.err = a.failed(err)
+				a.loadMeetings()
 				return
 			}
-			a.loadMeetings()
+			a.meetings.participant = id.Nil
+			a.replaceMeeting(m)
 		}
 	})
 }
-func (a *App) meetingsView(c *ui.Context) {
-	a.ensureMeetings()
-	ui.Row(c).Fill().MinWidth(0).Children(func() {
-		ui.Column(c).Grow(1).MinWidth(0).FillHeight().Children(func() { a.meetingsListView(c) })
-		if a.meetings.draft != nil && !a.chrome.appearance {
-			workspaceui.Drawer(c.Key("meeting-drawer"), &a.chrome.drawerWidth, func() {
-				ui.Row(c).FillWidth().Padding(18).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, "Rapat").FontSize(18).Bold().Grow(1)
-					if spaceIconButton(c, "Tutup formulir", "close").Disabled(a.meetings.busy).Clicked() {
-						a.meetings.draft = nil
-					}
-				})
-				if a.meetings.draft != nil {
-					ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Children(func() { a.meetingForm(c) })
-				}
-			})
+
+// replaceMeeting puts a meeting the server sent back in the list.
+func (a *App) replaceMeeting(m api.Meeting) {
+	for i := range a.meetings.items {
+		if a.meetings.items[i].ID == m.ID {
+			a.meetings.items[i] = m
+			return
 		}
-	})
+	}
+	a.loadMeetings()
 }
-func (a *App) meetingsListView(c *ui.Context) {
-	ui.Scroll(c).Fill().Children(func() {
-		ui.Column(c).FillWidth().Padding(24).Gap(14).Children(func() {
-			ui.Text(c, "Rapat dan agenda").FontSize(24).Bold()
-			ui.Row(c).Wrap().Gap(8).Children(func() {
-				if spaceButton(c, "Muat ulang", "refresh", false).Disabled(a.meetings.loading || a.meetings.busy).Clicked() {
-					a.loadMeetings()
-				}
-				sp := a.selectedSpace()
-				can := sp != nil && !sp.ReadOnly && !a.isAdmin() && slices.Contains(sp.Capabilities, api.CapTasksManage) && a.conn == connOnline
-				if spaceButton(c, "Buat rapat", "plus", true).Disabled(!can || a.meetings.busy).Clicked() {
-					a.beginMeeting(nil)
-				}
-			})
-			if a.meetings.err != "" {
-				ui.Text(c, a.meetings.err).TextColor(c.Theme().Danger)
-			}
-			if a.meetings.loaded && len(a.meetings.items) == 0 {
-				muted(c, "Belum ada rapat di ruang ini.")
-			}
-			for _, m := range a.meetings.items {
-				m := m
-				ui.Column(c.Key(m.ID)).FillWidth().Padding(16).Gap(8).Border(1, c.Theme().Border).Radius(10).Children(func() {
-					title := m.Title
-					if m.Cancelled {
-						title += " · Dibatalkan"
-					}
-					ui.Text(c, title).Bold().FontSize(17)
-					endLabel := "selesai"
-					if m.EndsAt != nil {
-						endLabel = taskTimestamp(*m.EndsAt, m.TimeZone)
-					}
-					muted(c, taskTimestamp(m.StartsAt, m.TimeZone)+" — "+endLabel)
-					ui.Text(c, m.Description)
-					muted(c, m.Location+" "+m.JoinURL)
-					ui.Row(c).Wrap().Gap(8).Children(func() {
-						if spaceButton(c, "Peserta / kehadiran", "users", a.meetings.selected == m.ID).Clicked() {
-							a.meetings.selected = m.ID
-							a.meetings.participant = id.Nil
-							a.meetings.arrival, a.meetings.note = "", ""
-						}
-						if spaceButton(c, "Ubah / batalkan", "settings", false).Disabled(!m.CanManage || a.conn != connOnline || a.meetings.busy).Clicked() {
-							a.beginMeeting(&m)
-						}
-						if m.NoteID != nil && spaceButton(c, "Buka notulensi", "note", false).Clicked() {
-							a.chrome.tab = "Catatan"
-							a.ensureNotes()
-							a.openNote(*m.NoteID)
-						}
-					})
-					if a.meetings.selected == m.ID {
-						ui.Row(c).FillWidth().MinWidth(0).Gap(16).AlignItems(ui.Start).Children(func() {
-							ui.Column(c).Width(220).Shrink(0).Gap(6).Children(func() {
-								ui.Text(c, "Peserta").Bold()
-								for _, participant := range m.Participants {
-									p := participant
-									if spaceButton(c.Key(p.UserID), p.DisplayName, "users", a.meetings.participant == p.UserID).FillWidth().Clicked() {
-										a.meetings.participant = p.UserID
-										a.meetings.arrival, a.meetings.note = "", p.AttendanceNote
-										if p.ArrivedAt != nil {
-											if loc, err := time.LoadLocation(m.TimeZone); err == nil {
-												a.meetings.arrival = p.ArrivedAt.In(loc).Format("2006-01-02 15:04")
-											}
-										}
-									}
-								}
-								if len(m.Participants) == 0 {
-									muted(c, "Belum ada peserta.")
-								}
-							})
-							ui.Column(c).Grow(1).MinWidth(0).Gap(8).Children(func() {
-								participant := slices.IndexFunc(m.Participants, func(p api.MeetingParticipant) bool { return p.UserID == a.meetings.participant })
-								if participant < 0 {
-									muted(c, "Pilih peserta untuk melihat kehadiran.")
-									return
-								}
-								p := m.Participants[participant]
-								ui.Text(c, p.DisplayName).Bold()
-								status := map[string]string{"present": "Hadir", "excused": "Izin", "absent": "Tidak hadir", "unrecorded": "Belum dicatat"}[p.AttendanceStatus]
-								if status == "" {
-									status = "Belum dicatat"
-								}
-								muted(c, "Status: "+status)
-								if m.OrganizerID != a.user.ID {
-									if p.ArrivedAt != nil {
-										muted(c, "Datang: "+taskTimestamp(*p.ArrivedAt, m.TimeZone))
-									}
-									if p.AttendanceNote != "" {
-										muted(c, p.AttendanceNote)
-									}
-									return
-								}
-								ui.Field(c, "Waktu datang aktual · wajib untuk Hadir", func() {
-									ui.TextInput(c.Key("arrival"), &a.meetings.arrival).Label("Waktu datang aktual · zona rapat").Placeholder("Contoh: 2026-11-05 19:00").FillWidth()
-								})
-								muted(c, "Gunakan tanggal dan jam dalam zona "+m.TimeZone+".").FontSize(11)
-								ui.Field(c, "Catatan kehadiran · opsional", func() {
-									ui.TextInput(c.Key("attendance-note"), &a.meetings.note).Label("Catatan kehadiran").Placeholder("Contoh: terlambat karena kelas").FillWidth()
-								})
-								ui.Row(c).Wrap().Gap(6).Children(func() {
-									for _, status := range []struct{ k, label string }{{"present", "Hadir"}, {"excused", "Izin"}, {"absent", "Tidak hadir"}, {"unrecorded", "Hapus catatan hadir"}} {
-										if spaceButton(c.Key(status.k), status.label, "", false).Disabled(a.conn != connOnline || a.meetings.busy).Clicked() {
-											a.attendance(m.ID, p.UserID, m.Version, status.k)
-										}
-									}
-								})
-							})
-						})
-					}
-				})
-			}
+
+// setMeetingCancelled cancels a meeting or makes it active again, the rest
+// of it unchanged.
+func (a *App) setMeetingCancelled(m api.Meeting, cancelled bool) {
+	svc, ok := a.meetingsService()
+	if !ok || a.meetings.busy {
+		return
+	}
+	req := meetingRequestFrom(m)
+	req.Cancelled = cancelled
+	// The server checks every participant again: one who has left the
+	// Space would block the change, and the form cannot remove them.
+	if len(a.meetings.members) > 0 {
+		req.Participants = slices.DeleteFunc(req.Participants, func(uid id.ID) bool {
+			return !slices.ContainsFunc(a.meetings.members, func(p api.PersonRef) bool { return p.ID == uid })
 		})
+	}
+	gen, sid := a.gen, a.meetings.space
+	a.meetings.busy, a.meetings.err = true, ""
+	a.async(func() func() {
+		out, err := svc.UpdateMeeting(context.Background(), m.ID, req)
+		return func() {
+			if gen != a.gen || sid != a.selectedSpaceID() {
+				return
+			}
+			a.meetings.busy = false
+			a.meetings.confirmOpen = false
+			if err != nil {
+				a.meetings.err = a.failed(err)
+				a.loadMeetings()
+				return
+			}
+			if cancelled {
+				a.meetings.toast = "Rapat dibatalkan."
+			} else {
+				a.meetings.toast = "Rapat aktif kembali."
+			}
+			a.replaceMeeting(out)
+		}
 	})
 }
+
 func (a *App) meetingForm(c *ui.Context) {
 	d := a.meetings.draft
 	ui.Column(c.Key(d)).FillWidth().Padding(16).Gap(10).Border(1, c.Theme().Border).Radius(10).Children(func() {

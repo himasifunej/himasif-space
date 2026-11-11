@@ -363,9 +363,18 @@ func (a *App) memberAccessBody(c *ui.Context, member api.Member) {
 	if canMembers {
 		desc := "Menambah kewenangan operasional di atas role dasar."
 		if len(m.roles) == 0 {
-			desc = "Belum ada role kustom. Buat di bagian Role kustom di bawah tabel anggota."
+			desc = "Belum ada role kustom."
 		}
 		memberSection(c, "Role kustom", desc, func() {
+			defer func() {
+				text := "Atur role kustom"
+				if len(m.roles) == 0 {
+					text = "Buat role kustom"
+				}
+				if a.memberCan(api.CapRolesManage) && onbLink(c, text, text).Clicked() {
+					a.openRoles()
+				}
+			}()
 			for _, r := range m.roles {
 				on := slices.Contains(m.roleIDs, r.ID)
 				ui.Column(c.Key(r.ID)).FillWidth().MinWidth(0).Gap(2).Children(func() {

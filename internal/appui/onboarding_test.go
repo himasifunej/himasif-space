@@ -145,12 +145,36 @@ func TestOnboardingTourByRoleSkipAndReplay(t *testing.T) {
 	}
 	h.click("Lanjut tur")
 	h.want("2/5")
+	// A step on a tab asks to press it first, and shows the page after.
+	h.want("Tekan tab Board tugas yang disorot untuk membukanya.")
+	h.dontWant("Lanjut tur")
+	// The dim keeps the other tabs from presses.
+	if r, ok := h.tt.Find("Agenda"); ok {
+		h.tt.ClickAt(r.X+r.W/2, r.Y+r.H/2)
+		h.tt.Advance(300 * time.Millisecond)
+	}
+	if h.app.chrome.tab != "Beranda" {
+		t.Fatalf("a press on the dim opened %q", h.app.chrome.tab)
+	}
+	pressTourTab(h, "Board tugas")
 	h.want("Tugas yang diberikan kepadamu ada di sini. Pindahkan kartu ke Dikerjakan saat mulai.")
+	if _, ok := h.app.tourPage(); !ok {
+		t.Fatal("the Board page is not lit")
+	}
 	h.click("Langkah sebelumnya")
 	h.want("1/5")
-	for i := 0; i < 4; i++ {
-		h.click("Lanjut tur")
+	h.click("Lanjut tur")
+	h.click("Lanjut tur")
+	h.want("3/5")
+	pressTourTab(h, "Catatan")
+	h.click("Lanjut tur")
+	h.want("4/5")
+	// The tab can also be opened from the card.
+	h.click("Bukakan tab Bot WhatsApp")
+	if h.app.chrome.tab != "Bot WhatsApp" {
+		t.Fatalf("tab %q", h.app.chrome.tab)
 	}
+	h.click("Lanjut tur")
 	h.want("5/5")
 	h.want("Tombol ?")
 	h.click("Selesai tur")
@@ -168,14 +192,33 @@ func TestOnboardingTourByRoleSkipAndReplay(t *testing.T) {
 	h.dontWant("TUR UNTUK ANGGOTA")
 }
 
+// pressTourTab presses tab title where the tour's spotlight shows it,
+// through the hole in the dim, as a user would.
+func pressTourTab(h *harness, title string) {
+	h.t.Helper()
+	h.tt.Advance(600 * time.Millisecond)
+	r, ok := h.app.onb.targets["tab:"+title]
+	if !ok {
+		h.t.Fatalf("tab %q not measured", title)
+	}
+	h.tt.ClickAt(r.X+r.W/2, r.Y+r.H/2)
+	h.tt.Advance(600 * time.Millisecond)
+	if h.app.chrome.tab != title {
+		h.t.Fatalf("pressing %q opened %q", title, h.app.chrome.tab)
+	}
+}
+
 func TestOnboardingTourForKadiv(t *testing.T) {
 	h, _ := onbHarness(t, api.RoleKadiv, api.OnboardWelcome)
 	h.app.startTour()
 	h.tt.Advance(300 * time.Millisecond)
 	h.want("TUR UNTUK KADIV")
-	for i := 0; i < 3; i++ {
+	h.click("Lanjut tur")
+	for _, tab := range []string{"Board tugas", "Catatan"} {
+		pressTourTab(h, tab)
 		h.click("Lanjut tur")
 	}
+	pressTourTab(h, "Anggota")
 	h.want("Undang lewat NIM, atur role (Anggota atau 45), dan lihat beban tiap orang.")
 	// The kadiv also sees the handover card on Beranda.
 	h.tt.Key(0, ui.KeyEscape)

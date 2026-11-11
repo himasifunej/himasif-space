@@ -5,6 +5,76 @@ Versi mengikuti aturan sebelum rilis publik:
 - **Minor** naik untuk pembaruan besar.
 - **1.0.0** untuk rilis publik.
 
+## 0.4.5-rc2 — 2026-11-11 · Ace island A, Pengaturan A, Rapat A, pembaruan otomatis (pre-release)
+
+- **Ace island A**:
+  - **Ace = Dynamic Island** (arah A "Pil Mata", canvas dde22eb04942): pil hitam dengan dua mata kapsul. Saat diam, mata di tengah, berkedip tiap 3–6 detik, bernapas halus, sesekali melirik, dan mengikuti kursor dalam jarak 600 DIP. Ada kabar: mata bergeser ke kiri menjadi ikon aktivitas.
+  - **Keadaan**: ping/notifikasi (360×56), timer rapat live (240×40, hijau; merah saat lewat waktu), media yang sedang diputar lewat SMTC Windows (300×40, gelombang biru), detail (hover 300 ms atau klik; 440×168), dan dua aktivitas sekaligus (gelembung 36 px di samping pil; klik untuk menukar).
+  - **Timer rapat**: timer catatan yang terbuka (dengan agenda), atau timer bersama rapat yang sudah dimuat. Jeda/Lanjutkan dari island untuk yang berhak.
+  - **Media**: judul, artis, aplikasi, progres; tombol sebelumnya, putar/jeda, berikutnya. Dibaca tiap 1,5 detik hanya selama island tampil. Butuh Windows 10 1809 atau lebih baru.
+  - **Hemat**: tanpa loop 60 Hz saat diam. Napas 12 fps hanya selama 12 detik setelah ada interaksi (kursor dekat, hover, klik, kabar, aktivitas), lalu berhenti di ujung napas; kedip dan lirikan tetap. CPU idle di Linux turun dari ±1,87% menjadi ±0,84% satu core. Kurangi gerak mematikan napas, lirikan, anggukan, dan gelombang. Island berhenti menggambar dan berhenti membaca media saat tersembunyi, saat layar penuh, atau saat layar terkunci.
+- **Rapat (desain A pilihan owner)**:
+  - Daftar dikelompokkan Hari ini / Akan datang / Sudah lewat menurut zona rapat, di samping detail rapat terpilih. Rapat lewat yang belum dicatat kehadirannya ditandai.
+  - Detail berisi status, Waktu/Tempat/Tautan/Pengingat, serta Mulai rapat (timer bersama), Buka notulen, Ubah, dan menu ⋯ (salin tautan, kirim ringkasan ke WhatsApp, batalkan dengan konfirmasi atau aktifkan kembali).
+  - Sub-tab Ringkasan · Kehadiran · Notulen. Penyelenggara mencatat Hadir/Izin/Tidak hadir langsung di baris; Hadir terisi jam mulai dan bisa diubah bersama catatan.
+  - Rapat tanpa jam selesai ditulis "Jam selesai belum diisi", bukan "— selesai".
+  - Di HP: daftar, lalu halaman detail dengan tombol kembali dan bilah aksi bawah. Notifikasi rapat dan tautan dari catatan membuka tab Rapat.
+- **Pengaturan › Perangkat (canvas A)**:
+  - Bagian di kolom kiri, masing-masing dengan statusnya (misalnya "Selalu tampil"), dan kotak "Cari di Perangkat ini".
+  - Baris label dengan saklar yang langsung tersimpan, menggantikan tombol "…: aktif". Ada pratinjau kecil island.
+  - Volume bel memakai slider dengan tombol Putar.
+  - Di layar sempit dan HP, pencarian pindah ke atas dan kontrol lebar turun ke bawah labelnya. Browser memakai susunan yang sama.
+- **Maskot bintang dihapus**: Ace sekarang hanya Dynamic Island.
+  - Jendela Ace (mengambang/tepi layar), menu tray "Tampilkan/Sembunyikan Ace", nama maskot, dan impor PNG/GIF hilang.
+  - Saat pertama dibuka, preferensi lama ditulis ulang tanpa posisi, nama, dan maskot, lalu gambar maskot impor dihapus. Pengaturan island dan bel tetap.
+  - Pilihan Gaya A/B/C dihapus: island A selalu pil hitam bermata, dan pratinjau mengikutinya.
+- **Pembaruan otomatis desktop**:
+  - Space desktop memeriksa versi baru saat dibuka dan setiap 6 jam tanpa data akun, lalu mengumumkan "Space X tersedia" di Ace Island atau toast. Tombolnya: Perbarui sekarang, Lihat perubahan, dan Nanti.
+  - Installer diunduh di latar dengan progres dan diperiksa SHA-256-nya. Pemasangan berjalan diam-diam (NSIS /S), lalu Space terbuka lagi. Ada kanal Stabil (bawaan) dan Uji coba (rc).
+  - Manifest di GitHub Releases (`update-feed`) ditandatangani ed25519. Aplikasi menolak manifest tanpa tanda tangan yang sah, manifest dari kanal lain, dan downgrade. Langkah rilis ada di `docs/operations/auto-update.md`, dengan `scripts/release/publish_update.py` dan `tools/updatesign`.
+  - Server dan web tidak berubah.
+  - Bagian **Pembaruan aplikasi** ada di Pengaturan › Perangkat ini (kanal Stabil/Uji coba) dan di Status layanan. Versi ini terbit di kanal **rc**.
+- **Perbaikan tinjauan rc2**:
+  - "Buat notulensi di Catatan" dari tab Notulen menautkan catatan ke rapat yang sedang dibuka, bukan ke rapat berikutnya.
+  - Membatalkan atau mengaktifkan kembali rapat tidak lagi gagal karena ada peserta yang sudah keluar dari Space.
+  - Dialog batal tetap pada rapatnya meski daftar berubah.
+  - Rapat yang melewati tengah malam tetap di Hari ini sampai selesai.
+  - Kontrol kehadiran hanya muncul bila server mengizinkan (`canManage`).
+  - Jam datang bawaan memakai jam server.
+  - Pemberitahuan pembaruan tidak lagi dikirim dua kali ke island, punya toast cadangan, dan tombolnya muat di island.
+- **Server**: tidak ada migrasi baru sejak 0.4.3. Satu-satunya perubahan server adalah isian balasan perintah khusus WA. Rinciannya ada di laporan rilis rc2.
+- **Known issues**:
+  - Aplikasi layar penuh di monitor kedua juga menyembunyikan pil island.
+  - Volume bel yang digeser lalu langsung ditinggalkan (<0,5 detik) bisa belum tersimpan.
+
+## 0.4.5-rc — 2026-11-11 · Navigasi cepat, template WA, island v2, perbaikan pilot 0.4.4 (pre-release)
+
+- **Navigasi cepat (Ctrl K)**: mencari semua halaman, tab Space, aksi, catatan, tugas, dan setiap seksi atau field pengaturan, dengan jejak seperti "Selalu tampil · Pengaturan › Perangkat › Dynamic Island". Ctrl K membuka dan menutup palet. Enter menjalankan hasil hanya saat daftar hasil tampil. "Izin arsip" hanya muncul untuk pengelola arsip.
+- **Template dan perintah WhatsApp**:
+  - Chip "Sisipkan:" berlabel, misalnya [Isi pesan] dan [Nama pengirim], tidak lagi memakai { }.
+  - Pratinjau muncul sendiri dan ditutup manual.
+  - Template lama berisi `{body}` dan lainnya dimuat sebagai kata, lalu disimpan kembali tanpa berubah.
+  - Ada tombol "Buat perintah baru".
+- **Perintah khusus WA (server)**: balasan dapat memuat nama pengirim, tanggal, jam, nama grup, nama bot, dan teks setelah perintah. Balasan tanpa `{` dikirim persis seperti dulu. Hasil isian dipotong pada 4096 karakter. Tidak ada migrasi.
+- **Dynamic Island v2**:
+  - Sudut bening, tanpa bayangan ungu.
+  - Muncul kembali setelah layar penuh atau screenshot.
+  - Pilihan **Selalu tampil** aktif bawaan, termasuk untuk pengguna yang memperbarui. Ace beristirahat sebagai pil di atas layar, lalu tampil lagi setelah login.
+  - Layar penuh diperiksa setiap 0,5 detik.
+- **RAM**: logo divisi disimpan seukuran tampilannya.
+- **Perbaikan pilot 0.4.4**:
+  - Baris tab tanpa scrollbar yang selalu tampil.
+  - Tur meminta pengguna menekan tab, lalu menyorot halamannya.
+  - Aksi baris Anggota muat di kolomnya, dan "Ubah role & akses" pindah ke menu ⋯.
+  - Role kustom punya dialog sendiri, dengan contoh dan izin berikon.
+  - Popover PJ dan tenggat di catatan tidak lagi hilang saat dituju.
+- **Server**:
+  - Klien 0.4.5 tetap jalan dengan server 0.4.3. Bedanya, balasan perintah khusus yang memakai [Nama pengirim], [Tanggal], dan seterusnya dikirim apa adanya, misalnya `{sender}`, sampai server 0.4.5 dipasang.
+  - Deploy server bersama atau sebelum klien.
+- **Known issues**:
+  - Island: aplikasi layar penuh di monitor kedua juga menyembunyikan pil di monitor utama.
+  - Pratinjau perintah khusus memakai contoh nilai dan tidak menyertakan pembungkus balasan bot.
+
 ## 0.4.4 — 2026-11-10 · Dynamic Island desktop
 
 - Jendela Dynamic Island native Windows: banner dan detail, aksi Buka/Tunda 15 menit, antrean prioritas, dan penggantian berdasarkan tag.

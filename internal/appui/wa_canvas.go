@@ -18,25 +18,6 @@ import (
 // number; the details sit under "Pengaturan lanjutan" with Pratinjau on
 // every text the bot sends.
 
-// waTokens maps the server's placeholders to the words the page shows.
-var waTokens = []struct{ token, word string }{{"{body}", "[Isi pesan]"}, {"{name}", "[Nama bot]"}, {"{greeting}", "[Sapaan]"}, {"{title}", "[Judul]"}}
-
-// waFriendly shows a template with words instead of placeholders.
-func waFriendly(s string) string {
-	for _, t := range waTokens {
-		s = strings.ReplaceAll(s, t.token, t.word)
-	}
-	return s
-}
-
-// waServerTemplate turns the words back into the server's placeholders.
-func waServerTemplate(s string) string {
-	for _, t := range waTokens {
-		s = strings.ReplaceAll(s, t.word, t.token)
-	}
-	return s
-}
-
 // waTemplateLabels name each message as people know it.
 var waTemplateLabels = map[string]string{
 	"reminder": "Pengingat tenggat",
@@ -785,7 +766,9 @@ func (a *App) waMembersPanel(c *ui.Context, s waStatus) {
 func (a *App) waAdvanced(c *ui.Context, phone bool) {
 	t := c.Theme()
 	st := &a.whatsapp
-	ui.Column(c.Key("wa-advanced")).FillWidth().MinWidth(0).Radius(12).Background(t.Surface).Border(1, t.Border).Children(func() {
+	advanced := ui.Column(c.Key("wa-advanced")).FillWidth().MinWidth(0).Radius(12).Background(t.Surface).Border(1, t.Border)
+	RevealSection(c, advanced, "Pengaturan lanjutan")
+	advanced.Children(func() {
 		head := ui.ButtonBase(c.Key("adv-toggle")).Label("Pengaturan lanjutan").FillWidth().Row().AlignItems(ui.Center).Gap(12).Padding(14, 20)
 		if head.Hovered() {
 			head.Background(t.SurfaceHover)
@@ -823,7 +806,7 @@ func (a *App) waAdvanced(c *ui.Context, phone bool) {
 			})
 			a.waField(c, "wa-greeting", "Sapaan", &st.greeting, "reminder")
 			ui.Text(c, "Teks pesan").FontSize(13).Bold()
-			muted(c, "Kosongkan untuk teks bawaan. Bagian dalam kurung diisi otomatis: [Isi pesan] wajib ada, [Nama bot], [Sapaan] dan [Judul] boleh dipakai.").FontSize(12)
+			muted(c, "Kosongkan untuk teks bawaan. Pakai tombol Sisipkan untuk bagian yang diisi bot, misalnya [Isi pesan]. Pratinjau muncul saat kamu mengetik.").FontSize(12)
 			for i, key := range waTemplateKeys {
 				a.waField(c, "tpl-"+key, waTemplateLabels[key], &st.templates[i], key)
 			}
@@ -844,32 +827,28 @@ func (a *App) waAdvanced(c *ui.Context, phone bool) {
 	})
 }
 
-// waField is a text the bot sends, with its token chips and Pratinjau.
+// waField is a text the bot sends: a template with its Sisipkan chips, or
+// the bot's name or greeting, each with its Pratinjau.
 func (a *App) waField(c *ui.Context, key, label string, value *string, preview string) {
-	ui.Column(c.Key(key)).FillWidth().MinWidth(0).Gap(6).Children(func() {
-		if strings.HasPrefix(key, "tpl-") {
-			ui.Field(c, label, func() { ui.TextArea(c, value).Label(label).Placeholder("Bawaan").FillWidth().Height(72) })
-		} else {
-			ui.Field(c, label, func() { ui.TextInput(c, value).Label(label).Placeholder("Bawaan").FillWidth() })
-		}
-		ui.Row(c).Wrap().Gap(6).AlignItems(ui.Center).Children(func() {
-			if strings.HasPrefix(key, "tpl-") {
-				for _, tk := range waTokens {
-					tk := tk
-					if spaceButton(c.Key("ins"+tk.word), "+ "+strings.Trim(tk.word, "[]"), "", false).Label("Sisipkan "+tk.word+" ke "+label).Padding(2, 8).MinHeight(26).Clicked() {
-						*value += tk.word
-					}
-				}
-			}
-			a.waPreviewButton(c, preview+"|"+key)
-		})
-		a.waPreviewBubble(c, preview+"|"+key)
-	})
+	var tokens []waToken
+	if strings.HasPrefix(key, "tpl-") {
+		tokens = waTokens
+	}
+	pv := preview + "|" + key
+	a.waTemplateEditor(c, key, label, value, tokens, tokens != nil, pv, func() { a.waPreviewBubble(c, pv) })
 }
 
 // saveWAConfig saves name, language, greeting and the messages.
 func (a *App) saveWAConfig() {
 	st := &a.whatsapp
+	for i, v := range st.templates {
+		if waMissingBody(v) {
+			st.err = waTemplateLabels[waTemplateKeys[i]] + ": tambahkan [Isi pesan] agar isi pesan tetap terlihat."
+			st.advancedOpen = true
+			st.previewOpen = waTemplateKeys[i] + "|tpl-" + waTemplateKeys[i]
+			return
+		}
+	}
 	cl, ok := a.waClient()
 	if !ok {
 		return
@@ -903,7 +882,6 @@ func (a *App) waTemplatesForServer() map[string]string {
 
 // waPreviewState is one preview: open, the draft last asked for, its text.
 type waPreviewState struct {
-	open           bool
 	asked, pending string
 	pendingAt      time.Time
 	text, err      string
@@ -912,21 +890,17 @@ type waPreviewState struct {
 
 func (a *App) waPreviewButton(c *ui.Context, pv string) {
 	st := &a.whatsapp
-	if st.previews == nil {
-		st.previews = map[string]*waPreviewState{}
-	}
-	p := st.previews[pv]
-	open := p != nil && p.open
+	open := st.previewOpen == pv
 	label := "Pratinjau"
 	if open {
 		label = "Tutup pratinjau"
 	}
 	if spaceButton(c.Key("pv-"+pv), label, "search", open).Padding(2, 10).MinHeight(26).Clicked() {
-		if p == nil {
-			p = &waPreviewState{}
-			st.previews[pv] = p
+		if open {
+			st.previewOpen = ""
+		} else {
+			st.previewOpen = pv
 		}
-		p.open = !p.open
 	}
 }
 
@@ -934,16 +908,31 @@ func (a *App) waPreviewButton(c *ui.Context, pv string) {
 func (a *App) waPreviewDraft(pv string) api.WAPreviewRequest {
 	st := &a.whatsapp
 	kind, _, _ := strings.Cut(pv, "|")
-	return api.WAPreviewRequest{Kind: kind, DisplayName: st.name, Language: st.language, Greeting: st.greeting, Templates: a.waTemplatesForServer()}
+	// Only templates with [Isi pesan] go: one field missing it must not
+	// keep another field's preview from showing.
+	templates := a.waTemplatesForServer()
+	for key, v := range templates {
+		if !strings.Contains(v, waBodyToken.token) {
+			delete(templates, key)
+		}
+	}
+	return api.WAPreviewRequest{Kind: kind, DisplayName: st.name, Language: st.language, Greeting: st.greeting, Templates: templates}
 }
 
 // waPreviewBubble shows the preview as a WhatsApp message, asking the
 // server again 300 ms after the draft stops changing.
 func (a *App) waPreviewBubble(c *ui.Context, pv string) {
 	st := &a.whatsapp
-	p := st.previews[pv]
-	if p == nil || !p.open {
+	if st.previewOpen != pv {
 		return
+	}
+	if st.previews == nil {
+		st.previews = map[string]*waPreviewState{}
+	}
+	p := st.previews[pv]
+	if p == nil {
+		p = &waPreviewState{}
+		st.previews[pv] = p
 	}
 	req := a.waPreviewDraft(pv)
 	key := fmt.Sprintf("%v", req)

@@ -473,7 +473,7 @@ func (a *App) beginNote() {
 		return
 	}
 	a.notes.createOpen, a.notes.newTitle, a.notes.templateID = true, "", id.Nil
-	a.notes.share.fromMeeting = true
+	a.notes.share.fromMeeting, a.notes.share.meetingID = true, id.Nil
 	if len(a.notes.templates) > 0 {
 		a.notes.templateKind = a.notes.templates[0].Kind
 	}
@@ -487,6 +487,14 @@ func (a *App) createNote() {
 	var meeting *api.Meeting
 	if a.notes.share.fromMeeting && a.notes.templateKind == api.TemplateMeeting && a.notes.templateID == id.Nil {
 		meeting = a.nextNoteMeeting(time.Now())
+		if mid := a.notes.share.meetingID; mid != id.Nil {
+			meeting = nil
+			for i := range a.meetings.items {
+				if a.meetings.items[i].ID == mid {
+					meeting = &a.meetings.items[i]
+				}
+			}
+		}
 	}
 	if (title == "" && meeting == nil) || utf8.RuneCountInString(title) > 200 {
 		a.notes.err = "Isi judul note, maksimal 200 karakter."

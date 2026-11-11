@@ -14,8 +14,8 @@ import (
 
 // The Anggota table as on canvas Anggota A (0b2425c385f0, design 1 and 2):
 // avatar, a role badge, workload as a bar with the late tasks in red, the
-// WhatsApp status, search, filter chips and sorting. Editing access still
-// opens under the row from "Ubah role" (moves to a drawer in stage A2).
+// WhatsApp status, search, filter chips and sorting. Editing access opens
+// the drawer from the row's ⋯ (Ubah role & akses).
 
 // Member filters of the toolbar's chips.
 const (
@@ -314,7 +314,7 @@ func memberColumns(groups bool) []memberColumn {
 	if groups {
 		cols = append(cols, memberColumn{"Kelompok", 80})
 	}
-	return append(cols, memberColumn{"Beban aktif", 116}, memberColumn{"WhatsApp", 112}, memberColumn{"", 136})
+	return append(cols, memberColumn{"Beban aktif", 116}, memberColumn{"WhatsApp", 112}, memberColumn{"", 104})
 }
 
 // memberHasGroups reports whether any member belongs to a group.

@@ -56,6 +56,8 @@ type memberManagementState struct {
 	removeTasksLocal   bool
 	// rowMenu is the member whose row menu ⋯ is open (stage A4).
 	rowMenu id.ID
+	// roleDialog is the Role kustom dialog (members_roles.go).
+	roleDialog roleDialogState
 }
 
 func (a *App) memberDivision() id.ID {
@@ -81,6 +83,13 @@ func (a *App) loadMembers(d id.ID) {
 		n := &a.access.members
 		n.loaded, n.access, n.members, n.roles, n.invitations = true, old.access, old.members, old.roles, old.invitations
 		n.query, n.filter, n.sort, n.pinned = old.query, old.filter, old.sort, old.pinned
+		// The Role kustom dialog stays open on its list after a save, and
+		// an access drawer it was opened over keeps its unsaved choices.
+		if old.roleDialog.open {
+			n.roleDialog = roleDialogState{open: true}
+			n.editing, n.drawerOpen, n.role, n.groups, n.roleIDs = old.editing, old.drawerOpen, old.role, old.groups, old.roleIDs
+			n.on45, n.replace45, n.actingCustom, n.actingCaps = old.on45, old.replace45, old.actingCustom, old.actingCaps
+		}
 	}
 	seq, gen, p, sid := a.access.members.seq, a.gen, a.periodID, a.selectedSpaceID()
 	a.async(func() func() {
@@ -175,59 +184,12 @@ func (a *App) memberWrite(cap, label string, work func(WorkspaceAPI, id.ID, id.I
 
 var operationalRoleChoices = []struct{ cap, label string }{{api.CapTasksManage, "Kelola tugas"}, {api.CapResultsReview, "Tinjau hasil"}, {api.CapPingSend, "Kirim ping"}, {api.CapWhatsAppManage, "Kelola WhatsApp"}, {api.CapNotesManage, "Kelola catatan"}, {api.CapSOPRead, "Baca evaluasi SOP"}, {api.CapSOPReview, "Tinjau temuan SOP"}}
 
-func (a *App) memberRoles(c *ui.Context) {
-	m := &a.access.members
-	pageSection(c, "Role kustom", "Role tambahan hanya memberi kewenangan operasional. Role 45 tidak dapat mengatur akses.", func() {
-		for _, r := range m.roles {
-			// Icon buttons (the name stays their label and tooltip) so the
-			// row fits a phone instead of running past its edge.
-			ui.Row(c.Key(r.ID)).FillWidth().MinWidth(0).Gap(6).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, r.Name).Grow(1).MinWidth(0).MaxLines(2)
-				if spaceIconButton(c, "Edit role "+r.Name, "settings").Disabled(m.busy).Clicked() {
-					m.roleEditing = r.ID
-					m.roleName = r.Name
-					m.roleCaps = slices.Clone(r.Capabilities)
-				}
-				if spaceIconButton(c, "Hapus role "+r.Name, "close").Disabled(m.busy).Clicked() {
-					m.confirmAction = "delete-role"
-					m.confirmID = r.ID
-				}
-			})
-		}
-		ui.TextInput(c.Key("role-name"), &m.roleName).Label("Nama role kustom").Placeholder("Nama role").FillWidth().Disabled(m.busy)
-		for _, r := range operationalRoleChoices {
-			if spaceButton(c, r.label, "check", slices.Contains(m.roleCaps, r.cap)).Disabled(m.busy).Clicked() {
-				m.roleCaps = toggleString(m.roleCaps, r.cap)
-			}
-		}
-		label := "Buat role"
-		if m.roleEditing != id.Nil {
-			label = "Simpan role"
-		}
-		if spaceButton(c, label, "plus", true).Disabled(m.busy || strings.TrimSpace(m.roleName) == "").Clicked() {
-			req := api.RoleRequest{Name: strings.TrimSpace(m.roleName), Capabilities: append([]string{}, m.roleCaps...)}
-			rid := m.roleEditing
-			a.memberWrite(api.CapRolesManage, "Role disimpan.", func(s WorkspaceAPI, p, d id.ID) error {
-				if rid == id.Nil {
-					_, err := s.CreateRole(context.Background(), p, d, req)
-					return err
-				}
-				_, err := s.UpdateRole(context.Background(), p, d, rid, req)
-				return err
-			})
-		}
-		if m.roleEditing != id.Nil && spaceButton(c, "Batal edit role", "close", false).Clicked() {
-			m.roleEditing = id.Nil
-			m.roleName = ""
-			m.roleCaps = nil
-		}
-	})
-}
 func (a *App) memberConfirmation(c *ui.Context) {
 	m := &a.access.members
 	action, target := m.confirmAction, m.confirmID
-	// Member access, removal and the 45 are confirmed in the access drawer.
-	text := map[string]string{"revoke-invite": "Cabut undangan ini? Tautan email sebelumnya tidak dapat digunakan.", "delete-role": "Hapus role ini beserta penugasannya?"}[action]
+	// Member access, removal and the 45 are confirmed in the access drawer,
+	// a role's deletion in the Role kustom dialog.
+	text := map[string]string{"revoke-invite": "Cabut undangan ini? Tautan email sebelumnya tidak dapat digunakan."}[action]
 	pageSection(c, "Konfirmasi perubahan", text, func() {
 		if spaceButton(c, "Batal perubahan", "close", false).Disabled(m.busy).Clicked() {
 			m.confirmAction = ""
@@ -236,8 +198,6 @@ func (a *App) memberConfirmation(c *ui.Context) {
 			switch action {
 			case "revoke-invite":
 				a.memberWrite(api.CapInvitationsManage, "Undangan dicabut.", func(s WorkspaceAPI, p, d id.ID) error { return s.RevokeInvitation(context.Background(), p, d, target) })
-			case "delete-role":
-				a.memberWrite(api.CapRolesManage, "Role dihapus.", func(s WorkspaceAPI, p, d id.ID) error { return s.DeleteRole(context.Background(), p, d, target) })
 			}
 		}
 	})

@@ -186,7 +186,9 @@ func (a *App) spacePage(c *ui.Context, r *ui.Route, shared bool) {
 		}
 	}
 	a.resolveSpaceTab(sp)
-	ui.Column(c).Fill().MinWidth(0).Children(func() {
+	page := ui.Column(c).Fill().MinWidth(0)
+	a.tourTarget("space-page", page)
+	page.Children(func() {
 		a.spaceTabBar(c, sp)
 		if s := a.selectedSpace(); s != nil && s.ReadOnly {
 			pageNotice(c, "lock", "Hanya baca", "Periode atau akses arsip ini tidak mengizinkan perubahan.")
@@ -320,7 +322,9 @@ func info(c *ui.Context, rows [][2]string) {
 
 func pageSection(c *ui.Context, title, description string, fn func()) {
 	t := c.Theme()
-	ui.Column(c).FillWidth().MinWidth(0).Padding(20).Gap(15).Radius(11).Background(t.Surface).Border(1, t.Border).Children(func() {
+	section := ui.Column(c).FillWidth().MinWidth(0).Padding(20).Gap(15).Radius(11).Background(t.Surface).Border(1, t.Border)
+	RevealSection(c, section, title)
+	section.Children(func() {
 		ui.Text(c, title).FontSize(15).Bold()
 		if description != "" {
 			muted(c, description)

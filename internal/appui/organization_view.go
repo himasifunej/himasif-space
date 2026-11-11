@@ -8,6 +8,9 @@ import (
 	"github.com/himasifunej/himasif-space/internal/id"
 )
 
+// organizationTabs are the tabs of Pengaturan organisasi.
+var organizationTabs = []struct{ name, icon string }{{"Periode", "calendar"}, {"Kadiv", "users"}, {"Serah terima", "archive"}}
+
 func (a *App) organizationAdminView(c *ui.Context) {
 	if !a.isAdmin() {
 		pageBody(c, "Pengaturan organisasi", func() {
@@ -21,7 +24,7 @@ func (a *App) organizationAdminView(c *ui.Context) {
 		muted(c, "Siapkan kepengurusan berikutnya sambil menjaga riwayat periode sebelumnya.")
 		ui.ScrollHorizontal(c).FillWidth().Height(46).Shrink(0).Children(func() {
 			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-				for _, tab := range []struct{ name, icon string }{{"Periode", "calendar"}, {"Kadiv", "users"}, {"Serah terima", "archive"}} {
+				for _, tab := range organizationTabs {
 					if spaceButton(c.Key(tab.name), tab.name, tab.icon, a.organization.tab == tab.name).Clicked() {
 						a.cancelOrganizationConfirmation()
 						a.organization.tab = tab.name

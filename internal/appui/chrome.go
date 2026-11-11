@@ -1,7 +1,6 @@
 package appui
 
 import (
-	"strings"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -21,9 +20,14 @@ type chromeState struct {
 	tab, settingsTab                                                   string
 	divisionID                                                         id.ID
 	appearance, periodOpen, profileOpen, notificationsOpen, searchOpen bool
-	search, customAccent, preferencesErr                               string
-	members                                                            headerMembersState
-	syncOpen, pingOpen, pingWhoOpen, pingSrcOpen                       bool
+	// searchQuery is the query searchCursor, the highlighted result, is
+	// for; searchSubmit is Enter pressed in the search field.
+	searchQuery                                  string
+	searchCursor                                 int
+	searchSubmit                                 bool
+	search, customAccent, preferencesErr         string
+	members                                      headerMembersState
+	syncOpen, pingOpen, pingWhoOpen, pingSrcOpen bool
 	// appearanceQuick is the small appearance popover of the sidebar's
 	// Tampilan; appearance is the full panel.
 	appearanceQuick bool
@@ -275,35 +279,4 @@ func (a *App) pingDialog(c *ui.Context) {
 			})
 		})
 	})
-}
-func (a *App) searchResults(c *ui.Context) {
-	ui.Text(c, "Navigasi cepat").Bold().Padding(6)
-	q := strings.ToLower(strings.TrimSpace(a.chrome.search))
-	matches := 0
-	items := []struct{ label, path, icon string }{{"Jobdesk saya", PathJobdesk, "task"}, {"Reminder pribadi", PathReminder, "bell"}, {"Space saya", PathSpaces, "grid"}, {"Arsip periode", PathArsip, "archive"}, {"Pengaturan", PathPengaturan, "settings"}}
-	for _, item := range items {
-		if q == "" || strings.Contains(strings.ToLower(item.label), q) {
-			matches++
-			if spaceButton(c, item.label, item.icon, false).FillWidth().Clicked() {
-				if item.path == PathSpaces {
-					a.selectSpace(id.Nil)
-				}
-				a.navigate(item.path)
-			}
-		}
-	}
-	for _, s := range a.access.spaces {
-		if q == "" || strings.Contains(strings.ToLower(s.Name), q) {
-			matches++
-			if spaceButton(c.Key(s.ID), s.Name, "grid", false).FillWidth().Clicked() {
-				a.selectSpace(s.ID)
-				a.navigate(PathSpaces)
-			}
-		}
-	}
-	matches += a.taskSearchResults(c, q)
-	if matches == 0 {
-		muted(c, "Tidak ada halaman yang cocok.")
-	}
-	muted(c, "Tugas pada tampilan aktif; pencarian notes dan anggota belum tersedia.").Padding(6)
 }

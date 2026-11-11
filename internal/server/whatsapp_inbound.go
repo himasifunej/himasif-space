@@ -289,6 +289,7 @@ func (s *Server) runWACommand(r *http.Request, q store.Querier, p *principal, pe
 		if err != nil {
 			return reply, err
 		}
+		reply.Text = renderWACommandText(reply.Text, waCommandValues{Sender: p.User.DisplayName, Group: group.Name, Bot: conn.DisplayName, Args: strings.Join(args, " "), At: s.now(), Zone: period.TimeZone})
 	}
 	return reply, nil
 }
