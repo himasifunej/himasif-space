@@ -7,9 +7,11 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/himasifunej/himasif-space/internal/appui"
+	"github.com/himasifunej/himasif-space/internal/update"
 )
 
 // Ace's inbox (rc4 feedback): a notice nobody acted on (Buka, Tunda,
@@ -35,9 +37,17 @@ type islandInbox struct {
 }
 
 // inboxKeeps tells whether a notice belongs in the inbox: one of an
-// account's deliveries; not Ace speaking, a test or an update offer.
+// account's deliveries, or a version on offer newer than this Space; not
+// Ace speaking or a test.
 func inboxKeeps(n appui.Notice) bool {
-	return n.AccountID != "" && n.Tag != "" && n.Kind != appui.NoticeAce && n.Kind != appui.NoticeTest && n.Kind != "update"
+	if n.AccountID == "" || n.Tag == "" || n.Kind == appui.NoticeAce || n.Kind == appui.NoticeTest {
+		return false
+	}
+	if n.Kind == "update" {
+		v, ok := strings.CutPrefix(n.Tag, "update:")
+		return ok && update.Compare(v, appVersion()) > 0
+	}
+	return true
 }
 
 // add keeps n as of at: newest first, once per tag, within the cap.
