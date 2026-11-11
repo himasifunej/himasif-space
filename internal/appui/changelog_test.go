@@ -8,8 +8,8 @@ import (
 // Every version's notes fit a signed manifest (update.MaxNotes, 600), one
 // bullet a line, and read back as the same lines.
 func TestChangelogFitsTheManifest(t *testing.T) {
-	if len(Changelog) == 0 || Changelog[0].Version != "0.4.5" {
-		t.Fatalf("newest first, 0.4.5 on top: %+v", Changelog)
+	if len(Changelog) == 0 || Changelog[0].Version != "0.4.6" {
+		t.Fatalf("newest first, 0.4.6 on top: %+v", Changelog)
 	}
 	for _, r := range Changelog {
 		notes := FormatNotes(r.Notes)
@@ -25,6 +25,9 @@ func TestChangelogFitsTheManifest(t *testing.T) {
 				t.Errorf("%s line %d: %q, want %q", r.Version, i, back[i], r.Notes[i])
 			}
 		}
+	}
+	if r, ok := ChangelogFor("0.4.6-rc.1"); !ok || r.Version != "0.4.6" {
+		t.Fatal("0.4.6-rc.1 takes 0.4.6's notes")
 	}
 	if r, ok := ChangelogFor("0.4.5-rc2"); !ok || r.Version != "0.4.5" {
 		t.Fatal("a release candidate takes its release's notes")

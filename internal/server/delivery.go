@@ -233,13 +233,12 @@ func (s *Server) sendPing(w http.ResponseWriter, r *http.Request, p *principal) 
 				return badRequest("Penerima tidak lagi menjadi anggota ruang ini.")
 			}
 		}
-		if err := s.enqueue(r.Context(), q, "ping:"+pid.String(), "ping", pid, 1, &sid, "Ping · "+view.Name, req.Message, period.TimeZone, s.now(), req.Recipients, req.Channels); err != nil {
-			return err
-		}
+		message := deliveryMessage{}
 		if req.SourceID != nil {
-			if _, err := q.Exec(r.Context(), `update delivery_events set related_kind=$2,related_id=$3 where source_kind='ping' and source_id=$1`, pid, req.SourceKind, *req.SourceID); err != nil {
-				return err
-			}
+			message.RelatedKind, message.RelatedID = req.SourceKind, *req.SourceID
+		}
+		if err := s.enqueue(r.Context(), q, "ping:"+pid.String(), "ping", pid, 1, &sid, "Ping · "+view.Name, req.Message, period.TimeZone, s.now(), req.Recipients, req.Channels, message); err != nil {
+			return err
 		}
 		return s.record(r, q, p, store.AuditEvent{Action: "ping.created", TargetType: "ping", TargetID: &pid, PeriodID: &period.ID, After: req})
 	})

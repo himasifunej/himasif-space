@@ -42,6 +42,10 @@ func (a *App) page(c *ui.Context, r *ui.Route) {
 	case r.Match(PathLainnya):
 		r.Title("Lainnya")
 		a.lainnyaPage(c)
+	case r.Match(PathTaskCard):
+		a.cardPage(c, r, "task")
+	case r.Match(PathMeetingCard):
+		a.cardPage(c, r, "meeting")
 	case r.Match(PathOrganisasi) && a.isAdmin():
 		a.organizationPage(c, r)
 	default:

@@ -201,7 +201,15 @@ type islandPresenter struct {
 	// anchor is where the island sits along the top of the screen (0 left,
 	// 1 right), placed at; drag follows a press on the pill that moves it.
 	anchor, placed float64
-	drag           islandDrag
+	// slide carries Ace to a new anchor; jelly wobbles it as it moves,
+	// from its speed (prevAnchor a frame ago, moveDir its last direction);
+	// motionAt is their last frame.
+	slide      island.Slide
+	jelly      island.Jelly
+	prevAnchor float64
+	moveDir    float64
+	motionAt   time.Time
+	drag       islandDrag
 	// eyeH is the eyes' height, easing to what the moment asks for.
 	eyeH float64
 	// key names what the island shows (scene, details, which notice): a
@@ -407,13 +415,38 @@ func (p *islandPresenter) show() {
 
 // cut fits the window's region to the shape where the island draws it.
 func (p *islandPresenter) cut() {
-	ox := islandOffset(p.geometry, p.anchor)
-	key := [5]float64{p.geometry[0], p.geometry[1], p.geometry[2], p.geometry[3], ox}
+	g, ox := p.shape()
+	key := [5]float64{g[0], g[1], g[2], g[3], ox}
 	if p.region == key {
 		return
 	}
-	islandWindowShape(p.win.NativeHandle(), p.geometry, ox, islandEnvelope[0])
+	islandWindowShape(p.win.NativeHandle(), g, ox, islandEnvelope[0])
 	p.region = key
+}
+
+// shape is the pill as drawn, and where it starts in the window: the
+// geometry, stretched by the jelly about its middle and kept inside the
+// window. The region follows it, so the window never shows past it.
+func (p *islandPresenter) shape() ([4]float64, float64) {
+	g := p.geometry
+	ox := islandOffset(g, p.anchor)
+	if p.jelly.Stretch == 0 {
+		return g, ox
+	}
+	sx, sy := p.jelly.Scale()
+	w, h := g[0]*sx, math.Min(g[1]*sy, float64(islandEnvelope[1]))
+	d := [4]float64{w, h, math.Min(g[2], h/2), g[3]}
+	ox += (g[0] - w) / 2
+	return d, math.Max(0, math.Min(ox, float64(islandEnvelope[0])-islandGroupWidth(d)))
+}
+
+// travel is how far, in pixels, the island goes from the left edge to the
+// right one, for its speed; a guess where the screen does not say.
+func (p *islandPresenter) travel() float64 {
+	if t := islandTravel(p.d.win.NativeHandle(), !p.d.win.IsVisible(), islandGroupWidth(p.geometry)); t > 0 {
+		return t
+	}
+	return 1200
 }
 
 // reset discards account content, or sends accepted content to the OS when
@@ -586,14 +619,39 @@ func (p *islandPresenter) view(c *ui.Context) {
 		p.born = now
 	}
 	reduced := prefs.IslandReduceMotion || c.Preferences().ReduceMotion
-	// The saved place, unless a drag holds the island; a new one (the
-	// settings' "Ke tengah") moves the window.
-	if !p.drag.on {
-		p.anchor = islandAnchor(prefs.IslandAnchor)
+	// The saved place, unless a drag holds the island. A new one (Kiri,
+	// Tengah, Kanan, "Ke tengah") slides the window there on a spring.
+	mdt := islandFrameStep(p.motionAt, now)
+	p.motionAt = now
+	sliding := false
+	if p.drag.on {
+		p.slide.Jump(p.anchor)
+	} else {
+		target := islandAnchor(prefs.IslandAnchor)
+		if !p.shown {
+			p.slide.Jump(target)
+		} else {
+			sliding = p.slide.Step(target, mdt, now, reduced)
+		}
+		p.anchor = p.slide.Anchor
 		if p.shown && p.anchor != p.placed {
 			p.position()
 		}
 	}
+	// Sliding or dragged, Ace wobbles like jelly with its speed; never
+	// under reduced motion.
+	wobbling := false
+	if reduced || !p.shown {
+		p.jelly = island.Jelly{}
+	} else {
+		speed := 0.
+		if mdt > 0 && p.anchor != p.prevAnchor {
+			speed = (p.anchor - p.prevAnchor) / mdt * p.travel()
+			p.moveDir = math.Copysign(1, speed)
+		}
+		wobbling = p.jelly.Step(speed, mdt)
+	}
+	p.prevAnchor = p.anchor
 	px, py, pointerOK := p.pointer()
 	// A press that drags the island neither hovers nor opens it.
 	overPill := pointerOK && !p.drag.moved && insideIsland(px, py, [3]float64{p.geometry[0], p.geometry[1], p.geometry[2]})
@@ -727,8 +785,13 @@ func (p *islandPresenter) view(c *ui.Context) {
 	theme.Accent, theme.AccentText = islandText, opaque(islandInk)
 	c.SetTheme(&theme)
 
-	gw, gh, gr := float32(p.geometry[0]), float32(p.geometry[1]), float32(p.geometry[2])
-	ox := float32(islandOffset(p.geometry, p.anchor))
+	drawn, dox := p.shape()
+	gw, gh, gr := float32(drawn[0]), float32(drawn[1]), float32(drawn[2])
+	ox := float32(dox)
+	// The eyes stay in the middle of the stretched pill and trail the
+	// motion a little.
+	eyeShift := (drawn[0]-p.geometry[0])/2 + p.jelly.EyeLag(p.moveDir)
+	eyeScaleY := drawn[1] / p.geometry[1]
 	dragging := false
 	ui.Box(c).Fill().Children(func() {
 		pill := ui.Box(c).Absolute().Left(ox).Top(0).Size(gw, gh).Radius(gr).Background(islandInk).Border(1, islandRing).Clip()
@@ -744,9 +807,9 @@ func (p *islandPresenter) view(c *ui.Context) {
 			// The eyes: two capsules, nodding to music, blinking, looking.
 			h := float32(math.Max(1.4, eyeH*open*scale))
 			w := float32(island.EyeWidth * scale)
-			cy := float32(p.eyes[1] + gy + bop)
+			cy := float32((p.eyes[1] + gy + bop) * eyeScaleY)
 			for _, side := range [2]float64{-1, 1} {
-				cx := float32(p.eyes[0] + side*(island.EyePair-island.EyeWidth)/2*scale + gx)
+				cx := float32(p.eyes[0] + side*(island.EyePair-island.EyeWidth)/2*scale + gx + eyeShift)
 				h := h
 				if wink && side < 0 {
 					h = 1.4
@@ -797,7 +860,7 @@ func (p *islandPresenter) view(c *ui.Context) {
 	if !reduced && (f.scene == island.SceneMedia || f.second == island.SceneMedia) && f.media.Playing {
 		next = min(next, 66*time.Millisecond)
 	}
-	if moving || gazing || alpha < 1 || !f.closing.IsZero() || open < 1 || now.Before(p.happyUntil) || dragging {
+	if moving || gazing || alpha < 1 || !f.closing.IsZero() || open < 1 || now.Before(p.happyUntil) || dragging || sliding || wobbling {
 		next = 16 * time.Millisecond
 	}
 	c.After(p.obstructionDeadline(now, next))

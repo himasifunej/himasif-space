@@ -1,12 +1,12 @@
 {
   "name": "Space",
   "identifier": "id.himasif.space",
-  "version": "0.4.5-rc4",
+  "version": "0.4.6-rc.1",
   "copyright": "© 2026 HIMASIF",
   "out": "build",
   "linux": {
     "webview": false
   },
   "icon": "resources/icon.png",
-  "urlSchemes": ["himasif-space"]
+  "urlSchemes": ["himasif-space", "space"]
 }

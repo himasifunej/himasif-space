@@ -1,5 +1,17 @@
 [
   {
+    "version": "0.4.6",
+    "date": "2026-11-11",
+    "title": "Tautan kartu di WhatsApp, buka di aplikasi, Ace yang luwes",
+    "notes": [
+      "Pesan WhatsApp tentang tugas dan rapat kini membawa tautan ke kartunya.",
+      "Tautan itu dibuka di web; \"Buka di aplikasi Space\" membukanya di aplikasi Windows.",
+      "Di web untuk Windows ada bar kecil untuk mengunduh Space untuk Windows.",
+      "Ace bergeser halus saat dipindah ke kiri, tengah atau kanan, dan bergoyang seperti jeli saat ditarik.",
+      "Status pembaruan lebih jelas: tidak lagi \"terbaru\" bila pemeriksaan gagal."
+    ]
+  },
+  {
     "version": "0.4.5",
     "date": "2026-11-11",
     "title": "Ace di atas layar, Rapat dan Pengaturan baru, pembaruan otomatis",

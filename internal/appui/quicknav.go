@@ -43,6 +43,9 @@ var appPages = []appPage{
 	{PathPanduan, "Panduan", "book", "bantuan tutorial", true},
 	{PathPengaturan, "Pengaturan", "settings", "setelan", true},
 	{PathLainnya, "Lainnya", "more", "menu", false},
+	// A card's page, from a link: not one to open from the palette.
+	{PathTaskCard, "Tugas", "task", "", false},
+	{PathMeetingCard, "Rapat", "calendar", "", false},
 }
 
 // pageTitle is the title of the page at path, "" for a Space's.

@@ -44,14 +44,16 @@ const maxBodyBytes = 1 << 20
 
 // Server handles the API.
 type Server struct {
-	workers  workerRegistry
-	realtime realtimeHub
-	cfg      config.Config
-	sources  *integrations.Sources
-	store    *store.Store
-	mailer   mail.Mailer
-	log      *slog.Logger
-	now      func() time.Time
+	// installer is the newest Windows installer, for /unduh/windows.
+	installer installerCache
+	workers   workerRegistry
+	realtime  realtimeHub
+	cfg       config.Config
+	sources   *integrations.Sources
+	store     *store.Store
+	mailer    mail.Mailer
+	log       *slog.Logger
+	now       func() time.Time
 
 	loginLimit *limiter
 	// mailLimit bounds the emails sent to one address; publicLimit the
@@ -317,6 +319,10 @@ func (s *Server) Handler() http.Handler {
 	// Public links (C6): no sign-in, read-only, never indexed.
 	mux.HandleFunc("GET /api/public/notes/{token}", s.getPublicNoteJSON)
 	mux.HandleFunc("GET /n/{token}", s.getPublicNotePage)
+	// Card links from WhatsApp (0.4.6) and the web's Unduh.
+	mux.HandleFunc("GET /t/{id}", s.openCard("tugas"))
+	mux.HandleFunc("GET /r/{id}", s.openCard("rapat"))
+	mux.HandleFunc("GET /unduh/windows", s.downloadWindows)
 	mux.Handle("POST /api/notes/{noteId}/links", s.handle(s.addNoteLink))
 	mux.Handle("DELETE /api/notes/{noteId}/links/{linkId}", s.handle(s.deleteNoteLink))
 

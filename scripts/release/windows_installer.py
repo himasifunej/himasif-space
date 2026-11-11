@@ -9,6 +9,9 @@ from pathlib import Path
 import sys
 
 MARKER = '; Space desktop registration cleanup'
+# Card links from the web open the app (0.4.6): the template must register
+# space:// (urlSchemes in app/mygo.json) as well as himasif-space://.
+SCHEMES = ('Software\\Classes\\himasif-space\\shell\\open\\command', 'Software\\Classes\\space\\shell\\open\\command')
 ANCHOR = 'Section "Uninstall"\n  Push "$INSTDIR"\n  Call un.CloseApp\n'
 CLEANUP = r'''
   ; Space desktop registration cleanup
@@ -32,6 +35,9 @@ def patch_installer(text):
             'Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\id.himasif.space' not in text or
             'CreateShortCut "$SMPROGRAMS\\Space.lnk" "$INSTDIR\\Space.exe"' not in text):
         raise ValueError('unexpected Space installer template; review the SDK installer before releasing')
+    for scheme in SCHEMES:
+        if scheme not in text:
+            raise ValueError('the installer does not register ' + scheme + '; check urlSchemes in app/mygo.json')
     return 'Target amd64-unicode\n' + text.replace(ANCHOR, ANCHOR + CLEANUP, 1)
 
 

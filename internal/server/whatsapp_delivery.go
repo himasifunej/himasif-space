@@ -39,7 +39,10 @@ func (s *Server) queueWADelivery(ctx context.Context, q store.Querier, eid id.ID
 	}
 	var kind, title, messageKey string
 	var rawArgs []byte
-	if err = q.QueryRow(ctx, `select source_kind,title,message_key,message_args from delivery_events where id=$1`, eid).Scan(&kind, &title, &messageKey, &rawArgs); err != nil {
+	var source id.ID
+	var relatedKind string
+	var relatedID *id.ID
+	if err = q.QueryRow(ctx, `select source_kind,source_id,title,message_key,message_args,related_kind,related_id from delivery_events where id=$1`, eid).Scan(&kind, &source, &title, &messageKey, &rawArgs, &relatedKind, &relatedID); err != nil {
 		return err
 	}
 	templateKind := "reminder"
@@ -52,6 +55,15 @@ func (s *Server) queueWADelivery(ctx context.Context, q store.Querier, eid id.ID
 	}
 	title, body = waDeliveryText(connection.Language, messageKey, title, body, args)
 	body = renderWAText(connection, templateKind, title, body)
+	// The card it is about, as a plain link: no sign-in in it, since the
+	// message is read and forwarded in groups.
+	cardKind, cardID := kind, source
+	if relatedKind != "" && relatedID != nil {
+		cardKind, cardID = relatedKind, *relatedID
+	}
+	if link := s.cardLink(cardKind, cardID); link != "" {
+		body += "\n" + waTextLanguage(connection.Language, "card.link", link)
+	}
 	// Membership is checked again when projecting mentions. A display name or
 	// an imported phone string never constitutes a verified WhatsApp identity.
 	rows, err = q.Query(ctx, `select distinct on (r.recipient_id) i.jid from delivery_recipients r join delivery_events e on e.id=r.event_id join spaces sp on sp.id=e.space_id join users u on u.id=r.recipient_id and u.disabled_at is null join wa_identities i on i.period_id=sp.period_id and i.user_id=r.recipient_id where r.event_id=$1 and r.channel='whatsapp' and exists(select 1 from memberships m join space_divisions sd on sd.period_id=m.period_id and sd.division_id=m.division_id where sd.space_id=sp.id and m.user_id=u.id and m.removed_at is null) order by r.recipient_id,i.verified_at desc,i.jid`, eid)

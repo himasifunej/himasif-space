@@ -5,16 +5,28 @@ Versi mengikuti aturan sebelum rilis publik:
 - **Minor** naik untuk pembaruan besar.
 - **1.0.0** untuk rilis publik.
 
-## Belum dirilis · Onboarding dipandu Ace (feat/onboarding-ace-a)
+## 0.4.6-rc.1 — 2026-11-11 · Tautan kartu di WhatsApp, buka di aplikasi, bar unduh di web, Ace yang luwes (pre-release)
 
-- **Onboarding dipandu Ace** (canvas db456de51efb, opsi A): kartu langkah menggantikan dialog "Undangan diterima". Langkahnya Profil, Kenalan dengan Ace (posisi dan gaya), Kapan Ace muncul (selalu atau saat ada kabar, jam tenang, kabar percobaan Buka/Tunda/Tutup), Supaya kabar sampai (izin notifikasi, WhatsApp opsional, Mulai bersama Windows, pembaruan otomatis), lalu Selesai dengan tur opsional. Setiap langkah bisa dilewati dan punya bawaan; "Lewati semua" memakai semuanya.
-  - Ace bicara dari island yang asli di setiap langkah, dengan ekspresi mata sendiri (senang, melihat ke kartu, mata lebar, berkedip). Bila island mati, kalimatnya tampil di kartu.
-  - Kadiv (yang boleh mengundang) mendapat langkah tambahan: tempel NIM, undangan dikirim ke email kampus.
-  - Di web tidak ada langkah Ace dan Windows.
-  - Foto profil ditunda.
-- **Pengguna lama**: sekali per perangkat, satu dialog berisi "Yang baru" versi itu dan kartu "Ace sekarang bisa diatur" (posisi, gaya, jam tenang). Dialog "Yang baru" biasa tidak ikut muncul. Akun baru tidak melihatnya, karena onboarding sudah mencakupnya.
-- **Jam tenang** (baru, Pengaturan › Perangkat ini): 21–05, 22–06 (bawaan) atau 23–07. Selama jam tenang, notifikasi perangkat ditahan tanpa bel, lalu datang sebagai satu kabar setelahnya.
-- **Pembaruan otomatis** (baru, bawaan menyala): versi baru diunduh di latar dan dipasang saat jendela Space tertutup ke tray; Space terbuka lagi di tray. Mati: versi baru hanya diumumkan seperti sebelumnya. Pilihan kanal Stabil/Uji coba hanya tampil di build rc atau bila kanal rc sudah dipilih.
+- **Tautan kartu di WhatsApp**: pesan bot tentang tugas atau rapat (tugas baru, hasil diserahkan, perubahan PJ/tenggat, tugas Medhum, rapat baru/berubah/batal, pengingat terjadwal, ping tentang tugas/rapat, dan balasan `!cek`) kini diakhiri "Buka di Space: <SPACE_PUBLIC_URL>/t/<id tugas>" atau "/r/<id rapat>".
+  - Tautannya tanpa token login, karena pesan diteruskan di grup.
+  - Server meneruskan `/t/…` dan `/r/…` ke halaman kartu di web (`#/tugas/<id>`, `#/rapat/<id>`). Yang belum masuk login dulu, lalu kembali ke kartunya.
+  - Yang tidak berhak melihat mendapat "Kamu tidak punya akses ke tugas ini".
+- **Dari web ke aplikasi**: aplikasi Windows menangani `space://tugas/<id>` dan `space://rapat/<id>`, membuka kartunya dan memfokuskan jendelanya.
+  - Skema `space` didaftarkan oleh installer (urlSchemes di `app/mygo.json`; wrapper NSIS menolak template tanpa skema itu) dan oleh aplikasi setiap kali mulai, jadi instalasi yang diperbarui lewat updater juga mendapatkannya.
+  - Halaman kartu di web punya "Buka di aplikasi Space". Setelah sekali berhasil, browser itu mengingatnya (localStorage) dan berikutnya mencoba sendiri; bila tidak ada jawaban dalam 2,5 detik, tetap di web. HP tidak pernah mencoba.
+- **Bar unduh di web** (hanya browser Windows desktop): "Pakai Space untuk Windows — notifikasi, Ace Island, lebih cepat" dengan Unduh (`/unduh/windows`, installer stabil terbaru dari feed pembaruan yang ditandatangani, atau rc bila belum ada yang stabil), Nanti (14 hari), dan Jangan ingatkan lagi (tanda akun `webAppBannerOff`, berlaku di semua browser). Bar hilang setelah aplikasi pernah terbuka dari web.
+- **Tanpa migrasi**: `related_kind`/`related_id` di `delivery_events` sudah ada dan kini diisi saat event dibuat. Tanda bar unduh memakai kunci baru di `user_onboarding.marks` (JSON).
+- **Pembaruan**:
+  - Build rc (versi berisi `-rc`) yang kanalnya belum pernah dipilih memakai kanal Uji coba (rc). Pilihan pengguna tetap menang.
+  - Feed yang menjawab 404 berarti belum ada yang terbit (`update.ErrNoFeed`), bukan gagal. Di Stabil statusnya "Belum ada versi stabil baru"; klien rc tetap membaca `rc.json`.
+  - Status tidak pernah "terbaru" bila pemeriksaan terakhir gagal ("pemeriksaan terakhir gagal, HH.MM"). Sebelumnya rc2 di Stabil menampilkan "terbaru, diperiksa 18.50" bersama galat `stable.json: HTTP 404`.
+- **Gerak Ace**:
+  - Memilih Kiri/Tengah/Kanan (dialog "Yang baru" + Ace dan Pengaturan) menggeser Ace dengan pegas ±400 ms dan sedikit melewati tujuan, tidak lagi melompat.
+  - Saat bergeser atau ditarik, Ace bergoyang seperti jeli: memanjang searah gerak sesuai kecepatannya (paling banyak 16%, luasnya tetap), mata sedikit tertinggal, lalu memantul kecil saat berhenti.
+  - Kurangi gerak: tanpa goyangan, geser singkat 160 ms.
+  - Jendela island tetap berukuran sama; hanya bentuk dan region-nya yang mengikuti goyangan.
+  - Setelah berhenti, frame kembali ke irama diam. Mode `--island-spike=ace-slide`/`ace-slide-still` mengukurnya.
+- Server ikut berubah (tautan `/t/` `/r/`, `/unduh/windows`, tautan di pesan WhatsApp); tanpa migrasi.
 
 ## 0.4.5-rc4 — 2026-11-11 · Onboarding dipandu Ace (pre-release)
 

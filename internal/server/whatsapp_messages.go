@@ -25,6 +25,7 @@ var waPhrases = map[string]waPhrase{
 	"tasks.limit":           {"Daftar dibatasi 30 tugas. Buka Space untuk seluruh daftar.", "Showing up to 30 tasks. Open Space for the full list."},
 	"meetings.empty":        {"Tidak ada rapat mendatang di ruang ini.", "No upcoming meetings in this space."},
 	"task.details":          {"%s\nPJ: %s\nTenggat: %s\nProgres: %s\nPencocokan: %s\nID %s", "%s\nAssignee: %s\nDeadline: %s\nProgress: %s\nResult review: %s\nID %s"},
+	"card.link":             {"Buka di Space: %s", "Open in Space: %s"},
 	"task.done":             {"Tugas sudah selesai. Tidak ada temuan atau pelanggaran SOP yang disahkan oleh command ini.", "The task is complete. This command does not confirm any SOP finding or violation."},
 	"task.submitted":        {"Hasil tersimpan sebagai penyerahan yang perlu tinjauan. Ini belum berarti bukti cocok, mutu disetujui, atau konten sudah dipublikasikan.", "The result was submitted for review. It does not yet mean the evidence matches, quality is approved, or content is published."},
 	"help.submitted":        {"Pengajuan bantuan tersimpan dan menunggu keputusan pengelola tugas.", "Your offer to help was saved and awaits the task manager's decision."},
