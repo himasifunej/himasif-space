@@ -31,18 +31,21 @@ import (
 )
 
 type devicePreferences struct {
-	IslandEnabled      bool    `json:"islandEnabled"`
-	IslandStyle        string  `json:"islandStyle"`
-	IslandReplaceToast bool    `json:"islandReplaceToast"`
-	IslandReduceMotion bool    `json:"islandReduceMotion"`
-	Autostart          bool    `json:"autostart"`
-	AceMode            string  `json:"aceMode"`
-	AceName            string  `json:"aceName"`
-	Mascot             string  `json:"mascot"`
-	Audio              string  `json:"audio"`
-	Volume             float64 `json:"volume"`
-	Sound              bool    `json:"sound"`
-	X, Y               int
+	IslandEnabled      bool   `json:"islandEnabled"`
+	IslandStyle        string `json:"islandStyle"`
+	IslandReplaceToast bool   `json:"islandReplaceToast"`
+	IslandReduceMotion bool   `json:"islandReduceMotion"`
+	// IslandAlwaysOn keeps Ace on screen as a small pill between notices.
+	// Missing from older files, it takes the default: on.
+	IslandAlwaysOn bool    `json:"islandAlwaysOn"`
+	Autostart      bool    `json:"autostart"`
+	AceMode        string  `json:"aceMode"`
+	AceName        string  `json:"aceName"`
+	Mascot         string  `json:"mascot"`
+	Audio          string  `json:"audio"`
+	Volume         float64 `json:"volume"`
+	Sound          bool    `json:"sound"`
+	X, Y           int
 }
 type desktopDevice struct {
 	island              *islandPresenter
@@ -101,7 +104,7 @@ func attachDevice(win *mygo.Window, app *appui.App) {
 	if err != nil {
 		return
 	}
-	d := &desktopDevice{root: filepath.Join(root, "himasif-space", "device"), win: win, app: app, journal: map[string]string{}, prefs: devicePreferences{AceMode: "hidden", AceName: "Ace", Volume: .45, Sound: true, IslandEnabled: true, IslandStyle: "C", IslandReplaceToast: true}}
+	d := &desktopDevice{root: filepath.Join(root, "himasif-space", "device"), win: win, app: app, journal: map[string]string{}, prefs: devicePreferences{AceMode: "hidden", AceName: "Ace", Volume: .45, Sound: true, IslandEnabled: true, IslandStyle: "C", IslandReplaceToast: true, IslandAlwaysOn: true}}
 	if data, err := os.ReadFile(filepath.Join(d.root, "preferences.json")); err == nil {
 		_ = json.Unmarshal(data, &d.prefs)
 	}
@@ -123,6 +126,9 @@ func attachDevice(win *mygo.Window, app *appui.App) {
 		d.prefs.AceName = "Ace"
 	}
 	d.notificationPrefs.Store(d.prefs)
+	if islandSupported() {
+		d.island.wake() // Ace rests at the top of the screen when "Selalu tampil" is on.
+	}
 	// Keep an opted-in startup entry pointing at the executable currently
 	// running, including after moving a portable app or installing an update.
 	if d.prefs.Autostart {
