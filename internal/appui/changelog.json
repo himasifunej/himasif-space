@@ -2,13 +2,14 @@
   {
     "version": "0.4.6",
     "date": "2026-11-11",
-    "title": "Tautan kartu di WhatsApp, buka di aplikasi, Ace yang luwes",
+    "title": "Untukku, Space saya baru, kotak masuk Ace, tautan kartu WhatsApp",
     "notes": [
-      "Pesan WhatsApp tentang tugas dan rapat kini membawa tautan ke kartunya.",
-      "Tautan itu dibuka di web; \"Buka di aplikasi Space\" membukanya di aplikasi Windows.",
-      "Di web untuk Windows ada bar kecil untuk mengunduh Space untuk Windows.",
-      "Ace bergeser halus saat dipindah ke kiri, tengah atau kanan, dan bergoyang seperti jeli saat ditarik.",
-      "Status pembaruan lebih jelas: tidak lagi \"terbaru\" bila pemeriksaan gagal."
+      "Untukku: tugas, rapat, dan pengingatmu minggu ini dalam satu daftar per hari.",
+      "Space saya kini berupa tabel ringkas; klik logo untuk kembali ke sana.",
+      "Ace menyimpan kabar yang belum dibuka (+N) dan selalu menampilkan ikon jenisnya.",
+      "Gaya Kaca kini tampak seperti kaca buram.",
+      "Pesan WhatsApp membawa tautan ke kartu tugas atau rapatnya, dan bisa dibuka di aplikasi Windows.",
+      "Ace bergeser halus dan bergoyang seperti jeli; status pembaruan lebih jelas."
     ]
   },
   {
