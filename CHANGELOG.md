@@ -16,6 +16,18 @@ Versi mengikuti aturan sebelum rilis publik:
 - **Jam tenang** (baru, Pengaturan › Perangkat ini): 21–05, 22–06 (bawaan) atau 23–07. Selama jam tenang, notifikasi perangkat ditahan tanpa bel, lalu datang sebagai satu kabar setelahnya.
 - **Pembaruan otomatis** (baru, bawaan menyala): versi baru diunduh di latar dan dipasang saat jendela Space tertutup ke tray; Space terbuka lagi di tray. Mati: versi baru hanya diumumkan seperti sebelumnya. Pilihan kanal Stabil/Uji coba hanya tampil di build rc atau bila kanal rc sudah dipilih.
 
+## 0.4.5-rc4 — 2026-11-11 · Onboarding dipandu Ace (pre-release)
+
+- **Onboarding dipandu Ace (opsi A)**:
+  - Lima kartu langkah menggantikan dialog "Undangan diterima": Profil, Kenalan dengan Ace (posisi dan gaya), Kapan Ace muncul (selalu atau saat ada kabar, jam tenang, kabar percobaan), Supaya kabar sampai (izin notifikasi, WhatsApp opsional, Mulai bersama Windows, pembaruan otomatis), lalu Selesai dengan tur opsional.
+  - Setiap langkah bisa dilewati, dan "Lewati semua" memakai pengaturan bawaan.
+  - Ace bicara dari island yang asli, dengan ekspresi mata per langkah.
+  - Di web tidak ada langkah Ace dan Windows.
+- **Pengguna lama** melihat sekali per perangkat dialog "Yang baru" ditambah "Ace sekarang bisa diatur".
+- **Jam tenang** (21–05, 22–06, atau 23–07) menahan notifikasi perangkat, tanpa bel, lalu mengirimnya sebagai satu kabar.
+- **Pembaruan otomatis** (bawaan menyala) memasang pembaruan saat jendela tertutup ke tray. Kanal rc hanya tampil di build rc.
+- Hanya klien yang berubah; server tetap rc3.
+
 ## 0.4.5-rc3 — 2026-11-11 · Masukan uji rc2, Kirim ping A + C, riwayat perubahan (pre-release)
 
 - **Kirim ping (A + C)**:
