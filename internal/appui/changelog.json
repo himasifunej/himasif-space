@@ -1,0 +1,53 @@
+[
+  {
+    "version": "0.4.5",
+    "date": "2026-11-11",
+    "title": "Ace di atas layar, Rapat dan Pengaturan baru, pembaruan otomatis",
+    "notes": [
+      "Ace, pil bermata di atas layar, menampilkan timer rapat, musik dan kabar. Tarik ke kiri/kanan bila menutupi tab browser.",
+      "Halaman Rapat baru: Hari ini, Akan datang dan Sudah lewat. Lebar daftarnya bisa ditarik sampai tinggal tanggal.",
+      "Klik \"Buka rapat\" di Ace untuk langsung ke rapat yang timernya berjalan.",
+      "Hasil tugas bisa berupa tautan, berkas, atau keduanya. \"Bukti sesuai\" cukup sekali klik; kadiv boleh menyetujui hasilnya sendiri.",
+      "Pengaturan ditata ulang, dan Space memperbarui dirinya sendiri di latar.",
+      "Ctrl K membuka pencarian semua halaman, aksi dan pengaturan."
+    ]
+  },
+  {
+    "version": "0.4.4",
+    "date": "2026-11-10",
+    "title": "Dynamic Island desktop",
+    "notes": [
+      "Kabar tugas, ping dan rapat muncul di island di atas layar, tanpa mengambil fokus.",
+      "Arahkan kursor atau klik island untuk detail, lalu Buka atau Tunda 15 menit.",
+      "Saat layar penuh, presentasi atau Focus Assist, kabar tetap muncul sebagai notifikasi Windows."
+    ]
+  },
+  {
+    "version": "0.4.3",
+    "date": "2026-11-10",
+    "title": "Timer rapat bersama dan ringkasan ke WhatsApp",
+    "notes": [
+      "Timer catatan rapat sama di semua perangkat: notulis dan kadiv melihat waktu yang sama.",
+      "Kirim ringkasan rapat (keputusan dan action item) ke grup WhatsApp divisi.",
+      "Menu ⋯ di setiap anggota: Lihat tugas dan Keluarkan."
+    ]
+  },
+  {
+    "version": "0.4.2",
+    "date": "2026-11-10",
+    "title": "Catatan: tautan publik, tag, template",
+    "notes": [
+      "Bagikan catatan hanya ke divisi, atau publik lewat tautan hanya-baca.",
+      "Tag catatan, dan template Notulen, Evaluasi dan Rapat singkat."
+    ]
+  },
+  {
+    "version": "0.4.1",
+    "date": "2026-11-10",
+    "title": "Izin notifikasi dan tur per role",
+    "notes": [
+      "Langkah \"Izinkan notifikasi\" di Langkah pertama, dengan notifikasi uji.",
+      "Pesan \"Tersambung ✓\" di WhatsApp setelah nomor tertaut."
+    ]
+  }
+]

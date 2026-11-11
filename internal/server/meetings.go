@@ -2,6 +2,7 @@ package server
 
 import (
 	"errors"
+	"fmt"
 	"github.com/himasifunej/himasif-space/internal/api"
 	"github.com/himasifunej/himasif-space/internal/id"
 	"github.com/himasifunej/himasif-space/internal/store"
@@ -287,7 +288,7 @@ func (s *Server) fillMeeting(r *http.Request, q store.Querier, p *principal, m *
 		messageKey = "meeting.cancelled"
 	}
 	eventID := id.New()
-	if err := s.enqueue(r.Context(), q, "meeting-change:"+eventID.String(), "ping", eventID, m.Version, &m.SpaceID, title, m.StartsAt.In(timeZoneOrUTC(m.TimeZone)).Format("02 Jan 2006 15:04 MST"), m.TimeZone, s.now(), notify, []string{"device", "whatsapp"}, deliveryMessage{Key: messageKey, Args: []string{m.Title, m.StartsAt.In(timeZoneOrUTC(m.TimeZone)).Format("02 Jan 2006 15:04 MST")}}); err != nil {
+	if err := s.enqueue(r.Context(), q, "meeting-change:"+eventID.String(), "ping", eventID, m.Version, &m.SpaceID, title, meetingWhen(m.StartsAt.In(timeZoneOrUTC(m.TimeZone))), m.TimeZone, s.now(), notify, []string{"device", "whatsapp"}, deliveryMessage{Key: messageKey, Args: []string{m.Title, meetingWhen(m.StartsAt.In(timeZoneOrUTC(m.TimeZone)))}}); err != nil {
 		return err
 	}
 	if _, err := q.Exec(r.Context(), `update delivery_events set related_kind='meeting',related_id=$2 where source_kind='ping' and source_id=$1`, eventID, m.ID); err != nil {
@@ -487,4 +488,10 @@ func (s *Server) meetingCandidates(w http.ResponseWriter, r *http.Request, p *pr
 	}
 	writeJSON(w, http.StatusOK, api.List[api.PersonRef]{Items: out})
 	return nil
+}
+
+// meetingWhen is a meeting's time as notices and messages write it, the
+// app's Indonesian form: "5 Des 2026 · 08.00 WIB".
+func meetingWhen(t time.Time) string {
+	return fmt.Sprintf("%d %s %d · %02d.%02d %s", t.Day(), waMonths[t.Month()-1], t.Year(), t.Hour(), t.Minute(), t.Format("MST"))
 }

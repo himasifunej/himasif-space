@@ -5,6 +5,28 @@ Versi mengikuti aturan sebelum rilis publik:
 - **Minor** naik untuk pembaruan besar.
 - **1.0.0** untuk rilis publik.
 
+## Belum dirilis (branch fix/rc-045-feedback) · masukan uji owner 0.4.5-rc2
+
+- **Ace island**:
+  - Jendela island kini berukuran tetap. Bentuknya bergerak di dalam jendela, dan region Windows mengikuti bentuk itu. Sebelumnya jendela diubah ukuran dan dipusatkan ulang di setiap frame pegas, sehingga kadang tampil frame lama yang diregangkan dan kotak yang belum tergambar.
+  - Blur konten dihapus, dan tinggi mata berubah halus saat kursor datang.
+  - Island bisa ditarik di sepanjang tepi atas, dari pojok kiri sampai kanan. Posisinya disimpan (`islandAnchor`), dan Pengaturan › Perangkat punya tombol "Ke tengah".
+  - Timer di island: "Buka rapat" membuka rapatnya di tab Rapat, atau catatannya untuk timer catatan.
+- **Gaya island**: Ikut tema (bawaan, juga untuk pengguna lama), Hitam, Kaca (tembus pandang tanpa blur Windows, karena blur Windows mewarnai seluruh persegi jendela), dan Custom (warna dan transparansi, kontras teks otomatis). CPU diam per gaya ±0,1–0,3% satu core.
+- **Antrean kabar**: Tutup, Buka dan Tunda hanya berlaku untuk kabar yang tampil, lalu kabar berikutnya muncul dengan detail tetap terbuka. Ada "Tutup semua". Kabar sejenis yang datang dalam 10 detik digabung ("8 rapat baru di Medhum"). Kabar rapat berlabel "Space · Rapat", dengan tanggal "5 Des 2026 · 08.00 WIB".
+- **Rapat**: lebar daftar bisa ditarik dari 72 sampai 640 px. Di bawah 180 px, daftar menampilkan tanggal saja. Lebarnya disimpan di perangkat.
+- **Tinjauan hasil**:
+  - "Bukti sesuai" cukup sekali klik. Alasan hanya diminta untuk "Bukti tidak sesuai".
+  - Kadiv dan admin boleh menyetujui hasil yang mereka serahkan sendiri. Persetujuan itu tercatat sebagai `task.evidence.self_approve` dengan alasan "Disetujui sendiri", di riwayat tugas dan audit. Peninjau lain melihat "Menunggu ditinjau oleh …", bukan tombol mati.
+- **Serahkan hasil**:
+  - Tautan divalidasi `https://` saat diketik.
+  - Bila gagal, muncul toast merah dan error di dalam form.
+  - Pilihan Tautan | Unggah berkas, boleh salah satu atau keduanya. Berkas bukti milik penyerahannya dan tampil di kartu tinjauan.
+- **Migrasi 0033** (aditif): `task_attachments.evidence_id`, dan pemeriksaan "tautan atau catatan" di `task_evidence` dilepas karena server yang kini memeriksanya. Server 0.4.5-rc2 yang live tetap jalan dengan skema ini.
+- **Riwayat perubahan**:
+  - Catatan setiap versi ada di `internal/appui/changelog.json`. Isinya muncul di dialog "Yang baru di 0.4.x" (sekali setelah pembaruan, tidak pada instalasi baru) dan di Pengaturan › Tentang.
+  - Catatan yang sama ditandatangani ke field `notes` manifest pembaruan (`publish_update.py`), tanpa field baru, supaya klien lama tetap bisa membaca feed.
+
 ## 0.4.5-rc2 — 2026-11-11 · Ace island A, Pengaturan A, Rapat A, pembaruan otomatis (pre-release)
 
 - **Ace island A**:

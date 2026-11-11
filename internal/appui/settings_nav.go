@@ -50,6 +50,9 @@ func (a *App) settingsGroups() []settingsGroup {
 			{"Status layanan", "Status layanan", "API, bot, penjadwal, sumber", "shield"},
 			{"Darurat", "Spreadsheet darurat", "Salinan saat server tidak tersedia", "archive"},
 		}},
+		{"Tentang", []settingsEntry{
+			{"Tentang", "Tentang Space", "Versi dan riwayat perubahan", "book"},
+		}},
 	}
 }
 
@@ -83,6 +86,8 @@ func (a *App) settings(c *ui.Context, r *ui.Route) {
 			a.commandSettings(c)
 		case "Aktivitas":
 			a.whatsappActivity(c)
+		case "Tentang":
+			a.changelogSettings(c)
 		case "Space":
 			sp := a.selectedSpace()
 			a.spaceSettings(c, sp != nil && sp.Kind == api.SpaceShared)

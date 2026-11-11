@@ -133,7 +133,54 @@ func (s *Store) Task(ctx context.Context, q Querier, tid id.ID, lock string) (Ta
 		return t, err
 	}
 	t.Evidence, err = pgx.CollectRows(rows, scanTaskEvidence)
+	if err != nil || len(t.Evidence) == 0 {
+		return t, err
+	}
+	err = s.evidenceFiles(ctx, q, tid, t.Evidence)
 	return t, err
+}
+
+// evidenceFiles fills in the files each submission of a task carries.
+func (s *Store) evidenceFiles(ctx context.Context, q Querier, tid id.ID, evidence []api.TaskEvidence) error {
+	rows, err := q.Query(ctx, `select a.evidence_id,a.id,a.name,a.content_type,a.size_bytes,a.created_at,u.id,u.display_name
+		from task_attachments a join users u on u.id=a.added_by
+		where a.task_id=$1 and a.evidence_id is not null and a.removed_at is null order by a.created_at,a.id`, tid)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var eid id.ID
+		var a api.TaskAttachment
+		if err := rows.Scan(&eid, &a.ID, &a.Name, &a.ContentType, &a.SizeBytes, &a.CreatedAt, &a.AddedBy.ID, &a.AddedBy.DisplayName); err != nil {
+			return err
+		}
+		a.URL = TaskAttachmentPath(tid, a.ID)
+		for i := range evidence {
+			if evidence[i].ID == eid {
+				evidence[i].Files = append(evidence[i].Files, a)
+			}
+		}
+	}
+	return rows.Err()
+}
+
+// BindEvidenceFiles gives a submission the files its submitter uploaded to
+// the task for it: each must be theirs, active, and given to no other
+// submission. It returns ErrConflict when one is not.
+func (s *Store) BindEvidenceFiles(ctx context.Context, q Querier, tid, eid, by id.ID, files []id.ID) error {
+	if len(files) == 0 {
+		return nil
+	}
+	tag, err := q.Exec(ctx, `update task_attachments set evidence_id=$3 where task_id=$1 and added_by=$2 and id=any($4)
+		and evidence_id is null and removed_at is null`, tid, by, eid, files)
+	if err != nil {
+		return err
+	}
+	if int(tag.RowsAffected()) != len(files) {
+		return ErrConflict
+	}
+	return nil
 }
 func taskLock(lock string) string {
 	if lock == LockUpdate {

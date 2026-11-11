@@ -143,6 +143,7 @@ func (a *App) shell(c *ui.Context) {
 		a.chrome.preferences.SidebarCollapsed = !a.chrome.preferences.SidebarCollapsed
 		a.savePreferences(c)
 	}
+	a.whatsNewDialog(c)
 	// Escape closes the appearance panel, as it closes the popovers. A
 	// popover open this frame takes the key itself, so one press closes
 	// one thing.

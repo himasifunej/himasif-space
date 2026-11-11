@@ -53,7 +53,12 @@ func (s *Server) taskAccess(ctx context.Context, q store.Querier, p *principal, 
 	participant := t.Assignee.ID == p.User.ID || slices.ContainsFunc(t.Participants, func(x api.PersonRef) bool { return x.ID == p.User.ID })
 	open := period.Status != api.PeriodClosed
 	manage := open && slices.Contains(sc.caps, api.CapTasksManage)
-	t.Permissions = api.TaskPermissions{Manage: manage, Progress: open && (manage || own && participant), Comment: open && comment, Help: open && help && !participant, Review: open && slices.Contains(sc.caps, api.CapResultsReview)}
+	review := open && slices.Contains(sc.caps, api.CapResultsReview)
+	// A kadiv, or an admin, answers for the division and may approve what
+	// they submitted themselves (owner's decision, 11 Nov 2026); the audit
+	// trail records it as self-approved.
+	self := review && (p.admin() || sc.member != nil && sc.member.Role == api.RoleKadiv)
+	t.Permissions = api.TaskPermissions{Manage: manage, Progress: open && (manage || own && participant), Comment: open && comment, Help: open && help && !participant, Review: review, SelfReview: self}
 	return nil
 }
 
@@ -931,8 +936,13 @@ func (s *Server) submitTaskEvidence(w http.ResponseWriter, r *http.Request, p *p
 	if req.Note, err = text(req.Note, "catatan hasil", 0, 10000); err != nil {
 		return err
 	}
-	if req.URL == "" && req.Note == "" {
-		return badRequest("Isi tautan atau catatan hasil.")
+	if len(req.AttachmentIDs) > maxTaskAttachments {
+		return badRequest("Terlalu banyak berkas untuk satu penyerahan.")
+	}
+	slices.SortFunc(req.AttachmentIDs, func(a, b id.ID) int { return strings.Compare(a.String(), b.String()) })
+	req.AttachmentIDs = slices.Compact(req.AttachmentIDs)
+	if req.URL == "" && req.Note == "" && len(req.AttachmentIDs) == 0 {
+		return badRequest("Isi tautan, catatan, atau unggah berkas hasil.")
 	}
 	if req.URL != "" {
 		u, e := url.Parse(req.URL)
@@ -956,7 +966,12 @@ func (s *Server) reviewTaskEvidence(w http.ResponseWriter, r *http.Request, p *p
 	if err := readJSON(r, &req); err != nil {
 		return err
 	}
-	reason, err := text(req.Reason, "alasan pencocokan bukti", 1, 2000)
+	// A reason is asked only of a mismatch: what to correct.
+	least := 1
+	if req.Matched {
+		least = 0
+	}
+	reason, err := text(req.Reason, "alasan pencocokan bukti", least, 2000)
 	if err != nil {
 		return err
 	}
@@ -1077,6 +1092,23 @@ func (s *Server) applyAttributedTaskEvidence(r *http.Request, q store.Querier, p
 	if err := s.store.AddTaskEvidence(r.Context(), q, t.ID, *out); err != nil {
 		return err
 	}
+	if len(req.AttachmentIDs) > 0 {
+		// The files were uploaded by the one who submits, to this task.
+		if err := s.store.BindEvidenceFiles(r.Context(), q, t.ID, out.ID, p.User.ID, req.AttachmentIDs); errors.Is(err, store.ErrConflict) {
+			return conflict("Berkas bukti tidak lagi tersedia untuk penyerahan ini. Unggah ulang berkasnya.")
+		} else if err != nil {
+			return err
+		}
+		all, err := s.store.TaskAttachments(r.Context(), q, t.ID)
+		if err != nil {
+			return err
+		}
+		for _, a := range all {
+			if slices.Contains(req.AttachmentIDs, a.ID) {
+				out.Files = append(out.Files, a)
+			}
+		}
+	}
 	t.Progress, t.MatchStatus = api.TaskSubmitted, api.MatchPending
 	t.Evidence = append(t.Evidence, *out)
 	rank, err := s.store.TaskRank(r.Context(), q, t.PeriodID, t.ID, id.Nil, t.Progress)
@@ -1116,6 +1148,18 @@ func (s *Server) applyTaskEvidenceReview(r *http.Request, q store.Querier, p *pr
 	if t.Progress == api.TaskCancelled {
 		return conflict("Buka kembali tugas sebelum meninjau bukti.")
 	}
+	// Reviewing one's own submission is for a kadiv or an admin only.
+	self := out.SubmittedBy.ID == p.User.ID
+	if self && !t.Permissions.SelfReview {
+		return fail(http.StatusForbidden, api.CodeForbidden, "Hasil yang kamu serahkan menunggu ditinjau oleh kadiv atau peninjau lain di divisi ini.")
+	}
+	action := "task.evidence.review"
+	if self && req.Matched {
+		action = "task.evidence.self_approve"
+		if reason == "" {
+			reason = api.SelfApprovedReason
+		}
+	}
 	before := t.Task
 	now, person := s.now().UTC().Truncate(time.Microsecond), taskPerson(p)
 	(*out).ReviewedAt = &now
@@ -1138,7 +1182,7 @@ func (s *Server) applyTaskEvidenceReview(r *http.Request, q store.Querier, p *pr
 		return err
 	}
 	t.Rank = rank
-	if err = s.saveTaskMutation(r, q, p, t, "task.evidence.review", reason, before); err != nil {
+	if err = s.saveTaskMutation(r, q, p, t, action, reason, before); err != nil {
 		return err
 	}
 	return s.taskNotify(r, q, t, "Pencocokan hasil diperbarui", t.Title, taskPeople(t)...)

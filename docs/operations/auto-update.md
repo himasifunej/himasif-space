@@ -70,21 +70,25 @@ Kepercayaan datang dari tanda tangan, bukan dari host. Bila suatu saat ingin pin
 
 1. Isi `"version"` di `app/mygo.json` (dan `version` di `app/main.go`) dengan versi rilis yang tepat, misalnya `0.4.5-rc3`. MyGo menanam versi ini ke aplikasi (`mygo.App.Version`) dan ke nama installer; `-X main.version` hanya cadangan. `publish_update.py` menolak installer yang namanya tidak memuat `--version`. Lalu bangun installer: gunakan `build_release.py`, atau `mygo build -platform windows/amd64` dengan `MYGO_LDFLAGS="-X main.defaultAPIURL=https://db.tiyoouw.app -X main.version=<versi>"` dan wrapper NSIS `windows_installer.py`.
    - **Urutan versi pre-release** dibandingkan per bagian dan secara huruf: `rc2 < rc3 < … < rc9`, tetapi `rc10 < rc2` dan `rc.3 < rc2`. Setelah `0.4.5-rc2`, lanjutkan dengan `0.4.5-rc3` … `0.4.5-rc9`, lalu `0.4.5`. Untuk versi berikutnya, pakai `0.4.6-rc.1`, `0.4.6-rc.2`, dan seterusnya (bagian angka dibandingkan sebagai angka).
-2. Push commit rilis ke origin.
-3. Uji kering, tanpa mengubah GitHub:
+2. Tulis catatan rilis versi itu di `internal/appui/changelog.json`, entri paling atas. Isinya `version` tanpa akhiran rc (`0.4.6`), `date`, `title`, dan 3–6 butir `notes`: kalimat pendek dalam bahasa pengguna, tentang yang mereka lihat, bukan nama commit. Rilis rc memakai catatan versi rilisnya.
+   - Catatan yang sama dipakai di tiga tempat: dialog "Yang baru di 0.4.x" (sekali, setelah pembaruan terpasang), Pengaturan › Tentang › Riwayat perubahan (dibundel di aplikasi, jadi tetap terbaca tanpa koneksi), dan manifest pembaruan yang ditandatangani.
+   - Di manifest, butir-butir ditulis ke field `notes` yang sudah ada, satu butir per baris (`• …\n• …`), paling banyak **600 karakter** termasuk tanda butir. `publish_update.py` menolak yang lebih panjang. Tidak ada field baru, karena klien 0.4.5-rc/rc2 membaca manifest dengan `DisallowUnknownFields` dan akan menolak field yang tidak dikenalnya. Klien lama menampilkan butir-butir itu sebagai teks biasa.
+   - Dialog memakai catatan bertanda tangan yang disimpan saat installer dijalankan. Bila tidak ada, misalnya pada pemasangan manual, dialog memakai catatan yang dibundel. Instalasi baru tidak menampilkan dialog, karena onboarding didahulukan.
+3. Push commit rilis ke origin.
+4. Uji kering, tanpa mengubah GitHub. Tanpa `--notes`, skrip mengambil butir-butir versi itu dari `changelog.json`; `--notes "…"` hanya untuk keadaan darurat.
    ```sh
    enowx creds use space-update-signing -- python3 scripts/release/publish_update.py \
      --installer dist/space-setup-0.4.6-amd64.exe --version 0.4.6 --channel stable \
-     --notes "Ringkasan singkat (≤600 karakter)" --target <commit> --dry-run
+     --target <commit> --dry-run
    ```
-4. Ulangi tanpa `--dry-run`. Skrip akan:
+5. Ulangi tanpa `--dry-run`. Skrip akan:
    - menolak bila feed sudah menawarkan versi yang sama atau lebih baru;
    - membuat rilis `v<versi>` bila belum ada (pre-release, bukan latest, untuk rc);
    - mengunggah installer;
    - menandatangani dan memeriksa manifest;
    - mengganti `<kanal>.json` di `update-feed`;
    - membaca ulang feed publik dan installer untuk memastikan semuanya cocok.
-5. Rilis rc memakai `--channel rc` dengan versi seperti `0.4.6-rc`. Rilis stabil memakai `--channel stable` dengan versi tanpa akhiran.
+6. Rilis rc memakai `--channel rc` dengan versi seperti `0.4.6-rc`. Rilis stabil memakai `--channel stable` dengan versi tanpa akhiran.
 
 Memeriksa manifest yang sedang terbit:
 

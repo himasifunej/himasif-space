@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"runtime/debug"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -43,34 +44,134 @@ func islandShape(g [3]float64, bubble float64) [4]float64 {
 	return [4]float64{g[0], g[1], g[2], bubble}
 }
 
-// islandWindowSize is the window around a shape: the pill, and the circle
-// 8 DIP right of it.
-func islandWindowSize(g [4]float64) (int, int) {
-	w, h := g[0], g[1]
+// islandEnvelope is the island's window, in DIP: room for the largest
+// shape (a notice's details, 440×184) and the spring's overshoot past it.
+// The window keeps this size for life; the shape moves and grows inside
+// it, and the window's region follows the shape, which is all Windows shows
+// of the window and all it hit-tests. 0.4.5-rc2 resized and re-centred the
+// window at every frame of the spring: Windows then showed, until the
+// renderer drew a frame of the new size, the old frame stretched over it
+// and the part just uncovered undrawn (the glitching eyes and the box seen
+// while the island expanded), and the pill's pixels moved with the
+// window's rounding.
+var islandEnvelope = [2]int{472, 200}
+
+// islandGroupWidth is how wide a shape is: the pill, and the circle 8 DIP
+// right of it.
+func islandGroupWidth(g [4]float64) float64 {
 	if g[3] > .5 {
-		w += island.BubbleGap + g[3]
-		h = math.Max(h, g[3])
+		return g[0] + island.BubbleGap + g[3]
 	}
-	return int(math.Round(w)), int(math.Round(h))
+	return g[0]
 }
 
-// The island's colors (direction A): a black pill, white eyes and text,
-// the system's accents for each activity.
+// islandOffset is where the shape starts in the window: as far along its
+// room as the island is along the top of the screen (anchor 0 at the left
+// edge, .5 the middle, 1 the right edge), so it grows away from the edge it
+// sits at and stays centred in the middle.
+func islandOffset(g [4]float64, anchor float64) float64 {
+	return math.Max(0, float64(islandEnvelope[0])-islandGroupWidth(g)) * anchor
+}
+
+// islandAnchor is a saved position along the top of the screen, within
+// 0 (left) and 1 (right); the middle where it is not a number.
+func islandAnchor(v float64) float64 {
+	if math.IsNaN(v) {
+		return .5
+	}
+	return math.Max(0, math.Min(1, v))
+}
+
+// The island's colors, of its style (islandPaletteFor), set at the start
+// of every frame on the UI thread: the pill, its eyes and text, the ring,
+// the buttons. The activities keep the system's accents.
 var (
-	islandInk     = ui.RGB(0, 0, 0)
-	islandText    = ui.RGB(245, 245, 247)
-	islandMuted   = ui.RGBA(245, 245, 247, .72)
-	islandRing    = ui.RGBA(255, 255, 255, .06)
-	islandButton  = ui.RGB(44, 44, 46)
-	islandPing    = ui.RGB(255, 159, 10)
-	islandMeeting = ui.RGB(48, 209, 88)
-	islandMusic   = ui.RGB(10, 132, 255)
-	islandOver    = ui.RGB(255, 69, 58)
+	islandInk         = ui.RGB(0, 0, 0)
+	islandText        = ui.RGB(245, 245, 247)
+	islandMuted       = ui.RGBA(245, 245, 247, .72)
+	islandRing        = ui.RGBA(255, 255, 255, .06)
+	islandButton      = ui.RGB(44, 44, 46)
+	islandButtonHover = ui.RGB(58, 58, 60)
+	islandPing        = ui.RGB(255, 159, 10)
+	islandMeeting     = ui.RGB(48, 209, 88)
+	islandMusic       = ui.RGB(10, 132, 255)
+	islandOver        = ui.RGB(255, 69, 58)
 )
 
 type islandNotice struct {
 	n        appui.Notice
 	fallback func()
+	// count is how many notices of a burst this one gathers (Notice.Group),
+	// since first; latest is the last one's title.
+	count  int
+	first  time.Time
+	latest string
+}
+
+// islandBurst is how close notices alike must come to gather into one.
+const islandBurst = 10 * time.Second
+
+// gather folds n into the queued or shown notice of its burst, if one came
+// within islandBurst: "8 rapat baru". It returns the item to push (under
+// the burst's tag, replacing that notice in place) and whether it did.
+func (p *islandPresenter) gather(n appui.Notice, fallback func(), now time.Time) (island.Item, bool) {
+	if n.Group == "" {
+		return island.Item{}, false
+	}
+	// A burst's tag is its group and when it began: a later burst of the
+	// same group is a notice of its own.
+	prefix := "group:" + n.Group + "#"
+	var found *island.Item
+	if p.m.Current != nil && strings.HasPrefix(p.m.Current.Tag, prefix) && p.m.Closing.IsZero() {
+		found = p.m.Current
+	}
+	for i := range p.m.Queue {
+		if strings.HasPrefix(p.m.Queue[i].Tag, prefix) {
+			found = &p.m.Queue[i]
+		}
+	}
+	if found == nil || now.Sub(found.Value.(islandNotice).first) > islandBurst {
+		return island.Item{}, false
+	}
+	x := found.Value.(islandNotice)
+	x.count++
+	x.latest = n.Title
+	// One snooze link per delivery: a gathered notice offers none.
+	x.n.Actions = nil
+	if prev := x.fallback; prev != nil || fallback != nil {
+		x.fallback = func() {
+			if prev != nil {
+				prev()
+			}
+			if fallback != nil {
+				fallback()
+			}
+		}
+	}
+	return island.Item{Tag: found.Tag, Priority: found.Priority, Value: x}, true
+}
+
+// noticeTitle is a notice's headline: a gathered burst's count and label,
+// with its Space (on the UI thread), else its own title.
+func (p *islandPresenter) noticeTitle(x islandNotice) string {
+	if x.count < 2 {
+		return x.n.Title
+	}
+	t := strconv.Itoa(x.count) + " " + x.n.GroupLabel
+	if p.d.app != nil {
+		if name := p.d.app.SpaceName(x.n.Space); name != "" {
+			t += " di " + name
+		}
+	}
+	return t
+}
+
+// noticeBody is a gathered burst's latest title, else the notice's body.
+func noticeBody(x islandNotice) string {
+	if x.count < 2 {
+		return x.n.Body
+	}
+	return "Terbaru: " + x.latest
 }
 
 // All machine access is serialized. Native window and animation fields belong
@@ -94,8 +195,13 @@ type islandPresenter struct {
 	eyes, eyesVelocity                [2]float64
 	last, changed, contentChanged     time.Time
 	idleSince, obstructedSince        time.Time
-	lastWidth, lastHeight             int
-	region                            [4]float64 // the shape the window's region was cut to
+	region                            [5]float64 // the shape and offset the window's region was cut to
+	// anchor is where the island sits along the top of the screen (0 left,
+	// 1 right), placed at; drag follows a press on the pill that moves it.
+	anchor, placed float64
+	drag           islandDrag
+	// eyeH is the eyes' height, easing to what the moment asks for.
+	eyeH float64
 	// key names what the island shows (scene, details, which notice): a
 	// new one fades the content in.
 	key      string
@@ -114,6 +220,18 @@ type islandPresenter struct {
 	media       *islandMediaWatcher
 	mediaActive bool
 }
+
+// islandDrag is a press on the pill: where the pointer and the island were
+// when it began (physical pixels, an anchor), and whether it has moved far
+// enough to be a drag rather than a click.
+type islandDrag struct {
+	on, moved bool
+	x0, a0    float64
+}
+
+// islandDragSlop is how far, in physical pixels, a press moves before it
+// drags the island instead of clicking it.
+const islandDragSlop = 6
 
 func (p *islandPresenter) environmentAllowed() bool {
 	if p.environmentCheck != nil {
@@ -196,7 +314,15 @@ func (p *islandPresenter) offer(n appui.Notice, fallback func()) error {
 	case appui.NoticeDelivery, "task":
 		priority = 1
 	}
-	ok := p.m.Push(island.Item{Tag: n.Tag, Priority: priority, Value: islandNotice{n, fallback}}, time.Now())
+	now := time.Now()
+	item, gathered := p.gather(n, fallback, now)
+	if !gathered {
+		if n.Group != "" {
+			n.Tag = "group:" + n.Group + "#" + strconv.FormatInt(now.UnixNano(), 36) // the first of a possible burst
+		}
+		item = island.Item{Tag: n.Tag, Priority: priority, Value: islandNotice{n: n, fallback: fallback, count: 1, first: now, latest: n.Title}}
+	}
+	ok := p.m.Push(item, now)
 	p.mu.Unlock()
 	p.d.mu.Unlock()
 	if !ok {
@@ -242,7 +368,7 @@ func (p *islandPresenter) ensureWindow() {
 		return
 	}
 	p.forget()
-	w, h := islandWindowSize(p.geometry)
+	w, h := islandEnvelope[0], islandEnvelope[1]
 	p.win = mygo.NewWindow(mygo.WindowOptions{Title: "Dynamic Island · Space", Width: w, Height: h, Hidden: true, Frameless: true, Transparent: true, AlwaysOnTop: true, SkipTaskbar: true, DisableResize: true, Panel: true, Content: ui.View(p.view)})
 	islandPrepareWindow(p.win.NativeHandle())
 	islandClearBackdrop(p.win.NativeHandle())
@@ -261,22 +387,31 @@ func (p *islandPresenter) forget() {
 	p.eyesVelocity = [2]float64{}
 	p.key, p.scene, p.expanded, p.shown = "", island.SceneIdle, false, false
 	p.contentChanged, p.last = time.Time{}, time.Time{}
-	p.lastWidth, p.lastHeight = 0, 0
+	p.eyeH = 0
+	p.drag = islandDrag{}
+	p.region = [5]float64{} // a new or hidden window is cut again
 	p.expander.Reset()
 }
 
-// show puts the hidden window on screen, at its shape's size.
+// show puts the hidden window on screen, cut to its shape.
 func (p *islandPresenter) show() {
 	if p.win.IsVisible() {
 		return
 	}
-	w, h := islandWindowSize(p.geometry)
-	p.win.SetSize(w, h)
-	p.lastWidth, p.lastHeight = w, h
-	p.position(w, h)
-	islandWindowShape(p.win.NativeHandle(), p.geometry, w, h)
-	p.region = p.geometry
+	p.position()
+	p.cut()
 	p.win.ShowInactive()
+}
+
+// cut fits the window's region to the shape where the island draws it.
+func (p *islandPresenter) cut() {
+	ox := islandOffset(p.geometry, p.anchor)
+	key := [5]float64{p.geometry[0], p.geometry[1], p.geometry[2], p.geometry[3], ox}
+	if p.region == key {
+		return
+	}
+	islandWindowShape(p.win.NativeHandle(), p.geometry, ox, islandEnvelope[0])
+	p.region = key
 }
 
 // reset discards account content, or sends accepted content to the OS when
@@ -335,8 +470,13 @@ func (p *islandPresenter) scheduleIdleDestroy() {
 	})
 }
 
-func (p *islandPresenter) position(w, h int) {
-	if islandPosition(p.win.NativeHandle(), p.d.win.NativeHandle(), !p.d.win.IsVisible(), w, h) {
+// position puts the window at the top of the screen, at its anchor. It is
+// asked when the island shows, when the displays change and while it is
+// dragged, never while it changes shape.
+func (p *islandPresenter) position() {
+	w, h := islandEnvelope[0], islandEnvelope[1]
+	p.placed = p.anchor
+	if islandPosition(p.win.NativeHandle(), p.d.win.NativeHandle(), !p.d.win.IsVisible(), w, h, p.anchor) {
 		return
 	}
 	display := mygo.Screen.DisplayMatching(p.d.win.Bounds())
@@ -347,17 +487,56 @@ func (p *islandPresenter) position(w, h int) {
 	if a.Width == 0 {
 		a = mygo.Screen.PrimaryDisplay().WorkArea
 	}
-	p.win.SetPosition(a.X+(a.Width-w)/2, a.Y+islandTopGap)
+	p.win.SetPosition(a.X+islandTopGap+int(p.anchor*float64(a.Width-2*islandTopGap-w)+.5), a.Y+islandTopGap)
 }
 
 func (p *islandPresenter) refreshPosition() {
 	if p.win == nil {
 		return
 	}
-	w, h := islandWindowSize(p.geometry)
-	p.position(w, h)
-	islandWindowShape(p.win.NativeHandle(), p.geometry, w, h)
+	p.position()
+	p.region = [5]float64{}
+	p.cut()
 	p.win.Update(func() {})
+}
+
+// dragFrame follows a press on the pill (held): once it has moved past
+// the slop, the island slides along the top of the screen after the
+// pointer, from the left edge to the right one, and keeps the place when
+// it is let go. It reports whether the press moved the island, then and
+// in the frame it ends, whose click it is not.
+func (p *islandPresenter) dragFrame(held bool) bool {
+	if !held {
+		if !p.drag.on {
+			return false
+		}
+		moved := p.drag.moved
+		p.drag = islandDrag{}
+		if moved {
+			p.d.prefs.IslandAnchor = p.anchor
+			p.d.save()
+		}
+		return moved
+	}
+	x, ok := islandCursorX()
+	if !ok {
+		return p.drag.moved
+	}
+	if !p.drag.on {
+		p.drag = islandDrag{on: true, x0: x, a0: p.anchor}
+		return false
+	}
+	if !p.drag.moved && math.Abs(x-p.drag.x0) < islandDragSlop {
+		return false
+	}
+	p.drag.moved = true
+	if travel := islandTravel(p.d.win.NativeHandle(), !p.d.win.IsVisible(), islandGroupWidth(p.geometry)); travel > 0 {
+		p.anchor = islandAnchor(p.drag.a0 + (x-p.drag.x0)/travel)
+	}
+	if p.anchor != p.placed {
+		p.position()
+	}
+	return true
 }
 
 func (p *islandPresenter) setMediaActive(on bool) {
@@ -405,8 +584,17 @@ func (p *islandPresenter) view(c *ui.Context) {
 		p.born = now
 	}
 	reduced := prefs.IslandReduceMotion || c.Preferences().ReduceMotion
+	// The saved place, unless a drag holds the island; a new one (the
+	// settings' "Ke tengah") moves the window.
+	if !p.drag.on {
+		p.anchor = islandAnchor(prefs.IslandAnchor)
+		if p.shown && p.anchor != p.placed {
+			p.position()
+		}
+	}
 	px, py, pointerOK := p.pointer()
-	overPill := pointerOK && insideIsland(px, py, [3]float64{p.geometry[0], p.geometry[1], p.geometry[2]})
+	// A press that drags the island neither hovers nor opens it.
+	overPill := pointerOK && !p.drag.moved && insideIsland(px, py, [3]float64{p.geometry[0], p.geometry[1], p.geometry[2]})
 	f := p.frame(c, now, prefs, overPill)
 	if f.scene == island.SceneIdle && !prefs.IslandAlwaysOn && f.notice == nil {
 		p.hideEmpty()
@@ -486,6 +674,17 @@ func (p *islandPresenter) view(c *ui.Context) {
 	if now.Before(p.happyUntil) {
 		eyeH, open = 6, 1 // happy arcs, after an action
 	}
+	// The eyes widen and narrow over about 100 ms, as the pointer comes and
+	// goes, rather than jumping a frame: the jump read as a glitch.
+	if p.eyeH == 0 || reduced {
+		p.eyeH = eyeH
+	} else if d := eyeH - p.eyeH; math.Abs(d) > .05 {
+		p.eyeH += d * (1 - math.Exp(-dt/.035))
+		moving = true
+	} else {
+		p.eyeH = eyeH
+	}
+	eyeH = p.eyeH
 	// Ace breathes while someone is about or something goes on, and sits
 	// still between blinks once nothing has for a while (Breather).
 	if p.gaze.Following(now) || overPill || f.notice != nil || f.expanded || f.scene != island.SceneIdle || f.second != island.SceneIdle || now.Sub(p.born) < time.Second {
@@ -508,19 +707,26 @@ func (p *islandPresenter) view(c *ui.Context) {
 		alpha *= float32(1 - island.ExitEase(now.Sub(f.closing).Seconds()/.16))
 	}
 	theme := *c.Theme()
-	theme.Dark = true
+	pal := islandPaletteFor(prefs, p.spaceTheme(c))
+	pal.use()
+	theme.Dark = pal.dark
 	theme.Text, theme.TextMuted = islandText, islandMuted
-	theme.Surface, theme.SurfaceHover = islandButton, ui.RGB(58, 58, 60)
-	theme.Border = ui.RGBA(255, 255, 255, .12)
+	theme.Surface, theme.SurfaceHover = islandButton, islandButtonHover
+	theme.Border = islandRing
 	theme.FontSize = 13
-	theme.Accent, theme.AccentText = islandText, islandInk
+	theme.Accent, theme.AccentText = islandText, opaque(islandInk)
 	c.SetTheme(&theme)
 
 	gw, gh, gr := float32(p.geometry[0]), float32(p.geometry[1]), float32(p.geometry[2])
+	ox := float32(islandOffset(p.geometry, p.anchor))
+	dragging := false
 	ui.Box(c).Fill().Children(func() {
-		pill := ui.Box(c).Absolute().Left(0).Top(0).Size(gw, gh).Radius(gr).Background(islandInk).Border(1, islandRing).Clip()
+		pill := ui.Box(c).Absolute().Left(ox).Top(0).Size(gw, gh).Radius(gr).Background(islandInk).Border(1, islandRing).Clip()
 		_ = pill.Hovered() // enter/leave redraw without a timer
-		if pill.Clicked() {
+		_, _, held := pill.Dragged()
+		dragged := p.dragFrame(held)
+		dragging = p.drag.on
+		if pill.Clicked() && !dragged {
 			p.click(now, f)
 			c.After(0)
 		}
@@ -537,7 +743,7 @@ func (p *islandPresenter) view(c *ui.Context) {
 		})
 		if p.geometry[3] > 1 {
 			b := float32(p.geometry[3])
-			dot := ui.ButtonBase(c).Absolute().Left(gw+island.BubbleGap).Top(0).Size(b, b).Radius(b/2).Background(islandInk).Border(1, islandRing).Clip().Center()
+			dot := ui.ButtonBase(c).Absolute().Left(ox+gw+island.BubbleGap).Top(0).Size(b, b).Radius(b/2).Background(islandInk).Border(1, islandRing).Clip().Center()
 			dot.Label(map[island.Scene]string{island.SceneTimer: "Timer rapat", island.SceneMedia: "Musik"}[f.second])
 			if dot.Clicked() {
 				p.swap = !p.swap
@@ -577,7 +783,7 @@ func (p *islandPresenter) view(c *ui.Context) {
 	if !reduced && (f.scene == island.SceneMedia || f.second == island.SceneMedia) && f.media.Playing {
 		next = min(next, 66*time.Millisecond)
 	}
-	if moving || gazing || alpha < 1 || !f.closing.IsZero() || open < 1 || now.Before(p.happyUntil) {
+	if moving || gazing || alpha < 1 || !f.closing.IsZero() || open < 1 || now.Before(p.happyUntil) || dragging {
 		next = 16 * time.Millisecond
 	}
 	c.After(p.obstructionDeadline(now, next))
@@ -659,15 +865,15 @@ func (p *islandPresenter) click(now time.Time, f islandFrame) {
 	p.expander.Tick(now, true, true)
 }
 
-// pointer is where the pointer is over the window, in DIP.
+// pointer is where the pointer is from the pill's top left, in DIP.
 func (p *islandPresenter) pointer() (float64, float64, bool) {
-	w, h := islandWindowSize(p.geometry)
-	if x, y, ok := islandPointer(p.win.NativeHandle(), float64(w), float64(h)); ok {
-		return x, y, true
+	ox := islandOffset(p.geometry, p.anchor)
+	if x, y, ok := islandPointer(p.win.NativeHandle(), float64(islandEnvelope[0]), float64(islandEnvelope[1])); ok {
+		return x - ox, y, true
 	}
 	point := mygo.Screen.CursorScreenPoint()
 	b := p.win.Bounds()
-	return float64(point.X - b.X), float64(point.Y - b.Y), true
+	return float64(point.X-b.X) - ox, float64(point.Y - b.Y), true
 }
 
 // obstructionDeadline brings the next frame forward to when fullscreen,
@@ -679,8 +885,8 @@ func (p *islandPresenter) obstructionDeadline(now time.Time, next time.Duration)
 	return max(time.Millisecond, min(next, p.obstructedSince.Add(islandObstructionGrace).Sub(now)))
 }
 
-// step advances the shape a frame, fits the window to it, and tells
-// whether it still moves.
+// step advances the shape a frame, cuts the window's region to it, and
+// tells whether it still moves. The window itself stays as it is.
 func (p *islandPresenter) step(now time.Time, reduced bool) bool {
 	dt := islandFrameStep(p.last, now)
 	moving := false
@@ -700,15 +906,11 @@ func (p *islandPresenter) step(now time.Time, reduced bool) bool {
 		}
 	}
 	p.geometry[3] = math.Max(0, p.geometry[3])
-	w, h := islandWindowSize(p.geometry)
-	if w != p.lastWidth || h != p.lastHeight {
-		p.win.SetSize(w, h)
-		p.position(w, h)
-		p.lastWidth, p.lastHeight = w, h
-	}
-	if p.region != p.geometry {
-		islandWindowShape(p.win.NativeHandle(), p.geometry, w, h)
-		p.region = p.geometry
+	// The spring's overshoot stays within the window.
+	p.geometry[0] = math.Min(p.geometry[0], float64(islandEnvelope[0]))
+	p.geometry[1] = math.Min(p.geometry[1], float64(islandEnvelope[1]))
+	if p.win.IsVisible() {
+		p.cut()
 	}
 	return moving
 }
@@ -791,8 +993,12 @@ func (p *islandPresenter) content(c *ui.Context, f islandFrame, now time.Time, a
 	if f.expanded {
 		box = ui.Box(c).Absolute().Left(left).Top(24).Width(max(0, gw-left-28)).Height(max(0, gh-24)).Opacity(alpha)
 	}
+	// The content rises into place as it fades in. No blur: MyGo draws a
+	// blurred element into a bitmap of its own, sized in steps of 64 px as
+	// the pill grows, and the text and icons jumped as the blur ended and
+	// they were drawn directly again.
 	if !reduced && alpha < 1 {
-		box.Translate(0, -4*(1-alpha)).Blur(6 * (1 - alpha))
+		box.Translate(0, -4*(1-alpha))
 	}
 	if !interactive {
 		box.Disabled(true)
@@ -804,8 +1010,8 @@ func (p *islandPresenter) content(c *ui.Context, f islandFrame, now time.Time, a
 		case f.scene == island.SceneNotice:
 			ui.Row(c).Fill().AlignItems(ui.Center).Gap(10).Children(func() {
 				ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
-					ui.Text(c, f.notice.n.Title).FontSize(14).FontWeight(600).MaxLines(1)
-					ui.Text(c, f.notice.n.Body).FontSize(13).MaxLines(1).TextColor(islandMuted)
+					ui.Text(c, p.noticeTitle(*f.notice)).FontSize(14).FontWeight(600).MaxLines(1)
+					ui.Text(c, noticeBody(*f.notice)).FontSize(13).MaxLines(1).TextColor(islandMuted)
 				})
 				if f.queued > 0 {
 					ui.Text(c, fmtIslandQueue(f.queued)).FontSize(13).TextColor(islandMuted)
@@ -875,7 +1081,7 @@ func (p *islandPresenter) islandAction(c *ui.Context, label string, icon *ui.SVG
 	fg := islandText
 	if primary {
 		b.Background(islandText)
-		fg = islandInk
+		fg = opaque(islandInk)
 	}
 	if icon != nil {
 		b.MinWidth(32).Padding(0, 8)
@@ -897,23 +1103,37 @@ func (p *islandPresenter) islandAction(c *ui.Context, label string, icon *ui.SVG
 func (p *islandPresenter) noticeDetails(c *ui.Context, x islandNotice, queued int) {
 	ui.Column(c).FillWidth().Gap(2).Children(func() {
 		ui.Row(c).FillWidth().Gap(8).Children(func() {
-			ui.Text(c, x.n.Title).FontSize(15).FontWeight(600).MaxLines(1).Grow(1).MinWidth(0)
+			ui.Text(c, p.noticeTitle(x)).FontSize(15).FontWeight(600).MaxLines(1).Grow(1).MinWidth(0)
 			if queued > 0 {
 				ui.Text(c, fmtIslandQueue(queued)).FontSize(13).TextColor(islandMuted)
 			}
 		})
-		kind := map[string]string{"ping": "Ping", "task": "Tugas", "meeting": "Rapat", "reminder": "Pengingat", "deadline": "Tenggat", "update": "Pembaruan"}[x.n.Kind]
-		if kind == "" {
-			kind = "Pengingat"
-		}
-		ui.Text(c, "Space · "+kind).FontSize(13).TextColor(islandMuted)
+		ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, "Space · "+islandKindLabel(x.n.Kind)).FontSize(13).TextColor(islandMuted).Grow(1).MinWidth(0)
+			// With more waiting, all of them can go at once: small, aside.
+			if queued > 0 {
+				b := ui.ButtonBase(c.Key("island-dismiss-all")).Label("Tutup semua").Padding(2, 8).Radius(10)
+				fg := islandMuted
+				if b.Hovered() {
+					b.Background(islandButton)
+					fg = islandText
+				}
+				b.Children(func() { ui.Text(c, "Tutup semua").FontSize(12).TextColor(fg) })
+				if b.Clicked() {
+					p.dismissAll()
+				}
+			}
+		})
 		ui.Box(c).Height(8)
-		ui.Text(c, x.n.Body).FontSize(14).MaxLines(2)
+		ui.Text(c, noticeBody(x)).FontSize(14).MaxLines(2)
 		ui.Box(c).Height(12)
 		ui.Row(c).Gap(8).Children(func() {
 			open := x.n.OpenLabel
 			if open == "" {
 				open = "Buka"
+			}
+			if x.count > 1 && x.n.Kind == "meeting" {
+				open = "Buka Rapat"
 			}
 			if p.islandAction(c, open, nil, true) {
 				p.act(x.n.Link)
@@ -961,8 +1181,17 @@ func (p *islandPresenter) timerDetails(c *ui.Context, t appui.IslandTimer) {
 					p.d.app.IslandTimerAct(t.Meeting, action)
 				}
 			}
-			if p.islandAction(c, "Buka Space", nil, !t.Control) {
-				p.act("")
+			// Open goes where the timer runs: the meeting, or the note.
+			open := "Buka rapat"
+			if t.Meeting == id.Nil {
+				open = "Buka catatan"
+			}
+			if p.islandAction(c, open, nil, !t.Control) {
+				p.d.win.Update(func() {
+					p.d.win.Show()
+					p.d.win.Focus()
+					p.d.app.IslandOpenTimer(t)
+				})
 			}
 		})
 	})
@@ -1112,6 +1341,24 @@ func insideIsland(x, y float64, g [3]float64) bool {
 	dy := math.Max(math.Max(r-y, y-(h-r)), 0)
 	return dx*dx+dy*dy <= r*r
 }
+
+// islandKindLabel names where a notice comes from: "Rapat" for a
+// meeting's, whatever channel carried it.
+func islandKindLabel(kind string) string {
+	if l, ok := map[string]string{"ping": "Ping", "task": "Tugas", "meeting": "Rapat", "reminder": "Pengingat", "deadline": "Tenggat", "update": "Pembaruan", "note": "Catatan"}[kind]; ok {
+		return l
+	}
+	return "Pengingat"
+}
+
+// dismissAll closes the notice and drops the ones waiting: Tutup semua.
+func (p *islandPresenter) dismissAll() {
+	p.mu.Lock()
+	p.m.DismissAll(time.Now())
+	p.mu.Unlock()
+	p.win.Update(func() {})
+}
+
 func (p *islandPresenter) dismiss() {
 	p.mu.Lock()
 	p.m.Dismiss(time.Now())
@@ -1155,6 +1402,10 @@ func (n deliveryIsland) Present(x appui.Notice) error {
 	return n.p.offer(x, func() { n.p.reportFallback(showDeviceNotification(n.n, n.link)) })
 }
 func (d *desktopDevice) presentDelivery(uid id.ID, n api.Delivery, link string, prefs devicePreferences) error {
-	x := appui.Notice{Kind: n.SourceKind, Title: n.Title, Body: n.Body, Tag: uid.String() + ":" + n.ID.String(), Link: link, AccountID: uid.String(), Actions: []appui.NoticeAction{{Label: "Tunda 15 menit", Link: notificationLink(uid, n, "snooze")}}}
+	x := appui.Notice{Kind: appui.DeliveryKind(n), Title: n.Title, Body: appui.NoticeDate(n.Body), Tag: uid.String() + ":" + n.ID.String(), Link: link, AccountID: uid.String(), Actions: []appui.NoticeAction{{Label: "Tunda 15 menit", Link: notificationLink(uid, n, "snooze")}}}
+	x.Group, x.GroupLabel = appui.DeliveryGroup(n)
+	if n.SpaceID != nil {
+		x.Space = *n.SpaceID
+	}
 	return (appui.MultiNotifier{Base: deliveryToast{d.app.Notifier, n, link}, Extra: []appui.NoticePresenter{deliveryIsland{d.island, n, link}}, ReplaceBase: prefs.IslandReplaceToast}).Present(x)
 }

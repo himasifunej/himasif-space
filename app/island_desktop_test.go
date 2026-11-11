@@ -3,10 +3,15 @@
 package main
 
 import (
+	"fmt"
+	"math"
 	"testing"
 	"time"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/himasifunej/himasif-space/internal/api"
+	"github.com/himasifunej/himasif-space/internal/appui"
+	"github.com/himasifunej/himasif-space/internal/id"
 	"github.com/himasifunej/himasif-space/internal/island"
 )
 
@@ -108,12 +113,121 @@ func TestIslandMediaShownProgressAndApp(t *testing.T) {
 	}
 }
 
-// The window holds the pill, and the second activity's circle 8 DIP right.
-func TestIslandWindowSize(t *testing.T) {
-	if w, h := islandWindowSize([4]float64{240, 40, 20, 0}); w != 240 || h != 40 {
-		t.Fatalf("%v×%v", w, h)
+// The window is never resized: it holds every shape, with the spring's
+// overshoot past the largest, and the shape sits in it as far along as
+// the island is along the screen.
+func TestIslandEnvelopeHoldsEveryShape(t *testing.T) {
+	scenes := []island.Scene{island.SceneIdle, island.SceneNotice, island.SceneTimer, island.SceneMedia}
+	for _, s := range scenes {
+		for _, open := range []bool{false, true} {
+			g := island.Geometry(s, open)
+			bubbles := []float64{0, island.BubbleSize}
+			if open {
+				bubbles = bubbles[:1] // the details take the island: no circle
+			}
+			for _, bubble := range bubbles {
+				shape := islandShape(g, bubble)
+				if w := islandGroupWidth(shape); w > float64(islandEnvelope[0]) || g[1] > float64(islandEnvelope[1]) {
+					t.Errorf("scene %v open %v bubble %v: %v×%v outside the window", s, open, bubble, w, g[1])
+				}
+			}
+			// The spring overshoots by a few percent (damping 19, stiffness 170).
+			peak, v := g[0]/2, 0.
+			for range 200 {
+				peak, v = island.Spring(peak, v, g[0], .016)
+				if peak > float64(islandEnvelope[0]) {
+					t.Fatalf("scene %v open %v: the spring reaches %v", s, open, peak)
+				}
+			}
+		}
 	}
-	if w, h := islandWindowSize([4]float64{240, 40, 20, 36}); w != 284 || h != 40 {
-		t.Fatalf("with circle %v×%v", w, h)
+	if w := islandGroupWidth([4]float64{240, 40, 20, 36}); w != 284 {
+		t.Fatalf("with circle %v", w)
+	}
+	idle := islandShape(island.Geometry(island.SceneIdle, false), 0)
+	if x := islandOffset(idle, 0); x != 0 {
+		t.Errorf("at the left edge the pill starts at %v", x)
+	}
+	if x := islandOffset(idle, 1); x+islandGroupWidth(idle) != float64(islandEnvelope[0]) {
+		t.Errorf("at the right edge the pill ends at %v", x+islandGroupWidth(idle))
+	}
+	if x := islandOffset(idle, .5); x != (float64(islandEnvelope[0])-120)/2 {
+		t.Errorf("in the middle the pill starts at %v", x)
+	}
+	for in, want := range map[float64]float64{-1: 0, 2: 1, .25: .25, math.NaN(): .5} {
+		if got := islandAnchor(in); got != want {
+			t.Errorf("anchor %v: %v, want %v", in, got, want)
+		}
+	}
+}
+
+// Eight "Rapat baru" in one Space within seconds gather into one notice;
+// another kind, another Space, or a later burst stays apart.
+func TestIslandGathersABurst(t *testing.T) {
+	space := id.New()
+	p := &islandPresenter{d: &desktopDevice{}}
+	now := time.Now()
+	meeting := func(title string, sp id.ID) appui.Notice {
+		d := api.Delivery{SourceKind: "ping", RelatedKind: "meeting", Title: "Rapat baru: " + title, SpaceID: &sp}
+		n := appui.Notice{Kind: appui.DeliveryKind(d), Title: d.Title}
+		n.Group, n.GroupLabel = appui.DeliveryGroup(d)
+		n.Space = sp
+		return n
+	}
+	push := func(n appui.Notice, at time.Time) {
+		item, ok := p.gather(n, nil, at)
+		if !ok {
+			n.Tag = "group:" + n.Group + "#" + at.String()
+			item = island.Item{Tag: n.Tag, Value: islandNotice{n: n, count: 1, first: at, latest: n.Title}}
+		}
+		p.m.Push(item, at)
+	}
+	for i := range 8 {
+		push(meeting(fmt.Sprint("Debat ", i), space), now.Add(time.Duration(i)*300*time.Millisecond))
+	}
+	if p.m.Current == nil || len(p.m.Queue) != 0 {
+		t.Fatalf("not one notice: current %v, %d queued", p.m.Current, len(p.m.Queue))
+	}
+	x := p.m.Current.Value.(islandNotice)
+	if x.count != 8 || p.noticeTitle(x) != "8 rapat baru" || noticeBody(x) != "Terbaru: Rapat baru: Debat 7" || x.n.Kind != "meeting" {
+		t.Fatalf("gathered %+v: %q / %q", x, p.noticeTitle(x), noticeBody(x))
+	}
+	push(meeting("Lain", id.New()), now.Add(3*time.Second))
+	push(meeting("Nanti", space), now.Add(30*time.Second))
+	if len(p.m.Queue) != 2 {
+		t.Fatalf("other Space or later burst gathered: %d queued", len(p.m.Queue))
+	}
+	if islandKindLabel(x.n.Kind) != "Rapat" {
+		t.Fatal("a meeting's notice reads as", islandKindLabel(x.n.Kind))
+	}
+}
+
+// Styles: those who never chose follow Space's theme; Custom keeps its
+// text readable on light and dark colors; a bad color falls back to black.
+func TestIslandStyles(t *testing.T) {
+	prefs, _ := loadDevicePreferences([]byte(`{"islandEnabled":true,"islandStyle":"C"}`))
+	if prefs.IslandTheme != islandThemeFollow {
+		t.Fatalf("upgrade keeps %q", prefs.IslandTheme)
+	}
+	light := &ui.Theme{Surface: ui.RGB(250, 248, 244), Text: ui.RGB(30, 28, 25), Dark: false}
+	if p := islandPaletteFor(prefs, light); p.ink != light.Surface || p.text != light.Text || p.dark {
+		t.Fatalf("follow %+v", p)
+	}
+	sand := islandPaletteFor(devicePreferences{IslandTheme: islandThemeCustom, IslandColor: "#e8dcc4", IslandOpacity: .7}, nil)
+	if sand.text.R > 100 || sand.ink.A > 190 || sand.ink.A < 170 {
+		t.Fatalf("light custom %+v", sand)
+	}
+	night := islandPaletteFor(devicePreferences{IslandTheme: islandThemeCustom, IslandColor: "#14213d"}, nil)
+	if night.text.R < 200 || night.ink.A != 255 {
+		t.Fatalf("dark custom %+v", night)
+	}
+	if bad := islandPaletteFor(devicePreferences{IslandTheme: islandThemeCustom, IslandColor: "biru"}, nil); bad.ink.R != 0 || bad.ink.G != 0 {
+		t.Fatalf("bad color %+v", bad)
+	}
+	if g := islandPaletteFor(devicePreferences{IslandTheme: islandThemeGlass}, nil); g.ink.A == 255 || !g.dark {
+		t.Fatalf("glass %+v", g)
+	}
+	if islandOpacity(.1) != .4 || islandOpacity(0) != 1 {
+		t.Fatal("opacity bounds")
 	}
 }

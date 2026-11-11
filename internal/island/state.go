@@ -33,6 +33,10 @@ type Machine struct {
 	Queue                         []Item
 	Until, hoverSince, leaveSince time.Time
 	Closing                       time.Time
+	// stayOpen: the open details were closed by the user, with more
+	// queued; the next notice opens in their place, and the island folds
+	// only when the queue is empty.
+	stayOpen bool
 }
 
 // Push replaces a tagged entry without changing its queue position. Bounded
@@ -74,13 +78,35 @@ func (m *Machine) next(now time.Time) {
 	m.Queue = m.Queue[1:]
 	m.Current = &n
 	m.State = Banner
+	if m.stayOpen {
+		m.State = Expanded
+	}
+	m.stayOpen = false
 	m.Until = now.Add(BannerDuration)
 }
 
+// Dismiss closes the current notice, by the user's hand (Tutup, Buka,
+// Tunda): the next queued one follows in the open details.
 func (m *Machine) Dismiss(now time.Time) {
 	if m.Current != nil && m.Closing.IsZero() {
 		m.Closing = now
+		m.stayOpen = m.State == Expanded && len(m.Queue) > 0
 	}
+}
+
+// DismissAll closes the current notice and drops the queue.
+func (m *Machine) DismissAll(now time.Time) []Item {
+	dropped := m.Queue
+	m.Queue = nil
+	m.Dismiss(now)
+	return dropped
+}
+
+// lapse closes the current notice by itself (its time ran out, or the
+// pointer left the details): the island folds back.
+func (m *Machine) lapse(now time.Time) {
+	m.Dismiss(now)
+	m.stayOpen = false
 }
 
 // Tick pauses banner expiry under the pointer. Expansion needs 300 ms dwell,
@@ -115,10 +141,10 @@ func (m *Machine) Tick(now time.Time, hover, expand, escape bool) {
 				m.leaveSince = now
 			}
 			if now.Sub(m.leaveSince) >= 1500*time.Millisecond {
-				m.Dismiss(now)
+				m.lapse(now)
 			}
 		} else if !now.Before(m.Until) {
-			m.Dismiss(now)
+			m.lapse(now)
 		}
 	}
 }
