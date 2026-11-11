@@ -5,6 +5,34 @@ Versi mengikuti aturan sebelum rilis publik:
 - **Minor** naik untuk pembaruan besar.
 - **1.0.0** untuk rilis publik.
 
+## 0.4.5 — 2026-11-11 · Navigasi cepat, template WA, island v2, perbaikan pilot 0.4.4 (rc)
+
+- **Navigasi cepat (Ctrl K)**: mencari semua halaman, tab Space, aksi, catatan, tugas, dan setiap seksi atau field pengaturan, dengan jejak seperti "Ace dan suara · Pengaturan › Perangkat". Ctrl K membuka dan menutup palet. Enter menjalankan hasil hanya saat daftar hasil tampil. "Izin arsip" hanya muncul untuk pengelola arsip.
+- **Template dan perintah WhatsApp**:
+  - Chip "Sisipkan:" berlabel, misalnya [Isi pesan] dan [Nama pengirim], tidak lagi memakai { }.
+  - Pratinjau muncul sendiri dan ditutup manual.
+  - Template lama berisi `{body}` dan lainnya dimuat sebagai kata, lalu disimpan kembali tanpa berubah.
+  - Ada tombol "Buat perintah baru".
+- **Perintah khusus WA (server)**: balasan dapat memuat nama pengirim, tanggal, jam, nama grup, nama bot, dan teks setelah perintah. Balasan tanpa `{` dikirim persis seperti dulu. Hasil isian dipotong pada 4096 karakter. Tidak ada migrasi.
+- **Dynamic Island v2**:
+  - Sudut bening, tanpa bayangan ungu.
+  - Muncul kembali setelah layar penuh atau screenshot.
+  - Pilihan **Selalu tampil** aktif bawaan, termasuk untuk pengguna yang memperbarui. Ace beristirahat sebagai pil di atas layar, lalu tampil lagi setelah login.
+  - Layar penuh diperiksa setiap 0,5 detik.
+- **RAM**: logo divisi dan maskot impor disimpan seukuran tampilannya. Maskot GIF 512×512×60 turun dari 45 MiB menjadi 8,4 MiB.
+- **Perbaikan pilot 0.4.4**:
+  - Baris tab tanpa scrollbar yang selalu tampil.
+  - Tur meminta pengguna menekan tab, lalu menyorot halamannya.
+  - Aksi baris Anggota muat di kolomnya, dan "Ubah role & akses" pindah ke menu ⋯.
+  - Role kustom punya dialog sendiri, dengan contoh dan izin berikon.
+  - Popover PJ dan tenggat di catatan tidak lagi hilang saat dituju.
+- **Server**:
+  - Klien 0.4.5 tetap jalan dengan server 0.4.3. Bedanya, balasan perintah khusus yang memakai [Nama pengirim], [Tanggal], dan seterusnya dikirim apa adanya, misalnya `{sender}`, sampai server 0.4.5 dipasang.
+  - Deploy server bersama atau sebelum klien.
+- **Known issues**:
+  - Island: aplikasi layar penuh di monitor kedua juga menyembunyikan pil di monitor utama.
+  - Pratinjau perintah khusus memakai contoh nilai dan tidak menyertakan pembungkus balasan bot.
+
 ## 0.4.4 — 2026-11-10 · Dynamic Island desktop
 
 - Jendela Dynamic Island native Windows: banner dan detail, aksi Buka/Tunda 15 menit, antrean prioritas, dan penggantian berdasarkan tag.

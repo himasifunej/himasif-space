@@ -482,8 +482,9 @@ func (p *islandPresenter) idleView(c *ui.Context, prefs devicePreferences, now t
 	if moving || alpha < 1 {
 		next = 16 * time.Millisecond
 	}
-	// Fullscreen is checked at least every 2 s, as with a banner.
-	c.After(p.obstructionDeadline(now, min(next, 2*time.Second)))
+	// Fullscreen is checked at least every 500 ms while Ace rests: the
+	// pill is always on top, so it steps aside within the grace.
+	c.After(p.obstructionDeadline(now, min(next, 500*time.Millisecond)))
 }
 
 // hovered tells whether the pointer is over the pill, not its clear corners.
@@ -613,6 +614,13 @@ func (p *islandPresenter) resume() {
 		w, h := int(math.Round(p.geometry[0])), int(math.Round(p.geometry[1]))
 		if p.idle || !has {
 			w, h = int(islandIdleGeometry[0]), int(islandIdleGeometry[1])
+		}
+		if !has {
+			// The resting pill: the window takes its size now, so it is
+			// centred and does not spring from the banner's size.
+			p.geometry, p.velocity = islandIdleGeometry, [3]float64{}
+			p.win.SetSize(w, h)
+			p.lastWidth, p.lastHeight = w, h
 		}
 		p.position(w, h)
 		islandWindowShape(p.win.NativeHandle(), w, h, p.geometry[2])

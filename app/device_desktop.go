@@ -214,6 +214,11 @@ func attachDevice(win *mygo.Window, app *appui.App) {
 		d.activeUser = uid
 		d.island.reset(false)
 		d.mu.Unlock()
+		if uid != id.Nil {
+			// reset hid the island; with "Selalu tampil" Ace rests at the
+			// top again for the account now signed in.
+			d.island.wake()
+		}
 		d.current = nil
 		d.ace.Update(func() {})
 		if old != id.Nil && old != uid {

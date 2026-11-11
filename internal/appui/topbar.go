@@ -111,8 +111,14 @@ func (a *App) headerSearch(c *ui.Context, width float32) {
 			if !a.chrome.searchOpen && (input.Clicked() || input.Changed()) {
 				a.toggleSearch()
 			}
+			// Enter runs the chosen result only while the results show;
+			// with them closed it shows them first.
 			if input.Submitted() {
-				a.chrome.searchOpen, a.chrome.searchSubmit = true, true
+				if a.chrome.searchOpen {
+					a.chrome.searchSubmit = true
+				} else {
+					a.toggleSearch()
+				}
 			}
 			if width >= 200 {
 				kbd(c, "Ctrl K")

@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/himasifunej/himasif-space/internal/timeutil"
 )
@@ -29,7 +30,7 @@ func renderWACommandText(response string, v waCommandValues) string {
 		at = at.In(loc)
 	}
 	date := strconv.Itoa(at.Day()) + " " + waMonths[at.Month()-1] + " " + strconv.Itoa(at.Year())
-	return strings.NewReplacer(
+	out := strings.NewReplacer(
 		"{sender}", v.Sender,
 		"{date}", date,
 		"{time}", at.Format("15.04"),
@@ -37,4 +38,13 @@ func renderWACommandText(response string, v waCommandValues) string {
 		"{name}", v.Bot,
 		"{args}", v.Args,
 	).Replace(response)
+	// A response naming {args} many times could grow far past a chat
+	// message: it is cut at waCommandTextMax runes.
+	if utf8.RuneCountInString(out) > waCommandTextMax {
+		out = string([]rune(out)[:waCommandTextMax])
+	}
+	return out
 }
+
+// waCommandTextMax is the longest filled response sent, in runes.
+const waCommandTextMax = 4096

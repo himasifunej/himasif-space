@@ -353,6 +353,8 @@ func (a *App) commandSettings(c *ui.Context) {
 		})
 		pv := "command|" + draft.ID.String()
 		a.waTemplateEditor(c, "command-response-"+draft.ID.String(), "Balasan bot", &st.commandText, waCommandTokens, true, pv, func() { waCommandPreview(c, st.commandText, c.Now()) })
+		// Server 0.4.3 and older send these words as they are typed.
+		muted(c, "Nama pengirim, Tanggal, Jam, Nama grup, dan teks setelah perintah diisi oleh server Space 0.4.5 ke atas.").FontSize(12)
 		if draft.AssetID != "" {
 			muted(c, "Media tersimpan: "+draft.MediaType)
 			if spaceButton(c, "Lepaskan media dari command", "close", false).Disabled(disabled).Clicked() {

@@ -1,8 +1,10 @@
 package server
 
 import (
+	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 func TestRenderWACommandText(t *testing.T) {
@@ -14,5 +16,13 @@ func TestRenderWACommandText(t *testing.T) {
 	}
 	if got := renderWACommandText("SIAP!", v); got != "SIAP!" {
 		t.Fatalf("plain response changed: %q", got)
+	}
+}
+
+func TestRenderWACommandTextIsCapped(t *testing.T) {
+	v := waCommandValues{Args: strings.Repeat("é", 500), At: time.Now()}
+	got := renderWACommandText(strings.Repeat("{args}", 100), v)
+	if n := utf8.RuneCountInString(got); n != waCommandTextMax || !utf8.ValidString(got) {
+		t.Fatalf("filled response %d runes, valid %v", n, utf8.ValidString(got))
 	}
 }

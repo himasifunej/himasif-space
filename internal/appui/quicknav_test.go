@@ -210,3 +210,29 @@ func TestQuicknavRevealsSection(t *testing.T) {
 		t.Fatalf("the outline stayed: %+v", revealing)
 	}
 }
+
+// Release review: Enter in the search field while the results are closed
+// shows them; it does not run a result the user cannot see. Izin arsip is
+// listed only for who manages an archive.
+func TestQuicknavEnterWhileClosedShowsResults(t *testing.T) {
+	h := newChromeHarness(t, nil)
+	path := h.app.router.Path()
+	h.tt.Key(ui.Ctrl, ui.KeyK)
+	h.tt.Type("pengaturan")
+	h.tt.Frame()
+	h.tt.Key(ui.Ctrl, ui.KeyK)
+	h.tt.Frame()
+	if h.app.chrome.searchOpen {
+		t.Fatal("Ctrl K did not close")
+	}
+	h.tt.Key(0, ui.KeyEnter)
+	h.tt.Frame()
+	if !h.app.chrome.searchOpen || h.app.router.Path() != path {
+		t.Fatalf("Enter while closed: open %v, path %s", h.app.chrome.searchOpen, h.app.router.Path())
+	}
+	for _, it := range h.app.navIndex() {
+		if it.key == "page"+PathArchiveAccess && len(h.app.archiveManagedDivisions()) == 0 {
+			t.Fatal("Izin arsip offered to who manages no archive")
+		}
+	}
+}
