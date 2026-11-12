@@ -193,6 +193,7 @@ func (a *App) appearanceSettings(c *ui.Context) {
 							a.applyCustomAccent(c)
 						}
 					})
+					a.displayScaleRow(c)
 					if SettingSwitch(c, "Tampilan ringkas", "Jarak dan tinggi baris lebih rapat di semua halaman.", &p.Compact) {
 						a.savePreferences(c)
 					}

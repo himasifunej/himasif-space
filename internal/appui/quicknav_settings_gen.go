@@ -33,6 +33,7 @@ var settingsSearchItems = []settingsSearchItem{
 	{"Tampilan", "Warna aksen", "Tema", "field", ""},
 	{"Tampilan", "Kode warna", "Tema", "field", ""},
 	{"Tampilan", "Terapkan warna", "Tema", "button", ""},
+	{"Tampilan", "Skala tampilan", "Tema", "field", ""},
 	{"Tampilan", "Tampilan ringkas", "Tema", "button", ""},
 	{"Tampilan", "Board tugas", "Board tugas", "section", ""},
 	{"Tampilan", "Warna lajur", "Board tugas", "field", ""},

@@ -107,6 +107,9 @@ type App struct {
 	// check waits for it).
 	FirstScreen    func()
 	firstScreenRun bool
+	// SystemScale is the scale factor of the window's monitor (1.5 for
+	// Windows' 150%), for the display scale; nil where unknown (the web).
+	SystemScale    func() float64
 	SessionChanged func(id.ID)
 	// Version is the app's version, shown in the settings.
 	Version string

@@ -133,11 +133,14 @@ func loadDevicePreferences(data []byte) (prefs devicePreferences, legacy bool) {
 }
 
 type desktopDevice struct {
-	island              *islandPresenter
-	updater             *desktopUpdater
-	mu                  sync.Mutex
-	deliveryMu          sync.Mutex
-	notificationPrefs   atomic.Value
+	island            *islandPresenter
+	updater           *desktopUpdater
+	mu                sync.Mutex
+	deliveryMu        sync.Mutex
+	notificationPrefs atomic.Value
+	// displayScale is the scale factor of the main window's monitor, as
+	// float64 bits, for the display scale (appui.App.SystemScale).
+	displayScale        atomic.Uint64
 	activeUser          id.ID
 	pendingLink         string
 	root                string
@@ -266,12 +269,16 @@ func attachDevice(win *mygo.Window, app *appui.App) {
 	})
 	mygo.Screen.OnDisplaysChanged(func() {
 		d.island.refreshPosition()
+		d.readDisplayScale()
 	})
 	win.OnMove(func() {
 		if d.island.win != nil && d.island.win.IsVisible() {
 			d.island.refreshPosition()
 		}
+		d.readDisplayScale()
 	})
+	d.readDisplayScale()
+	app.SystemScale = func() float64 { return math.Float64frombits(d.displayScale.Load()) }
 	app.SessionChanged = func(uid id.ID) {
 		d.mu.Lock()
 		old := d.activeUser
@@ -333,6 +340,20 @@ func attachDevice(win *mygo.Window, app *appui.App) {
 		}
 	}()
 }
+
+// readDisplayScale reads the scale of the main window's monitor, and
+// draws again when it changed (the window moved to another monitor, or
+// Windows' scale changed) so that a chosen display scale keeps its size.
+func (d *desktopDevice) readDisplayScale() {
+	s := mygo.Screen.DisplayMatching(d.win.Bounds()).ScaleFactor
+	if s <= 0 {
+		return
+	}
+	if old := d.displayScale.Swap(math.Float64bits(s)); old != math.Float64bits(s) && old != 0 {
+		d.win.Update(func() {})
+	}
+}
+
 func (d *desktopDevice) save() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
