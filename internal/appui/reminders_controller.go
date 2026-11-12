@@ -3,9 +3,11 @@ package appui
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/himasifunej/himasif-space/internal/api"
 	"github.com/himasifunej/himasif-space/internal/client"
@@ -35,20 +37,52 @@ var _ RemindersAPI = (*client.Client)(nil)
 type reminderDraft struct {
 	reminderID                      id.ID
 	title, notes, date, clock, zone string
-	source                          *api.Reminder
+	// share is whether others the owner chose may read it.
+	share  bool
+	source *api.Reminder
+}
+
+// reminderDraftClock is a reminder's date and time as the dialog shows
+// them: always in WIB (Form B has no zone to choose).
+func reminderDraftClock(r api.Reminder) (string, string) {
+	zone := r.TimeZone
+	if r.DueAt != nil {
+		zone = timeutil.DefaultZoneName
+	}
+	return draftDate(r.DueOn, r.DueAt, zone)
 }
 
 func newReminderDraft(r api.Reminder) *reminderDraft {
-	date, clock := draftDate(r.DueOn, r.DueAt, r.TimeZone)
-	return &reminderDraft{reminderID: r.ID, title: r.Title, notes: r.Notes, date: date, clock: clock, zone: r.TimeZone, source: &r}
+	date, clock := reminderDraftClock(r)
+	return &reminderDraft{reminderID: r.ID, title: r.Title, notes: r.Notes, date: date, clock: clock, zone: timeutil.DefaultZoneName, share: r.Shared, source: &r}
 }
 
 func (d *reminderDraft) unchanged() bool {
 	if d == nil || d.source == nil {
 		return false
 	}
-	date, clock := draftDate(d.source.DueOn, d.source.DueAt, d.source.TimeZone)
-	return d.title == d.source.Title && d.notes == d.source.Notes && d.date == date && d.clock == clock && d.zone == d.source.TimeZone
+	date, clock := reminderDraftClock(*d.source)
+	return d.title == d.source.Title && d.notes == d.source.Notes && d.date == date && d.clock == clock && d.share == d.source.Shared
+}
+
+// reminderDraftDue is when the draft would fire, 06.00 WIB for a date
+// alone.
+func reminderDraftDue(d *reminderDraft) (time.Time, bool) {
+	clock := d.clock
+	if clock == "" {
+		clock = "06:00"
+	}
+	at, err := time.ParseInLocation("2006-01-02 15:04", d.date+" "+clock, wib())
+	return at, err == nil
+}
+
+// reminderDraftWhen is the Ace preview's "Kam, 12 Nov · 17.00".
+func reminderDraftWhen(d *reminderDraft) string {
+	at, ok := reminderDraftDue(d)
+	if !ok {
+		return "Pilih tanggal"
+	}
+	return fmt.Sprintf("%s, %d %s · %s", shortDays[at.Weekday()], at.Day(), untukMonths[at.Month()-1], at.Format("15.04"))
 }
 
 type remindersUIState struct {
@@ -74,10 +108,21 @@ type remindersUIState struct {
 	clockOpen, clockMinutes             bool
 	candidatesPeriod                    id.ID
 	candidatesAccess                    uint64
+	// Form B: the list's tab and the reminders picked by their circles;
+	// the dialog and its note; the card's ⋯ menu and history; where the
+	// back link goes; a new reminder asked for before the list was in.
+	tab                      int
+	picked                   map[id.ID]bool
+	dialog, noteOpen         bool
+	focusTitle, titleMissing bool
+	placeholder              int
+	menuOpen, historyOpen    bool
+	from                     string
+	pendingNew               bool
 }
 
 func (a *App) resetReminders() {
-	a.reminders = remindersUIState{seq: a.reminders.seq + 1}
+	a.reminders = remindersUIState{seq: a.reminders.seq + 1, placeholder: a.reminders.placeholder}
 }
 
 func (a *App) reminderService() (RemindersAPI, bool) {
@@ -166,6 +211,7 @@ func (a *App) clearReminderSelection() {
 	a.reminders.detailsLoading, a.reminders.recipientsLoaded = false, false
 	a.reminders.detailsErr = ""
 	a.reminders.deleteConfirm, a.reminders.recipientOpen = false, false
+	a.reminders.dialog, a.reminders.menuOpen, a.reminders.historyOpen = false, false, false
 }
 
 func (a *App) closeReminder() {
@@ -178,10 +224,61 @@ func (a *App) beginReminder() {
 	if a.reminderCreateBlocked() || !a.reminders.prefsLoaded {
 		return
 	}
+	keep := a.reminders.selected
 	a.clearReminderSelection()
 	a.chrome.appearance = false
 	a.reminders.err, a.reminders.notice = "", ""
-	a.reminders.draft = &reminderDraft{zone: timeutil.DefaultZoneName}
+	st := &a.reminders
+	st.placeholder++
+	st.draft = &reminderDraft{zone: timeutil.DefaultZoneName, date: time.Now().In(wib()).Format(time.DateOnly), clock: "17:00", share: st.prefs.DefaultShare}
+	st.dialog, st.noteOpen, st.focusTitle, st.titleMissing = true, false, true, false
+	// The card behind the dialog stays on the reminder it showed.
+	if keep != id.Nil {
+		st.selected = keep
+	}
+}
+
+// newReminderFrom opens Reminder pribadi on a new reminder, its back link
+// leading to path.
+func (a *App) newReminderFrom(path string) {
+	a.reminders.from = path
+	a.navigate(PathReminder)
+	a.ensureReminders()
+	if a.reminders.loaded && a.reminders.prefsLoaded {
+		a.beginReminder()
+		return
+	}
+	a.reminders.pendingNew = true
+}
+
+// editReminder opens the dialog on the chosen reminder.
+func (a *App) editReminder() {
+	r := a.reminderByID(a.reminders.selected)
+	if r == nil || !a.ownsSelectedReminder() {
+		return
+	}
+	st := &a.reminders
+	if st.draft == nil || st.draft.reminderID != r.ID || st.draft.unchanged() {
+		st.draft = newReminderDraft(*r)
+	}
+	st.dialog, st.noteOpen, st.focusTitle, st.titleMissing, st.menuOpen = true, st.draft.notes != "", false, false, false
+}
+
+// cancelReminderDialog closes the dialog and drops what was typed.
+func (a *App) cancelReminderDialog() {
+	st := &a.reminders
+	st.dialog, st.titleMissing = false, false
+	a.when(reminderWhenKey).open = false
+	if st.draft == nil {
+		return
+	}
+	if st.draft.reminderID == id.Nil {
+		st.draft = nil
+		return
+	}
+	if r := a.reminderByID(st.draft.reminderID); r != nil {
+		st.draft = newReminderDraft(*r)
+	}
 }
 
 func (a *App) openReminder(rid id.ID) {
@@ -333,11 +430,9 @@ func (a *App) saveReminder() {
 	if d == nil || (d.reminderID != id.Nil && !a.ownsSelectedReminder()) || (d.reminderID == id.Nil && !a.reminders.prefsLoaded) {
 		return
 	}
-	zone := strings.TrimSpace(d.zone)
-	if _, err := timeutil.LoadZone(zone); err != nil {
-		a.reminders.err = "Zona waktu tidak valid. Gunakan nama seperti Asia/Jakarta."
-		return
-	}
+	// Form B: always WIB.
+	zone := timeutil.DefaultZoneName
+	d.zone = zone
 	date, at, err := parseTaskDate(d.date, d.clock, zone, true)
 	if err != nil {
 		a.reminders.err = "Tanggal reminder: " + err.Error()
@@ -354,8 +449,8 @@ func (a *App) saveReminder() {
 	// The editor shows minutes; editing text must not truncate an existing
 	// instant's seconds or precision, which may have been set by another client.
 	if old := d.source; old != nil && old.DueAt != nil {
-		oldDate, oldClock := draftDate(old.DueOn, old.DueAt, old.TimeZone)
-		if d.date == oldDate && d.clock == oldClock && zone == old.TimeZone {
+		oldDate, oldClock := reminderDraftClock(*old)
+		if d.date == oldDate && d.clock == oldClock {
 			req.DueKind, req.DueOn, req.DueAt = api.DueInstant, nil, old.DueAt
 		}
 	}
@@ -367,8 +462,70 @@ func (a *App) saveReminder() {
 		return s.UpdateReminder(context.Background(), rid, req)
 	}, func(r api.Reminder) {
 		a.replaceReminder(r)
+		if rid == id.Nil {
+			a.clearReminderSelection()
+			a.reminders.draft = d
+		}
 		a.reminders.selected, d.reminderID = r.ID, r.ID
+		a.reminders.dialog = false
 		d.source = &r
+		if rid == id.Nil {
+			at, _, _ := reminderDue(r)
+			a.reminders.notice = "Reminder dibuat · Ace mengingatkanmu " + fmt.Sprintf("%s, %d %s · %s", shortDays[at.In(wib()).Weekday()], at.In(wib()).Day(), untukMonths[at.In(wib()).Month()-1], at.In(wib()).Format("15.04"))
+		}
+		if d.share != r.Shared {
+			share := d.share
+			d.share = r.Shared
+			a.reminders.busy = false
+			a.setReminderSharing(share)
+		}
+		a.loadReminderDetails()
+	})
+}
+
+// setRemindersDone finishes the reminders, or opens them again, one after
+// another; after runs once all are acknowledged.
+func (a *App) setRemindersDone(ids []id.ID, done bool, after func()) {
+	service, ok := a.reminderService()
+	if !ok || a.reminderCreateBlocked() || len(ids) == 0 {
+		return
+	}
+	for _, rid := range ids {
+		if r := a.reminderByID(rid); r == nil || !a.reminderOwned(*r) {
+			return
+		}
+	}
+	gen, seq := a.gen, a.reminders.seq
+	a.reminders.busy, a.reminders.err = true, ""
+	a.async(func() func() {
+		var got []api.Reminder
+		var err error
+		for _, rid := range ids {
+			var r api.Reminder
+			if r, err = service.CompleteReminder(context.Background(), rid, api.ReminderCompleteRequest{Completed: done}); err != nil {
+				break
+			}
+			got = append(got, r)
+		}
+		return func() {
+			if gen != a.gen || seq != a.reminders.seq {
+				return
+			}
+			a.reminders.busy = false
+			for _, r := range got {
+				a.replaceReminder(r)
+			}
+			if err != nil {
+				a.reminderFailure(err)
+				a.loadReminders()
+				return
+			}
+			a.conn = connOnline
+			if after != nil {
+				after()
+			}
+			a.loadReminders()
+		}
 	})
 }
 
@@ -463,7 +620,7 @@ func (a *App) loadReminderCandidates() {
 		a.reminders.candidatesErr = "Direktori anggota belum tersedia."
 		return
 	}
-	if a.reminders.candidatesLoading || a.access.loading || a.periodID == id.Nil || !a.ownsSelectedReminder() {
+	if a.reminders.candidatesLoading || a.access.loading || a.periodID == id.Nil || !a.ownsSelectedReminder() && a.reminders.draft == nil {
 		return
 	}
 	divisions := map[id.ID]bool{}

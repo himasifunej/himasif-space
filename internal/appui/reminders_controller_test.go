@@ -255,7 +255,7 @@ func TestReminderPreferenceOnlyChangesFutureReminderIntent(t *testing.T) {
 	}
 	h.app.beginReminder()
 	d := h.app.reminders.draft
-	d.title, d.date = "Reminder baru", "2026-11-02"
+	d.title, d.date, d.clock = "Reminder baru", "2026-11-02", ""
 	h.app.saveReminder()
 	settleReminders(t, h)
 	if len(f.createRequests) != 1 || f.createRequests[0].DueKind != api.DueDate || f.createRequests[0].DueOn == nil || f.createRequests[0].DueAt != nil {

@@ -47,6 +47,9 @@ var appPages = []appPage{
 	// A card's page, from a link: not one to open from the palette.
 	{PathTaskCard, "Tugas", "task", "", false},
 	{PathMeetingCard, "Rapat", "calendar", "", false},
+	// Untukku's details, from one of its rows: not from the palette.
+	{PathUntukTask, "Detail tugas", "task", "", false},
+	{PathUntukRapat, "Rapat", "calendar", "", false},
 }
 
 // pageTitle is the title of the page at path, "" for a Space's.

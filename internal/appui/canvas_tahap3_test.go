@@ -1,6 +1,7 @@
 package appui
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -14,6 +15,9 @@ func dateIn(now time.Time, days int) *timeutil.Date {
 	return &d
 }
 
+// Jobdesk saya (canvas 3747dbbac0d0 design 6) groups by progress:
+// Dikerjakan, Belum mulai, Diserahkan, Selesai; by deadline inside, those
+// without one last; cancelled ones leave; the Space filter keeps its own.
 func TestJobdeskGroupsFollowCanvas(t *testing.T) {
 	now := time.Date(2026, 11, 6, 10, 0, 0, 0, time.UTC)
 	sp := id.New()
@@ -21,76 +25,58 @@ func TestJobdeskGroupsFollowCanvas(t *testing.T) {
 		return api.Task{ID: id.New(), Title: title, Progress: progress, TimeZone: "UTC", DeadlineDate: dateIn(now, days), SpaceIDs: []id.ID{sp}}
 	}
 	tasks := []api.Task{
-		mk("lewat", api.TaskTodo, -1),
-		mk("pekan-b", api.TaskDoing, 4),
-		mk("pekan-a", api.TaskTodo, 2),
-		mk("nanti", api.TaskTodo, 14),
+		{ID: id.New(), Title: "tanpa tenggat", Progress: api.TaskTodo, SpaceIDs: []id.ID{sp}},
+		mk("belum-b", api.TaskTodo, 4),
+		mk("belum-a", api.TaskTodo, -1),
+		mk("kerja", api.TaskDoing, 14),
 		mk("serah", api.TaskSubmitted, -3),
 		mk("selesai", api.TaskDone, 1),
 		mk("batal", api.TaskCancelled, 1),
-		{ID: id.New(), Title: "tanpa tenggat", Progress: api.TaskTodo, SpaceIDs: []id.ID{sp}},
 	}
-	g := jobdeskGroups(tasks, now, id.Nil)
-	names := func(ts []api.Task) []string {
-		var out []string
+	g := jobdeskGroups(tasks, id.Nil)
+	var got [][]string
+	for _, ts := range g {
+		var names []string
 		for _, t := range ts {
-			out = append(out, t.Title)
+			names = append(names, t.Title)
 		}
-		return out
+		got = append(got, names)
 	}
-	want := [4][]string{{"lewat"}, {"pekan-a", "pekan-b"}, {"nanti", "tanpa tenggat"}, {"serah"}}
-	for i := range g {
-		if got := names(g[i]); len(got) != len(want[i]) || (len(got) > 0 && (got[0] != want[i][0] || got[len(got)-1] != want[i][len(want[i])-1])) {
-			t.Errorf("group %v = %v; want %v", jobdeskGroup(i), got, want[i])
+	want := [][]string{{"kerja"}, {"belum-a", "belum-b", "tanpa tenggat"}, {"serah"}, {"selesai"}}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("groups %v, want %v", got, want)
+	}
+	for _, ts := range jobdeskGroups(tasks, id.New()) {
+		if len(ts) != 0 {
+			t.Fatal("Space filter kept tasks of other Spaces")
 		}
-	}
-	if g := jobdeskGroups(tasks, now, id.New()); len(g[0])+len(g[1])+len(g[2])+len(g[3]) != 0 {
-		t.Error("Space filter kept tasks of other Spaces")
 	}
 }
 
-// The Jobdesk page is a list, not the board; its steps move a task the way
-// the board does, and Serahkan opens the detail for evidence instead.
-func TestJobdeskListStepsUseExistingMoves(t *testing.T) {
+// A row opens Detail tugas, whose back link returns to Jobdesk saya.
+func TestJobdeskRowOpensDetail(t *testing.T) {
 	h, f := taskHarness(t)
 	h.tt.SetSize(1440, 900)
-	now := time.Now()
-	f.items[0].DeadlineDate = dateIn(now, 2)
+	f.items[0].DeadlineDate = dateIn(time.Now(), 2)
 	f.items[0].TimeZone = "UTC"
 	h.app.tasks.items[0] = f.items[0]
 	h.app.router.Push(PathJobdesk)
 	h.tt.Advance(400 * time.Millisecond)
 	h.tt.Frame()
-	h.want("MINGGU INI")
-	h.want("Belum")
-	h.want("Kerjakan")
-	h.want("Serahkan")
-	h.want("Buka")
+	h.want("Jobdesk saya")
+	h.want("Belum mulai")
 	h.dontWant("Board tugas")
-	h.click("Kerjakan: Poster")
-	select {
-	case r := <-f.moves:
-		if r.Progress != api.TaskDoing {
-			t.Fatalf("Kerjakan moved to %q", r.Progress)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("Kerjakan did not move the task")
-	}
-	h.settle()
-	h.click("Serahkan: Poster")
-	select {
-	case r := <-f.moves:
-		t.Fatalf("Serahkan moved the task without evidence: %+v", r)
-	default:
-	}
-	if h.app.workspace.SelectedID() != f.items[0].ID {
-		t.Fatal("Serahkan did not open the task's detail")
-	}
-	h.app.workspace.Close()
-	h.tt.Frame()
 	h.click("Buka Poster")
-	if h.app.workspace.SelectedID() != f.items[0].ID {
-		t.Fatal("Buka did not open the task's detail")
+	h.tt.Advance(400 * time.Millisecond)
+	h.tt.Frame()
+	if h.app.router.Path() != PathUntukTask || h.app.untuk.task != f.items[0].ID {
+		t.Fatalf("row opened %s %v", h.app.router.Path(), h.app.untuk.task)
+	}
+	h.want("Deskripsi")
+	h.want("Bukti pengerjaan")
+	h.click("Kembali ke Jobdesk saya")
+	if h.app.router.Path() != PathJobdesk {
+		t.Fatalf("back led to %s", h.app.router.Path())
 	}
 }
 

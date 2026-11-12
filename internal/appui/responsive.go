@@ -122,7 +122,7 @@ func (a *App) mobileTopBar(c *ui.Context) {
 	w, _ := c.Size()
 	ui.Row(c.Key("mobile-top")).FillWidth().Height(56).Shrink(0).Padding(0, 8, 0, 12).Gap(6).AlignItems(ui.Center).Background(t.Background).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
 		ui.Image(c, spaceBrand()).Size(30, 30).Shrink(0).Fit(ui.Contain)
-		title := map[string]string{PathUntukku: "Untukku", PathJobdesk: "Jobdesk saya", PathReminder: "Reminder pribadi", PathArsip: "Arsip periode", PathPengaturan: "Pengaturan", PathOrganisasi: "Organisasi", PathEvaluasi: "Evaluasi SOP", PathLainnya: "Lainnya", PathPanduan: "Panduan"}[a.router.Path()]
+		title := map[string]string{PathUntukku: "Untukku", PathUntukTask: "Detail tugas", PathUntukRapat: "Rapat", PathJobdesk: "Jobdesk saya", PathReminder: "Reminder pribadi", PathArsip: "Arsip periode", PathPengaturan: "Pengaturan", PathOrganisasi: "Organisasi", PathEvaluasi: "Evaluasi SOP", PathLainnya: "Lainnya", PathPanduan: "Panduan"}[a.router.Path()]
 		if title == "" {
 			title = a.spaceTitle()
 		}
@@ -203,7 +203,7 @@ type mobileTab struct{ key, label, icon string }
 func (a *App) mobileActiveTab() string {
 	p := a.router.Path()
 	switch {
-	case p == PathUntukku || p == PathJobdesk || p == PathReminder:
+	case p == PathUntukku || p == PathJobdesk || p == PathReminder || p == PathUntukTask || p == PathUntukRapat:
 		return "untukku"
 	case p == PathSpaces || p == PathMedhum:
 		if sp := a.selectedSpace(); sp != nil && sp.Kind == api.SpaceShared {
