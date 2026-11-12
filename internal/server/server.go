@@ -190,6 +190,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/meetings/{meetingId}", s.handle(s.getMeeting))
 	mux.Handle("PUT /api/meetings/{meetingId}", s.handle(s.updateMeeting))
 	mux.Handle("PUT /api/meetings/{meetingId}/attendance/{userId}", s.handle(s.recordAttendance))
+	mux.Handle("PUT /api/meetings/{meetingId}/rsvp", s.handle(s.meetingRSVP))
 	mux.Handle("POST /api/meetings/{meetingId}/timer", s.handle(s.meetingTimerAction))
 	mux.Handle("POST /api/notes/{noteId}/wa-summary", s.handle(s.noteWASummary))
 	mux.HandleFunc("GET /api/health", s.health)

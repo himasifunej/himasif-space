@@ -77,7 +77,7 @@ func (s *Store) MyMeetings(ctx context.Context, q Querier, pid, uid id.ID, from,
 	return out, rows.Err()
 }
 func (s *Store) MeetingParticipants(ctx context.Context, q Querier, mid id.ID) ([]api.MeetingParticipant, error) {
-	rows, err := q.Query(ctx, `select mp.user_id,u.display_name,mp.arrived_at,mp.attendance_note,mp.attendance_status,mp.confirmed_by from meeting_participants mp join users u on u.id=mp.user_id where meeting_id=$1 order by lower(u.display_name),u.id`, mid)
+	rows, err := q.Query(ctx, `select mp.user_id,u.display_name,mp.arrived_at,mp.attendance_note,mp.attendance_status,mp.confirmed_by,mp.rsvp,mp.rsvp_note from meeting_participants mp join users u on u.id=mp.user_id where meeting_id=$1 order by lower(u.display_name),u.id`, mid)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +85,7 @@ func (s *Store) MeetingParticipants(ctx context.Context, q Querier, mid id.ID) (
 	out := []api.MeetingParticipant{}
 	for rows.Next() {
 		var p api.MeetingParticipant
-		if err := rows.Scan(&p.UserID, &p.DisplayName, &p.ArrivedAt, &p.AttendanceNote, &p.AttendanceStatus, &p.ConfirmedBy); err != nil {
+		if err := rows.Scan(&p.UserID, &p.DisplayName, &p.ArrivedAt, &p.AttendanceNote, &p.AttendanceStatus, &p.ConfirmedBy, &p.RSVP, &p.RSVPNote); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -116,4 +116,11 @@ func (s *Store) SaveMeeting(ctx context.Context, q Querier, m api.Meeting, parti
 		}
 	}
 	return nil
+}
+
+// SetMeetingRSVP keeps a participant's own answer; false when they are not
+// a participant.
+func (s *Store) SetMeetingRSVP(ctx context.Context, q Querier, mid, uid id.ID, status, note string, at time.Time) (bool, error) {
+	tag, err := q.Exec(ctx, `update meeting_participants set rsvp=$3,rsvp_note=$4,rsvp_at=$5 where meeting_id=$1 and user_id=$2`, mid, uid, status, note, at)
+	return tag.RowsAffected() > 0, err
 }
