@@ -68,7 +68,7 @@ func spaceTheme(dark bool, accent string, compact bool) *ui.Theme {
 // accents are too faint as a button or selection on a light page.
 var spaceLightAccents = map[string]string{
 	"sand": "#2f2c25", "sage": "#4d6a3a", "blue": "#2f5d86",
-	"lavender": "#5b4e86", "rose": "#9c4f2c",
+	"lavender": "#5b4e86", "rose": "#9c4f2c", "pink": "#a8366a",
 }
 
 // spaceAccentFor is the accent of a theme: on the light theme a preset
@@ -90,7 +90,7 @@ func spaceAccent(value string) ui.Color {
 	value = strings.ToLower(strings.TrimSpace(value))
 	presets := map[string]string{
 		"sand": "#d7c3a0", "sage": "#a8c2ac", "blue": "#a2bbd2",
-		"lavender": "#b6a8d0", "rose": "#d2a499",
+		"lavender": "#b6a8d0", "rose": "#d2a499", "pink": "#f0a6c4",
 	}
 	if color, ok := presets[value]; ok {
 		return ui.Hex(color)

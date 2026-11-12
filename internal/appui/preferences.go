@@ -39,7 +39,7 @@ func NormalizePreferences(p Preferences) Preferences {
 	p.MeetingListWidth = meetingListWidth(p.MeetingListWidth)
 	p.Palette = strings.ToLower(strings.TrimSpace(p.Palette))
 	switch p.Palette {
-	case "", "champagne", "obsidian", "midnight", "copper", "graphite":
+	case "", "champagne", "obsidian", "midnight", "copper", "graphite", "sakura":
 	default:
 		p.Palette = ""
 	}
@@ -58,7 +58,7 @@ func NormalizePreferences(p Preferences) Preferences {
 	}
 	p.Accent = strings.ToLower(strings.TrimSpace(p.Accent))
 	switch p.Accent {
-	case "sand", "sage", "blue", "lavender", "rose":
+	case "sand", "sage", "blue", "lavender", "rose", "pink":
 		return p
 	}
 	if len(p.Accent) == 7 && p.Accent[0] == '#' {

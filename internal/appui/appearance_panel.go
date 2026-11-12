@@ -120,11 +120,11 @@ func (a *App) appearancePopover(c *ui.Context, anchor ui.Element) {
 // quickAccents are the popover's presets; allAccents the full panel's.
 var (
 	quickAccents = []string{"sand", "sage", "blue", "rose"}
-	allAccents   = []string{"sand", "sage", "blue", "lavender", "rose"}
+	allAccents   = []string{"sand", "sage", "blue", "lavender", "rose", "pink"}
 )
 
 // accentNames name the presets for people (tooltips).
-var accentNames = map[string]string{"sand": "Pasir (bawaan)", "sage": "Sage", "blue": "Langit", "lavender": "Lavender", "rose": "Tanah liat"}
+var accentNames = map[string]string{"sand": "Pasir (bawaan)", "sage": "Sage", "blue": "Langit", "lavender": "Lavender", "rose": "Tanah liat", "pink": "Merah muda"}
 
 // accentDots are preset accents as round swatches.
 func (a *App) accentDots(c *ui.Context, size float32, accents ...string) {
@@ -288,10 +288,20 @@ func (a *App) paletteRow(c *ui.Context) {
 			})
 			if b.Clicked() {
 				p.Palette = palette.key
+				p.Accent = paletteAccent(palette.key, p.Accent)
 				a.savePreferences(c)
 			}
 		}
 	})
+}
+
+// paletteAccent is the accent after picking a palette: Sakura brings its
+// pink while the accent is still the default sand; a chosen one stays.
+func paletteAccent(palette, accent string) string {
+	if palette == "sakura" && (accent == "" || accent == "sand") {
+		return "pink"
+	}
+	return accent
 }
 
 // appearancePreview draws a small Space: the sidebar, the four lanes in
