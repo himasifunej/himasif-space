@@ -210,10 +210,11 @@ func islandPrepareWindow(hwnd uintptr) {
 }
 
 // islandWindowShape cuts the window, w DIP wide, to the pill (g: width,
-// height, radius) ox DIP from its left, and the second activity's circle
-// (g[3]) beside it. The region is all Windows shows and hit-tests of the
-// window: the rest of it, kept for the largest shape, is the desktop's.
-func islandWindowShape(hwnd uintptr, g [4]float64, ox float64, w int) {
+// height, radius) ox DIP from its left and oy from its top (Ace sagging
+// when tired), and the second activity's circle (g[3]) beside it. The
+// region is all Windows shows and hit-tests of the window: the rest of
+// it, kept for the largest shape, is the desktop's.
+func islandWindowShape(hwnd uintptr, g [4]float64, ox, oy float64, w int) {
 	var client islandRect
 	ok, _, _ := procIslandGetClientRect.Call(hwnd, uintptr(unsafe.Pointer(&client)))
 	if ok == 0 || w == 0 {
@@ -222,7 +223,7 @@ func islandWindowShape(hwnd uintptr, g [4]float64, ox float64, w int) {
 	s := float64(client.Right) / float64(w)
 	px := func(v float64) uintptr { return uintptr(int(v*s + .5)) }
 	radius := px(2 * math.Min(g[2], g[1]/2))
-	region, _, _ := procIslandCreateRoundRectRgn.Call(px(ox), 0, px(ox+g[0])+1, px(g[1])+1, radius, radius)
+	region, _, _ := procIslandCreateRoundRectRgn.Call(px(ox), px(oy), px(ox+g[0])+1, px(oy+g[1])+1, radius, radius)
 	if region == 0 {
 		return
 	}

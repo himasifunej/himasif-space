@@ -145,14 +145,26 @@ func TestIslandEnvelopeHoldsEveryShape(t *testing.T) {
 		t.Fatalf("with circle %v", w)
 	}
 	idle := islandShape(island.Geometry(island.SceneIdle, false), 0)
-	if x := islandOffset(idle, 0); x != 0 {
+	if x := islandOffset(idle, 0, 0); x != 0 {
 		t.Errorf("at the left edge the pill starts at %v", x)
 	}
-	if x := islandOffset(idle, 1); x+islandGroupWidth(idle) != float64(islandEnvelope[0]) {
+	if x := islandOffset(idle, 0, 1); x+islandGroupWidth(idle) != float64(islandEnvelope[0]) {
 		t.Errorf("at the right edge the pill ends at %v", x+islandGroupWidth(idle))
 	}
-	if x := islandOffset(idle, .5); x != (float64(islandEnvelope[0])-120)/2 {
+	if x := islandOffset(idle, 0, .5); x != (float64(islandEnvelope[0])-120)/2 {
 		t.Errorf("in the middle the pill starts at %v", x)
+	}
+	// With a "+N", Ace grows 28 DIP to the right, its eyes where they
+	// were; at the right edge it grows left instead, inside the window.
+	badged := idle
+	badged[0] += island.BadgeRoom
+	for _, anchor := range []float64{0, .25, .5, .75} {
+		if x, was := islandOffset(badged, island.BadgeRoom, anchor), islandOffset(idle, 0, anchor); x != was {
+			t.Errorf("anchor %v: with +N the pill starts at %v, not %v", anchor, x, was)
+		}
+	}
+	if x := islandOffset(badged, island.BadgeRoom, 1); x+islandGroupWidth(badged) != float64(islandEnvelope[0]) {
+		t.Errorf("at the right edge the wider pill ends at %v", x+islandGroupWidth(badged))
 	}
 	for in, want := range map[float64]float64{-1: 0, 2: 1, .25: .25, math.NaN(): .5} {
 		if got := islandAnchor(in); got != want {

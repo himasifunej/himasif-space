@@ -69,9 +69,13 @@ func islandGroupWidth(g [4]float64) float64 {
 // islandOffset is where the shape starts in the window: as far along its
 // room as the island is along the top of the screen (anchor 0 at the left
 // edge, .5 the middle, 1 the right edge), so it grows away from the edge it
-// sits at and stays centred in the middle.
-func islandOffset(g [4]float64, anchor float64) float64 {
-	return math.Max(0, float64(islandEnvelope[0])-islandGroupWidth(g)) * anchor
+// sits at and stays centred in the middle. room is the width the "+N"
+// added to Ace at rest (island.BadgeRoom, springing with the shape): it
+// grows to the right, the eyes staying put, unless that would leave the
+// window at the right edge.
+func islandOffset(g [4]float64, room, anchor float64) float64 {
+	free := float64(islandEnvelope[0]) - islandGroupWidth(g)
+	return math.Max(0, math.Min(free, math.Max(0, free+room)*anchor))
 }
 
 // islandAnchor is a saved position along the top of the screen, within
@@ -202,7 +206,15 @@ type islandPresenter struct {
 	eyes, eyesVelocity                [2]float64
 	last, changed, contentChanged     time.Time
 	idleSince, obstructedSince        time.Time
-	region                            [5]float64 // the shape and offset the window's region was cut to
+	region                            [6]float64 // the shape and offset the window's region was cut to
+	// room is the width the "+N" adds to Ace at rest, springing with the
+	// shape toward roomTarget from roomFrom (islandOffset).
+	room, roomVelocity, roomFrom, roomTarget float64
+	// tired is Ace ikut capek: its pose at rest (pose) as unread notices
+	// pile up; awake whether Ace breathed last frame.
+	tired island.Tired
+	pose  island.Pose
+	awake bool
 	// anchor is where the island sits along the top of the screen (0 left,
 	// 1 right), placed at; drag follows a press on the pill that moves it.
 	anchor, placed float64
@@ -413,7 +425,9 @@ func (p *islandPresenter) forget() {
 	p.contentChanged, p.last = time.Time{}, time.Time{}
 	p.eyeH = 0
 	p.drag = islandDrag{}
-	p.region = [5]float64{} // a new or hidden window is cut again
+	p.region = [6]float64{} // a new or hidden window is cut again
+	p.room, p.roomVelocity, p.roomFrom, p.roomTarget = 0, 0, 0, 0
+	p.tired, p.pose = island.Tired{}, island.RestPose()
 	p.expander.Reset()
 }
 
@@ -429,29 +443,40 @@ func (p *islandPresenter) show() {
 
 // cut fits the window's region to the shape where the island draws it.
 func (p *islandPresenter) cut() {
-	g, ox := p.shape()
-	key := [5]float64{g[0], g[1], g[2], g[3], ox}
+	g, ox, oy := p.shape()
+	key := [6]float64{g[0], g[1], g[2], g[3], ox, oy}
 	if p.region == key {
 		return
 	}
-	islandWindowShape(p.win.NativeHandle(), g, ox, islandEnvelope[0])
+	islandWindowShape(p.win.NativeHandle(), g, ox, oy, islandEnvelope[0])
 	p.region = key
 }
 
-// shape is the pill as drawn, and where it starts in the window: the
-// geometry, stretched by the jelly about its middle and kept inside the
-// window. The region follows it, so the window never shows past it.
-func (p *islandPresenter) shape() ([4]float64, float64) {
+// shape is the pill as drawn, and where it starts in the window (left,
+// top): the geometry, stretched by the jelly about its middle, sagging and
+// flattening about its bottom middle as Ace gets tired (pose), and kept
+// inside the window. The region follows it, so the window never shows
+// past it.
+func (p *islandPresenter) shape() ([4]float64, float64, float64) {
 	g := p.geometry
-	ox := islandOffset(g, p.anchor)
-	if p.jelly.Stretch == 0 {
-		return g, ox
+	ox := islandOffset(g, p.room, p.anchor)
+	pose := p.pose
+	if pose.SX == 0 {
+		pose = island.RestPose()
 	}
-	sx, sy := p.jelly.Scale()
+	sx, sy := pose.SX, pose.SY
+	if p.jelly.Stretch != 0 {
+		jx, jy := p.jelly.Scale()
+		sx, sy = sx*jx, sy*jy
+	}
+	if sx == 1 && sy == 1 && pose.X == 0 && pose.Y == 0 {
+		return g, ox, 0
+	}
 	w, h := g[0]*sx, math.Min(g[1]*sy, float64(islandEnvelope[1]))
 	d := [4]float64{w, h, math.Min(g[2], h/2), g[3]}
-	ox += (g[0] - w) / 2
-	return d, math.Max(0, math.Min(ox, float64(islandEnvelope[0])-islandGroupWidth(d)))
+	ox += (g[0]-w)/2 + pose.X
+	oy := math.Max(0, math.Min(g[1]*(1-pose.SY)+pose.Y, float64(islandEnvelope[1])-h))
+	return d, math.Max(0, math.Min(ox, float64(islandEnvelope[0])-islandGroupWidth(d))), oy
 }
 
 // travel is how far, in pixels, the island goes from the left edge to the
@@ -545,7 +570,7 @@ func (p *islandPresenter) refreshPosition() {
 		return
 	}
 	p.position()
-	p.region = [5]float64{}
+	p.region = [6]float64{}
 	p.cut()
 	p.win.Update(func() {})
 }
@@ -700,12 +725,25 @@ func (p *islandPresenter) view(c *ui.Context) {
 	if f.second != island.SceneIdle {
 		bubble = island.BubbleSize
 	}
-	if target := islandShape(island.Geometry(f.scene, f.expanded), bubble); target != p.target || !p.shown {
+	// Ace at rest grows to the right with a "+N", clear of its eyes, and
+	// back once the inbox is empty; tired, it sags (island.Tired).
+	rest := f.scene == island.SceneIdle && !f.expanded && f.notice == nil
+	geometry, room := island.Geometry(f.scene, f.expanded), 0.
+	if rest && f.inbox > 0 {
+		geometry[0] += island.BadgeRoom
+		room = island.BadgeRoom
+	}
+	th := island.Thresholds(prefs.AceTiredRatio, prefs.AceTiredTop, prefs.AceTiredHeavy, prefs.AceTiredSleepy)
+	pose, badge := p.tired.Frame(now, f.inbox, th, prefs.AceTired, rest, p.awake, reduced)
+	p.pose = pose
+	if target := islandShape(geometry, bubble); target != p.target || room != p.roomTarget || !p.shown {
 		p.start, p.target, p.changed = p.geometry, target, now
+		p.roomFrom, p.roomTarget = p.room, room
 		if !p.shown {
 			// Appearing, the island takes its shape at once.
 			p.geometry, p.velocity = target, [4]float64{}
-			ex, ey := island.EyesAt(f.scene, f.expanded, target[0], target[1])
+			p.room, p.roomVelocity = room, 0
+			ex, ey := island.EyesAt(f.scene, f.expanded, target[0]-room, target[1])
 			p.eyes, p.eyesVelocity = [2]float64{ex, ey}, [2]float64{}
 		}
 		p.last = now
@@ -715,7 +753,7 @@ func (p *islandPresenter) view(c *ui.Context) {
 	p.shown = true
 
 	// Ace's eyes.
-	ex, ey := island.EyesAt(f.scene, f.expanded, p.target[0], p.target[1])
+	ex, ey := island.EyesAt(f.scene, f.expanded, p.target[0]-p.roomTarget, p.target[1])
 	dt := islandFrameStep(p.last, now)
 	for i, t := range [2]float64{ex, ey} {
 		if reduced {
@@ -787,6 +825,7 @@ func (p *islandPresenter) view(c *ui.Context) {
 		}
 	}
 
+	p.awake = breathing
 	alpha := float32(island.Ease((now.Sub(p.contentChanged).Seconds() - .06) / .26))
 	if reduced {
 		alpha = float32(math.Min(1, now.Sub(p.contentChanged).Seconds()/.15))
@@ -805,16 +844,16 @@ func (p *islandPresenter) view(c *ui.Context) {
 	theme.Accent, theme.AccentText = islandText, opaque(islandInk)
 	c.SetTheme(&theme)
 
-	drawn, dox := p.shape()
+	drawn, dox, doy := p.shape()
 	gw, gh, gr := float32(drawn[0]), float32(drawn[1]), float32(drawn[2])
-	ox := float32(dox)
+	ox, oy := float32(dox), float32(doy)
 	// The eyes stay in the middle of the stretched pill and trail the
 	// motion a little.
 	eyeShift := (drawn[0]-p.geometry[0])/2 + p.jelly.EyeLag(p.moveDir)
 	eyeScaleY := drawn[1] / p.geometry[1]
 	dragging := false
 	ui.Box(c).Fill().Children(func() {
-		pill := ui.Box(c).Absolute().Left(ox).Top(0).Size(gw, gh).Radius(gr).Background(islandInk).Border(1, islandRing).Clip()
+		pill := ui.Box(c).Absolute().Left(ox).Top(oy).Size(gw, gh).Radius(gr).Background(tiredInk(islandInk, pose.Warm)).Border(1, islandRing).Clip()
 		_ = pill.Hovered() // enter/leave redraw without a timer
 		_, _, held := pill.Dragged()
 		dragged := p.dragFrame(held)
@@ -830,20 +869,25 @@ func (p *islandPresenter) view(c *ui.Context) {
 				ui.Box(c.Key("sheen")).Absolute().Left(0).Top(0).Size(gw, gh*.5).Radius(gr, gr, 0, 0).Background(ui.RGBA(255, 255, 255, .09))
 			}
 			// The eyes: two capsules, nodding to music, blinking, looking.
-			h := float32(math.Max(1.4, eyeH*open*scale))
-			w := float32(island.EyeWidth * scale)
-			cy := float32((p.eyes[1] + gy + bop) * eyeScaleY)
+			// Tired, the lids drop and slant and the eyes look down.
+			open = math.Min(open, 1-pose.Close)
+			h := float32(math.Max(1.4, eyeH*open*scale*pose.Pop))
+			w := float32(island.EyeWidth * scale * pose.Pop)
+			cy := float32((p.eyes[1]+gy+bop)*eyeScaleY + pose.EyeY)
 			for _, side := range [2]float64{-1, 1} {
-				cx := float32(p.eyes[0] + side*(island.EyePair-island.EyeWidth)/2*scale + gx + eyeShift)
+				cx := float32(p.eyes[0] + side*(island.EyePair-island.EyeWidth)/2*scale + gx + eyeShift + pose.GlanceX)
 				h := h
 				if wink && side < 0 {
 					h = 1.4
 				}
-				ui.Box(c).Absolute().Left(cx-w/2).Top(cy-h/2).Size(w, h).Radius(min(w, h) / 2).Background(islandText)
+				tiredEye(c, cx, cy, w, h, float32(pose.Lid), float32(-side*pose.Angle))
+			}
+			if rest {
+				tiredParticles(c, pose, float32(p.eyes[0]+eyeShift), gw, gh)
 			}
 			p.content(c, f, now, alpha, reduced)
-			if f.notice == nil && !f.expanded && f.scene == island.SceneIdle {
-				inboxBadge(c, f.inbox, gw, gh)
+			if rest {
+				inboxBadge(c, badge, gw, gh, pose)
 			}
 		})
 		if p.geometry[3] > 1 {
@@ -887,6 +931,9 @@ func (p *islandPresenter) view(c *ui.Context) {
 	}
 	if !reduced && (f.scene == island.SceneMedia || f.second == island.SceneMedia) && f.media.Playing {
 		next = min(next, 66*time.Millisecond)
+	}
+	if d := p.tired.Next(now, breathing, reduced); d > 0 {
+		next = min(next, d)
 	}
 	if moving || gazing || alpha < 1 || !f.closing.IsZero() || open < 1 || now.Before(p.happyUntil) || dragging || sliding || wobbling {
 		next = 16 * time.Millisecond
@@ -1046,7 +1093,7 @@ func (p *islandPresenter) showInbox() {
 
 // pointer is where the pointer is from the pill's top left, in DIP.
 func (p *islandPresenter) pointer() (float64, float64, bool) {
-	ox := islandOffset(p.geometry, p.anchor)
+	ox := islandOffset(p.geometry, p.room, p.anchor)
 	if x, y, ok := islandPointer(p.win.NativeHandle(), float64(islandEnvelope[0]), float64(islandEnvelope[1])); ok {
 		return x - ox, y, true
 	}
@@ -1084,11 +1131,23 @@ func (p *islandPresenter) step(now time.Time, reduced bool) bool {
 			p.velocity[i] = 0
 		}
 	}
+	if reduced {
+		q := island.Ease(now.Sub(p.changed).Seconds() / .18)
+		p.room, p.roomVelocity = p.roomFrom+(p.roomTarget-p.roomFrom)*q, 0
+	} else {
+		p.room, p.roomVelocity = island.Spring(p.room, p.roomVelocity, p.roomTarget, dt)
+	}
+	if math.Abs(p.room-p.roomTarget) > .1 || math.Abs(p.roomVelocity) > .1 {
+		moving = true
+	} else {
+		p.room, p.roomVelocity = p.roomTarget, 0
+	}
+	p.room = math.Max(0, math.Min(p.room, island.BadgeRoom))
 	p.geometry[3] = math.Max(0, p.geometry[3])
 	// The spring's overshoot stays within the window.
 	p.geometry[0] = math.Min(p.geometry[0], float64(islandEnvelope[0]))
 	p.geometry[1] = math.Min(p.geometry[1], float64(islandEnvelope[1]))
-	if p.win.IsVisible() {
+	if p.win != nil && p.win.IsVisible() {
 		p.cut()
 	}
 	return moving

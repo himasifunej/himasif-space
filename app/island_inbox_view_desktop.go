@@ -212,20 +212,6 @@ func (p *islandPresenter) inboxPager(c *ui.Context, x islandNotice) {
 	})
 }
 
-// inboxBadge is "+N" on Ace at rest while notices wait.
-func inboxBadge(c *ui.Context, n int, gw, gh float32) {
-	if n <= 0 {
-		return
-	}
-	label := fmt.Sprintf("+%d", n)
-	if n > 99 {
-		label = "+99"
-	}
-	ui.Box(c.Key("inbox-badge")).Absolute().Left(gw-34).Top(gh/2-8).Size(28, 16).Radius(8).Background(islandButton).Center().Children(func() {
-		ui.Text(c, label).FontSize(10).FontWeight(600).FontFeatures("tnum").TextColor(islandText)
-	})
-}
-
 // NotifyQuiet is quiet hours' way in: the deliveries go to the inbox,
 // without a banner, a toast or the bell (appui.QuietNotificationSink).
 func (d *desktopDevice) NotifyQuiet(uid id.ID, ns []api.Delivery) error {
