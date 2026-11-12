@@ -532,28 +532,7 @@ func (a *App) taskDetails(c *ui.Context, tid id.ID) {
 	if t == nil {
 		return
 	}
-	if a.tasks.inspected != tid {
-		a.tasks.inspected = tid
-		a.tasks.inspectorSeq++
-		a.tasks.historySeq++
-		a.tasks.comment = ""
-		a.tasks.help = ""
-		a.tasks.evidenceURL = ""
-		a.tasks.evidenceNote = ""
-		a.tasks.reason = ""
-		a.tasks.history = nil
-		a.tasks.historyBusy = false
-		a.tasks.historyLoaded = false
-		a.tasks.historyErr = ""
-		a.tasks.descDraft = t.Description
-		a.tasks.labelDraft, a.tasks.pjReason, a.tasks.checklistNew = "", "", ""
-		a.tasks.statusOpen, a.tasks.moreOpen, a.tasks.labelOpen, a.tasks.pjOpen = false, false, false, false
-		a.tasks.evidenceOpen, a.tasks.helpOpen, a.tasks.reminderOpen = a.tasks.evidenceFor == tid, false, false
-		a.tasks.evidenceFor = id.Nil
-		if a.tasks.draft != nil && a.tasks.draft.taskID != tid {
-			a.tasks.draft = nil
-		}
-	}
+	a.inspectTask(*t)
 	if d := a.tasks.draft; d != nil && d.taskID == tid {
 		a.taskEditor(c)
 		return
@@ -946,4 +925,32 @@ func (a *App) taskAssigneeChips(c *ui.Context, d *taskDraft) {
 			})
 		}
 	})
+}
+
+// inspectTask makes t the task the detail shows, starting its forms afresh
+// when it changes.
+func (a *App) inspectTask(t api.Task) {
+	tid := t.ID
+	if a.tasks.inspected != tid {
+		a.tasks.inspected = tid
+		a.tasks.inspectorSeq++
+		a.tasks.historySeq++
+		a.tasks.comment = ""
+		a.tasks.help = ""
+		a.tasks.evidenceURL = ""
+		a.tasks.evidenceNote = ""
+		a.tasks.reason = ""
+		a.tasks.history = nil
+		a.tasks.historyBusy = false
+		a.tasks.historyLoaded = false
+		a.tasks.historyErr = ""
+		a.tasks.descDraft = t.Description
+		a.tasks.labelDraft, a.tasks.pjReason, a.tasks.checklistNew = "", "", ""
+		a.tasks.statusOpen, a.tasks.moreOpen, a.tasks.labelOpen, a.tasks.pjOpen = false, false, false, false
+		a.tasks.evidenceOpen, a.tasks.helpOpen, a.tasks.reminderOpen = a.tasks.evidenceFor == tid, false, false
+		a.tasks.evidenceFor = id.Nil
+		if a.tasks.draft != nil && a.tasks.draft.taskID != tid {
+			a.tasks.draft = nil
+		}
+	}
 }

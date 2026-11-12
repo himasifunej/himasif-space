@@ -491,6 +491,62 @@ func (s *Server) recordAttendance(w http.ResponseWriter, r *http.Request, p *pri
 	return nil
 }
 
+// meetingRSVP keeps the caller's own answer to a meeting they are invited
+// to: Hadir, Datang terlambat or Tidak bisa hadir, with a reason the
+// organizer sees. It never touches the attendance the organizer records.
+func (s *Server) meetingRSVP(w http.ResponseWriter, r *http.Request, p *principal) error {
+	if p.admin() {
+		return errForbidden
+	}
+	var req api.RSVPRequest
+	if err := readJSON(r, &req); err != nil {
+		return err
+	}
+	if !slices.Contains([]string{"", api.RSVPYes, api.RSVPLate, api.RSVPNo}, req.Status) {
+		return badRequest("Jawaban kehadiran tidak valid.")
+	}
+	note, err := text(req.Note, "alasan", 0, 300)
+	if err != nil {
+		return err
+	}
+	if req.Status == "" || req.Status == api.RSVPYes {
+		note = ""
+	}
+	var out api.Meeting
+	err = s.withMeeting(r, p, false, func(q store.Querier, m *api.Meeting) error {
+		period, err := s.store.Period(r.Context(), q, m.PeriodID, store.LockShare)
+		if err != nil {
+			return err
+		}
+		if period.Status == api.PeriodClosed {
+			return errPeriodClosed
+		}
+		if m.Cancelled {
+			return conflict("Rapat ini dibatalkan.")
+		}
+		ok, err := s.store.SetMeetingRSVP(r.Context(), q, m.ID, p.User.ID, req.Status, note, s.now().UTC())
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return errForbidden
+		}
+		if err := s.record(r, q, p, store.AuditEvent{Action: "meeting.rsvp", TargetType: "meeting", TargetID: &m.ID, PeriodID: &m.PeriodID, After: map[string]any{"rsvp": req.Status, "note": note}}); err != nil {
+			return err
+		}
+		if err := s.meetingRead(r, q, p, m); err != nil {
+			return err
+		}
+		out = *m
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	writeJSON(w, http.StatusOK, out)
+	return nil
+}
+
 func timeZoneOrUTC(zone string) *time.Location {
 	loc, err := time.LoadLocation(zone)
 	if err != nil {

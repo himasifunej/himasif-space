@@ -3,6 +3,7 @@ package appui
 import (
 	"context"
 	"fmt"
+	"math"
 	"slices"
 	"sort"
 	"strings"
@@ -55,6 +56,15 @@ type untukState struct {
 	meetings []api.Meeting
 	filter   int // 0 all, 1 tasks, 2 meetings, 3 reminders
 	expanded map[string]bool
+	// done are the reminders finished from this page: their rows stay,
+	// struck through, with Buka lagi, until the page is left.
+	done map[id.ID]bool
+	// task and meeting are what Detail tugas and Rapat show; from is the
+	// page their back link returns to.
+	task, meeting id.ID
+	from          string
+	mention       mentionState
+	rsvp          rsvpState
 }
 
 // ensureMyMeetings reads the period's meetings, again now and then.
@@ -112,6 +122,7 @@ type untukItem struct {
 	space  api.Space
 	index  int // the Space's place in the sidebar, -1 for none
 	action string
+	done   bool // a reminder finished from this page
 }
 
 // untukItems are the rows of the week from now: open tasks the user is PJ
@@ -171,7 +182,7 @@ func (a *App) untukItems(now time.Time, loc *time.Location) []untukItem {
 	}
 	if a.reminders.loaded {
 		for _, r := range a.reminders.items {
-			if r.Completed || (r.DueAt == nil && r.DueOn == nil) {
+			if r.Completed && !a.untuk.done[r.ID] || (r.DueAt == nil && r.DueOn == nil) {
 				continue
 			}
 			it := untukItem{kind: untukReminder, id: r.ID, title: r.Title, index: -1, action: "Buka", sub: "pengingat"}
@@ -187,9 +198,14 @@ func (a *App) untukItems(now time.Time, loc *time.Location) []untukItem {
 			}
 			if r.Relation == api.ReminderOwner && r.OwnerID == a.user.ID {
 				it.action, it.sub = "Selesai", "pengingat pribadi"
+			} else {
+				it.sub = "dibagikan kepadamu"
 			}
 			if it.late {
 				it.sub = "lewat waktu"
+			}
+			if r.Completed {
+				it.done, it.late, it.action, it.sub = true, false, "Buka lagi", "selesai"
 			}
 			out = append(out, it)
 		}
@@ -308,16 +324,8 @@ func (a *App) untukkuView(c *ui.Context) {
 	items := untukFiltered(all, st.filter)
 	phone := isMobile(c)
 	ui.Scroll(c.Key("untukku")).Fill().Children(func() {
-		ui.Column(c).FillWidth().MaxWidth(pageMaxWidth).Padding(phoneSize(phone, 16, 26)).Gap(14).Children(func() {
-			ui.Row(c).FillWidth().Wrap().Gap(12).AlignItems(ui.End).Children(func() {
-				ui.Column(c).Grow(1).MinWidth(200).Gap(2).Children(func() {
-					ui.Text(c, "Untukku").FontSize(20).Bold()
-					muted(c, untukDate(now.In(loc))+" · tugas, rapat, dan pengingatmu dari semua Space").FontSize(13)
-				})
-				if i := segmented(c, "Tampilkan", []string{"Semua", "Tugas", "Rapat", "Pengingat"}, st.filter); i >= 0 {
-					st.filter = i
-				}
-			})
+		ui.Column(c).FillWidth().MaxWidth(1080).Padding(phoneSize(phone, 16, 26), phoneSize(phone, 16, 32), 40, phoneSize(phone, 16, 32)).Gap(16).Children(func() {
+			a.untukHead(c, all, now, loc)
 			if next, ok := untukNext(all, now); ok {
 				a.untukNextStrip(c, next, now, loc)
 			}
@@ -331,10 +339,16 @@ func (a *App) untukkuView(c *ui.Context) {
 			if st.err != "" {
 				muted(c, "Rapat belum dapat dimuat: "+st.err).FontSize(12)
 			}
-			waiting := (!a.tasks.loaded && a.tasks.err == "") || (!a.reminders.loaded && a.reminders.err == "" && !a.isAdmin())
+			waiting := (!a.tasks.loaded && a.tasks.err == "") || (!a.reminders.loaded && a.reminders.err == "" && !a.isAdmin()) || st.loading && !st.loaded
 			switch {
-			case len(items) == 0 && waiting:
-				muted(c, "Memuat…")
+			case waiting:
+				// The canvas' Memuat: three rows shimmering.
+				ui.Column(c.Key("untuk-loading")).FillWidth().Gap(8).Label("Memuat Untukku").Children(func() {
+					for i := range 3 {
+						ui.Box(c.Key(i)).FillWidth().Height(40).Radius(8).Background(t.Surface).Opacity(float32(.6 + .4*(1+math.Sin(float64(now.UnixMilli())/190+float64(i)))/2))
+					}
+				})
+				c.After(80 * time.Millisecond)
 			case len(items) == 0:
 				a.untukEmpty(c, st.filter)
 			default:
@@ -342,11 +356,11 @@ func (a *App) untukkuView(c *ui.Context) {
 					a.untukDayView(c, d, now, loc)
 				}
 			}
-			ui.Row(c.Key("untuk-more")).FillWidth().Wrap().Gap(8).Padding(8, 0, 0, 0).BorderWidth(1, 0, 0, 0).BorderColor(t.Border).Children(func() {
-				if onbLink(c, "Semua tugasku", "Semua tugasku").Clicked() {
+			ui.Row(c.Key("untuk-more")).FillWidth().Wrap().Gap(8).Padding(10, 0, 0, 0).BorderWidth(1, 0, 0, 0).BorderColor(t.Border).Children(func() {
+				if accentLink(c, "Semua tugasku").Clicked() {
 					a.navigate(PathJobdesk)
 				}
-				if onbLink(c, "Semua pengingat", "Semua pengingat").Clicked() {
+				if accentLink(c, "Semua pengingat").Clicked() {
 					a.navigate(PathReminder)
 				}
 			})
@@ -385,6 +399,7 @@ func (a *App) untukSummary(c *ui.Context, items []untukItem, now time.Time, loc 
 	late, meetings, dues, reminders := 0, 0, 0, 0
 	for _, it := range items {
 		switch {
+		case it.done:
 		case it.late:
 			late++
 		case it.kind == untukMeeting && !it.at.Before(today) && it.at.Before(end):
@@ -398,7 +413,7 @@ func (a *App) untukSummary(c *ui.Context, items []untukItem, now time.Time, loc 
 	ui.Row(c.Key("untuk-sum")).FillWidth().Wrap().Gap(8).Children(func() {
 		chip := func(n int, label string, bad bool) {
 			ui.Row(c.Key(label)).Gap(4).AlignItems(ui.Center).Padding(3, 10).Radius(8).Border(1, t.Border).Children(func() {
-				num := ui.Text(c, fmt.Sprint(n)).FontSize(12).FontWeight(600).FontFeatures("tnum")
+				num := ui.Text(c, fmt.Sprint(n)).Font(FontMono).FontSize(12).FontWeight(600)
 				if bad && n > 0 {
 					num.TextColor(t.Danger)
 				}
@@ -423,7 +438,7 @@ func (a *App) untukEmpty(c *ui.Context, filter int) {
 		ui.Text(c, head).FontSize(15).FontWeight(600)
 		muted(c, body).FontSize(13)
 		if onbSecondary(c, "Tambah pengingat pribadi", "+ Pengingat pribadi", true).Clicked() {
-			a.navigate(PathReminder)
+			a.newReminderFrom(PathUntukku)
 		}
 	})
 }
@@ -454,7 +469,7 @@ func (a *App) untukDayView(c *ui.Context, d untukDay, now time.Time, loc *time.L
 			a.untukRow(c, it, now, loc)
 		}
 		if more := len(d.items) - len(rows); more > 0 {
-			if onbLink(c, fmt.Sprintf("Tampilkan %d lainnya", more), fmt.Sprintf("+%d lainnya", more)).Clicked() {
+			if accentLink(c.Key("more"), fmt.Sprintf("+%d lainnya", more)).Label(fmt.Sprintf("Tampilkan %d lainnya", more)).Clicked() {
 				if st.expanded == nil {
 					st.expanded = map[string]bool{}
 				}
@@ -486,10 +501,13 @@ func (a *App) untukRow(c *ui.Context, it untukItem, now time.Time, loc *time.Loc
 		row.Background(t.SurfaceHover)
 	}
 	row.FocusRing(row.FocusVisible()).Children(func() {
-		ui.Text(c, when).Font(FontMono).FontSize(12).TextColor(t.TextMuted).Width(64).Shrink(0).MaxLines(1)
+		ui.Text(c, when).Font(FontMono).FontSize(12).TextColor(t.TextMuted).Width(76).Shrink(0).MaxLines(1)
 		ui.Icon(c, spaceIcon(icon)).Size(15, 15).TextColor(t.TextMuted).Shrink(0)
 		ui.Row(c).Grow(1).MinWidth(0).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, it.title).FontSize(13).MaxLines(1).MinWidth(0)
+			title := ui.Text(c, it.title).FontSize(13).MaxLines(1).MinWidth(0)
+			if it.done {
+				title.TextColor(faint(t)).Strikethrough()
+			}
 			sub := ui.Text(c, it.sub).FontSize(12).TextColor(faint(t)).MaxLines(1).Shrink(0)
 			if it.late {
 				sub.TextColor(t.Danger)
@@ -498,14 +516,14 @@ func (a *App) untukRow(c *ui.Context, it untukItem, now time.Time, loc *time.Loc
 		if it.index >= 0 {
 			spaceTile(c, it.space, it.index)
 		}
-		act := ui.ButtonBase(c.Key("act")).Label(it.action+" "+it.title).Height(28).Padding(0, 10).Radius(7).Border(1, t.Border).Center().Shrink(0)
+		act := ui.ButtonBase(c.Key("act")).Label(it.action+" "+it.title).Width(80).Height(28).Padding(0, 10).Radius(7).Border(1, t.Border).Center().Shrink(0)
 		if act.Hovered() {
 			act.Background(t.Surface)
 		}
 		act.FocusRing(act.FocusVisible()).Children(func() { ui.Text(c, it.action).FontSize(12) })
 		if act.Clicked() {
-			if it.action == "Selesai" {
-				a.untukCompleteReminder(it.id)
+			if it.kind == untukReminder && (it.action == "Selesai" || it.action == "Buka lagi") {
+				a.untukCompleteReminder(it.id, !it.done)
 			} else {
 				a.untukOpen(it)
 			}
@@ -521,22 +539,107 @@ func (a *App) untukRow(c *ui.Context, it untukItem, now time.Time, loc *time.Loc
 func (a *App) untukOpen(it untukItem) {
 	switch it.kind {
 	case untukTask:
-		a.workspace.Open(it.id)
+		a.openUntukTask(it.id, PathUntukku)
 	case untukMeeting:
-		a.OpenNotification(api.Delivery{SourceKind: "meeting", SourceID: it.id})
+		a.openUntukMeeting(it.id)
 	case untukReminder:
 		a.navigate(PathReminder)
 		a.openReminder(it.id)
 	}
 }
 
-// untukCompleteReminder marks one of the user's reminders done.
-func (a *App) untukCompleteReminder(rid id.ID) {
+// untukCompleteReminder finishes one of the user's reminders, or opens it
+// again; finishing says so with Urungkan.
+func (a *App) untukCompleteReminder(rid id.ID, done bool) {
 	r := a.reminderByID(rid)
 	if r == nil || r.Relation != api.ReminderOwner || r.OwnerID != a.user.ID {
 		return
 	}
-	a.mutateReminder(func(s RemindersAPI) (api.Reminder, error) {
-		return s.CompleteReminder(context.Background(), rid, api.ReminderCompleteRequest{Completed: true})
-	}, a.replaceReminder)
+	title := r.Title
+	a.setRemindersDone([]id.ID{rid}, done, func() {
+		if a.untuk.done == nil {
+			a.untuk.done = map[id.ID]bool{}
+		}
+		a.untuk.done[rid] = true
+		if done {
+			a.toast("“"+title+"” selesai", func() { a.setRemindersDone([]id.ID{rid}, false, nil) })
+		}
+	})
+}
+
+// untukHead is the canvas' header: the week, today's date as the title,
+// where it all comes from, the filter with its counts and + Pengingat.
+func (a *App) untukHead(c *ui.Context, all []untukItem, now time.Time, loc *time.Location) {
+	t := c.Theme()
+	st := &a.untuk
+	today := now.In(loc)
+	_, week := today.ISOWeek()
+	ui.Row(c.Key("untuk-head")).FillWidth().Wrap().Gap(16).AlignItems(ui.End).Padding(0, 0, 4, 0).Children(func() {
+		ui.Column(c).Grow(1).MinWidth(260).Gap(4).Children(func() {
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, "Untukku").FontSize(12).TextColor(faint(t))
+				ui.Text(c, "·").FontSize(12).TextColor(faint(t))
+				ui.Text(c, fmt.Sprintf("Minggu %d", week)).Font(FontMono).FontSize(12).TextColor(t.TextMuted)
+			})
+			ui.Text(c, fmt.Sprintf("%s, %d %s", untukWeekdays[today.Weekday()], today.Day(), monthName(today.Month()))).FontSize(22).FontWeight(600)
+			ui.Row(c.Key("untuk-sub")).FillWidth().Wrap().Gap(6).AlignItems(ui.Center).Children(func() {
+				muted(c, "Tugas, rapat, dan pengingatmu dari").FontSize(13)
+				spaces := a.access.spaces
+				for i, s := range spaces {
+					if i > 0 {
+						sep := ","
+						if i == len(spaces)-1 {
+							sep = "dan"
+						}
+						muted(c, sep).FontSize(13)
+					}
+					ui.Row(c.Key(s.ID)).Gap(4).AlignItems(ui.Center).Children(func() {
+						ui.Box(c).Size(16, 16).Radius(5).Center().Background(ui.Hex(canvasTileColors[i%len(canvasTileColors)])).Children(func() {
+							ui.Text(c, spaceInitials(s)).FontSize(8).FontWeight(600).TextColor(canvasInk)
+						})
+						name := s.Name
+						if i == len(spaces)-1 {
+							name += ", diurutkan menurut waktu."
+						}
+						muted(c, name).FontSize(13)
+					})
+				}
+				if len(spaces) == 0 {
+					muted(c, "semua Space, diurutkan menurut waktu.").FontSize(13)
+				}
+			})
+		})
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Shrink(0).Children(func() {
+			counts := make([]int, 4)
+			for _, it := range all {
+				if it.done {
+					continue
+				}
+				counts[0]++
+				counts[map[string]int{untukTask: 1, untukMeeting: 2, untukReminder: 3}[it.kind]]++
+			}
+			if i := quietSeg(c, "Tampilkan", []string{"Semua", "Tugas", "Rapat", "Pengingat"}, counts, st.filter); i >= 0 {
+				st.filter = i
+			}
+			if !a.isAdmin() && onbSecondary(c, "Pengingat pribadi baru", "+ Pengingat", false).Clicked() {
+				a.newReminderFrom(PathUntukku)
+			}
+		})
+	})
+}
+
+// accentLink is a link in the accent: "Semua tugasku ›", "+2 lainnya".
+func accentLink(c *ui.Context, text string) ui.Element {
+	t := c.Theme()
+	b := ui.ButtonBase(c.Key("link-"+text)).Label(text).Row().Gap(4).AlignItems(ui.Center).Height(28).Padding(0, 6).Radius(6).Shrink(0).TextColor(t.Accent)
+	if b.Hovered() {
+		b.Background(t.SurfaceHover)
+	}
+	b.FocusRing(b.FocusVisible()).Children(func() {
+		ui.Text(c, text).FontSize(13)
+		if !strings.HasPrefix(text, "+") {
+			ui.Icon(c, spaceIcon("right")).Size(14, 14)
+		}
+	})
+	return b
 }

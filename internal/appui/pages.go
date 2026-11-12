@@ -15,6 +15,12 @@ import (
 // membership and bot services never turn into local sample data or saves.
 func (a *App) page(c *ui.Context, r *ui.Route) {
 	switch {
+	case r.Match(PathUntukTask):
+		r.Title("Detail tugas")
+		a.untukTaskView(c)
+	case r.Match(PathUntukRapat):
+		r.Title("Rapat")
+		a.untukMeetingView(c)
 	case r.Match(PathUntukku):
 		r.Title("Untukku")
 		a.untukkuView(c)

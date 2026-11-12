@@ -108,6 +108,9 @@ type TaskMoveRequest struct {
 }
 type TaskCommentRequest struct {
 	Body string `json:"body"`
+	// Mentions are the people the comment tags with @: each must be able to
+	// see the task, and each is told by Ace and the bell.
+	Mentions []id.ID `json:"mentions,omitempty"`
 }
 
 // TaskChecklistItem is one step inside a task. Ticking it does not change the
@@ -125,10 +128,22 @@ type TaskChecklistRequest struct {
 	Done *bool   `json:"done,omitempty"`
 }
 type TaskComment struct {
-	ID        id.ID     `json:"id"`
-	Author    PersonRef `json:"author"`
-	Body      string    `json:"body"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID        id.ID       `json:"id"`
+	Author    PersonRef   `json:"author"`
+	Body      string      `json:"body"`
+	Mentions  []PersonRef `json:"mentions,omitempty"`
+	CreatedAt time.Time   `json:"createdAt"`
+}
+
+// TaskMentionCandidate is someone a comment on the task can tag: a member
+// of a division of one of its Spaces.
+type TaskMentionCandidate struct {
+	ID          id.ID  `json:"id"`
+	DisplayName string `json:"displayName"`
+	Role        string `json:"role"`
+	Division    string `json:"division"`
+	// OnTask is the PJ, a participant or whoever gave the task.
+	OnTask bool `json:"onTask,omitempty"`
 }
 type TaskHelpCreateRequest struct {
 	Message string `json:"message"`

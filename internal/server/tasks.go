@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -306,6 +307,11 @@ func (s *Server) taskEvent(r *http.Request, q store.Querier, p *principal, t *st
 	return s.record(r, q, p, store.AuditEvent{Action: action, TargetType: "task", TargetID: &t.ID, PeriodID: &t.PeriodID, ScopeType: "division", ScopeID: &t.OwnerDivisionID, Before: before, After: map[string]any{"value": after, "reason": reason}, OccurredAt: e.CreatedAt})
 }
 func (s *Server) taskNotify(r *http.Request, q store.Querier, t *store.TaskRow, title, body string, users ...id.ID) error {
+	return s.taskNotifyOn(r, q, t, []string{"device", "whatsapp"}, title, body, users...)
+}
+
+// taskNotifyOn is taskNotify on the channels given.
+func (s *Server) taskNotifyOn(r *http.Request, q store.Querier, t *store.TaskRow, channels []string, title, body string, users ...id.ID) error {
 	seen := map[id.ID]bool{}
 	recipients := []id.ID{}
 	for _, uid := range users {
@@ -325,7 +331,7 @@ func (s *Server) taskNotify(r *http.Request, q store.Querier, t *store.TaskRow, 
 			return err
 		}
 		eventID := id.New()
-		if err := s.enqueue(r.Context(), q, "task-update:"+eventID.String(), "ping", eventID, t.Version, &sid, title, body, t.TimeZone, s.now(), recipients, []string{"device", "whatsapp"}, deliveryMessage{Key: waTaskNoticeKey(title), Args: []string{body}, RelatedKind: "task", RelatedID: t.ID}); err != nil {
+		if err := s.enqueue(r.Context(), q, "task-update:"+eventID.String(), "ping", eventID, t.Version, &sid, title, body, t.TimeZone, s.now(), recipients, channels, deliveryMessage{Key: waTaskNoticeKey(title), Args: []string{body}, RelatedKind: "task", RelatedID: t.ID}); err != nil {
 			return err
 		}
 	}
@@ -728,21 +734,98 @@ func (s *Server) addTaskComment(w http.ResponseWriter, r *http.Request, p *princ
 	if err != nil {
 		return err
 	}
+	if len(req.Mentions) > maxCommentMentions {
+		return badRequest(fmt.Sprintf("Tandai paling banyak %d orang dalam satu komentar.", maxCommentMentions))
+	}
 	var out api.TaskComment
-	err = s.withTask(r, p, true, func(q store.Querier, _ api.Period, t *store.TaskRow) error {
+	err = s.withTaskAccounts(r, p, true, req.Mentions, func(q store.Querier, _ api.Period, t *store.TaskRow) error {
 		if !t.Permissions.Comment {
 			return errForbidden
 		}
 		out = api.TaskComment{ID: id.New(), Author: taskPerson(p), Body: body, CreatedAt: s.now().UTC().Truncate(time.Microsecond)}
+		if len(req.Mentions) > 0 {
+			people, err := s.store.TaskMentionCandidates(r.Context(), q, t.ID)
+			if err != nil {
+				return err
+			}
+			for _, uid := range req.Mentions {
+				i := slices.IndexFunc(people, func(c api.TaskMentionCandidate) bool { return c.ID == uid })
+				if i < 0 {
+					return badRequest("Orang yang ditandai tidak dapat melihat tugas ini.")
+				}
+				if uid == p.User.ID || slices.ContainsFunc(out.Mentions, func(x api.PersonRef) bool { return x.ID == uid }) {
+					continue
+				}
+				out.Mentions = append(out.Mentions, api.PersonRef{ID: uid, DisplayName: people[i].DisplayName})
+			}
+		}
 		if err := s.store.AddTaskComment(r.Context(), q, t.ID, out); err != nil {
 			return err
 		}
-		return s.taskEvent(r, q, p, t, "task.comment", "", nil, out)
+		if err := s.taskEvent(r, q, p, t, "task.comment", "", nil, out); err != nil {
+			return err
+		}
+		if len(out.Mentions) == 0 {
+			return nil
+		}
+		users := make([]id.ID, len(out.Mentions))
+		for i, m := range out.Mentions {
+			users[i] = m.ID
+		}
+		// Tagging is a nudge between people, not a change of the task: Ace
+		// and the bell tell them, WhatsApp is left alone.
+		return s.taskNotifyOn(r, q, t, []string{"device"}, mentionTitle, mentionBody(p.User.DisplayName, t.Title, body), users...)
 	})
 	if err != nil {
 		return err
 	}
 	writeJSON(w, 201, out)
+	return nil
+}
+
+// maxCommentMentions is how many people one comment may tag.
+const maxCommentMentions = 20
+
+// mentionTitle is the notice of a tag, as the bell and Ace show it.
+const mentionTitle = "Kamu ditandai di komentar"
+
+// mentionBody is "Aruna di “Revisi caption”: Tolong cek…", the comment
+// cut to what a notice holds.
+func mentionBody(author, task, comment string) string {
+	const max = 160
+	comment = strings.Join(strings.Fields(comment), " ")
+	if r := []rune(comment); len(r) > max {
+		comment = string(r[:max-1]) + "…"
+	}
+	return fmt.Sprintf("%s di “%s”: %s", author, task, comment)
+}
+
+// taskMentionCandidates lists whom a comment on the task can tag, for the
+// @ list of the comment box: only to those who may comment.
+func (s *Server) taskMentionCandidates(w http.ResponseWriter, r *http.Request, p *principal) error {
+	var out []api.TaskMentionCandidate
+	err := s.withTask(r, p, false, func(q store.Querier, _ api.Period, t *store.TaskRow) error {
+		if !t.Permissions.Comment {
+			return errForbidden
+		}
+		var err error
+		if out, err = s.store.TaskMentionCandidates(r.Context(), q, t.ID); err != nil {
+			return err
+		}
+		on := append(taskPeople(t), t.CreatedBy.ID)
+		out = slices.DeleteFunc(out, func(c api.TaskMentionCandidate) bool { return c.ID == p.User.ID })
+		for i := range out {
+			out[i].OnTask = slices.Contains(on, out[i].ID)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if out == nil {
+		out = []api.TaskMentionCandidate{}
+	}
+	writeJSON(w, http.StatusOK, api.List[api.TaskMentionCandidate]{Items: out})
 	return nil
 }
 

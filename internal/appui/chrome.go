@@ -11,10 +11,12 @@ import (
 
 type chromeState struct {
 	// notice is a message shown as a toast on the next frame.
-	notice                                                             string
-	preferences                                                        Preferences
-	datePickers                                                        map[string]*datePickerState
-	whens                                                              map[string]*whenState
+	notice      string
+	preferences Preferences
+	datePickers map[string]*datePickerState
+	whens       map[string]*whenState
+	// toastQueue are toasts to add on the next frame (App.toast).
+	toastQueue                                                         []ui.Toast
 	drawerWidth                                                        float32
 	membersOpen                                                        bool
 	tab, settingsTab                                                   string
@@ -233,6 +235,10 @@ func (a *App) shell(c *ui.Context) {
 func (a *App) toasts(c *ui.Context) {
 	t := c.Theme()
 	w, _ := c.Size()
+	for _, q := range a.chrome.toastQueue {
+		c.AddToast(q)
+	}
+	a.chrome.toastQueue = nil
 	ui.ToastViewportBase(c, func(viewport ui.Element, toasts []ui.Toast) {
 		viewport.Justify(ui.Start).AlignItems(ui.Center).Gap(8).Padding(16)
 		for _, toast := range toasts {
@@ -252,6 +258,13 @@ func (a *App) toasts(c *ui.Context) {
 						muted(c, toast.Description)
 					}
 				})
+				if toast.Action != "" {
+					act := parts.ActionButton().Label(toast.Action).Height(28).Padding(0, 8).Radius(6).Center().Shrink(0)
+					if act.Hovered() {
+						act.Background(t.SurfaceHover)
+					}
+					act.Children(func() { ui.Text(c, toast.Action).FontSize(13).FontWeight(500).TextColor(t.Accent) })
+				}
 				parts.CloseButton().Label("Tutup pesan").Size(26, 26).Center().Children(func() { ui.Icon(c, spaceIcon("close")).Size(14, 14) })
 			})
 		}
