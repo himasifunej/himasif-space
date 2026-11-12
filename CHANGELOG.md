@@ -10,6 +10,14 @@ Versi mengikuti aturan sebelum rilis publik:
 - **Batalkan tugas**: pilih alasan sekali ketuk (Salah input / duplikat, Tidak jadi dikerjakan, Digabung ke tugas lain, Diganti rencana, Lainnya). Catatan boleh kosong, kecuali untuk Lainnya. Riwayat mencatat "alasan: catatan".
 - Alasan terakhir sudah terpilih saat membatalkan tugas berikutnya, selama Space terbuka.
 
+## Belum dirilis · balasan GIF bot WhatsApp
+
+- **`!setgif namaperintah`** sambil membalas GIF, video atau gambar menyimpan GIF; `!namaperintah` lalu membalas dengan GIF itu (video `gifPlayback`, diputar berulang tanpa suara, caption tetap ikut). Hanya pengelola bot yang bisa menyimpan; cakupan grup sama seperti stiker.
+- Bridge mengonversi media menjadi mp4 pendek: maksimal 10 detik, lebar 480 px, 4 MiB, gambar menjadi klip 3 detik. Server memeriksa ulang jenis (mp4), ukuran dan durasi sebelum menyimpan.
+- Editor Command bot menampilkan jenis media sebagai **GIF** (juga Stiker, Gambar, Video), bukan nama teknisnya.
+- Perbaikan: stiker dari **gambar diam** sebelumnya menghasilkan berkas kosong di FFmpeg 7; kini dikonversi dengan benar, dan keluaran kosong ditolak.
+- Butuh `ffmpeg` dan `ffprobe` di host bridge; bridge dan server perlu di-deploy bersama.
+
 ## 0.4.6-rc.3 — 2026-11-11 · Kartu pembaruan (pre-release)
 
 - **Kartu pembaruan** di pojok kiri bawah jendela Space, seperti enowX. Sebelumnya versi baru diunduh diam-diam dan hanya tampak di Pengaturan › Status layanan.

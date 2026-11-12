@@ -303,6 +303,21 @@ func (a *App) waHeader(c *ui.Context) bool {
 	return st.division != id.Nil
 }
 
+// waMediaLabel names a command's media type as the editor shows it.
+func waMediaLabel(mediaType string) string {
+	switch mediaType {
+	case "sticker":
+		return "Stiker"
+	case "gif":
+		return "GIF"
+	case "image":
+		return "Gambar"
+	case "video":
+		return "Video"
+	}
+	return mediaType
+}
+
 func waYesNo(value bool) string {
 	if value {
 		return "ya"
@@ -331,7 +346,7 @@ func (a *App) commandSettings(c *ui.Context) {
 		}
 		disabled := st.busy || st.loading || a.offlineMode() || cl == nil
 		conn := *st.connection
-		muted(c, "Command inti tetap mengikuti izin tugas. Balas media dengan !setsticker damn untuk menyimpan stiker melalui WhatsApp.")
+		muted(c, "Command inti tetap mengikuti izin tugas. Balas media dengan !setsticker damn untuk menyimpan stiker, atau balas GIF, video, atau gambar dengan !setgif damn untuk menyimpan GIF melalui WhatsApp.")
 		if spaceButton(c, "Buat perintah baru", "plus", false).Disabled(disabled).Clicked() {
 			st.command = &api.WACustomCommand{ID: id.New(), GroupIDs: []id.ID{}}
 			st.commandText = ""
@@ -356,7 +371,7 @@ func (a *App) commandSettings(c *ui.Context) {
 		// Server 0.4.3 and older send these words as they are typed.
 		muted(c, "Nama pengirim, Tanggal, Jam, Nama grup, dan teks setelah perintah diisi oleh server Space 0.4.5 ke atas.").FontSize(12)
 		if draft.AssetID != "" {
-			muted(c, "Media tersimpan: "+draft.MediaType)
+			muted(c, "Media tersimpan: "+waMediaLabel(draft.MediaType))
 			if spaceButton(c, "Lepaskan media dari command", "close", false).Disabled(disabled).Clicked() {
 				draft.AssetID = ""
 				draft.MediaType = ""

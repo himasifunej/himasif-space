@@ -374,7 +374,7 @@ func (s *Server) saveWAGroup(w http.ResponseWriter, r *http.Request, p *principa
 	return nil
 }
 
-var reservedWACommands = []string{"tugas", "jadwal", "cek", "hari", "done", "bantu", "delegasi", "summary", "rekap", "eval", "pending", "link", "pindah", "sticker", "setsticker", "help", "bantuan"}
+var reservedWACommands = []string{"tugas", "jadwal", "cek", "hari", "done", "bantu", "delegasi", "summary", "rekap", "eval", "pending", "link", "pindah", "sticker", "setsticker", "setgif", "help", "bantuan"}
 
 func validateWACommand(req *api.WACustomCommandRequest) error {
 	req.Trigger = strings.ToLower(strings.TrimPrefix(strings.TrimSpace(req.Trigger), "!"))
@@ -387,7 +387,7 @@ func validateWACommand(req *api.WACustomCommandRequest) error {
 	if req.AssetID != "" && !regexp.MustCompile(`^[a-f0-9]{64}$`).MatchString(req.AssetID) {
 		return badRequest("Aset command tidak valid.")
 	}
-	if req.AssetID != "" && !slices.Contains([]string{"sticker", "image", "video"}, req.MediaType) {
+	if req.AssetID != "" && !slices.Contains([]string{"sticker", "image", "video", "gif"}, req.MediaType) {
 		return badRequest("Jenis media tidak valid.")
 	}
 	if req.Response == "" && req.AssetID == "" {

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import makeWASocket, { DisconnectReason, jidNormalizedUser, normalizeMessageContent } from '@whiskeysockets/baileys';
 import QRCode from 'qrcode';
 import { EncryptedStore, authState } from './store.mjs';
-import { makeSticker } from './media.mjs';
+import { makeGif, makeSticker, outgoingContent } from './media.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const GROUP = /^\d+(?:-\d+)?@g\.us$/;
@@ -200,12 +200,7 @@ export class Connections {
     const fingerprint = hash(payload), previous = c.jobs[body.id];
     if (previous) { if (previous.fingerprint !== fingerprint) throw Object.assign(new Error('job ID reused for different content'), { status: 409 }); return previous; }
     if (!c.socket || c.status !== 'connected') throw Object.assign(new Error('not connected; send not attempted'), { status: 503, attempted: false });
-    let content = { text: payload.text, mentions: payload.mentions };
-    if (payload.assetId) {
-      const asset = await c.store.read(`asset:${payload.assetId}`, null);
-      if (!asset || !['sticker', 'image', 'video'].includes(payload.mediaType)) throw Object.assign(new Error('asset or media type unavailable'), { status: 400, attempted: false });
-      content = { [payload.mediaType]: asset.bytes, ...(payload.mediaType === 'sticker' ? {} : { caption: payload.text, mentions: payload.mentions }) };
-    }
+    const content = outgoingContent(payload, payload.assetId ? await c.store.read(`asset:${payload.assetId}`, null) : null);
     const claimed = c.jobs[body.id];
     if (claimed) { if (claimed.fingerprint !== fingerprint) throw Object.assign(new Error('job ID reused for different content'), { status: 409 }); return claimed; }
     const job = { id: body.id, fingerprint, messageId: '3EB0' + createHash('sha256').update(`${id}:${body.id}`).digest('hex').slice(0, 20).toUpperCase(), status: 'sending', updatedAt: new Date().toISOString() };
@@ -220,12 +215,14 @@ export class Connections {
     return job;
   }
   async job(id, jobId) { const c = await this.get(id); return c.jobs[jobId] ?? null; }
-  async sticker(id, group, messageId) {
+  async media(id, group, messageId) {
     const c = await this.get(id);
     if (!c.config.allowedGroups.includes(group) || c.status !== 'connected') throw Object.assign(new Error('group or connection unavailable'), { status: 403 });
     const message = await c.store.read(`message:${group}:${messageId}`, null); if (!message) throw Object.assign(new Error('media message unavailable'), { status: 404 });
-    return makeSticker(c, message, this.logger);
+    return { c, message };
   }
+  async sticker(id, group, messageId) { const { c, message } = await this.media(id, group, messageId); return makeSticker(c, message, this.logger); }
+  async gif(id, group, messageId) { const { c, message } = await this.media(id, group, messageId); return makeGif(c, message, this.logger); }
   async restore(ids) { for (const id of ids) { const c = await this.get(id); if (c.config.enabled) this.launch(c).catch(() => { c.status = 'failed'; }); } }
   async close() { for (const c of this.connections.values()) { ++c.generation; clearTimeout(c.reconnect); c.socket?.end(new Error('Service shutdown')); await c.pending; await c.store.pending; } }
 }
