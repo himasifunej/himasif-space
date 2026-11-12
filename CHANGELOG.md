@@ -5,7 +5,7 @@ Versi mengikuti aturan sebelum rilis publik:
 - **Minor** naik untuk pembaruan besar.
 - **1.0.0** untuk rilis publik.
 
-## Belum dirilis · Pengaturan baru
+## 0.4.6-rc.4 — 2026-11-12 · Pengaturan baru, lonceng Notifikasi, batal massal (pre-release)
 
 Desain ulang Pengaturan dari canvas c66c26d3f3e1, pilihan owner. Notifikasi dan Dynamic Island, Tautan dan bot WhatsApp, dan Status layanan tidak berubah.
 
@@ -28,7 +28,7 @@ Polesan rc.4 (masukan owner 0.4.6-rc.2/rc.3):
 - **Skala tampilan** di Tampilan: **Ikuti Windows** (bawaan), 100%, 125%, 150%, 175%, 200%, seperti Skala di pengaturan Layar Windows. Berlaku untuk seluruh jendela Space seketika dan diingat per perangkat; tetap sesuai saat jendela pindah ke monitor lain. Di web: Ikuti browser, dan skala di atas zoom browser. Bisa dicari lewat Ctrl K.
 - **Kotak masuk Ace bisa dibuka dan dikosongkan**: saat Ace menunjukkan "+N", mengarahkan kursor atau mengklik Ace membuka kabar yang menunggu (bukan Hari ini), dengan ikon jenis, ‹ › untuk berpindah, **×** (Tandai dibaca) per kabar, dan **Tandai semua dibaca**. **Hari ini** tetap bisa dibuka dari situ, dan Hari ini menautkan kembali ke **Kabar · N**. Membuka kabar atau aksinya menandainya dibaca; +N turun dan hilang di 0, dan kabar yang sudah dibaca tidak kembali setelah Space dibuka ulang.
 
-## Belum dirilis · lonceng Notifikasi dan gerak yang lebih tenang
+Lonceng Notifikasi dan gerak yang lebih tenang:
 
 - **Lonceng Notifikasi** didesain ulang:
   - Panel punya tinggi maksimal dan area gulirnya sendiri; tidak ada baris yang tumpah ke halaman di belakangnya (100 %, 150 %, 200 %).
@@ -39,12 +39,15 @@ Polesan rc.4 (masukan owner 0.4.6-rc.2/rc.3):
   - Status baca sama dengan kotak masuk Ace: yang dibaca di lonceng (atau dibuka dari Ace, atau dibaca di perangkat lain) keluar dari kotak masuk Ace juga.
 - **Gerak**: popover, menu, dialog, dan toast muncul dengan pudar dan sedikit membesar (sekitar 220 ms) dan pergi lebih cepat; baris yang ditunda bergeser keluar. Tombol berpindah warna dengan halus. Saat sistem meminta gerak dikurangi, tidak ada yang bergerak.
 
-## Belum dirilis · alasan pembatalan sekali ketuk
+Alasan pembatalan sekali ketuk dan batal massal:
 
 - **Batalkan tugas**: pilih alasan sekali ketuk (Salah input / duplikat, Tidak jadi dikerjakan, Digabung ke tugas lain, Diganti rencana, Lainnya). Catatan boleh kosong, kecuali untuk Lainnya. Riwayat mencatat "alasan: catatan".
 - Alasan terakhir sudah terpilih saat membatalkan tugas berikutnya, selama Space terbuka.
 - **Batalkan banyak tugas sekaligus**: tombol **Pilih** di board (atau Ctrl/Shift+klik kartu) memunculkan kotak centang. Hanya tugas yang boleh kamu batalkan yang bisa dipilih. Bilah pilihan menampilkan jumlahnya dan **Batalkan (N)**, yang membuka dialog yang sama dengan chip alasan: satu alasan untuk semua.
   - Tugas dibatalkan satu per satu. Kalau ada yang gagal, ringkasannya tampil ("8 dibatalkan, 1 gagal: …") dan tugas yang gagal tetap terpilih untuk dicoba lagi. Esc keluar dari mode pilih.
+- **Lonceng dan Ace satu status baca, dua arah**: × Tandai dibaca dan Tandai semua dibaca di kotak masuk Ace juga menandai notifikasinya dibaca di lonceng.
+
+Server tidak berubah sejak 0.4.6-rc.2; tidak di-deploy ulang. Tidak termasuk: GIF di bot (menunggu deploy server, bridge, dan ffmpeg).
 
 ## 0.4.6-rc.3 — 2026-11-11 · Kartu pembaruan (pre-release)
 
