@@ -64,7 +64,7 @@ func (a *App) page(c *ui.Context, r *ui.Route) {
 
 func pageBody(c *ui.Context, title string, fn func()) {
 	ui.Scroll(c).Fill().Children(func() {
-		ui.Column(c).FillWidth().MinWidth(0).MaxWidth(1280).Padding(26).Gap(20).Children(func() {
+		ui.Column(c).FillWidth().MinWidth(0).MaxWidth(pageMaxWidth).Padding(26).Gap(20).Children(func() {
 			ui.Text(c, title).FontSize(26).Bold()
 			fn()
 		})

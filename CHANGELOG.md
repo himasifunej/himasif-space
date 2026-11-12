@@ -24,6 +24,7 @@ Polesan rc.4 (masukan owner 0.4.6-rc.2/rc.3):
 - **Tombol Ace Island terasa hidup**: "Buka Space", "Pengaturan island" dan tombol island lain berubah warna saat disorot, lebih dalam saat ditekan, dan bercincin saat dipilih dengan keyboard, dalam warna gaya island masing-masing (Ikut tema, Hitam, Kaca, Custom).
 - **Palet Sakura** (merah muda) di Tampilan, untuk mode gelap (plum) dan terang (blush), dengan aksen baru **Merah muda**. Memilih Sakura ikut mengganti aksen bawaan menjadi merah muda; aksen yang sudah kamu pilih tetap. Kontras teks dan tombol memenuhi WCAG AA.
 - **Logo Space di sidebar tetap di kiri**, sejajar dengan kolom ikon navigasi, baik sidebar terbuka maupun diciutkan (sebelumnya bergeser ke tengah saat sidebar dibuka). Nama "Space" dan "Ruang Kerja HIMASIF" dirapatkan di sebelahnya.
+- **Halaman daftar memakai lebar layar**: Space saya, Untukku, Jobdesk saya, Arsip, Panduan, dan halaman Space melebar sampai 1440 px (sebelumnya berhenti di 1080–1280 px dan menyisakan ruang kosong di kanan). Di jendela lebar (mulai 1600 px), Space saya menambah kolom **Minggu ini**: jumlah rapat 7 hari, kabar baru, tugas lewat, dan rapat berikutnya dari semua Space (klik untuk membuka Space-nya).
 
 ## 0.4.6-rc.3 — 2026-11-11 · Kartu pembaruan (pre-release)
 
