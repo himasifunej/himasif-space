@@ -103,9 +103,12 @@ type App struct {
 	// Updater feeds the update card (update_card.go); nil on the web.
 	Updater Updater
 	// FirstScreen is told once, from the UI thread, when the window has
-	// drawn its first screen past "Menyambungkan" (the updater's first
-	// check waits for it).
-	FirstScreen    func()
+	// drawn its first screen past "Menyambungkan" and the opening
+	// animation (the updater's first check waits for it).
+	FirstScreen func()
+	// Splash shows the opening animation at launch (splash.go); the
+	// desktop and web apps set it, tests leave it off.
+	Splash         bool
 	firstScreenRun bool
 	// SystemScale is the scale factor of the window's monitor (1.5 for
 	// Windows' 150%), for the display scale; nil where unknown (the web).
@@ -146,6 +149,8 @@ type App struct {
 	serverVersion string
 	// aboutOpen are the versions unfolded in Tentang; the newest starts open.
 	aboutOpen                 map[string]bool
+	kredit                    kreditState
+	splash                    splashState
 	operations                operationsUIState
 	emergency                 emergencyUIState
 	offlineSync               offlineUIState

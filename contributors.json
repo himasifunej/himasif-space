@@ -1,0 +1,25 @@
+{
+  "$schema": "./docs/contributors.schema.json",
+  "format": 1,
+  "project": {
+    "name": "Space — Ruang Kerja HIMASIF",
+    "by": "HIMASIF ASTRA 2025/2026",
+    "repository": "https://github.com/himasifunej/himasif-space"
+  },
+  "contributors": [
+    {
+      "id": "tiyouw",
+      "name": "Ahimsa Jenar Bramsaifstyo Kusuma",
+      "alias": "Tiyoouw",
+      "role": "Pengembang utama",
+      "kind": ["lead", "code", "design", "docs", "release"],
+      "affiliation": "Mediatek HIMASIF 25/26",
+      "period": "2025/2026",
+      "github": "Tiyouw",
+      "links": [
+        { "label": "Website", "url": "https://tiyoouw.com" },
+        { "label": "GitHub", "url": "https://github.com/Tiyouw" }
+      ]
+    }
+  ]
+}
