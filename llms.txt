@@ -1,0 +1,37 @@
+# Space — Ruang Kerja HIMASIF
+
+> Workspace app of HIMASIF (Information Systems student association, Universitas Jember), 2025/2026 board. Tasks with one owner and a deadline, meetings, shared notes, personal reminders, a Windows desktop app with Ace Island notifications and auto-update, a web app, and a rule-based WhatsApp bot. Go API server + PostgreSQL, one MyGo native UI client compiled for Windows and WebAssembly, and a Node WhatsApp bridge. Pilot, pre-1.0. UI and most docs in Indonesian; AGENTS.md in English. MIT license.
+
+Lead developer: Ahimsa Jenar Bramsaifstyo Kusuma (Tiyoouw, https://tiyoouw.com, GitHub @Tiyouw). Project by HIMASIF ASTRA 25/26.
+
+## Start here
+
+- [AGENTS.md](https://github.com/himasifunej/himasif-space/blob/main/AGENTS.md): purpose, architecture map, build/test, conventions, do/don't (English)
+- [README.md](https://github.com/himasifunej/himasif-space/blob/main/README.md): overview, download, features, architecture, dev setup, release channels, credits (Indonesian, English summary)
+- [CONTRIBUTING.md](https://github.com/himasifunej/himasif-space/blob/main/CONTRIBUTING.md): branching, commits, tests, PR rules, release flow (Indonesian)
+
+## Product and decisions
+
+- [docs/PRD.md](https://github.com/himasifunej/himasif-space/blob/main/docs/PRD.md): product requirements with requirement IDs
+- [docs/decision-register.md](https://github.com/himasifunej/himasif-space/blob/main/docs/decision-register.md): product decisions Q1–Q74
+- [docs/adr/0001-fondasi-teknis.md](https://github.com/himasifunej/himasif-space/blob/main/docs/adr/0001-fondasi-teknis.md): technical foundation (Go, MyGo, PostgreSQL, auth)
+- [docs/implementation-plan.md](https://github.com/himasifunej/himasif-space/blob/main/docs/implementation-plan.md): implementation order
+
+## Operations
+
+- [docs/operations/auto-update.md](https://github.com/himasifunej/himasif-space/blob/main/docs/operations/auto-update.md): desktop auto-update, signed feed, release channels, release steps
+- [docs/operations/distribution.md](https://github.com/himasifunej/himasif-space/blob/main/docs/operations/distribution.md): packaging and distribution
+- [docs/operations/recovery.md](https://github.com/himasifunej/himasif-space/blob/main/docs/operations/recovery.md): backup and restore
+- [bridge/README.md](https://github.com/himasifunej/himasif-space/blob/main/bridge/README.md): WhatsApp bridge service
+
+## Project data
+
+- [CHANGELOG.md](https://github.com/himasifunej/himasif-space/blob/main/CHANGELOG.md): release notes (Indonesian)
+- [contributors.json](https://github.com/himasifunej/himasif-space/blob/main/contributors.json): contributors, format documented in [docs/contributors.md](https://github.com/himasifunej/himasif-space/blob/main/docs/contributors.md)
+- [CODE_OF_CONDUCT.md](https://github.com/himasifunej/himasif-space/blob/main/CODE_OF_CONDUCT.md): Contributor Covenant 2.1, adapted
+
+## Optional
+
+- [docs/handoff/](https://github.com/himasifunej/himasif-space/tree/main/docs/handoff): per-stage handoff notes
+- [Releases](https://github.com/himasifunej/himasif-space/releases): installers and the signed update-feed
+- [Download for Windows](https://space.tiyoouw.app/unduh/windows)

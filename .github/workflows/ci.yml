@@ -34,6 +34,9 @@ jobs:
         with:
           go-version-file: go.mod
 
+      # contributors.json keeps format 1 (docs/contributors.md).
+      - run: python3 scripts/check_contributors.py
+
       # gofmt + go vet for linux, windows and wasm targets.
       - run: make fmt vet
 
