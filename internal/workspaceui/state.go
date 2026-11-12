@@ -64,6 +64,9 @@ type Task struct {
 	// Remind, when set, is the card menu's "Ingatkan …" row (as
 	// "Ingatkan Rani"); choosing it sends OnAction the action "remind".
 	Remind string
+	// Selectable lets the card be picked in select mode, for OnBulkCancel:
+	// the caller sets it only on tasks the user may cancel.
+	Selectable bool
 }
 
 // Label is one colored tag chip on a card.
@@ -98,7 +101,13 @@ type State struct {
 	// Toolbar builds controls at the right of the board title.
 	Toolbar func(*ui.Context)
 	// OnAdd, when set, shows "Tambah tugas" under each open lane.
-	OnAdd           func(Lane)
+	OnAdd func(Lane)
+	// OnBulkCancel, when set, offers select mode ("Pilih", or Ctrl/Shift+
+	// click on a card) and the selection bar's "Batalkan (N)", which hands
+	// it the picked tasks in board order. The caller confirms.
+	OnBulkCancel    func([]id.ID)
+	selecting       bool
+	picked          map[id.ID]bool
 	tasks           []Task
 	hasSnapshot     bool
 	selected        id.ID
@@ -141,7 +150,74 @@ func (s *State) SetTasks(tasks []Task) error {
 		s.menuOpen = false
 		s.menuID = id.Nil
 	}
+	// A task gone, or no longer the user's to cancel, leaves the selection.
+	for tid := range s.picked {
+		if task, ok := s.task(tid); !ok || !task.Selectable {
+			delete(s.picked, tid)
+		}
+	}
 	return nil
+}
+
+// Selecting reports whether the board is in select mode.
+func (s *State) Selecting() bool { return s != nil && s.selecting }
+
+// SetSelecting enters or leaves select mode; leaving it clears the selection.
+func (s *State) SetSelecting(on bool) {
+	s.selecting = on
+	if !on {
+		s.picked = nil
+	}
+}
+
+// Selected is the picked tasks, in board order.
+func (s *State) Selected() []id.ID {
+	var out []id.ID
+	for _, task := range s.tasks {
+		if s.picked[task.ID] {
+			out = append(out, task.ID)
+		}
+	}
+	return out
+}
+
+// Select picks exactly the selectable tasks among ids, entering select
+// mode when any is picked.
+func (s *State) Select(ids []id.ID) {
+	s.picked = nil
+	for _, tid := range ids {
+		s.toggle(tid)
+	}
+	if len(s.picked) > 0 {
+		s.selecting = true
+	}
+}
+
+// toggle picks or unpicks a selectable task.
+func (s *State) toggle(tid id.ID) bool {
+	task, ok := s.task(tid)
+	if !ok || !task.Selectable {
+		return false
+	}
+	if s.picked == nil {
+		s.picked = map[id.ID]bool{}
+	}
+	if s.picked[tid] {
+		delete(s.picked, tid)
+	} else {
+		s.picked[tid] = true
+	}
+	return true
+}
+
+// anySelectable reports whether select mode has anything to pick.
+func (s *State) anySelectable() bool {
+	for _, task := range s.tasks {
+		if task.Selectable {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *State) Open(taskID id.ID) {

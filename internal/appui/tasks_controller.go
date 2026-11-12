@@ -58,6 +58,12 @@ type tasksUIState struct {
 	filter, comment, help, evidenceURL, evidenceNote, reason string
 	cancelID                                                 id.ID
 	cancelOpen                                               bool
+	// cancelIDs, when set, are the tasks "Batalkan (N)" cancels together
+	// with one reason, in place of cancelID.
+	cancelIDs []id.ID
+	// bulkFailed is the last "Batalkan (N)" summary when some failed,
+	// shown on the board while those stay picked.
+	bulkFailed string
 	// rejecting: the detail's "Bukti tidak sesuai" asks for its correction.
 	rejecting bool
 	// evidenceErr is the last submission's failure, shown in its form;
@@ -68,7 +74,10 @@ type tasksUIState struct {
 	evidenceMode               int // 0 link, 1 file
 	evidenceUploading          bool
 	cancelReason, checklistNew string
-	detailSplit                bool
+	// cancelChoice is the reason chip picked in "Batalkan tugas";
+	// cancelReason is then the optional note.
+	cancelChoice string
+	detailSplit  bool
 	// Board toolbar and the detail modal's popovers and folded parts.
 	mineOnly, filterOpen                    bool
 	statusOpen, moreOpen, labelOpen, pjOpen bool
@@ -280,6 +289,7 @@ func (a *App) projectTasks() {
 		if !a.tasks.personal && a.taskRemindable(t) {
 			card.Remind = "Ingatkan " + firstName(t.Assignee.DisplayName)
 		}
+		card.Selectable = taskCancellable(t)
 		tasks = append(tasks, card)
 	}
 	for i, color := range a.chrome.preferences.LaneColors {
@@ -293,6 +303,12 @@ func (a *App) projectTasks() {
 	a.workspace.OnMove = a.moveTask
 	a.workspace.Details = a.taskDetails
 	a.workspace.OnAction = a.taskAction
+	// Cancelling several at once needs the server: offline, select mode
+	// closes.
+	a.workspace.OnBulkCancel = a.beginBulkCancel
+	if a.offlineMode() {
+		a.workspace.OnBulkCancel = nil
+	}
 	a.workspace.Toolbar, a.workspace.Subtitle, a.workspace.OnAdd = nil, "", nil
 	if !a.tasks.personal {
 		a.workspace.Toolbar = a.boardToolbar
@@ -626,17 +642,189 @@ func (a *App) taskAction(tid id.ID, action string) {
 	case "remind":
 		a.remindTask(*t)
 	case "cancel":
-		a.tasks.cancelID, a.tasks.cancelOpen, a.tasks.cancelReason = tid, true, ""
+		a.tasks.cancelID, a.tasks.cancelIDs, a.tasks.cancelOpen, a.tasks.cancelReason = tid, nil, true, ""
+		a.tasks.cancelChoice = a.lastCancelReason
 	}
 }
 
-func (a *App) confirmCancelTask() {
-	reason := strings.TrimSpace(a.tasks.cancelReason)
-	if reason == "" {
-		a.tasks.err = "Tulis alasan pembatalan."
+// taskCancellable reports a task the user may cancel, as the server
+// decides it: progress and manage rights, not cancelled yet, and on the
+// server already. Only these can be picked for "Batalkan (N)".
+func taskCancellable(t api.Task) bool {
+	return t.Permissions.Manage && t.Permissions.Progress && t.Progress != api.TaskCancelled && !t.LocalPending
+}
+
+// beginBulkCancel opens "Batalkan tugas" for the tasks picked on the
+// board, with the same reason chips; one reason goes to all.
+func (a *App) beginBulkCancel(ids []id.ID) {
+	ids = a.cancellableTasks(ids)
+	if len(ids) == 0 || a.taskWriteBlocked() {
 		return
 	}
+	a.tasks.cancelID, a.tasks.cancelIDs, a.tasks.cancelOpen, a.tasks.cancelReason = id.Nil, ids, true, ""
+	a.tasks.bulkFailed = ""
+	a.tasks.cancelChoice = a.lastCancelReason
+}
+
+// cancellableTasks is ids without those the user can no longer cancel.
+func (a *App) cancellableTasks(ids []id.ID) []id.ID {
+	var out []id.ID
+	for _, tid := range ids {
+		if t := a.taskByID(tid); t != nil && taskCancellable(*t) {
+			out = append(out, tid)
+		}
+	}
+	return out
+}
+
+// cancelFailure is one task "Batalkan (N)" could not cancel, and why.
+type cancelFailure struct {
+	id           id.ID
+	title, cause string
+}
+
+// cancelTasks cancels each task with the same reason, one request after
+// another, as cancelling one does. Those that fail stay picked on the board
+// and the summary says why ("8 dibatalkan, 1 gagal: …"); when all succeed
+// select mode closes.
+func (a *App) cancelTasks(ids []id.ID, reason string) {
+	service, ok := a.taskService()
+	if !ok || a.taskWriteBlocked() {
+		return
+	}
+	type job struct {
+		id      id.ID
+		title   string
+		version int64
+	}
+	var jobs []job
+	for _, tid := range ids {
+		if t := a.taskByID(tid); t != nil && taskCancellable(*t) {
+			jobs = append(jobs, job{t.ID, t.Title, t.Version})
+		}
+	}
+	if len(jobs) == 0 {
+		return
+	}
+	gen, seq := a.gen, a.tasks.seq
+	a.tasks.busy = true
+	a.tasks.err, a.tasks.notice = "", ""
+	a.projectTasks()
+	a.async(func() func() {
+		var failed []cancelFailure
+		var errs []error
+		for _, j := range jobs {
+			req := api.TaskMoveRequest{Progress: api.TaskCancelled, ExpectedVersion: j.version, Reason: reason}
+			if _, err := service.MoveTask(context.Background(), j.id, req); err != nil {
+				failed = append(failed, cancelFailure{id: j.id, title: j.title, cause: bulkCancelCause(err)})
+				errs = append(errs, err)
+			}
+		}
+		return func() {
+			if gen != a.gen || seq != a.tasks.seq {
+				return
+			}
+			a.tasks.busy = false
+			done := len(jobs) - len(failed)
+			if done > 0 {
+				a.conn = connOnline
+			}
+			for _, err := range errs {
+				// A lost session or connection is the app's to handle.
+				if client.IsUnauthenticated(err) || client.IsUnreachable(err) {
+					a.failed(err)
+					break
+				}
+			}
+			summary := bulkCancelSummary(done, failed)
+			var keep []id.ID
+			for _, f := range failed {
+				keep = append(keep, f.id)
+			}
+			if len(failed) == 0 {
+				a.workspace.SetSelecting(false)
+				a.tasks.notice = summary
+			} else {
+				a.workspace.Select(keep)
+				a.tasks.bulkFailed = summary
+			}
+			a.tasks.historyLoaded = false
+			a.tasks.historySeq++
+			a.tasks.notificationsLoaded = false
+			a.loadTasks()
+		}
+	})
+}
+
+// bulkCancelCause is why one task of "Batalkan (N)" was not cancelled.
+func bulkCancelCause(err error) string {
+	var e *client.Error
+	if errors.As(err, &e) {
+		switch e.Status {
+		case http.StatusConflict:
+			return "sudah diubah orang lain, muat ulang lalu coba lagi"
+		case http.StatusForbidden:
+			return "kamu tidak berhak membatalkannya"
+		case http.StatusNotFound:
+			return "tugas tidak ditemukan"
+		}
+	}
+	return strings.TrimSuffix(errorText(err), ".")
+}
+
+// bulkCancelSummary is the outcome of "Batalkan (N)": "3 tugas
+// dibatalkan." when all succeed, else "8 dibatalkan, 1 gagal: “Poster”
+// (sudah diubah …)", naming each failure.
+func bulkCancelSummary(done int, failed []cancelFailure) string {
+	if len(failed) == 0 {
+		return fmt.Sprintf("%d tugas dibatalkan.", done)
+	}
+	parts := make([]string, len(failed))
+	for i, f := range failed {
+		parts[i] = "“" + f.title + "” (" + f.cause + ")"
+	}
+	return fmt.Sprintf("%d dibatalkan, %d gagal: %s", done, len(failed), strings.Join(parts, "; "))
+}
+
+// cancelReasons are the one-tap reasons of "Batalkan tugas"; with
+// cancelOther the note is the reason and is required.
+var cancelReasons = []string{"Salah input / duplikat", "Tidak jadi dikerjakan", "Digabung ke tugas lain", "Diganti rencana", cancelOther}
+
+const cancelOther = "Lainnya"
+
+// cancelReasonText is the reason as saved in the task's history: the chip,
+// then the note when there is one ("Digabung ke tugas lain: ke #T12").
+// "" when it is not complete yet.
+func cancelReasonText(choice, note string) string {
+	note = strings.TrimSpace(note)
+	switch {
+	case choice == "":
+		return ""
+	case choice == cancelOther && note == "":
+		return ""
+	case note == "":
+		return choice
+	}
+	return choice + ": " + note
+}
+
+func (a *App) confirmCancelTask() {
+	reason := cancelReasonText(a.tasks.cancelChoice, a.tasks.cancelReason)
+	if reason == "" {
+		a.tasks.err = "Pilih alasan pembatalan."
+		if a.tasks.cancelChoice == cancelOther {
+			a.tasks.err = "Tulis alasan pembatalan."
+		}
+		return
+	}
+	// The same reason is picked first next time, for this session.
+	a.lastCancelReason = a.tasks.cancelChoice
 	a.tasks.cancelOpen = false
+	if ids := a.tasks.cancelIDs; len(ids) > 0 {
+		a.tasks.cancelIDs = nil
+		a.cancelTasks(ids, reason)
+		return
+	}
 	a.tasks.reason = reason
 	a.moveTask(workspaceui.MoveRequest{TaskID: a.tasks.cancelID, Destination: workspaceui.Cancelled})
 	a.tasks.reason = ""

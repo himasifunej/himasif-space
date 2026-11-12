@@ -146,7 +146,7 @@ func (a *App) headerSearch(c *ui.Context, width float32) {
 func (a *App) headerSearchButton(c *ui.Context) {
 	t := c.Theme()
 	shortcut := c.Shortcut(ui.Ctrl, ui.KeyK) || c.Shortcut(ui.Cmd, ui.KeyK)
-	b := ui.ButtonBase(c.Key("search-button")).Label("Buka pencarian").Tooltip("Cari · Ctrl K").Size(34, 34).Shrink(0).Center().Radius(8).Border(1, t.Border).TextColor(t.TextMuted)
+	b := ui.ButtonBase(c.Key("search-button")).Label("Buka pencarian").Tooltip("Cari · Ctrl K").Size(34, 34).Shrink(0).Center().Radius(8).Border(1, t.Border).TextColor(t.TextMuted).Transition(motionState)
 	if b.Hovered() || a.chrome.searchOpen {
 		b.Background(t.SurfaceHover).TextColor(t.Text)
 	}
@@ -165,40 +165,8 @@ func (a *App) headerSearchButton(c *ui.Context) {
 }
 
 func (a *App) headerBell(c *ui.Context) {
-	t := c.Theme()
-	unread := false
-	for _, n := range a.tasks.notifications {
-		if n.ReadAt == nil {
-			unread = true
-			break
-		}
-	}
-	label := "Notifikasi"
-	if unread {
-		label = "Notifikasi · ada yang belum dibaca"
-	}
-	b := ui.ButtonBase(c.Key("bell")).Label("Notifikasi").Tooltip(label).Size(34, 34).Shrink(0).Center().Radius(8).TextColor(t.TextMuted)
-	if b.Hovered() || a.chrome.notificationsOpen {
-		b.Background(t.SurfaceHover).TextColor(t.Text)
-	}
-	b.FocusRing(b.FocusVisible()).Children(func() {
-		ui.Icon(c, chromeIcon("bell")).Size(16, 16)
-		if unread {
-			ui.Box(c).Absolute().Top(5).Left(20).Size(8, 8).Radius(4).Background(t.Danger).Border(2, t.Background)
-		}
-	})
-	if b.Clicked() {
-		a.chrome.membersOpen = false
-		a.chrome.notificationsOpen = !a.chrome.notificationsOpen
-		a.chrome.searchOpen = false
-		a.chrome.profileOpen = false
-	}
-	popover(c, b, &a.chrome.notificationsOpen, 310, func() {
-		ui.Text(c, "Notifikasi").FontSize(17).Bold()
-		muted(c, "Pembaruan yang memerlukan perhatianmu.")
-		a.deliveryNotifications(c)
-		a.taskNotifications(c)
-	})
+	b := a.bellButton(c, "bell", 34, 16, bellUnread(a.bell(c.Now())))
+	a.bellPanel(c, b, 420)
 }
 
 // syncState is what the sync pill and the phone's status dot show.
@@ -281,7 +249,7 @@ func (a *App) syncState(t *ui.Theme) syncState {
 func (a *App) syncPill(c *ui.Context, compact bool) {
 	t := c.Theme()
 	s := a.syncState(t)
-	b := ui.ButtonBase(c.Key("sync-pill")).Label(s.label).Tooltip(s.tip).Row().AlignItems(ui.Center).Gap(6).Shrink(0).Padding(4, 10).Radius(999).Background(t.SurfaceHover).TextColor(t.TextMuted)
+	b := ui.ButtonBase(c.Key("sync-pill")).Label(s.label).Tooltip(s.tip).Row().AlignItems(ui.Center).Gap(6).Shrink(0).Padding(4, 10).Radius(999).Background(t.SurfaceHover).TextColor(t.TextMuted).Transition(motionState)
 	if b.Hovered() {
 		b.TextColor(t.Text)
 	}

@@ -109,7 +109,7 @@ func sectionLabel(c *ui.Context, label string) ui.Element {
 // icon alone and names itself in a tooltip.
 func navRow(c *ui.Context, label string, active, collapsed bool, lead func(), count string, alert bool, trail func()) ui.Element {
 	t := c.Theme()
-	b := ui.ButtonBase(c).Label(label).Tooltip(label).FillWidth().Row().AlignItems(ui.Center).Gap(10).Height(32).Shrink(0).Padding(0, 10).Radius(8).TextColor(t.TextMuted)
+	b := ui.ButtonBase(c).Label(label).Tooltip(label).FillWidth().Row().AlignItems(ui.Center).Gap(10).Height(32).Shrink(0).Padding(0, 10).Radius(8).TextColor(t.TextMuted).Transition(motionState)
 	if collapsed {
 		b.Justify(ui.Center).Padding(0)
 	}
@@ -156,6 +156,7 @@ var chromeIcons = func() map[string]*ui.SVG {
 		"plus":     `<path d="M12 5v14M5 12h14"/>`,
 		"close":    `<path d="M6 6l12 12M18 6 6 18"/>`,
 		"down":     `<path d="m6 9 6 6 6-6"/>`,
+		"open":     `<path d="M14 4h6v6M20 4l-8.5 8.5"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>`,
 	}
 	icons := make(map[string]*ui.SVG, len(paths))
 	for name, path := range paths {

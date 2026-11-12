@@ -1,6 +1,9 @@
 package appui
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
 
 // Preferences contains device-local appearance choices only. Session tokens and
 // other credentials must stay in the separate TokenStore.
@@ -18,6 +21,9 @@ type Preferences struct {
 	// DIP; 0 the layout's own. From meetingListNarrow it shows the dates
 	// only.
 	MeetingListWidth float32 `json:"meetingListWidth,omitempty"`
+	// DisplayScale is the size of everything in the window, in percent as
+	// Windows' "Scale" (100 to 200 in steps of 25); 0 follows the system.
+	DisplayScale int `json:"displayScale,omitempty"`
 	// SpaceTabs keeps each account's Space tab bar, by "user/space" ID. It
 	// is a pointer, replaced on every change, so Preferences stays
 	// comparable.
@@ -37,9 +43,12 @@ func DefaultPreferences() Preferences {
 // safe to call for imported, partially populated or older preference records.
 func NormalizePreferences(p Preferences) Preferences {
 	p.MeetingListWidth = meetingListWidth(p.MeetingListWidth)
+	if !slices.Contains(displayScales, p.DisplayScale) {
+		p.DisplayScale = 0
+	}
 	p.Palette = strings.ToLower(strings.TrimSpace(p.Palette))
 	switch p.Palette {
-	case "", "champagne", "obsidian", "midnight", "copper", "graphite":
+	case "", "champagne", "obsidian", "midnight", "copper", "graphite", "sakura":
 	default:
 		p.Palette = ""
 	}
@@ -58,7 +67,7 @@ func NormalizePreferences(p Preferences) Preferences {
 	}
 	p.Accent = strings.ToLower(strings.TrimSpace(p.Accent))
 	switch p.Accent {
-	case "sand", "sage", "blue", "lavender", "rose":
+	case "sand", "sage", "blue", "lavender", "rose", "pink":
 		return p
 	}
 	if len(p.Accent) == 7 && p.Accent[0] == '#' {

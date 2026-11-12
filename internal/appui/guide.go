@@ -194,7 +194,7 @@ func (a *App) guideView(c *ui.Context) {
 		role = a.onboardRole()
 	}
 	ui.Scroll(c.Key("panduan")).Fill().Children(func() {
-		body := ui.Column(c).FillWidth().MinWidth(0).MaxWidth(1120).Padding(28).Gap(16)
+		body := ui.Column(c).FillWidth().MinWidth(0).MaxWidth(pageMaxWidth).Padding(28).Gap(16)
 		if phone {
 			body.Padding(16).Gap(12)
 		}
@@ -226,7 +226,7 @@ func (a *App) guideView(c *ui.Context) {
 				pageEmpty(c, "search", "Tidak ada panduan yang cocok", "Coba kata lain, atau ganti role di atas.")
 			}
 			a.guideTopics(c, list, phone)
-			ui.Row(c.Key("guide-tour")).FillWidth().MaxWidth(1120).Gap(12).Padding(12, 14).Radius(10).AlignItems(ui.Center).Background(spaceMix(t.Border, t.Surface, .55)).Children(func() {
+			ui.Row(c.Key("guide-tour")).FillWidth().MaxWidth(pageMaxWidth).Gap(12).Padding(12, 14).Radius(10).AlignItems(ui.Center).Background(spaceMix(t.Border, t.Surface, .55)).Children(func() {
 				ui.Icon(c, spaceIcon("compass")).Size(16, 16).TextColor(t.TextMuted)
 				ui.Text(c, "Tur 5 langkah bisa diulang kapan pun.").FontSize(13).Grow(1).MinWidth(0)
 				if a.onboardingActive() && onbSecondary(c, "Ulangi tur", "Ulangi tur", true).Clicked() {
@@ -360,6 +360,7 @@ func (a *App) guideSheet(c *ui.Context) {
 	t := c.Theme()
 	w, h := c.Size()
 	ui.DialogBase(c.Key("guide-sheet"), &a.guide.panel, func(backdrop, panel ui.Element) {
+		dialogMotion(backdrop, panel)
 		backdrop.Background(ui.RGBA(0, 0, 0, .45)).Justify(ui.End)
 		panel.Width(w).Height(h*0.82).Radius(18, 18, 0, 0).Column().Background(t.Surface).Border(1, t.Border).
 			Transition(ui.ElementTransition{Duration: 260 * time.Millisecond, Enter: &ui.Motion{Y: 60, Opacity: 0}}).Children(func() {

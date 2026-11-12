@@ -93,6 +93,7 @@ func (a *App) whatsNewDialog(c *ui.Context) {
 	t := c.Theme()
 	open := true
 	ui.DialogBase(c.Key("whats-new"), &open, func(backdrop, panel ui.Element) {
+		dialogMotion(backdrop, panel)
 		backdrop.Background(ui.RGBA(0, 0, 0, .45))
 		panel.Width(440).MaxWidth(440).Padding(22).Gap(12).Radius(14).Background(t.Surface).Border(1, t.Border).Label("Yang baru di Space " + wn.Version).Children(func() {
 			ui.Text(c, "Yang baru di "+wn.Version).FontSize(18).Bold()
@@ -119,31 +120,62 @@ func (a *App) whatsNewDialog(c *ui.Context) {
 	}
 }
 
-// changelogSettings is Pengaturan › Tentang: the version, and the notes
-// of every version, bundled with the app.
+// changelogSettings is Pengaturan › Tentang, option A (the owner's
+// pick): the versions of the app and the server as rows, then the history
+// bundled with the app, the newest version open and the rest folded.
 func (a *App) changelogSettings(c *ui.Context) {
-	settingsBody(c, "Tentang Space", "Versi terpasang dan riwayat perubahan. Tersedia juga tanpa koneksi.", func() {
-		t := c.Theme()
-		if a.Version != "" {
-			muted(c, "Space "+a.Version).FontSize(13)
-		}
-		ui.Text(c, "Riwayat perubahan").FontSize(16).Bold().Padding(8, 0, 0, 0)
-		for _, r := range Changelog {
-			ui.Column(c.Key("v"+r.Version)).FillWidth().Gap(6).Padding(12, 0).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
-				ui.Row(c).FillWidth().Gap(10).AlignItems(ui.Center).Wrap().Children(func() {
-					ui.Text(c, r.Version).Font(FontMono).FontSize(14).Bold()
-					if d, err := time.Parse("2006-01-02", r.Date); err == nil {
-						muted(c, d.Format("2")+" "+noteMonths[d.Month()-1]+" "+d.Format("2006")).FontSize(12)
-					}
-					ui.Text(c, r.Title).FontSize(13).TextColor(t.TextMuted).Grow(1).MinWidth(0)
-				})
-				for i, n := range r.Notes {
-					ui.Row(c.Key(i)).FillWidth().Gap(8).AlignItems(ui.Start).Children(func() {
-						ui.Text(c, "•").FontSize(13).TextColor(t.Accent).Shrink(0)
-						ui.Text(c, n).FontSize(13).Grow(1).MinWidth(0)
-					})
+	settingsPageView(c, "Tentang Space", "Versi terpasang dan riwayat perubahan. Tersedia juga tanpa koneksi.", false, nil, func() {
+		SettingSection(c, "Versi", "", func() {
+			app, line := "Aplikasi web", "Diperbarui bersama halaman web."
+			if a.DeviceSettings != nil {
+				app, line = "Aplikasi Windows", "Pembaruan diperiksa saat dibuka dan setiap 6 jam."
+			}
+			SettingRow(c, app, line, func() {
+				settingsValue(c, a.Version).Font(FontMono)
+				if a.DeviceSettings != nil && SettingButton(c, "Pembaruan aplikasi", "").Clicked() {
+					a.chrome.settingsTab = "Perangkat"
 				}
 			})
+			server := a.serverVersion
+			if server == "" {
+				server = "Belum diperiksa"
+			}
+			SettingRow(c, "Server", strings.TrimPrefix(a.ServerURL, "https://"), func() { settingsValue(c, server).Font(FontMono) })
+		})
+		if a.aboutOpen == nil {
+			a.aboutOpen = map[string]bool{}
+			if len(Changelog) > 0 {
+				a.aboutOpen[Changelog[0].Version] = true
+			}
 		}
+		SettingSection(c, "Riwayat perubahan", "", func() {
+			t := c.Theme()
+			for _, r := range Changelog {
+				date := r.Date
+				if d, err := time.Parse("2006-01-02", r.Date); err == nil {
+					date = d.Format("2") + " " + noteMonths[d.Month()-1] + " " + d.Format("2006")
+				}
+				open := a.aboutOpen[r.Version]
+				SettingRow(c, r.Version+" · "+r.Title, date, func() {
+					icon, label := "chevron", "Buka catatan "+r.Version
+					if open {
+						icon, label = "down", "Tutup catatan "+r.Version
+					}
+					if spaceIconButton(c.Key(r.Version), label, icon).Clicked() {
+						a.aboutOpen[r.Version] = !open
+					}
+				})
+				if open && len(r.Notes) > 0 {
+					settingsRowBody(c, r.Version, func() {
+						for i, n := range r.Notes {
+							ui.Row(c.Key(i)).FillWidth().Gap(8).AlignItems(ui.Start).Children(func() {
+								ui.Text(c, "•").FontSize(13).TextColor(t.Accent).Shrink(0)
+								ui.Text(c, n).FontSize(13).Grow(1).MinWidth(0)
+							})
+						}
+					})
+				}
+			}
+		})
 	})
 }

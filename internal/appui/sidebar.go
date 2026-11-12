@@ -24,8 +24,13 @@ func (a *App) sidebar(c *ui.Context) {
 	sb := ui.Column(c.Key("sidebar"))
 	a.tourTarget("sidebar", sb)
 	sb.Transition(ui.ElementTransition{Duration: 180 * time.Millisecond, Size: true}).Width(width).Shrink(0).Padding(14, padX).Gap(2).Background(t.Surface).BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
-		// The logo goes to Space saya (canvas 26495b2dee24, 3A).
-		brand := ui.ButtonBase(c.Key("brand")).Label("Ke daftar Space").Tooltip("Ke daftar Space").Shrink(0).Row().Gap(10).Padding(4, 6, 12, 6).Margin(0, 0, 0, 0).Radius(10).AlignItems(ui.Center)
+		// The logo goes to Space saya (canvas 26495b2dee24, 3A). It stays
+		// at the left, on the nav icons' column (owner's rc.2 feedback: it
+		// drifted toward the middle as the sidebar opened): a button
+		// centers its children, so it starts them and pads the logo onto
+		// the icons' center.
+		brand := ui.ButtonBase(c.Key("brand")).Label("Ke daftar Space").Tooltip("Ke daftar Space").FillWidth().Shrink(0).Row().Justify(ui.Start).Gap(10).
+			Padding(6, 8, 6, brandInset(collapsed)).Margin(0, 0, 10, 0).Radius(10).AlignItems(ui.Center)
 		if brand.Hovered() {
 			brand.Background(t.SurfaceHover)
 		}
@@ -33,11 +38,11 @@ func (a *App) sidebar(c *ui.Context) {
 			a.openSpacePicker()
 		}
 		brand.FocusRing(brand.FocusVisible()).Children(func() {
-			ui.Image(c, spaceBrand()).Size(30, 30).Shrink(0).Fit(ui.Contain)
+			ui.Image(c, spaceBrand()).Size(brandLogo, brandLogo).Shrink(0).Fit(ui.Contain)
 			if !collapsed {
-				ui.Column(c).MinWidth(0).Gap(1).Children(func() {
-					ui.Text(c, "Space").FontSize(15).FontWeight(600).MaxLines(1)
-					ui.Text(c, "Ruang Kerja HIMASIF").FontSize(11).TextColor(faint(t)).MaxLines(1)
+				ui.Column(c).Grow(1).MinWidth(0).Gap(0).Children(func() {
+					ui.Text(c, "Space").FontSize(15).FontWeight(650).LineHeight(1.15).MaxLines(1)
+					ui.Text(c, "Ruang Kerja HIMASIF").FontSize(11).LineHeight(1.25).TextColor(faint(t)).MaxLines(1)
 				})
 			}
 		})
@@ -49,6 +54,19 @@ func (a *App) sidebar(c *ui.Context) {
 			a.sidebarFoot(c, collapsed)
 		})
 	})
+}
+
+// brandLogo is the sidebar logo's size; brandInset pads it onto the nav
+// icons' center: a nav row's icon (16) starts 10 into its row, which fills
+// the sidebar's content; collapsed, the icon is centered in the rail's 60
+// less its padding and its 1 px border.
+const brandLogo = 28
+
+func brandInset(collapsed bool) float32 {
+	if collapsed {
+		return float32(60-2*8-1-brandLogo) / 2
+	}
+	return 10 + 16/2 - brandLogo/2
 }
 
 func (a *App) sidebarSections(c *ui.Context, collapsed bool) {
@@ -135,7 +153,7 @@ func (a *App) periodPicker(c *ui.Context, collapsed bool) {
 		label = periodLabel(*p)
 		text = "Periode " + p.Label
 	}
-	b := ui.ButtonBase(c).Label(label).Tooltip(label).FillWidth().Shrink(0).Margin(0, 2, 6, 2).Row().AlignItems(ui.Center).Gap(8).Padding(7, 10).Radius(8).Border(1, t.Border).TextColor(t.TextMuted)
+	b := ui.ButtonBase(c).Label(label).Tooltip(label).FillWidth().Shrink(0).Margin(0, 2, 6, 2).Row().AlignItems(ui.Center).Gap(8).Padding(7, 10).Radius(8).Border(1, t.Border).TextColor(t.TextMuted).Transition(motionState)
 	if collapsed {
 		b.Margin(0, 0, 6, 0).Padding(7, 0).Justify(ui.Center)
 	}
@@ -186,7 +204,7 @@ func (a *App) periodPicker(c *ui.Context, collapsed bool) {
 // It opens the account menu.
 func (a *App) profile(c *ui.Context, collapsed bool) {
 	t := c.Theme()
-	b := ui.ButtonBase(c).Label("Menu profil").Tooltip(a.user.DisplayName).FillWidth().Shrink(0).Row().AlignItems(ui.Center).Padding(6, 8).Gap(10).Radius(8)
+	b := ui.ButtonBase(c).Label("Menu profil").Tooltip(a.user.DisplayName).FillWidth().Shrink(0).Row().AlignItems(ui.Center).Padding(6, 8).Gap(10).Radius(8).Transition(motionState)
 	if collapsed {
 		b.Padding(6, 0).Justify(ui.Center)
 	}
@@ -213,6 +231,8 @@ func (a *App) profile(c *ui.Context, collapsed bool) {
 		a.chrome.appearanceQuick = false
 	}
 	ui.PopoverBase(c, b, &a.chrome.profileOpen, func(panel ui.Element) {
+		// It opens beside the profile, from its lower corner.
+		panel.TransformOrigin(0, 1).Transition(motionPop)
 		panel.Width(270).Padding(12).Gap(6).Radius(12).Background(t.Surface).Border(1, t.Border).Shadow(0, 12, 32, 0, ui.RGBA(0, 0, 0, .35)).MarginStart(8)
 		ui.Text(c, a.user.DisplayName).Bold()
 		muted(c, a.user.Email)

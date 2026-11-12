@@ -14,10 +14,11 @@ import (
 	"github.com/himasifunej/himasif-space/internal/island"
 )
 
-// The inbox on the island: what lapsed is kept (keepLapsed), a click on
-// Ace at rest opens the newest (openInbox), the details page through them
-// (inboxPager), Tutup takes one out, Tutup semua all. p.mu guards it, as
-// the machine.
+// The inbox on the island: what lapsed is kept (keepLapsed); Ace at rest,
+// clicked or opened under the pointer, shows the newest (openInbox), the
+// details page through them (inboxPager), "Tandai dibaca" or an action
+// takes one out, "Tandai semua dibaca" all, and "Hari ini" shows the day
+// instead. p.mu guards it, as the machine.
 
 // inboxState is the presenter's: the notices kept, whether the notice
 // shown came from them, and the device's folder to keep them in.
@@ -28,6 +29,12 @@ type inboxState struct {
 	loaded  bool
 	changed bool
 	saves   sync.WaitGroup // writes still going
+	// seq numbers the snapshots handed to writes; written is the newest
+	// on disk, under writeMu, so a slower older write never lands last
+	// and brings back what was cleared.
+	seq     uint64
+	writeMu sync.Mutex
+	written uint64
 }
 
 // account is the signed-in account, as notices name it.
@@ -61,10 +68,19 @@ func (p *islandPresenter) saveInbox() {
 	p.inbox.changed = false
 	box := islandInbox{Entries: append([]inboxEntry(nil), p.inbox.box.Entries...)}
 	root := p.inbox.root
+	p.inbox.seq++
+	seq := p.inbox.seq
 	p.inbox.saves.Add(1)
 	go func() {
 		defer p.inbox.saves.Done()
-		_ = saveIslandInbox(root, box)
+		p.inbox.writeMu.Lock()
+		defer p.inbox.writeMu.Unlock()
+		if seq < p.inbox.written {
+			return
+		}
+		if saveIslandInbox(root, box) == nil {
+			p.inbox.written = seq
+		}
 	}()
 }
 

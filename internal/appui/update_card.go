@@ -88,7 +88,7 @@ func (a *App) updateCard() (UpdateStatus, bool) {
 		return UpdateStatus{}, false
 	}
 	// The onboarding (welcome, profile, tour) and "Yang baru" come first.
-	if a.onb.tour.open || a.onboardingActive() && (a.onb.welcome || a.onb.profileOpen) || a.aceUpdateDue() {
+	if a.Onboarding() || a.aceUpdateDue() {
 		return UpdateStatus{}, false
 	}
 	if a.updates.showing != s.Version && a.composing() {
@@ -98,6 +98,12 @@ func (a *App) updateCard() (UpdateStatus, bool) {
 		a.updates.showing, a.updates.small = s.Version, false
 	}
 	return s, true
+}
+
+// Onboarding tells whether the onboarding is on screen (welcome, profile,
+// tour): the updater's announcements wait until it ends.
+func (a *App) Onboarding() bool {
+	return a.onb.tour.open || a.onboardingActive() && (a.onb.welcome || a.onb.profileOpen)
 }
 
 // updatePercent is the download's progress, 0 to 100.

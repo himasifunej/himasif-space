@@ -172,17 +172,8 @@ func (a *App) mobileTopBar(c *ui.Context) {
 				a.navigate(PathPengaturan)
 			}
 		}
-		bell := ui.ButtonBase(c.Key("mobile-bell")).Label("Notifikasi").Size(44, 44).Radius(10).Center().TextColor(t.TextMuted)
-		bell.FocusRing(bell.FocusVisible()).Children(func() { ui.Icon(c, spaceIcon("bell")).Size(20, 20) })
-		if bell.Clicked() {
-			a.chrome.notificationsOpen = !a.chrome.notificationsOpen
-			a.chrome.periodOpen = false
-		}
-		popover(c, bell, &a.chrome.notificationsOpen, min(w-24, 360), func() {
-			ui.Text(c, "Notifikasi").FontSize(17).Bold()
-			a.deliveryNotifications(c)
-			a.taskNotifications(c)
-		})
+		bell := a.bellButton(c, "mobile-bell", 44, 20, bellUnread(a.bell(c.Now())))
+		a.bellPanel(c, bell, min(w-24, 420))
 		me := ui.ButtonBase(c.Key("mobile-me")).Label("Menu profil").Size(44, 44).Radius(10).Center()
 		me.FocusRing(me.FocusVisible()).Children(func() {
 			ui.Box(c).Size(30, 30).Radius(15).Center().Background(t.Accent).Children(func() {
@@ -197,7 +188,7 @@ func (a *App) mobileTopBar(c *ui.Context) {
 
 func sidebarRow(c *ui.Context, label string, active bool) ui.Element {
 	t := c.Theme()
-	b := ui.ButtonBase(c).Label(label).FillWidth().Row().AlignItems(ui.Center).MinHeight(44).Padding(0, 10).Radius(8).TextColor(t.Text)
+	b := ui.ButtonBase(c).Label(label).FillWidth().Row().AlignItems(ui.Center).MinHeight(44).Padding(0, 10).Radius(8).TextColor(t.Text).Transition(motionState)
 	if active {
 		b.Background(t.SurfaceHover)
 	} else if b.Hovered() {

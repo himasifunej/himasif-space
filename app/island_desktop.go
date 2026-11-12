@@ -4,6 +4,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"net/url"
 	"runtime/debug"
@@ -91,7 +92,8 @@ var (
 	islandMuted       = ui.RGBA(245, 245, 247, .72)
 	islandRing        = ui.RGBA(255, 255, 255, .06)
 	islandButton      = ui.RGB(44, 44, 46)
-	islandButtonHover = ui.RGB(58, 58, 60)
+	islandButtonHover = ui.RGB(62, 62, 66)
+	islandButtonPress = ui.RGB(78, 78, 84)
 	islandPing        = ui.RGB(255, 159, 10)
 	islandMeeting     = ui.RGB(48, 209, 88)
 	islandMusic       = ui.RGB(10, 132, 255)
@@ -224,14 +226,18 @@ type islandPresenter struct {
 	watching bool // a goroutine waits for fullscreen to end
 	swap     bool // the second activity was clicked: it leads
 	// Ace's life: blinks and glances, the gaze after the pointer, breath.
-	blink       island.Eyes
-	gaze        island.Gaze
-	expander    island.Expander
-	breath      island.Breather
-	born        time.Time
-	happyUntil  time.Time
-	media       *islandMediaWatcher
-	mediaActive bool
+	blink    island.Eyes
+	gaze     island.Gaze
+	expander island.Expander
+	// today: "Hari ini" was chosen over the inbox, for as long as the
+	// details stay open; todayPending opens them once the notice shown
+	// has left (showToday).
+	today, todayPending bool
+	breath              island.Breather
+	born                time.Time
+	happyUntil          time.Time
+	media               *islandMediaWatcher
+	mediaActive         bool
 }
 
 // islandDrag is a press on the pill: where the pointer and the island were
@@ -687,6 +693,9 @@ func (p *islandPresenter) view(c *ui.Context) {
 		p.key, p.scene, p.expanded = key, f.scene, f.expanded
 		p.contentChanged = now
 	}
+	if p.openToday(f) {
+		c.After(0)
+	}
 	bubble := 0.
 	if f.second != island.SceneIdle {
 		bubble = island.BubbleSize
@@ -945,7 +954,27 @@ func (p *islandPresenter) frame(c *ui.Context, now time.Time, prefs devicePrefer
 			p.expander.Reset()
 		}
 		p.expander.Tick(now, overPill, false)
+		if !p.expander.Expanded {
+			p.today = false
+		}
 		f.expanded = p.expander.Expanded || p.spikeOpen
+		// Unread first (owner's rc.2/rc.3 report: "+1" led to Hari ini).
+		// Ace at rest opens its details after 300 ms under the pointer,
+		// before a click can land, and those details were the day's,
+		// with the "+N" hidden: details opened at rest with notices
+		// waiting are the inbox, unless Hari ini was chosen from it.
+		if f.scene == island.SceneIdle && p.expander.Expanded && f.inbox > 0 && !p.today && !p.spikeOpen {
+			p.mu.Lock()
+			if p.openInbox(now, account) {
+				it := p.m.Current
+				x := it.Value.(islandNotice)
+				f.scene, f.notice, f.item, f.expanded = island.SceneNotice, &x, it, true
+				f.queued, f.closing, f.until = len(p.m.Queue), p.m.Closing, p.m.Until
+				f.second = island.SceneIdle
+				p.expander.Reset()
+			}
+			p.mu.Unlock()
+		}
 	}
 	if f.expanded {
 		f.second = island.SceneIdle // the details take the island
@@ -961,15 +990,58 @@ func (p *islandPresenter) click(now time.Time, f islandFrame) {
 		p.mu.Unlock()
 		return
 	}
-	// Ace at rest with notices kept: the newest opens, to page through.
+	// Ace at rest with notices kept: the newest opens, to page through;
+	// a click on Hari ini, chosen over them, closes it.
 	account := p.account()
 	p.mu.Lock()
-	opened := f.inbox > 0 && p.openInbox(now, account)
+	opened := !f.expanded && f.inbox > 0 && p.openInbox(now, account)
 	p.mu.Unlock()
 	if opened {
+		p.today = false
 		return
 	}
 	p.expander.Tick(now, true, true)
+}
+
+// showToday is the inbox's "Hari ini": the notice shown goes back to the
+// inbox, unread, and the day's details open in its place.
+func (p *islandPresenter) showToday() {
+	p.mu.Lock()
+	p.inbox.open = false
+	p.m.Dismiss(time.Now())
+	p.mu.Unlock()
+	p.todayPending = true
+	p.redraw()
+}
+
+// openToday opens the day's details asked for by showToday, once the
+// notice shown has left; it reports whether it did.
+func (p *islandPresenter) openToday(f islandFrame) bool {
+	if !p.todayPending || f.notice != nil {
+		return false
+	}
+	p.todayPending, p.today = false, true
+	p.expander.Open()
+	return true
+}
+
+// redraw asks the island for a frame.
+func (p *islandPresenter) redraw() {
+	if p.win != nil {
+		p.win.Update(func() {})
+	}
+}
+
+// showInbox is Hari ini's "Kabar": back to the notices waiting.
+func (p *islandPresenter) showInbox() {
+	account := p.account()
+	p.mu.Lock()
+	if p.openInbox(time.Now(), account) {
+		p.today = false
+		p.expander.Reset()
+	}
+	p.mu.Unlock()
+	p.redraw()
 }
 
 // pointer is where the pointer is from the pill's top left, in DIP.
@@ -1149,7 +1221,7 @@ func (p *islandPresenter) content(c *ui.Context, f islandFrame, now time.Time, a
 				islandWave(c, now, f.media.Playing && !reduced, 1)
 			})
 		case f.expanded:
-			p.restDetails(c, now)
+			p.restDetails(c, now, f.inbox)
 		}
 	})
 }
@@ -1193,11 +1265,13 @@ func islandWave(c *ui.Context, now time.Time, playing bool, scale float32) {
 
 // islandAction is a round button of the details; primary is white.
 func (p *islandPresenter) islandAction(c *ui.Context, label string, icon *ui.SVG, primary bool) bool {
-	b := ui.ButtonBase(c.Key("island-"+label)).Label(label).Height(32).Radius(16).Padding(0, 12).Gap(6).Background(islandButton)
-	fg := islandText
-	if primary {
-		b.Background(islandText)
-		fg = opaque(islandInk)
+	b := ui.ButtonBase(c.Key("island-"+label)).Label(label).Height(32).Radius(16).Padding(0, 12).Gap(6)
+	bg, fg, ring := islandActionColors(primary, b.Hovered(), b.Pressed())
+	// The style's own shades, eased, and a ring of its text color for the
+	// keyboard: MyGo's ring is Space's accent, foreign on Hitam or Kaca.
+	b.Background(b.AnimateColor("bg", bg, ui.Animation{Duration: 120 * time.Millisecond})).FocusRing(false)
+	if b.FocusVisible() {
+		b.Border(2, ring)
 	}
 	if icon != nil {
 		b.MinWidth(32).Padding(0, 8)
@@ -1216,7 +1290,49 @@ func (p *islandPresenter) islandAction(c *ui.Context, label string, icon *ui.SVG
 	return false
 }
 
+// islandActionColors are an island button's background, text and focus
+// ring at rest, hovered or pressed, in the colors of the island's style:
+// the primary (light on a dark pill, dark on a light one) darkens toward
+// the pill as it is pressed; the others lighten on a dark pill and darken
+// on a light one.
+func islandActionColors(primary, hovered, pressed bool) (bg, fg, ring ui.Color) {
+	if primary {
+		bg, fg = islandText, opaque(islandInk)
+		switch {
+		case pressed:
+			bg = islandMix(islandText, opaque(islandInk), .22)
+		case hovered:
+			bg = islandMix(islandText, opaque(islandInk), .1)
+		}
+		return bg, fg, islandMix(islandText, opaque(islandInk), .5)
+	}
+	bg, fg = islandButton, islandText
+	switch {
+	case pressed:
+		bg = islandButtonPress
+	case hovered:
+		bg = islandButtonHover
+	}
+	return bg, fg, ui.RGBA(islandText.R, islandText.G, islandText.B, .6)
+}
+
+// islandLink is a small text button of the details, aside.
+func islandLink(c *ui.Context, label string) bool {
+	b := ui.ButtonBase(c.Key("island-link-"+label)).Label(label).Padding(2, 8).Radius(10).Shrink(0).FocusRing(false)
+	fg := islandMuted
+	if b.Hovered() || b.FocusVisible() {
+		b.Background(islandButton)
+		fg = islandText
+	}
+	if b.Pressed() {
+		b.Background(islandButtonPress)
+	}
+	b.Children(func() { ui.Text(c, label).FontSize(12).TextColor(fg).MaxLines(1) })
+	return b.Clicked()
+}
+
 func (p *islandPresenter) noticeDetails(c *ui.Context, x islandNotice, queued int) {
+	inbox := p.inboxShowing(x.n.Tag)
 	ui.Column(c).FillWidth().Gap(2).Children(func() {
 		ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
 			islandKindIcon(c, x.n.Kind, 16)
@@ -1225,20 +1341,27 @@ func (p *islandPresenter) noticeDetails(c *ui.Context, x islandNotice, queued in
 				ui.Text(c, fmtIslandQueue(queued)).FontSize(13).TextColor(islandMuted)
 			}
 			p.inboxPager(c, x)
+			// From the inbox, each notice can be marked read on its own,
+			// whatever its actions.
+			if inbox && p.islandAction(c, "Tandai dibaca", islandIcons["close"], false) {
+				p.readInApp([]string{x.n.Tag})
+				p.dismiss()
+			}
 		})
 		ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, "Space · "+islandKindLabel(x.n.Kind)).FontSize(13).TextColor(islandMuted).Grow(1).MinWidth(0)
-			// With more waiting, or paging the inbox, all of them can go at
-			// once: small, aside.
-			if queued > 0 || p.inboxShowing(x.n.Tag) {
-				b := ui.ButtonBase(c.Key("island-dismiss-all")).Label("Tutup semua").Padding(2, 8).Radius(10)
-				fg := islandMuted
-				if b.Hovered() {
-					b.Background(islandButton)
-					fg = islandText
+			// In the inbox: the day instead, or all read at once. With more
+			// queued, all of them can go: small, aside.
+			switch {
+			case inbox:
+				if islandLink(c, "Hari ini") {
+					p.showToday()
 				}
-				b.Children(func() { ui.Text(c, "Tutup semua").FontSize(12).TextColor(fg) })
-				if b.Clicked() {
+				if islandLink(c, "Tandai semua dibaca") {
+					p.dismissAll()
+				}
+			case queued > 0:
+				if islandLink(c, "Tutup semua") {
 					p.dismissAll()
 				}
 			}
@@ -1265,7 +1388,8 @@ func (p *islandPresenter) noticeDetails(c *ui.Context, x islandNotice, queued in
 				}
 			}
 			// Two actions already fill the row; the second (Nanti) closes too.
-			if len(x.n.Actions) < 2 && p.islandAction(c, "Tutup", nil, false) {
+			// In the inbox, "Tandai dibaca" beside the pager does it.
+			if !inbox && len(x.n.Actions) < 2 && p.islandAction(c, "Tutup", nil, false) {
 				p.dismiss()
 			}
 		})
@@ -1362,7 +1486,7 @@ func (p *islandPresenter) mediaDetails(c *ui.Context, m islandMedia, now time.Ti
 
 // restDetails is Ace's details at rest: the day's next meeting, and the
 // way into Space.
-func (p *islandPresenter) restDetails(c *ui.Context, now time.Time) {
+func (p *islandPresenter) restDetails(c *ui.Context, now time.Time, inbox int) {
 	today := ""
 	if p.d.app != nil {
 		today = p.d.app.IslandToday(now)
@@ -1371,7 +1495,13 @@ func (p *islandPresenter) restDetails(c *ui.Context, now time.Time) {
 		today = "Tidak ada rapat lagi hari ini"
 	}
 	ui.Column(c).FillWidth().Gap(2).Children(func() {
-		ui.Text(c, "Hari ini").FontSize(15).FontWeight(600)
+		ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, "Hari ini").FontSize(15).FontWeight(600).Grow(1).MinWidth(0)
+			// Back to the notices waiting, chosen away from.
+			if inbox > 0 && islandLink(c, fmt.Sprintf("Kabar · %d", inbox)) {
+				p.showInbox()
+			}
+		})
 		ui.Text(c, today).FontSize(13).MaxLines(1).TextColor(islandMuted)
 		ui.Box(c).Height(16)
 		ui.Row(c).Gap(8).Children(func() {
@@ -1397,6 +1527,7 @@ var islandIcons = func() map[string]*ui.SVG {
 		"play":     `<path d="M7 4.5v15l12-7.5Z" fill="currentColor"/>`,
 		"pause":    `<rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor"/><rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor"/>`,
 		"next":     `<path d="M5 5v14l10-7Z" fill="currentColor"/><path d="M19 5v14"/>`,
+		"close":    `<path d="M6 6l12 12M18 6 6 18"/>`,
 		"previous": `<path d="M19 5v14L9 12Z" fill="currentColor"/><path d="M5 5v14"/>`,
 	}
 	icons := make(map[string]*ui.SVG, len(paths))
@@ -1474,15 +1605,26 @@ func islandKindLabel(kind string) string {
 func (p *islandPresenter) dismissAll() {
 	account := p.account()
 	p.mu.Lock()
-	p.m.DismissAll(time.Now())
+	var read []string
+	if p.m.Current != nil {
+		read = append(read, p.m.Current.Tag)
+	}
+	for _, it := range p.m.Queue {
+		read = append(read, it.Tag)
+	}
 	p.ensureInbox(time.Now())
+	for _, e := range p.inbox.box.of(account) {
+		read = append(read, e.Notice.Tag)
+	}
+	p.m.DismissAll(time.Now())
 	if p.inbox.box.clear(account) {
 		p.inbox.changed = true
 		p.saveInbox()
 	}
 	p.inbox.open = false
 	p.mu.Unlock()
-	p.win.Update(func() {})
+	p.readInApp(read)
+	p.redraw()
 }
 
 func (p *islandPresenter) dismiss() {
@@ -1494,7 +1636,7 @@ func (p *islandPresenter) dismiss() {
 		p.m.Dismiss(time.Now())
 	}
 	p.mu.Unlock()
-	p.win.Update(func() {})
+	p.redraw()
 }
 func (p *islandPresenter) act(link string) {
 	p.d.win.Update(func() {

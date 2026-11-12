@@ -101,7 +101,15 @@ type App struct {
 	// desktop app's updater; nil on the web, which updates with the page.
 	AppUpdates func(*ui.Context)
 	// Updater feeds the update card (update_card.go); nil on the web.
-	Updater        Updater
+	Updater Updater
+	// FirstScreen is told once, from the UI thread, when the window has
+	// drawn its first screen past "Menyambungkan" (the updater's first
+	// check waits for it).
+	FirstScreen    func()
+	firstScreenRun bool
+	// SystemScale is the scale factor of the window's monitor (1.5 for
+	// Windows' 150%), for the display scale; nil where unknown (the web).
+	SystemScale    func() float64
 	SessionChanged func(id.ID)
 	// Version is the app's version, shown in the settings.
 	Version string
@@ -117,20 +125,27 @@ type App struct {
 	// PreferencesStore persists appearance on this device, separately from tokens.
 	PreferencesStore PreferencesStore
 	// NoteDrafts keeps account-scoped recovery copies on this device.
-	PendingFiles              PendingFileStore
-	NoteDrafts                NoteDraftStore
-	preferencesLoaded         bool
-	chrome                    chromeState
-	realtime                  realtimeUIState
-	workspace                 *workspaceui.State
-	access                    workspaceAccessState
-	tasks                     tasksUIState
-	reminders                 remindersUIState
-	notes                     notesUIState
-	meetings                  meetingsState
-	agenda                    agendaState
-	deliveries                deliveriesState
-	updates                   updateCardState
+	PendingFiles      PendingFileStore
+	NoteDrafts        NoteDraftStore
+	preferencesLoaded bool
+	chrome            chromeState
+	realtime          realtimeUIState
+	workspace         *workspaceui.State
+	access            workspaceAccessState
+	tasks             tasksUIState
+	// lastCancelReason is the reason chip last used to cancel a task,
+	// picked first next time; it lasts the session.
+	lastCancelReason string
+	reminders        remindersUIState
+	notes            notesUIState
+	meetings         meetingsState
+	agenda           agendaState
+	deliveries       deliveriesState
+	updates          updateCardState
+	// serverVersion is the server's, from the last health check (Tentang).
+	serverVersion string
+	// aboutOpen are the versions unfolded in Tentang; the newest starts open.
+	aboutOpen                 map[string]bool
 	operations                operationsUIState
 	emergency                 emergencyUIState
 	offlineSync               offlineUIState
@@ -427,7 +442,7 @@ func (a *App) ping(now time.Time) {
 	}
 	gen := a.gen
 	a.async(func() func() {
-		_, err := a.api.Health(context.Background())
+		h, err := a.api.Health(context.Background())
 		return func() {
 			if gen != a.gen {
 				return
@@ -438,6 +453,7 @@ func (a *App) ping(now time.Time) {
 				return
 			}
 			a.conn = connOnline
+			a.serverVersion = h.Version
 			a.syncedAt = now
 			if a.periodsErr != "" && !a.periodsLoading {
 				a.loadPeriods()

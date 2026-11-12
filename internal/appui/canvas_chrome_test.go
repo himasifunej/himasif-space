@@ -142,7 +142,8 @@ func TestEscapeClosesAppearance(t *testing.T) {
 	}
 }
 
-// Pengaturan › Perangkat ini › Tampilan holds the full appearance panel.
+// Pengaturan › Perangkat ini › Tampilan holds every appearance setting
+// (option B of the redesign: rows beside a preview).
 func TestSettingsHoldAppearance(t *testing.T) {
 	h := newChromeHarness(t, nil)
 	h.tt.SetSize(1440, 900)
@@ -152,6 +153,7 @@ func TestSettingsHoldAppearance(t *testing.T) {
 	if h.app.chrome.settingsTab != "Tampilan" {
 		t.Fatalf("settings tab %q", h.app.chrome.settingsTab)
 	}
-	h.want("Palet tema")
-	h.want("Warna board")
+	for _, want := range []string{"Palet", "Palet Midnight", "Warna aksen", "Board tugas", "Warna lajur Selesai", "Pratinjau tampilan"} {
+		h.want(want)
+	}
 }

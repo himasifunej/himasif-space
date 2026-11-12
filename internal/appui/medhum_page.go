@@ -141,7 +141,7 @@ func (a *App) medhumPage(c *ui.Context) {
 	a.ensureWAContent()
 	phone := isMobile(c)
 	ui.Scroll(c.Key("medhum-scroll")).Fill().Children(func() {
-		body := ui.Column(c).FillWidth().MinWidth(0).MaxWidth(1280).Padding(26).Gap(18)
+		body := ui.Column(c).FillWidth().MinWidth(0).MaxWidth(pageMaxWidth).Padding(26).Gap(18)
 		if phone {
 			body.Padding(16).Gap(14)
 		}
@@ -659,6 +659,7 @@ func (a *App) medhumDialog(c *ui.Context) {
 	}
 	open := true
 	ui.DialogBase(c.Key("medhum-dialog"), &open, func(backdrop, panel ui.Element) {
+		dialogMotion(backdrop, panel)
 		backdrop.Background(ui.RGBA(0, 0, 0, .45))
 		if phone {
 			backdrop.Justify(ui.End)

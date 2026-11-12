@@ -250,6 +250,7 @@ func (a *App) memberAccessPanel(c *ui.Context) {
 	vw, vh := c.Size()
 	phone := isMobile(c) || vw < 720
 	ui.DialogBase(c.Key("member-access"), &m.drawerOpen, func(backdrop, panel ui.Element) {
+		dialogMotion(backdrop, panel)
 		backdrop.Background(ui.RGBA(0, 0, 0, 0.35))
 		if phone {
 			backdrop.Justify(ui.End).AlignItems(ui.Stretch)
@@ -498,6 +499,7 @@ func (a *App) memberReplace45Dialog(c *ui.Context, member api.Member) {
 		return
 	}
 	ui.DialogBase(c.Key("replace-45"), &m.replaceAsk, func(backdrop, panel ui.Element) {
+		dialogMotion(backdrop, panel)
 		backdrop.Background(ui.RGBA(0, 0, 0, 0.35))
 		panel.Width(min(float32(420), mustWidth(c)-32)).Padding(20).Gap(12).Radius(14).Background(t.Surface).Border(1, t.Border).Label("Dialog ganti 45").Children(func() {
 			ui.Text(c, "Ganti 45 dari "+other.DisplayName+" ke "+member.DisplayName+"?").FontSize(16).Bold()
@@ -696,6 +698,7 @@ func (a *App) memberRemoveDialog(c *ui.Context, member api.Member, first, divisi
 	m := &a.access.members
 	check := a.memberRemoveState(member)
 	ui.DialogBase(c.Key("remove-member"), &m.removeAsk, func(backdrop, panel ui.Element) {
+		dialogMotion(backdrop, panel)
 		backdrop.Background(ui.RGBA(0, 0, 0, 0.35))
 		panel.Width(min(float32(440), mustWidth(c)-32)).Padding(20).Gap(12).Radius(14).Background(t.Surface).Border(1, t.Border).Label("Dialog keluarkan anggota").Children(func() {
 			ui.Text(c, "Keluarkan "+member.DisplayName+" dari "+division+"?").FontSize(16).Bold()

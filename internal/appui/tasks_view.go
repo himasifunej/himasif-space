@@ -104,6 +104,14 @@ func (a *App) taskFeedback(c *ui.Context) {
 		c.AddToast(ui.Toast{Title: a.tasks.errToast, Type: "error", Timeout: 10 * time.Second})
 		a.tasks.errToast = ""
 	}
+	if a.workspace == nil || !a.workspace.Selecting() {
+		a.tasks.bulkFailed = ""
+	}
+	if a.tasks.bulkFailed != "" {
+		ui.Row(c.Key("bulk-failed")).FillWidth().Padding(10, 22).Children(func() {
+			ui.Text(c, a.tasks.bulkFailed).FontSize(12).TextColor(c.Theme().Danger).Grow(1).MinWidth(0)
+		})
+	}
 	if a.tasks.err != "" {
 		ui.Row(c).FillWidth().Padding(10, 22).Gap(8).Children(func() { ui.Text(c, a.tasks.err).FontSize(12).TextColor(c.Theme().Danger).Grow(1).MinWidth(0) })
 	}
@@ -591,43 +599,6 @@ func taskTimestamp(t time.Time, zone string) string {
 	}
 	return t.In(loc).Format("02 Jan 2006 · 15:04 MST")
 }
-func (a *App) taskNotifications(c *ui.Context) {
-	if !a.tasks.notificationsLoaded && !a.tasks.notificationsBusy && a.tasks.notificationsErr == "" {
-		a.loadTaskNotifications()
-	}
-	if a.tasks.notificationsBusy {
-		muted(c, "Memuat notifikasi…")
-	}
-	if a.tasks.notificationsErr != "" {
-		ui.Text(c, a.tasks.notificationsErr).FontSize(12).TextColor(c.Theme().Danger)
-	}
-	if a.tasks.notificationsLoaded && len(a.tasks.notifications) == 0 {
-		muted(c, "Belum ada pembaruan tugas.")
-	}
-	ui.Scroll(c).FillWidth().MaxHeight(280).Children(func() {
-		ui.Column(c).FillWidth().Gap(6).Children(func() {
-			for _, n := range a.tasks.notifications {
-				b := ui.ButtonBase(c.Key(n.ID)).FillWidth().Padding(10).Radius(8).Border(1, c.Theme().Border).Label(n.Title)
-				if n.ReadAt == nil {
-					b.Background(c.Theme().SurfaceHover)
-				}
-				b.Children(func() {
-					ui.Column(c).FillWidth().MinWidth(0).Gap(5).Children(func() {
-						ui.Text(c, n.Title).FontSize(12).Bold()
-						muted(c, n.Body).FontSize(11)
-						muted(c, taskTimestamp(n.CreatedAt, timeutil.DefaultZoneName)).FontSize(10)
-					})
-				})
-				if b.Clicked() {
-					a.openTaskNotification(n)
-				}
-			}
-		})
-	})
-	if spaceButton(c, "Perbarui notifikasi", "refresh", false).Disabled(a.tasks.notificationsBusy).FillWidth().Clicked() {
-		a.loadTaskNotifications()
-	}
-}
 func (a *App) openTaskNotification(n api.Notification) {
 	s, ok := a.taskService()
 	if !ok {
@@ -826,25 +797,71 @@ func (a *App) cancelTaskDialog(c *ui.Context) {
 	if !a.tasks.cancelOpen {
 		return
 	}
-	t := a.taskByID(a.tasks.cancelID)
-	if t == nil {
-		a.tasks.cancelOpen = false
-		return
+	title, body, action := "", "Tugas pindah ke lajur Dibatalkan dan pengingatnya berhenti.", "Batalkan tugas"
+	if len(a.tasks.cancelIDs) > 0 {
+		// Several picked on the board: one reason for all.
+		a.tasks.cancelIDs = a.cancellableTasks(a.tasks.cancelIDs)
+		n := len(a.tasks.cancelIDs)
+		if n == 0 {
+			a.tasks.cancelOpen = false
+			return
+		}
+		title = fmt.Sprintf("Batalkan %d tugas?", n)
+		body = fmt.Sprintf("Semua %d tugas pindah ke lajur Dibatalkan dengan alasan yang sama, dan pengingatnya berhenti.", n)
+		action = fmt.Sprintf("Batalkan %d tugas", n)
+	} else {
+		t := a.taskByID(a.tasks.cancelID)
+		if t == nil {
+			a.tasks.cancelOpen = false
+			return
+		}
+		title = "Batalkan “" + t.Title + "”?"
 	}
 	th := c.Theme()
 	w, _ := c.Size()
 	ui.DialogBase(c.Key("cancel-task"), &a.tasks.cancelOpen, func(backdrop, panel ui.Element) {
+		dialogMotion(backdrop, panel)
 		backdrop.Background(ui.RGBA(0, 0, 0, .45))
 		panel.Width(min(float32(460), w-32)).Column().Padding(20).Gap(12).Radius(14).Background(th.Surface).Border(1, th.Border).Children(func() {
-			ui.Text(c, "Batalkan “"+t.Title+"”?").FontSize(17).Bold()
-			muted(c, "Tugas pindah ke lajur Dibatalkan dan pengingatnya berhenti. Riwayat, komentar dan bukti tetap tersimpan untuk evaluasi.")
-			taskInput(c, "cancel-reason", "Alasan pembatalan *", &a.tasks.cancelReason)
+			ui.Text(c, title).FontSize(17).Bold()
+			muted(c, body+" Riwayat, komentar dan bukti tetap tersimpan untuk evaluasi.")
+			ui.Text(c, "Alasan pembatalan *").FontSize(12).Bold()
+			ui.Row(c.Key("cancel-reasons")).FillWidth().Gap(6).Wrap().Children(func() {
+				for _, r := range cancelReasons {
+					on := a.tasks.cancelChoice == r
+					b := ui.ButtonBase(c.Key(r)).Label("Alasan: "+r).Height(32).Padding(0, 12).Radius(16).Border(1, th.Border).Center()
+					switch {
+					case on:
+						b.Background(th.Accent).BorderColor(th.Accent).TextColor(th.AccentText)
+					case b.Hovered():
+						b.Background(th.SurfaceHover)
+					}
+					b.FocusRing(b.FocusVisible()).Children(func() {
+						label := ui.Text(c, r).FontSize(13)
+						if on {
+							label.FontWeight(600)
+						}
+					})
+					if b.Clicked() {
+						a.tasks.cancelChoice = r
+						a.tasks.err = ""
+					}
+				}
+			})
+			note := "Catatan (opsional)"
+			if a.tasks.cancelChoice == cancelOther {
+				note = "Tulis alasannya *"
+			}
+			taskInputHint(c, "cancel-reason", note, "Misalnya: digabung ke #T12", &a.tasks.cancelReason)
+			if reason := cancelReasonText(a.tasks.cancelChoice, a.tasks.cancelReason); reason != "" {
+				muted(c, "Tercatat di riwayat: "+reason).FontSize(12)
+			}
 			ui.Row(c).FillWidth().Gap(8).Children(func() {
 				ui.Box(c).Grow(1)
 				if spaceButton(c, "Kembali", "", false).Clicked() {
 					a.tasks.cancelOpen = false
 				}
-				b := spaceButton(c, "Batalkan tugas", "archive", false).Background(th.Danger).TextColor(ui.Hex("#ffffff")).Disabled(strings.TrimSpace(a.tasks.cancelReason) == "")
+				b := spaceButton(c, action, "archive", false).Background(th.Danger).TextColor(ui.Hex("#ffffff")).Disabled(cancelReasonText(a.tasks.cancelChoice, a.tasks.cancelReason) == "")
 				if b.Clicked() {
 					a.confirmCancelTask()
 				}

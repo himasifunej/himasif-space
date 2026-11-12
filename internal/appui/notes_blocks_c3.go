@@ -598,6 +598,7 @@ func (e *noteDocumentEditor) blockMenu(c *ui.Context, anchor ui.Element) {
 		width = max(anchor.Bounds().W, 280)
 	}
 	ui.PopoverBase(c.Key("block-menu"), anchor, &e.menu.open, func(panel ui.Element) {
+		popPanel(panel, 0)
 		panel.Margin(4, 0, 0, 0).Width(width).MaxHeight(360).Padding(6).Gap(2).Radius(10).Background(t.Surface).Border(1, t.Border).Shadow(0, 8, 24, 0, ui.RGBA(0, 0, 0, .18)).Label("Pilih jenis blok")
 		ui.Scroll(c).FillWidth().MaxHeight(348).Children(func() {
 			ui.Column(c).FillWidth().MinWidth(0).Gap(2).Children(func() {
