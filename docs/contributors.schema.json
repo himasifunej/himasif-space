@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/himasifunej/himasif-space/blob/main/docs/contributors.schema.json",
+  "title": "Space contributors",
+  "description": "contributors.json, format 1. Read by the Kredit page of the Space app. See docs/contributors.md.",
+  "type": "object",
+  "required": ["format", "contributors"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "format": { "const": 1 },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "by": { "type": "string" },
+        "repository": { "type": "string", "pattern": "^https://" }
+      }
+    },
+    "contributors": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/contributor" }
+    }
+  },
+  "$defs": {
+    "contributor": {
+      "type": "object",
+      "required": ["id", "name", "role", "kind"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,38}$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "alias": { "type": "string", "maxLength": 40 },
+        "role": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "kind": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": ["lead", "code", "design", "docs", "test", "release", "ops", "content", "translation", "idea", "pilot"]
+          }
+        },
+        "affiliation": { "type": "string", "maxLength": 80 },
+        "period": { "type": "string", "pattern": "^[0-9]{4}/[0-9]{4}$" },
+        "github": { "type": "string", "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$" },
+        "links": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "required": ["label", "url"],
+            "additionalProperties": false,
+            "properties": {
+              "label": { "type": "string", "minLength": 1, "maxLength": 24 },
+              "url": { "type": "string", "pattern": "^https://" }
+            }
+          }
+        }
+      }
+    }
+  }
+}
