@@ -133,12 +133,15 @@ type App struct {
 	workspace         *workspaceui.State
 	access            workspaceAccessState
 	tasks             tasksUIState
-	reminders         remindersUIState
-	notes             notesUIState
-	meetings          meetingsState
-	agenda            agendaState
-	deliveries        deliveriesState
-	updates           updateCardState
+	// lastCancelReason is the reason chip last used to cancel a task,
+	// picked first next time; it lasts the session.
+	lastCancelReason string
+	reminders        remindersUIState
+	notes            notesUIState
+	meetings         meetingsState
+	agenda           agendaState
+	deliveries       deliveriesState
+	updates          updateCardState
 	// serverVersion is the server's, from the last health check (Tentang).
 	serverVersion string
 	// aboutOpen are the versions unfolded in Tentang; the newest starts open.

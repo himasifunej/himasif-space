@@ -28,6 +28,13 @@ Polesan rc.4 (masukan owner 0.4.6-rc.2/rc.3):
 - **Skala tampilan** di Tampilan: **Ikuti Windows** (bawaan), 100%, 125%, 150%, 175%, 200%, seperti Skala di pengaturan Layar Windows. Berlaku untuk seluruh jendela Space seketika dan diingat per perangkat; tetap sesuai saat jendela pindah ke monitor lain. Di web: Ikuti browser, dan skala di atas zoom browser. Bisa dicari lewat Ctrl K.
 - **Kotak masuk Ace bisa dibuka dan dikosongkan**: saat Ace menunjukkan "+N", mengarahkan kursor atau mengklik Ace membuka kabar yang menunggu (bukan Hari ini), dengan ikon jenis, ‹ › untuk berpindah, **×** (Tandai dibaca) per kabar, dan **Tandai semua dibaca**. **Hari ini** tetap bisa dibuka dari situ, dan Hari ini menautkan kembali ke **Kabar · N**. Membuka kabar atau aksinya menandainya dibaca; +N turun dan hilang di 0, dan kabar yang sudah dibaca tidak kembali setelah Space dibuka ulang.
 
+## Belum dirilis · alasan pembatalan sekali ketuk
+
+- **Batalkan tugas**: pilih alasan sekali ketuk (Salah input / duplikat, Tidak jadi dikerjakan, Digabung ke tugas lain, Diganti rencana, Lainnya). Catatan boleh kosong, kecuali untuk Lainnya. Riwayat mencatat "alasan: catatan".
+- Alasan terakhir sudah terpilih saat membatalkan tugas berikutnya, selama Space terbuka.
+- **Batalkan banyak tugas sekaligus**: tombol **Pilih** di board (atau Ctrl/Shift+klik kartu) memunculkan kotak centang. Hanya tugas yang boleh kamu batalkan yang bisa dipilih. Bilah pilihan menampilkan jumlahnya dan **Batalkan (N)**, yang membuka dialog yang sama dengan chip alasan: satu alasan untuk semua.
+  - Tugas dibatalkan satu per satu. Kalau ada yang gagal, ringkasannya tampil ("8 dibatalkan, 1 gagal: …") dan tugas yang gagal tetap terpilih untuk dicoba lagi. Esc keluar dari mode pilih.
+
 ## 0.4.6-rc.3 — 2026-11-11 · Kartu pembaruan (pre-release)
 
 - **Kartu pembaruan** di pojok kiri bawah jendela Space, seperti enowX. Sebelumnya versi baru diunduh diam-diam dan hanya tampak di Pengaturan › Status layanan.
