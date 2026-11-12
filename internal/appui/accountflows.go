@@ -47,6 +47,8 @@ type accountFlowState struct {
 	currentPassword, newPassword, confirmPassword string
 	adminEmail, custodian                         string
 	handoverConfirm                               bool
+	// passwordOpen, handoverOpen: the forms opened in their rows of Akun.
+	passwordOpen, handoverOpen bool
 }
 
 type accountLink struct{ mode, token, verification string }
@@ -566,41 +568,78 @@ func (a *App) accountCredentialsView(c *ui.Context) {
 		a.clearAccountFlow()
 		a.account.owner, a.account.verification = a.user.ID, proof
 	}
-	pageSection(c, "Keamanan akun", "Perubahan kata sandi mengakhiri sesi di perangkat lain; sesi ini tetap aktif.", func() {
-		accountInput(c, "Kata sandi saat ini", &a.account.currentPassword, true, a.account.busy)
-		accountInput(c, "Kata sandi pengganti", &a.account.newPassword, true, a.account.busy)
-		accountInput(c, "Ulangi kata sandi pengganti", &a.account.confirmPassword, true, a.account.busy)
-		if spaceButton(c, "Ubah kata sandi", "lock", false).Disabled(a.account.busy).Clicked() {
-			a.changeAccountPassword()
+	t := c.Theme()
+	SettingSection(c, "Keamanan akun", "Perubahan kata sandi mengakhiri sesi di perangkat lain; sesi ini tetap aktif.", func() {
+		open := a.account.passwordOpen || a.account.handoverOpen
+		SettingRow(c, "Kata sandi", "Minimal 10 karakter.", func() {
+			label := "Ubah…"
+			if open {
+				label = "Tutup"
+			}
+			if SettingButton(c, label, "lock").Disabled(a.account.busy || a.account.handoverOpen).Clicked() {
+				a.account.passwordOpen = !a.account.passwordOpen
+			}
+		})
+		if !open {
+			return
 		}
+		settingsRowBody(c, "password", func() {
+			ui.Row(c).FillWidth().Gap(12).Wrap().Children(func() {
+				for _, f := range []struct {
+					label string
+					value *string
+				}{{"Kata sandi saat ini", &a.account.currentPassword}, {"Kata sandi pengganti", &a.account.newPassword}, {"Ulangi kata sandi pengganti", &a.account.confirmPassword}} {
+					ui.Column(c.Key(f.label)).Grow(1).Basis(0).MinWidth(180).Children(func() { accountInput(c, f.label, f.value, true, a.account.busy) })
+				}
+			})
+			if !a.account.handoverOpen && primarySpaceButton(c, "Ubah kata sandi", "lock").Disabled(a.account.busy).Clicked() {
+				a.changeAccountPassword()
+			}
+		})
 	})
 	if a.isAdmin() {
-		pageSection(c, "Serah terima akun admin", "Akun bersama tetap satu. Kata sandi baru wajib; email pemulihan baru memerlukan bukti email. Semua sesi berakhir setelah serah terima.", func() {
-			accountInput(c, "Pengelola baru", &a.account.custodian, false, a.account.busy)
-			accountInput(c, "Email pemulihan baru (opsional)", &a.account.adminEmail, false, a.account.busy)
-			muted(c, "Gunakan kata sandi saat ini dan kata sandi pengganti pada bagian keamanan di atas.")
-			if a.account.verification != "" {
-				muted(c, "Bukti email dimuat dari tautan. Keabsahan dan kesesuaian alamat tetap diperiksa server.")
-			}
-			if spaceButton(c, "Kirim bukti email admin", "mail", false).Disabled(a.account.busy).Clicked() {
-				a.requestAdminEmail()
-			}
-			if spaceButton(c, "Tempel tautan bukti email", "link", false).Disabled(a.account.busy).Clicked() {
-				a.openAccountLink()
-			}
-			if !a.account.handoverConfirm {
-				if spaceButton(c, "Tinjau serah terima", "shield", false).Disabled(a.account.busy).Clicked() {
-					a.prepareAdminHandover()
+		SettingSection(c, "Serah terima akun admin", "Akun bersama tetap satu. Kata sandi baru wajib; email pemulihan baru memerlukan bukti email. Semua sesi berakhir setelah serah terima.", func() {
+			SettingRow(c, "Serahkan ke pengelola baru", "Memakai kata sandi saat ini dan kata sandi pengganti di Keamanan akun.", func() {
+				label := "Mulai serah terima"
+				if a.account.handoverOpen {
+					label = "Tutup"
 				}
-			} else {
-				pageNotice(c, "alert", "Konfirmasi serah terima", "Pengelola: "+a.account.custodian+". Semua perangkat, termasuk perangkat ini, akan keluar. Pastikan pengelola baru sudah menerima kredensial melalui jalur yang aman.")
-				if spaceButton(c, "Konfirmasi dan akhiri semua sesi", "check", false).Disabled(a.account.busy).Clicked() {
-					a.submitAdminHandover()
+				if SettingButton(c, label, "shield").Disabled(a.account.busy).Clicked() {
+					a.account.handoverOpen, a.account.handoverConfirm = !a.account.handoverOpen, false
 				}
-				if spaceButton(c, "Batal serah terima", "close", false).Disabled(a.account.busy).Clicked() {
-					a.account.handoverConfirm = false
-				}
+			})
+			if !a.account.handoverOpen {
+				return
 			}
+			settingsRowBody(c, "handover", func() {
+				accountInput(c, "Pengelola baru", &a.account.custodian, false, a.account.busy)
+				accountInput(c, "Email pemulihan baru (opsional)", &a.account.adminEmail, false, a.account.busy)
+				if a.account.verification != "" {
+					muted(c, "Bukti email dimuat dari tautan. Keabsahan dan kesesuaian alamat tetap diperiksa server.").FontSize(13)
+				}
+				ui.Row(c).FillWidth().Gap(8).Wrap().Children(func() {
+					if SettingButton(c, "Kirim bukti email admin", "mail").Disabled(a.account.busy).Clicked() {
+						a.requestAdminEmail()
+					}
+					if SettingButton(c, "Tempel tautan bukti email", "link").Disabled(a.account.busy).Clicked() {
+						a.openAccountLink()
+					}
+					if !a.account.handoverConfirm && SettingButton(c, "Tinjau serah terima", "shield").Disabled(a.account.busy).Clicked() {
+						a.prepareAdminHandover()
+					}
+				})
+				if a.account.handoverConfirm {
+					pageNotice(c, "alert", "Konfirmasi serah terima", "Pengelola: "+a.account.custodian+". Semua perangkat, termasuk perangkat ini, akan keluar. Pastikan pengelola baru sudah menerima kredensial melalui jalur yang aman.")
+					ui.Row(c).FillWidth().Gap(8).Wrap().Children(func() {
+						if SettingButton(c, "Konfirmasi dan akhiri semua sesi", "check").Disabled(a.account.busy).TextColor(t.Danger).Clicked() {
+							a.submitAdminHandover()
+						}
+						if SettingButton(c, "Batal serah terima", "close").Disabled(a.account.busy).Clicked() {
+							a.account.handoverConfirm = false
+						}
+					})
+				}
+			})
 		})
 	}
 	if a.account.busy {

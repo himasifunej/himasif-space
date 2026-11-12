@@ -518,7 +518,7 @@ func (a *App) spaceReviewPage(c *ui.Context) {
 		}
 	}
 	ui.Scroll(c.Key("space-review")).Fill().Children(func() {
-		body := ui.Column(c).FillWidth().MinWidth(0).MaxWidth(1280).Padding(26).Gap(18)
+		body := ui.Column(c).FillWidth().MinWidth(0).MaxWidth(pageMaxWidth).Padding(26).Gap(18)
 		if isMobile(c) {
 			body.Padding(16).Gap(14)
 		}

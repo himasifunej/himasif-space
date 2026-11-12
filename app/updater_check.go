@@ -36,6 +36,7 @@ func updateFeeds(channel string) []string {
 // feedResult is one feed read: its manifest, or why there is none.
 type feedResult struct {
 	manifest update.Manifest
+	envelope []byte // the signed manifest as read
 	err      error
 }
 
@@ -43,9 +44,10 @@ type feedResult struct {
 // nothing is published on any feed read (noFeed), or that a feed could not
 // be read (err), which never counts as up to date.
 type checkOutcome struct {
-	offer  *update.Manifest
-	noFeed bool
-	err    error
+	offer    *update.Manifest
+	envelope []byte // offer's signed manifest
+	noFeed   bool
+	err      error
 }
 
 // summarizeCheck sums the feeds read up. A feed that answers 404 publishes
@@ -69,7 +71,13 @@ func summarizeCheck(current string, results []feedResult) checkOutcome {
 		}
 	}
 	if m, ok := update.Newest(current, found...); ok {
-		return checkOutcome{offer: &m}
+		out := checkOutcome{offer: &m}
+		for _, r := range results {
+			if r.err == nil && r.manifest.Channel == m.Channel {
+				out.envelope = r.envelope
+			}
+		}
+		return out
 	}
 	if out.err == nil {
 		out.noFeed = allNoFeed

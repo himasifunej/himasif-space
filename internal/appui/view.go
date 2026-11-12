@@ -12,6 +12,7 @@ func (a *App) isAdmin() bool { return a.user.Kind == api.AccountOrganizationAdmi
 // View builds the window's interface.
 func (a *App) View(c *ui.Context) {
 	a.loadPreferences()
+	a.applyDisplayScale(c)
 	dark := a.DarkAppearance(c.Theme().Dark)
 	c.SetTheme(paletteTheme(dark, a.chrome.preferences))
 	t := c.Theme()
@@ -37,6 +38,12 @@ func (a *App) View(c *ui.Context) {
 			}
 		})
 	})
+	if a.screen != screenStarting && !a.firstScreenRun {
+		a.firstScreenRun = true
+		if a.FirstScreen != nil {
+			a.FirstScreen()
+		}
+	}
 }
 
 // DarkAppearance resolves the device theme for auxiliary native windows too.

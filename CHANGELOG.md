@@ -5,6 +5,29 @@ Versi mengikuti aturan sebelum rilis publik:
 - **Minor** naik untuk pembaruan besar.
 - **1.0.0** untuk rilis publik.
 
+## Belum dirilis · Pengaturan baru
+
+Desain ulang Pengaturan dari canvas c66c26d3f3e1, pilihan owner. Notifikasi dan Dynamic Island, Tautan dan bot WhatsApp, dan Status layanan tidak berubah.
+
+- **Akun**: baris Akunmu, Keamanan akun (formulir kata sandi terbuka di barisnya), Aplikasi ini; serah terima admin di bagiannya sendiri.
+- **Tampilan**: baris tema, palet, aksen, kepadatan, dan warna board, dengan pratinjau sidebar dan board di samping.
+- **Sinkronisasi**: status dan Sinkronkan sekarang dalam satu baris; setiap perubahan tertunda sebagai baris dengan Tinjau.
+- **Identitas space**: jenis dan akses dalam kata-kata, logo divisi, dan tautan ke Anggota serta Bot WhatsApp.
+- **Pengingat dan ping**: hari pengingat sebagai pilihan (H-3 sampai Hari H) dengan H- sendiri, jam kirim, ulangi lewat tenggat, dan satu kalimat contoh; ping dibuka dari barisnya.
+- **Command bot**: daftar perintah, editor, dan pratinjau WhatsApp yang mengikuti ketikan; media balasan (stiker) dijelaskan.
+- **Aktivitas WhatsApp**: tabel pengiriman dengan status dalam kata-kata dan saringan Bermasalah.
+- **Tentang**: versi aplikasi dan server, lalu riwayat dengan versi terbaru terbuka.
+
+Polesan rc.4 (masukan owner 0.4.6-rc.2/rc.3):
+
+- **Pemeriksaan pembaruan lebih cepat**: begitu layar pertama tampil (sekitar 2–3 detik), bukan 20 detik setelah dibuka. Versi yang sudah diunduh dan diperiksa sebelumnya langsung tampil sebagai kartu "Siap dipasang" di kiri bawah. Tetap setiap 6 jam, dan tetap diam selama onboarding.
+- **Tombol Ace Island terasa hidup**: "Buka Space", "Pengaturan island" dan tombol island lain berubah warna saat disorot, lebih dalam saat ditekan, dan bercincin saat dipilih dengan keyboard, dalam warna gaya island masing-masing (Ikut tema, Hitam, Kaca, Custom).
+- **Palet Sakura** (merah muda) di Tampilan, untuk mode gelap (plum) dan terang (blush), dengan aksen baru **Merah muda**. Memilih Sakura ikut mengganti aksen bawaan menjadi merah muda; aksen yang sudah kamu pilih tetap. Kontras teks dan tombol memenuhi WCAG AA.
+- **Logo Space di sidebar tetap di kiri**, sejajar dengan kolom ikon navigasi, baik sidebar terbuka maupun diciutkan (sebelumnya bergeser ke tengah saat sidebar dibuka). Nama "Space" dan "Ruang Kerja HIMASIF" dirapatkan di sebelahnya.
+- **Halaman daftar memakai lebar layar**: Space saya, Untukku, Jobdesk saya, Arsip, Panduan, dan halaman Space melebar sampai 1440 px (sebelumnya berhenti di 1080–1280 px dan menyisakan ruang kosong di kanan). Di jendela lebar (mulai 1600 px), Space saya menambah kolom **Minggu ini**: jumlah rapat 7 hari, kabar baru, tugas lewat, dan rapat berikutnya dari semua Space (klik untuk membuka Space-nya).
+- **Skala tampilan** di Tampilan: **Ikuti Windows** (bawaan), 100%, 125%, 150%, 175%, 200%, seperti Skala di pengaturan Layar Windows. Berlaku untuk seluruh jendela Space seketika dan diingat per perangkat; tetap sesuai saat jendela pindah ke monitor lain. Di web: Ikuti browser, dan skala di atas zoom browser. Bisa dicari lewat Ctrl K.
+- **Kotak masuk Ace bisa dibuka dan dikosongkan**: saat Ace menunjukkan "+N", mengarahkan kursor atau mengklik Ace membuka kabar yang menunggu (bukan Hari ini), dengan ikon jenis, ‹ › untuk berpindah, **×** (Tandai dibaca) per kabar, dan **Tandai semua dibaca**. **Hari ini** tetap bisa dibuka dari situ, dan Hari ini menautkan kembali ke **Kabar · N**. Membuka kabar atau aksinya menandainya dibaca; +N turun dan hilang di 0, dan kabar yang sudah dibaca tidak kembali setelah Space dibuka ulang.
+
 ## 0.4.6-rc.3 — 2026-11-11 · Kartu pembaruan (pre-release)
 
 - **Kartu pembaruan** di pojok kiri bawah jendela Space, seperti enowX. Sebelumnya versi baru diunduh diam-diam dan hanya tampak di Pengaturan › Status layanan.

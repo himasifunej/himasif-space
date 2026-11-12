@@ -18,6 +18,10 @@ var spacePalettes = []spacePalette{
 	{"midnight", "Midnight", "#a9c0f5", [7]string{"#101621", "#0b101a", "#192234", "#232f46", "#354760", "#eaf0ff", "#acbfdc"}, [7]string{"#f0f4fb", "#e4ebf6", "#fcfdff", "#dce5f5", "#bdcde5", "#1c2e4a", "#526788"}},
 	{"copper", "Copper", "#dca471", [7]string{"#1b1613", "#130f0c", "#28201b", "#362a22", "#514032", "#f5e8df", "#c7af9c"}, [7]string{"#faf3ec", "#f1e4d7", "#fffbf7", "#efddcc", "#d6baa0", "#36281f", "#725b48"}},
 	{"graphite", "Graphite", "#88aaff", [7]string{"#15171c", "#0e1014", "#1e222a", "#292f3c", "#3c4556", "#edf0f7", "#b2bdd1"}, [7]string{"#f3f5fa", "#e7ebf4", "#ffffff", "#e0e6f2", "#c3cde0", "#232c40", "#56647e"}},
+	// Sakura (owner's rc.2 feedback, "cewe suka pink"): plum-dark and
+	// blush-light, pink without going sweet; picking it brings the pink
+	// accent along unless an accent was chosen (paletteAccent).
+	{"sakura", "Sakura", "#f0a6c4", [7]string{"#1b1218", "#140d12", "#251820", "#33212c", "#4e3443", "#fbeaf2", "#d4b0c2"}, [7]string{"#fdf3f7", "#f7e5ec", "#fffafc", "#f7dfe9", "#e9c3d3", "#3b1d2b", "#7a4d61"}},
 }
 
 func paletteTheme(dark bool, p Preferences) *ui.Theme {
@@ -91,6 +95,7 @@ func (a *App) paletteChoices(c *ui.Context) {
 				})
 				if b.Clicked() {
 					p.Palette = palette.key
+					p.Accent = paletteAccent(palette.key, p.Accent)
 					a.savePreferences(c)
 				}
 			}

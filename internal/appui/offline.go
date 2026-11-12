@@ -196,67 +196,104 @@ func (a *App) overlayPendingTasks(items []api.Task) []api.Task {
 	}
 	return items
 }
+
+// offlineView is Sinkronisasi, option A: the device's state and Sinkronkan
+// sekarang in one row, then each change waiting as a row; Tinjau opens its
+// preview and the two-step choices under it.
 func (a *App) offlineView(c *ui.Context) {
-	settingsBody(c, "Sinkronisasi perangkat", "Tinjau perubahan yang tersimpan di perangkat dan kirim saat koneksi tersedia.", func() {
+	t := c.Theme()
+	settingsPageView(c, "Sinkronisasi perangkat", "Perubahan yang tersimpan di perangkat ini dan dikirim saat koneksi tersedia.", false, nil, func() {
 		if a.offlineClient() == nil {
 			pageNotice(c, "alert", "Penyimpanan offline tidak tersedia", "Cache dan antrean belum dapat disimpan pada perangkat ini.")
 			return
 		}
-		pageSection(c, "Status perangkat", "Hanya data yang sudah diunduh tersedia offline. Delegasi, akses, konfigurasi bot dan penyerahan hasil memerlukan koneksi.", func() {
-			muted(c, fmt.Sprintf("%d perubahan tersimpan di perangkat.", len(a.offlineSync.items)))
-			if spaceButton(c, "Sinkronkan sekarang", "refresh", true).Disabled(a.offlineSync.loading).Clicked() {
-				a.refreshOffline(true)
+		SettingSection(c, "Status perangkat", "Hanya data yang sudah diunduh tersedia offline. Delegasi, akses, konfigurasi bot dan penyerahan hasil memerlukan koneksi.", func() {
+			state := "Tersambung"
+			if a.offlineMode() {
+				state = "Offline"
 			}
-		})
-		if a.offlineSync.err != "" {
-			ui.Text(c, a.offlineSync.err).TextColor(c.Theme().Danger)
-		}
-		for _, p := range a.offlineSync.items {
-			p := p
-			panel := ui.Column(c.Key(p.Mutation.ID)).FillWidth().Gap(8).Padding(12).Border(1, c.Theme().Border).Radius(8)
-			panel.Children(func() {
-				ui.Text(c, offlineKindLabel(p.Mutation.Kind)+" · "+offlineStateLabel(p.State)).Bold()
-				muted(c, p.Error)
-				a.offlineMutationPreview(c, p, panel)
-				if p.State == "conflict" {
-					if spaceButton(c, "Gunakan perubahan perangkat setelah meninjau kedua versi", "check", false).Clicked() {
-						a.offlineSync.selected = p.Mutation.ID
-						a.offlineSync.confirm = true
-						a.offlineSync.action = "local"
-					}
-				}
-				if p.State == "rejected" && spaceButton(c, "Coba lagi setelah akses diperbaiki", "refresh", false).Clicked() {
-					a.offlineSync.selected = p.Mutation.ID
-					a.offlineSync.action = "retry"
-					a.offlineSync.confirm = false
-				}
-				if a.offlineSync.selected == p.Mutation.ID && a.offlineSync.action == "retry" {
-					if spaceButton(c, "Konfirmasi ajukan ulang perubahan", "check", true).Clicked() {
-						a.retryRejectedOffline(p.Mutation.ID)
-					}
-				}
-				if a.offlineSync.confirm && a.offlineSync.selected == p.Mutation.ID {
-					muted(c, "Konfirmasi: perubahan perangkat akan diajukan terhadap versi server yang ditampilkan. Perubahan server sesudahnya tetap dapat menimbulkan konflik baru.")
-					if spaceButton(c, "Konfirmasi gunakan perangkat", "check", true).Clicked() {
-						a.resolveOffline(p.Mutation.ID, true)
-					}
-				}
-				if spaceButton(c, "Buang antrean ini dan gunakan server", "close", false).Clicked() {
-					a.offlineSync.selected = p.Mutation.ID
-					a.offlineSync.confirm = false
-					a.offlineSync.action = "discard"
-				}
-				if a.offlineSync.selected == p.Mutation.ID && !a.offlineSync.confirm && a.offlineSync.action != "retry" {
-					if spaceButton(c, "Konfirmasi buang perubahan perangkat", "close", true).Clicked() {
-						a.resolveOffline(p.Mutation.ID, false)
-					}
+			line := fmt.Sprintf("%d perubahan tersimpan di perangkat", len(a.offlineSync.items))
+			if !a.syncedAt.IsZero() {
+				line += " · terakhir tersambung " + a.syncedAt.Format("15.04")
+			}
+			SettingRow(c, state, line, func() {
+				if primarySpaceButton(c, "Sinkronkan sekarang", "refresh").Disabled(a.offlineSync.loading).Clicked() {
+					a.refreshOffline(true)
 				}
 			})
+		})
+		if a.offlineSync.err != "" {
+			ui.Text(c, a.offlineSync.err).FontSize(13).TextColor(t.Danger)
 		}
 		if len(a.offlineSync.items) == 0 {
 			pageEmpty(c, "check", "Antrean kosong", "Tidak ada perubahan yang menunggu sinkronisasi.")
+		} else {
+			SettingSection(c, "Antrean", "Terkirim sendiri saat tersambung; yang ditolak atau bentrok menunggu pilihanmu.", func() {
+				for _, p := range a.offlineSync.items {
+					p := p
+					a.offlineRow(c, p)
+				}
+			})
 		}
-		muted(c, fmt.Sprintf("%d perubahan tersimpan. Lampiran lokal yang belum diunggah tetap berstatus pending.", len(a.offlineSync.items)))
+		SettingsNote(c, "Lampiran lokal yang belum diunggah tetap berstatus pending.")
+	})
+}
+
+// offlineRow is one change waiting: its kind and state, Tinjau and Buang;
+// opened, its preview and the confirmations.
+func (a *App) offlineRow(c *ui.Context, p client.PendingMutation) {
+	t := c.Theme()
+	mid := p.Mutation.ID
+	open := a.offlineSync.selected == mid
+	state := offlineStateLabel(p.State)
+	if p.Error != "" {
+		state += " · " + p.Error
+	}
+	SettingRow(c, offlineKindLabel(p.Mutation.Kind), state, func() {
+		label := "Tinjau"
+		if open {
+			label = "Tutup"
+		}
+		if SettingButton(c.Key(mid), label, "").Clicked() {
+			if open {
+				a.offlineSync.selected, a.offlineSync.confirm, a.offlineSync.action = id.Nil, false, ""
+			} else {
+				a.offlineSync.selected, a.offlineSync.confirm, a.offlineSync.action = mid, false, "review"
+			}
+		}
+	})
+	if !open {
+		return
+	}
+	settingsRowBody(c, mid.String(), func() {
+		panel := ui.Column(c.Key("preview")).FillWidth().Gap(8).Padding(12).Radius(8).Background(t.Background).Border(1, t.Border)
+		panel.Children(func() { a.offlineMutationPreview(c, p, panel) })
+		ui.Row(c).FillWidth().Gap(8).Wrap().Children(func() {
+			if p.State == "conflict" && SettingButton(c, "Gunakan perubahan perangkat setelah meninjau kedua versi", "check").Clicked() {
+				a.offlineSync.confirm, a.offlineSync.action = true, "local"
+			}
+			if p.State == "rejected" && SettingButton(c, "Coba lagi setelah akses diperbaiki", "refresh").Clicked() {
+				a.offlineSync.confirm, a.offlineSync.action = false, "retry"
+			}
+			if SettingButton(c, "Buang antrean ini dan gunakan server", "close").Clicked() {
+				a.offlineSync.confirm, a.offlineSync.action = false, "discard"
+			}
+		})
+		switch {
+		case a.offlineSync.action == "retry":
+			if primarySpaceButton(c, "Konfirmasi ajukan ulang perubahan", "check").Clicked() {
+				a.retryRejectedOffline(mid)
+			}
+		case a.offlineSync.confirm:
+			muted(c, "Konfirmasi: perubahan perangkat akan diajukan terhadap versi server yang ditampilkan. Perubahan server sesudahnya tetap dapat menimbulkan konflik baru.").FontSize(13)
+			if primarySpaceButton(c, "Konfirmasi gunakan perangkat", "check").Clicked() {
+				a.resolveOffline(mid, true)
+			}
+		case a.offlineSync.action == "discard":
+			if SettingButton(c, "Konfirmasi buang perubahan perangkat", "close").TextColor(t.Danger).Clicked() {
+				a.resolveOffline(mid, false)
+			}
+		}
 	})
 }
 func (a *App) resolveOffline(mid id.ID, local bool) {

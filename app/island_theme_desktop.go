@@ -40,21 +40,21 @@ var islandPresets = []struct{ name, hex string }{
 
 // islandPalette is a style's colors for one frame.
 type islandPalette struct {
-	ink, text, muted, ring, button, buttonHover ui.Color
-	dark                                        bool
+	ink, text, muted, ring, button, buttonHover, buttonPress ui.Color
+	dark                                                     bool
 }
 
 // use makes p the colors the island draws with this frame.
 func (p islandPalette) use() {
 	islandInk, islandText, islandMuted = p.ink, p.text, p.muted
-	islandRing, islandButton, islandButtonHover = p.ring, p.button, p.buttonHover
+	islandRing, islandButton, islandButtonHover, islandButtonPress = p.ring, p.button, p.buttonHover, p.buttonPress
 }
 
 // islandPaletteFor is the style prefs ask for; base is Space's theme, for
 // "Ikut tema", nil where it is not known (the black pill then).
 func islandPaletteFor(prefs devicePreferences, base *ui.Theme) islandPalette {
 	black := islandPalette{ink: ui.RGB(0, 0, 0), text: ui.RGB(245, 245, 247), muted: ui.RGBA(245, 245, 247, .72),
-		ring: ui.RGBA(255, 255, 255, .06), button: ui.RGB(44, 44, 46), buttonHover: ui.RGB(58, 58, 60), dark: true}
+		ring: ui.RGBA(255, 255, 255, .06), button: ui.RGB(44, 44, 46), buttonHover: ui.RGB(62, 62, 66), buttonPress: ui.RGB(78, 78, 84), dark: true}
 	switch prefs.IslandTheme {
 	case islandThemeBlack:
 		return black
@@ -80,7 +80,7 @@ func islandPaletteFor(prefs devicePreferences, base *ui.Theme) islandPalette {
 	}
 	// Ikut tema: Space's surface and text, its border, its buttons.
 	return islandPalette{ink: opaque(base.Surface), text: base.Text, muted: base.TextMuted, ring: base.Border,
-		button: base.SurfaceHover, buttonHover: base.SurfacePressed, dark: base.Dark}
+		button: base.SurfaceHover, buttonHover: base.SurfacePressed, buttonPress: islandMix(base.SurfacePressed, base.Text, .1), dark: base.Dark}
 }
 
 // islandOn is a palette over the background bg, alpha opaque: text, eyes
@@ -90,10 +90,17 @@ func islandOn(bg ui.Color, alpha float64) islandPalette {
 	if islandLuminance(bg) > .45 {
 		fg := ui.RGB(24, 24, 27)
 		return islandPalette{ink: ink, text: fg, muted: ui.RGBA(24, 24, 27, .68), ring: ui.RGBA(0, 0, 0, .12),
-			button: ui.RGBA(0, 0, 0, .08), buttonHover: ui.RGBA(0, 0, 0, .14)}
+			button: ui.RGBA(0, 0, 0, .08), buttonHover: ui.RGBA(0, 0, 0, .15), buttonPress: ui.RGBA(0, 0, 0, .22)}
 	}
 	return islandPalette{ink: ink, text: ui.RGB(245, 245, 247), muted: ui.RGBA(245, 245, 247, .74), ring: ui.RGBA(255, 255, 255, .14),
-		button: ui.RGBA(255, 255, 255, .12), buttonHover: ui.RGBA(255, 255, 255, .2), dark: true}
+		button: ui.RGBA(255, 255, 255, .12), buttonHover: ui.RGBA(255, 255, 255, .21), buttonPress: ui.RGBA(255, 255, 255, .3), dark: true}
+}
+
+// islandMix is a moved toward b by t (0 to 1), keeping a's alpha: the
+// buttons' hover and pressed shades of a style's own colors.
+func islandMix(a, b ui.Color, t float64) ui.Color {
+	m := func(x, y uint8) uint8 { return uint8(math.Round(float64(x) + (float64(y)-float64(x))*t)) }
+	return ui.RGBA(m(a.R, b.R), m(a.G, b.G), m(a.B, b.B), float32(a.A)/255)
 }
 
 // islandLuminance is a color's relative luminance (WCAG), 0 to 1.

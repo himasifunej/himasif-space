@@ -308,7 +308,7 @@ func (a *App) untukkuView(c *ui.Context) {
 	items := untukFiltered(all, st.filter)
 	phone := isMobile(c)
 	ui.Scroll(c.Key("untukku")).Fill().Children(func() {
-		ui.Column(c).FillWidth().MaxWidth(1080).Padding(phoneSize(phone, 16, 26)).Gap(14).Children(func() {
+		ui.Column(c).FillWidth().MaxWidth(pageMaxWidth).Padding(phoneSize(phone, 16, 26)).Gap(14).Children(func() {
 			ui.Row(c).FillWidth().Wrap().Gap(12).AlignItems(ui.End).Children(func() {
 				ui.Column(c).Grow(1).MinWidth(200).Gap(2).Children(func() {
 					ui.Text(c, "Untukku").FontSize(20).Bold()

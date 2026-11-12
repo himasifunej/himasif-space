@@ -84,6 +84,15 @@ func (a *App) spacePickerRows(now time.Time, query string) []spacePickerRow {
 	return rows
 }
 
+// pageMaxWidth is the widest a list page's content grows (owner's rc.2
+// feedback: Space saya stopped at about 1080 and left the right of a wide
+// window empty); pageAsideMin is the window width from which Space saya
+// adds its "Minggu ini" column beside the table.
+const (
+	pageMaxWidth = 1440
+	pageAsideMin = 1600
+)
+
 // spacePicker is the page.
 func (a *App) spacePicker(c *ui.Context) {
 	t := c.Theme()
@@ -91,8 +100,10 @@ func (a *App) spacePicker(c *ui.Context) {
 	a.ensureTasks(true)
 	a.ensureMyMeetings(now)
 	phone := isMobile(c)
+	w, _ := c.Size()
+	wide := !phone && w >= pageAsideMin
 	ui.Scroll(c.Key("space-picker")).Fill().Children(func() {
-		ui.Column(c).FillWidth().MaxWidth(1080).Padding(phoneSize(phone, 16, 26)).Gap(14).Children(func() {
+		ui.Column(c).FillWidth().MaxWidth(pageMaxWidth).Padding(phoneSize(phone, 16, 26)).Gap(14).Children(func() {
 			ui.Row(c).FillWidth().Wrap().Gap(12).AlignItems(ui.End).Children(func() {
 				ui.Column(c).Grow(1).MinWidth(200).Gap(2).Children(func() {
 					ui.Text(c, "Space saya").FontSize(20).Bold()
@@ -104,41 +115,118 @@ func (a *App) spacePicker(c *ui.Context) {
 				})
 				a.pickerPeriods(c)
 			})
-			ui.TextInput(c.Key("picker-search"), &a.access.pickerQuery).Label("Cari Space").Placeholder("Cari Space… (Ctrl K mencari di mana saja)").FillWidth()
-			if a.access.notice != "" {
-				pageNotice(c, "lock", "Akses diperbarui", a.access.notice)
-			}
-			switch {
-			case a.access.loading:
-				pageUnavailable(c, "refresh", "Memuat Space…", "Memeriksa akses dari server.")
-				return
-			case a.access.err != "":
-				// The Spaces known stay listed under the notice.
-				pageNotice(c, "alert", "Space belum dapat dimuat", a.access.err)
-				if spaceButton(c, "Muat ulang Space", "refresh", false).Clicked() {
-					a.loadSpaces()
+			list := func() {
+				ui.TextInput(c.Key("picker-search"), &a.access.pickerQuery).Label("Cari Space").Placeholder("Cari Space… (Ctrl K mencari di mana saja)").FillWidth()
+				if a.access.notice != "" {
+					pageNotice(c, "lock", "Akses diperbarui", a.access.notice)
 				}
-				if len(a.access.spaces) == 0 {
+				switch {
+				case a.access.loading:
+					pageUnavailable(c, "refresh", "Memuat Space…", "Memeriksa akses dari server.")
+					return
+				case a.access.err != "":
+					// The Spaces known stay listed under the notice.
+					pageNotice(c, "alert", "Space belum dapat dimuat", a.access.err)
+					if spaceButton(c, "Muat ulang Space", "refresh", false).Clicked() {
+						a.loadSpaces()
+					}
+					if len(a.access.spaces) == 0 {
+						return
+					}
+				case len(a.access.spaces) == 0:
+					pageEmpty(c, "lock", "Belum ada Space", "Gunakan undangan dari kadiv atau hubungi pengelola untuk mendapatkan akses.")
 					return
 				}
-			case len(a.access.spaces) == 0:
-				pageEmpty(c, "lock", "Belum ada Space", "Gunakan undangan dari kadiv atau hubungi pengelola untuk mendapatkan akses.")
+				rows := a.spacePickerRows(now, a.access.pickerQuery)
+				if len(rows) == 0 {
+					muted(c, "Tidak ada Space yang cocok.").FontSize(13)
+					return
+				}
+				ui.Column(c.Key("picker-table")).FillWidth().Radius(12).Border(1, t.Border).Background(t.Surface).Clip().Children(func() {
+					if !phone {
+						a.pickerHeader(c)
+					}
+					for _, r := range rows {
+						a.pickerRow(c, r, phone)
+					}
+				})
+			}
+			if !wide {
+				list()
 				return
 			}
-			rows := a.spacePickerRows(now, a.access.pickerQuery)
-			if len(rows) == 0 {
-				muted(c, "Tidak ada Space yang cocok.").FontSize(13)
-				return
-			}
-			ui.Column(c.Key("picker-table")).FillWidth().Radius(12).Border(1, t.Border).Background(t.Surface).Clip().Children(func() {
-				if !phone {
-					a.pickerHeader(c)
-				}
-				for _, r := range rows {
-					a.pickerRow(c, r, phone)
-				}
+			ui.Row(c.Key("picker-columns")).FillWidth().Gap(20).AlignItems(ui.Start).Children(func() {
+				ui.Column(c).Grow(1).MinWidth(0).Gap(14).Children(list)
+				a.pickerWeek(c, now)
 			})
 		})
+	})
+}
+
+// pickerWeek is Space saya's second column on wide windows: the week
+// across the Spaces, the meetings of the next 7 days and the sums of the
+// table, each meeting opening its Space.
+func (a *App) pickerWeek(c *ui.Context, now time.Time) {
+	t := c.Theme()
+	loc := a.homeZone()
+	rows := a.spacePickerRows(now, "")
+	unseen, late := 0, 0
+	for _, r := range rows {
+		unseen += r.unseen
+		late += r.late
+	}
+	var week []api.Meeting
+	for _, m := range a.untuk.meetings {
+		if !m.Cancelled && m.StartsAt.After(now) && m.StartsAt.Before(now.Add(7*24*time.Hour)) {
+			week = append(week, m)
+		}
+	}
+	slices.SortFunc(week, func(x, y api.Meeting) int { return x.StartsAt.Compare(y.StartsAt) })
+	ui.Column(c.Key("picker-week")).Width(320).Shrink(0).Padding(16).Gap(14).Radius(12).Border(1, t.Border).Background(t.Surface).Label("Minggu ini").Children(func() {
+		ui.Text(c, "Minggu ini").FontSize(15).FontWeight(600)
+		ui.Row(c).FillWidth().Gap(8).Children(func() {
+			stat := func(n int, label string, bad bool) {
+				ui.Column(c.Key(label)).Grow(1).Basis(0).MinWidth(0).Padding(10).Gap(2).Radius(9).Background(t.Background).Children(func() {
+					tx := ui.Text(c, fmt.Sprint(n)).FontSize(20).FontWeight(600).FontFeatures("tnum")
+					if bad && n > 0 {
+						tx.TextColor(t.Danger)
+					}
+					ui.Text(c, label).FontSize(11).TextColor(t.TextMuted).MaxLines(1)
+				})
+			}
+			stat(len(week), "Rapat 7 hari", false)
+			stat(unseen, "Kabar baru", false)
+			stat(late, "Tugas lewat", true)
+		})
+		ui.Text(c, "RAPAT BERIKUTNYA").Font(FontMono).FontSize(10).TextColor(faint(t))
+		if len(week) == 0 {
+			muted(c, "Tidak ada rapat dalam 7 hari ke depan.").FontSize(13)
+			return
+		}
+		for i, m := range week[:min(len(week), 6)] {
+			idx := slices.IndexFunc(a.access.spaces, func(s api.Space) bool { return s.ID == m.SpaceID })
+			if idx < 0 {
+				continue
+			}
+			s := a.access.spaces[idx]
+			at := m.StartsAt.In(loc)
+			b := ui.ButtonBase(c.Key(i)).Label("Buka "+s.Name+": "+m.Title).FillWidth().Row().Gap(10).AlignItems(ui.Center).Padding(6, 8).Radius(8)
+			if b.Hovered() {
+				b.Background(t.SurfaceHover)
+			}
+			b.FocusRing(b.FocusVisible()).Children(func() {
+				ui.Box(c).Size(24, 24).Shrink(0).Radius(7).Center().Background(ui.Hex(canvasTileColors[idx%len(canvasTileColors)])).Children(func() {
+					ui.Text(c, spaceInitials(s)).FontSize(10).FontWeight(600).TextColor(canvasInk)
+				})
+				ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
+					ui.Text(c, m.Title).FontSize(13).MaxLines(1)
+					ui.Text(c, untukWeekdays[at.Weekday()][:3]+" "+at.Format("15.04")+" · "+s.Name).FontSize(11).TextColor(faint(t)).MaxLines(1)
+				})
+			})
+			if b.Clicked() {
+				a.openSpaceFromPicker(s)
+			}
+		}
 	})
 }
 

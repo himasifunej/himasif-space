@@ -121,7 +121,7 @@ func str(e ast.Expr) (string, bool) {
 
 // sectionCalls name the section containers: the title argument and the
 // function holding the section's contents.
-var sectionCalls = map[string]int{"pageSection": 1, "settingsBody": 1, "SettingSection": 1, "appui.SettingSection": 1}
+var sectionCalls = map[string]int{"pageSection": 1, "settingsBody": 1, "settingsPageView": 1, "SettingSection": 1, "appui.SettingSection": 1}
 
 // fieldCalls are labelled inputs: the label argument's index.
 var fieldCalls = map[string]int{"ui.Field": 1, "SettingRow": 1, "appui.SettingRow": 1, "taskInput": 2, "taskInputHint": 2, "a.waField": 2, "a.waTemplateEditor": 2}
