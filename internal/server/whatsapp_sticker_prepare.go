@@ -11,15 +11,16 @@ import (
 	"strings"
 )
 
-type waStickerKey struct{}
-type waPreparedSticker struct {
+type waMediaKey struct{}
+type waPreparedMedia struct {
+	Kind  string
 	Asset whatsapp.Asset
 	Err   error
 }
 
 // Conversion reads the cached media outside the mutation transaction. The
 // command revalidates sender, group, role and period before saving its result.
-func (s *Server) prepareWASticker(ctx context.Context, iid, pid, cid id.ID) waPreparedSticker {
+func (s *Server) prepareWAMedia(ctx context.Context, kind waMediaKind, iid, pid, cid id.ID) waPreparedMedia {
 	var in waInbound
 	var group api.WAGroup
 	err := s.store.Tx(ctx, func(q store.Querier) error {
@@ -52,7 +53,7 @@ func (s *Server) prepareWASticker(ctx context.Context, iid, pid, cid id.ID) waPr
 			return err
 		}
 		fields := strings.Fields(in.Body)
-		if len(fields) > 0 && strings.EqualFold(fields[0], "!setsticker") {
+		if len(fields) > 0 && strings.EqualFold(fields[0], "!"+kind.Set) {
 			sc, err := s.loadScope(ctx, q, r, p, store.LockNone)
 			if err != nil {
 				return err
@@ -61,7 +62,7 @@ func (s *Server) prepareWASticker(ctx context.Context, iid, pid, cid id.ID) waPr
 				return err
 			}
 			if len(fields) != 2 {
-				return badRequest("Balas media dengan !setsticker <pemicu>, misalnya !setsticker damn.")
+				return badRequest(kind.Usage)
 			}
 			req := api.WACustomCommandRequest{Trigger: fields[1], Response: "placeholder"}
 			return validateWACommand(&req)
@@ -71,26 +72,30 @@ func (s *Server) prepareWASticker(ctx context.Context, iid, pid, cid id.ID) waPr
 	if err != nil {
 		var ae *apiError
 		if errors.As(err, &ae) {
-			return waPreparedSticker{Err: err}
+			return waPreparedMedia{Kind: kind.Type, Err: err}
 		}
-		return waPreparedSticker{Err: fail(503, api.CodeUnavailable, "Media belum dapat disiapkan; command belum disimpan.")}
+		return waPreparedMedia{Kind: kind.Type, Err: fail(503, api.CodeUnavailable, "Media belum dapat disiapkan; command belum disimpan.")}
 	}
 	message := in.MessageID
 	if in.QuotedMessageID != "" {
 		message = in.QuotedMessageID
 	}
 	var asset whatsapp.Asset
-	acquired, err := s.withWATransport(ctx, cid, func() error { var err error; asset, err = s.wa.Sticker(ctx, cid, group.JID, message); return err })
+	convert := s.wa.Sticker
+	if kind.Type == "gif" {
+		convert = s.wa.GIF
+	}
+	acquired, err := s.withWATransport(ctx, cid, func() error { var err error; asset, err = convert(ctx, cid, group.JID, message); return err })
 	if err == nil && !acquired {
 		err = fail(503, api.CodeUnavailable, "Koneksi sedang sibuk; konversi belum dicoba.")
 	}
 	if err != nil {
 		var failure *whatsapp.Error
 		if errors.As(err, &failure) && (failure.Status == 400 || failure.Status == 404) {
-			err = badRequest("Media tidak tersedia atau tidak dapat dijadikan stiker. Lampirkan gambar/video singkat atau balas pesan medianya.")
+			err = badRequest(kind.Unusable)
 		} else {
-			err = fail(503, api.CodeUnavailable, "Konversi stiker belum tersedia. Command belum disimpan.")
+			err = fail(503, api.CodeUnavailable, kind.Unavailable)
 		}
 	}
-	return waPreparedSticker{Asset: asset, Err: err}
+	return waPreparedMedia{Kind: kind.Type, Asset: asset, Err: err}
 }

@@ -322,13 +322,15 @@ func (a *App) waSpaceName(sid id.ID) string {
 }
 
 // waCoreCommands are the bot's own commands, which follow task permissions.
-var waCoreCommands = []string{"!tugas", "!hari", "!pending", "!rekap", "!setsticker"}
+var waCoreCommands = []string{"!tugas", "!hari", "!pending", "!rekap", "!setsticker", "!setgif"}
 
 // waMediaLabel says a command's media in words.
 func waMediaLabel(kind string) string {
 	switch kind {
 	case "sticker":
 		return "Stiker"
+	case "gif":
+		return "GIF"
 	case "image":
 		return "Gambar"
 	case "video":
@@ -439,6 +441,7 @@ func (a *App) commandSettings(c *ui.Context) {
 							trigger = "namaperintah"
 						}
 						muted(c, "Agar perintah ini membalas dengan stiker: di grup WhatsApp, balas gambar, video pendek, atau stiker dengan !setsticker "+trigger+".").FontSize(13)
+						muted(c, "Untuk GIF: balas GIF, video, atau gambar dengan !setgif "+trigger+".").FontSize(13)
 					}
 				})
 				ui.Column(c.Key("groups")).FillWidth().Gap(6).Children(func() {

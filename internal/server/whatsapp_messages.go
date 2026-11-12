@@ -31,6 +31,7 @@ var waPhrases = map[string]waPhrase{
 	"help.submitted":        {"Pengajuan bantuan tersimpan dan menunggu keputusan pengelola tugas.", "Your offer to help was saved and awaits the task manager's decision."},
 	"task.delegated":        {"Delegasi tersimpan ke akun %s; alasan dan riwayat perubahan dicatat.", "The task was assigned to %s; the reason and change history were recorded."},
 	"sticker.saved":         {"Stiker tersimpan sebagai !%s. Cakupan grup dapat dikelola di pengaturan command.", "Sticker saved as !%s. Manage its group restrictions in command settings."},
+	"gif.saved":             {"GIF tersimpan sebagai !%s. Cakupan grup dapat dikelola di pengaturan command.", "GIF saved as !%s. Manage its group restrictions in command settings."},
 	"tasks.summary":         {"Ringkasan tugas ruang ini\nAktif: %d\nHasil perlu tinjauan: %d\nSelesai: %d", "Task summary for this space\nActive: %d\nSubmissions awaiting review: %d\nComplete: %d"},
 	"report.week":           {"Tujuh hari terakhir", "Last seven days"},
 	"report.weekly":         {"Mingguan", "Weekly"},

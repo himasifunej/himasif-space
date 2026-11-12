@@ -66,12 +66,17 @@ func (s *Server) saveWACommand(w http.ResponseWriter, r *http.Request, p *princi
 			}
 		}
 		if req.AssetID != "" {
-			var exists bool
-			if err := q.QueryRow(r.Context(), `select exists(select 1 from wa_assets where connection_id=$1 and bridge_asset_id=$2)`, c.ID, req.AssetID).Scan(&exists); err != nil {
+			var mime string
+			err := q.QueryRow(r.Context(), `select mime from wa_assets where connection_id=$1 and bridge_asset_id=$2`, c.ID, req.AssetID).Scan(&mime)
+			if errors.Is(err, pgx.ErrNoRows) {
+				return badRequest("Aset belum tersimpan pada koneksi ini.")
+			}
+			if err != nil {
 				return err
 			}
-			if !exists {
-				return badRequest("Aset belum tersimpan pada koneksi ini.")
+			// Only an mp4 plays as a GIF; a sticker or image cannot become one here.
+			if req.MediaType == "gif" && mime != "video/mp4" {
+				return badRequest("GIF harus berupa video mp4.")
 			}
 		}
 		var version int64
