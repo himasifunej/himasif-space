@@ -252,6 +252,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PATCH /api/tasks/{taskId}", s.handle(s.updateTask))
 	mux.Handle("POST /api/tasks/{taskId}/move", s.handle(s.moveTask))
 	mux.Handle("POST /api/tasks/{taskId}/comments", s.handle(s.addTaskComment))
+	mux.Handle("GET /api/tasks/{taskId}/mention-candidates", s.handle(s.taskMentionCandidates))
 	mux.Handle("POST /api/tasks/{taskId}/checklist", s.handle(s.taskChecklist))
 	mux.Handle("PATCH /api/tasks/{taskId}/checklist/{itemId}", s.handle(s.taskChecklist))
 	mux.Handle("DELETE /api/tasks/{taskId}/checklist/{itemId}", s.handle(s.taskChecklist))
