@@ -103,7 +103,7 @@ Aturan versi sebelum 1.0: patch naik di setiap pembaruan, minor untuk pembaruan 
 
 ## Menambahkan diri ke kontributor
 
-Sudah berkontribusi (kode, desain, dokumentasi, uji pilot)? Tambahkan dirimu ke [`contributors.json`](contributors.json) lewat PR. Formatnya ada di [docs/contributors.md](docs/contributors.md). Namamu akan tampil di halaman Kredit aplikasi.
+Sudah berkontribusi (kode, desain, dokumentasi, uji pilot)? Tambahkan dirimu ke [`contributors.json`](contributors.json) lewat PR. Formatnya ada di [docs/contributors.md](docs/contributors.md); salin juga berkasnya ke `internal/appui/contributors.json`. Namamu akan tampil di halaman Kredit aplikasi.
 
 ## Kontak
 

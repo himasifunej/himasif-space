@@ -110,6 +110,6 @@ CI (`.github/workflows/ci.yml`) runs `make fmt vet`, the contributors check, and
 2. Make the change with tests; run `make check` (and `make test-db` for server/store).
 3. Add a line to "Belum dirilis" in `CHANGELOG.md` if users will notice.
 4. Open a draft PR to `main` (or the open `release/…` branch): what and why, how it was tested, screenshots for UI changes, migration/server impact.
-5. Contributors add themselves to [`contributors.json`](contributors.json) (format: [docs/contributors.md](docs/contributors.md)); the app's Kredit page reads it.
+5. Contributors add themselves to [`contributors.json`](contributors.json) (format: [docs/contributors.md](docs/contributors.md)) and copy it to `internal/appui/contributors.json`, which the app's Kredit page embeds (`TestContributorsEmbedded` checks they match).
 
 Full guide: [CONTRIBUTING.md](CONTRIBUTING.md). Code of conduct: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). License: MIT.

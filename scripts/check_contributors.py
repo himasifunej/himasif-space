@@ -5,6 +5,7 @@ Standard library only, so it runs in CI and on any contributor's machine:
     python3 scripts/check_contributors.py [path]
 """
 import json
+import os
 import re
 import sys
 
@@ -79,6 +80,12 @@ def main():
         print(f'{path}: {e}', file=sys.stderr)
         return 1
     errs = check(doc) if isinstance(doc, dict) else ['top level must be an object']
+    # The app embeds a copy for Kredit (internal/appui/kredit.go).
+    copy = os.path.join(os.path.dirname(os.path.abspath(path)), 'internal', 'appui', 'contributors.json')
+    if len(sys.argv) <= 1 and os.path.exists(copy):
+        with open(path, 'rb') as a, open(copy, 'rb') as b:
+            if a.read() != b.read():
+                errs.append('internal/appui/contributors.json differs: cp contributors.json internal/appui/contributors.json')
     for e in errs:
         print(f'{path}: {e}', file=sys.stderr)
     if not errs:

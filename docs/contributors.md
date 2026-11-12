@@ -6,8 +6,9 @@
 
 1. Buat branch `docs/contributor-<id>` dari `main`.
 2. Tambahkan satu objek di **akhir** array `contributors`. Jangan mengurutkan ulang atau mengubah entri orang lain.
-3. Periksa: `python3 scripts/check_contributors.py`.
-4. Buka PR berjudul `Kontributor: <nama>`. Sebutkan kontribusimu (PR, desain, uji pilot, dll.) di deskripsi.
+3. Salin berkas yang sama ke `internal/appui/contributors.json`: `cp contributors.json internal/appui/contributors.json`. Aplikasi menanam salinan itu agar Kredit tetap tampil tanpa koneksi, dan `TestContributorsEmbedded` gagal bila keduanya berbeda.
+4. Periksa: `python3 scripts/check_contributors.py` (memeriksa format dan kesamaan salinan).
+5. Buka PR berjudul `Kontributor: <nama>`. Sebutkan kontribusimu (PR, desain, uji pilot, dll.) di deskripsi.
 
 Contoh entri:
 
@@ -42,7 +43,7 @@ Kategori `kind`: `lead` (pengembang utama/pemimpin proyek), `code`, `design`, `d
 
 ## Janji kestabilan (format 1)
 
-Untuk pembaca seperti halaman Kredit:
+Untuk pembaca seperti halaman Kredit (`internal/appui/kredit.go`, yang membaca salinan tertanam `internal/appui/contributors.json`):
 
 - `format` bernilai `1`. Selama `1`, field yang ada tidak dihapus, tidak diganti nama, dan tidak berubah tipe.
 - Field opsional baru boleh ditambahkan. Pembaca **harus mengabaikan** field yang tidak dikenalnya, juga nilai `kind` yang tidak dikenalnya.
