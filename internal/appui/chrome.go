@@ -34,6 +34,8 @@ type chromeState struct {
 	// settingsDetail shows one settings page instead of the grouped list
 	// on narrow windows.
 	settingsDetail bool
+	// bell is the bell popover's paging.
+	bell bellState
 }
 
 func (a *App) resetWorkspace() {
@@ -104,10 +106,13 @@ func (a *App) spaceTitle() string {
 
 func spaceButton(c *ui.Context, label, icon string, active bool) ui.Element {
 	t := c.Theme()
-	b := ui.ButtonBase(c).Label(label).Tooltip(label).Row().AlignItems(ui.Center).Justify(ui.Start).Gap(10).Padding(9, 12).MinHeight(36).Radius(8).TextColor(t.TextMuted)
-	if active {
+	b := ui.ButtonBase(c).Label(label).Tooltip(label).Row().AlignItems(ui.Center).Justify(ui.Start).Gap(10).Padding(9, 12).MinHeight(36).Radius(8).TextColor(t.TextMuted).Transition(motionState)
+	switch {
+	case active:
 		b.Background(t.SurfaceHover).Border(1, t.Border).TextColor(t.Text)
-	} else if b.Hovered() {
+	case b.Pressed():
+		b.Background(t.SurfacePressed).TextColor(t.Text)
+	case b.Hovered():
 		b.Background(t.SurfaceHover).TextColor(t.Text)
 	}
 	b.FocusRing(b.FocusVisible())
@@ -121,8 +126,11 @@ func spaceButton(c *ui.Context, label, icon string, active bool) ui.Element {
 }
 func spaceIconButton(c *ui.Context, label, icon string) ui.Element {
 	t := c.Theme()
-	b := ui.ButtonBase(c).Label(label).Tooltip(label).Size(34, 34).Center().Radius(8).TextColor(t.TextMuted)
-	if b.Hovered() {
+	b := ui.ButtonBase(c).Label(label).Tooltip(label).Size(34, 34).Center().Radius(8).TextColor(t.TextMuted).Transition(motionState)
+	switch {
+	case b.Pressed():
+		b.Background(t.SurfacePressed).TextColor(t.Text)
+	case b.Hovered():
 		b.Background(t.SurfaceHover).TextColor(t.Text)
 	}
 	b.FocusRing(b.FocusVisible())
@@ -132,8 +140,12 @@ func spaceIconButton(c *ui.Context, label, icon string) ui.Element {
 func popover(c *ui.Context, anchor ui.Element, open *bool, width float32, fn func()) {
 	ui.PopoverBase(c, anchor, open, func(panel ui.Element) {
 		t := c.Theme()
-		panel.Margin(6, 0, 0, 0).Width(width).MaxHeight(420).Padding(12).Gap(6).Radius(12).Background(t.Surface).Border(1, t.Border).Shadow(0, 8, 24, 0, ui.RGBA(0, 0, 0, .25))
-		fn()
+		_, wh := c.Size()
+		popPanel(panel, 1).Margin(6, 0, 0, 0).Width(width).MaxHeight(min(420, wh-72)).Clip().Padding(12).Gap(6).Radius(12).Background(t.Surface).Border(1, t.Border).Shadow(0, 8, 24, 0, ui.RGBA(0, 0, 0, .25))
+		// What does not fit scrolls inside the panel, never past it.
+		ui.Scroll(c).FillWidth().Grow(1).Shrink(1).MinHeight(0).Children(func() {
+			ui.Column(c).FillWidth().Gap(6).Children(fn)
+		})
 	}).AttachTo(anchor, ui.AnchorBottomRight, ui.AnchorTopRight)
 }
 func (a *App) navigate(path string) {
@@ -155,6 +167,7 @@ func (a *App) shell(c *ui.Context) {
 		a.chrome.appearance = false
 	}
 
+	keepOverlayLayer(c)
 	a.tourFrameStart()
 	a.ensureOnboarding(c.Now())
 	a.watchNotificationPermission()
@@ -224,7 +237,7 @@ func (a *App) toasts(c *ui.Context) {
 		viewport.Justify(ui.Start).AlignItems(ui.Center).Gap(8).Padding(16)
 		for _, toast := range toasts {
 			parts := ui.ToastBase(c, toast)
-			parts.Root.Width(min(float32(330), w-32)).Row().AlignItems(ui.Center).Padding(14).Gap(10).Radius(10).Background(t.Surface).Border(1, t.Border).Shadow(0, 4, 16, 0, ui.RGBA(0, 0, 0, .2)).Children(func() {
+			parts.Root.Transition(motionToast).Width(min(float32(330), w-32)).Row().AlignItems(ui.Center).Padding(14).Gap(10).Radius(10).Background(t.Surface).Border(1, t.Border).Shadow(0, 4, 16, 0, ui.RGBA(0, 0, 0, .2)).Children(func() {
 				icon, color := "info", t.Accent
 				switch toast.Type {
 				case "success":
@@ -272,6 +285,7 @@ func (a *App) pingDialog(c *ui.Context) {
 	w, h := c.Size()
 	phone := w < mobileMaxWidth
 	ui.DialogBase(c.Key("ping-dialog"), &a.chrome.pingOpen, func(backdrop, panel ui.Element) {
+		dialogMotion(backdrop, panel)
 		backdrop.Background(ui.RGBA(0, 0, 0, .45))
 		if phone {
 			backdrop.Justify(ui.End)

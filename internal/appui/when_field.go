@@ -137,6 +137,7 @@ func (a *App) whenDialog(c *ui.Context, key, title string, st *whenState, body f
 	w, h := c.Size()
 	wide := w >= mobileMaxWidth
 	ui.DialogBase(c.Key(key+"-dialog"), &st.open, func(backdrop, panel ui.Element) {
+		dialogMotion(backdrop, panel)
 		backdrop.Background(ui.RGBA(0, 0, 0, .45))
 		if wide {
 			panel.Width(min(float32(660), w-48)).Radius(16)

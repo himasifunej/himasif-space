@@ -368,6 +368,7 @@ func (a *App) taskActionRow(c *ui.Context, t api.Task) {
 
 func (a *App) taskLabelPopover(c *ui.Context, anchor ui.Element, t api.Task) {
 	ui.PopoverBase(c, anchor, &a.tasks.labelOpen, func(panel ui.Element) {
+		popPanel(panel, 0)
 		th := c.Theme()
 		panel.Margin(6, 0, 0, 0).Width(280).Padding(12).Gap(8).Radius(12).Background(th.Surface).Border(1, th.Border).Shadow(0, 8, 24, 0, ui.RGBA(0, 0, 0, .25))
 		ui.Text(c, "Label").Bold()
@@ -388,6 +389,7 @@ func (a *App) taskLabelPopover(c *ui.Context, anchor ui.Element, t api.Task) {
 
 func (a *App) taskPJPopover(c *ui.Context, anchor ui.Element, t api.Task) {
 	ui.PopoverBase(c, anchor, &a.tasks.pjOpen, func(panel ui.Element) {
+		popPanel(panel, 0)
 		th := c.Theme()
 		panel.Margin(6, 0, 0, 0).Width(290).MaxHeight(420).Padding(12).Gap(8).Radius(12).Background(th.Surface).Border(1, th.Border).Shadow(0, 8, 24, 0, ui.RGBA(0, 0, 0, .25))
 		ui.Text(c, "Ganti PJ utama").Bold()
@@ -765,6 +767,7 @@ func (a *App) taskDetailModal(c *ui.Context) {
 	open := true
 	wide := w >= 960
 	ui.DialogBase(c.Key("task-detail"), &open, func(backdrop, panel ui.Element) {
+		dialogMotion(backdrop, panel)
 		backdrop.Background(ui.RGBA(0, 0, 0, .45))
 		panel.Width(min(float32(1080), w-48)).Height(min(float32(820), h-48)).Column().Radius(14).Background(th.Surface).Border(1, th.Border).Children(func() {
 			ui.Row(c).FillWidth().Padding(12, 16).Gap(10).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(th.Border).Children(func() {
@@ -868,6 +871,7 @@ func (a *App) taskStatusPill(c *ui.Context, t api.Task) {
 		a.tasks.statusOpen = !a.tasks.statusOpen
 	}
 	ui.PopoverBase(c, pill, &a.tasks.statusOpen, func(panel ui.Element) {
+		popPanel(panel, 0)
 		panel.Margin(6, 0, 0, 0).Width(220).Padding(8).Gap(3).Radius(10).Background(th.Surface).Border(1, th.Border).Shadow(0, 8, 24, 0, ui.RGBA(0, 0, 0, .25))
 		ui.Text(c, "Pindahkan ke").FontSize(11).TextColor(th.TextMuted).Padding(6, 8)
 		for l := workspaceui.Todo; l <= workspaceui.Done; l++ {

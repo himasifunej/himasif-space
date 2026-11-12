@@ -93,6 +93,7 @@ func (a *App) whatsNewDialog(c *ui.Context) {
 	t := c.Theme()
 	open := true
 	ui.DialogBase(c.Key("whats-new"), &open, func(backdrop, panel ui.Element) {
+		dialogMotion(backdrop, panel)
 		backdrop.Background(ui.RGBA(0, 0, 0, .45))
 		panel.Width(440).MaxWidth(440).Padding(22).Gap(12).Radius(14).Background(t.Surface).Border(1, t.Border).Label("Yang baru di Space " + wn.Version).Children(func() {
 			ui.Text(c, "Yang baru di "+wn.Version).FontSize(18).Bold()

@@ -5,6 +5,17 @@ Versi mengikuti aturan sebelum rilis publik:
 - **Minor** naik untuk pembaruan besar.
 - **1.0.0** untuk rilis publik.
 
+## Belum dirilis · lonceng Notifikasi dan gerak yang lebih tenang
+
+- **Lonceng Notifikasi** didesain ulang:
+  - Panel punya tinggi maksimal dan area gulirnya sendiri; tidak ada baris yang tumpah ke halaman di belakangnya (100 %, 150 %, 200 %).
+  - Tidak ada lagi entri ganda. Satu kejadian kini satu baris: salinan perangkat dan WhatsApp digabung, pembaruan tugas tidak lagi muncul sekali dari ping dan sekali dari notifikasi tugas, dan pengingat berulang untuk tugas yang sama (H-2, H-1, hari H, lewat tenggat) menjadi satu baris dengan jumlah (×3).
+  - Tombol baris: **Buka**, **Tandai dibaca**, **Tunda 15 menit**, masing-masing dengan ikon. Keadaan diam, disorot, ditekan, dan nonaktif kini jelas berbeda; tombol nonaktif menjelaskan alasannya.
+  - Kepala panel: jumlah belum dibaca dan **Tandai semua dibaca**. Lonceng menampilkan angka, bukan titik.
+  - Dikelompokkan per hari; 10 baris dulu, lalu **Muat lagi**. Pengingat yang belum waktunya ada di bawah, di **Terjadwal**.
+  - Status baca sama dengan kotak masuk Ace: yang dibaca di lonceng (atau dibuka dari Ace, atau dibaca di perangkat lain) keluar dari kotak masuk Ace juga.
+- **Gerak**: popover, menu, dialog, dan toast muncul dengan pudar dan sedikit membesar (sekitar 220 ms) dan pergi lebih cepat; baris yang ditunda bergeser keluar. Tombol berpindah warna dengan halus. Saat sistem meminta gerak dikurangi, tidak ada yang bergerak.
+
 ## Belum dirilis · alasan pembatalan sekali ketuk
 
 - **Batalkan tugas**: pilih alasan sekali ketuk (Salah input / duplikat, Tidak jadi dikerjakan, Digabung ke tugas lain, Diganti rencana, Lainnya). Catatan boleh kosong, kecuali untuk Lainnya. Riwayat mencatat "alasan: catatan".

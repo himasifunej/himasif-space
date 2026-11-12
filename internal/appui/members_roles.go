@@ -100,6 +100,7 @@ func (a *App) memberRolesDialog(c *ui.Context) {
 	w, h := c.Size()
 	phone := w < mobileMaxWidth
 	ui.DialogBase(c.Key("roles-dialog"), &m.roleDialog.open, func(backdrop, panel ui.Element) {
+		dialogMotion(backdrop, panel)
 		backdrop.Background(ui.RGBA(0, 0, 0, 0.35))
 		panel.Width(min(float32(620), w-32)).MaxHeight(h-48).Radius(14).Background(t.Surface).Border(1, t.Border).Label("Dialog role kustom").Children(func() {
 			ui.Row(c).FillWidth().Padding(18, 20, 12, 20).Gap(12).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {

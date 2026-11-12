@@ -659,6 +659,7 @@ func (a *App) medhumDialog(c *ui.Context) {
 	}
 	open := true
 	ui.DialogBase(c.Key("medhum-dialog"), &open, func(backdrop, panel ui.Element) {
+		dialogMotion(backdrop, panel)
 		backdrop.Background(ui.RGBA(0, 0, 0, .45))
 		if phone {
 			backdrop.Justify(ui.End)

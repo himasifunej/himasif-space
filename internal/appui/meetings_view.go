@@ -568,6 +568,7 @@ func (a *App) meetingMoreMenu(c *ui.Context, m api.Meeting) {
 func (a *App) meetingCancelDialog(c *ui.Context, m api.Meeting) {
 	t := c.Theme()
 	ui.DialogBase(c.Key("meeting-cancel"), &a.meetings.confirmOpen, func(backdrop, panel ui.Element) {
+		dialogMotion(backdrop, panel)
 		backdrop.Background(ui.RGBA(0, 0, 0, 0.35))
 		panel.Width(min(float32(440), mustWidth(c)-32)).Padding(20).Gap(12).Radius(14).Background(t.Surface).Border(1, t.Border).Label("Batalkan rapat").Children(func() {
 			ui.Text(c, "Batalkan rapat ini?").FontSize(16).Bold()

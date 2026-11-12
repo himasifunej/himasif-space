@@ -578,6 +578,7 @@ func (a *App) profileDialog(c *ui.Context) {
 	st := &a.onb
 	open := true
 	ui.DialogBase(c.Key("profile-dialog"), &open, func(backdrop, panel ui.Element) {
+		dialogMotion(backdrop, panel)
 		backdrop.Background(ui.RGBA(0, 0, 0, .45))
 		if phone {
 			backdrop.Justify(ui.End)

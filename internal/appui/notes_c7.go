@@ -128,6 +128,7 @@ func (a *App) noteSummaryDialog(c *ui.Context) {
 	t := c.Theme()
 	st := &a.notes.summary
 	ui.DialogBase(c.Key("wa-summary-dialog"), &st.open, func(backdrop, panel ui.Element) {
+		dialogMotion(backdrop, panel)
 		backdrop.Background(ui.RGBA(0, 0, 0, 0.35))
 		panel.Width(min(float32(480), mustWidth(c)-32)).Padding(20).Gap(12).Radius(14).Background(t.Surface).Border(1, t.Border).Label("Dialog ringkasan ke WhatsApp").Children(func() {
 			ui.Text(c, "Kirim ringkasan ke WhatsApp?").FontSize(16).Bold()
