@@ -2,14 +2,14 @@
   {
     "version": "0.4.6",
     "date": "2026-11-12",
-    "title": "Pengaturan baru, lonceng yang rapi, batal massal",
+    "title": "Untukku baru, tandai @, Kehadiranmu, Ace ikut capek",
     "notes": [
-      "Pengaturan baru: delapan halaman ditata ulang, dengan skala tampilan 100–200% dan palet Sakura.",
-      "Lonceng Notifikasi: satu baris per kejadian, panel bergulir, dan Tandai semua dibaca.",
-      "Kotak masuk Ace (+N) bisa dibuka dan dikosongkan; yang dibaca di Ace juga terbaca di lonceng.",
-      "Batalkan tugas dengan alasan sekali ketuk, atau pilih banyak tugas dan batalkan sekaligus.",
-      "Halaman daftar memakai lebar layar; Space saya punya kolom Minggu ini.",
-      "Pembaruan diperiksa begitu Space terbuka; popover dan dialog bergerak lebih tenang."
+      "Untukku baru: minggu ini per hari, saringan, dan pengingat pribadi dalam satu kalimat (selalu WIB).",
+      "Komentar tugas bisa menandai orang dengan @; yang ditandai diberi tahu di lonceng dan Ace.",
+      "Rapat: jawab Kehadiranmu (Hadir, Datang terlambat, Tidak bisa hadir) sebelum rapat.",
+      "Ace ikut capek saat kabar menumpuk, dan segar lagi setelah dibaca; bisa diatur di Pengaturan.",
+      "Animasi pembuka Ace saat Space dibuka atau selesai diperbarui.",
+      "Halaman Kredit di Tentang › Dibuat oleh; Jobdesk saya dikelompokkan per progres."
     ]
   },
   {

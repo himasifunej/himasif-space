@@ -40,6 +40,13 @@ func (c *Client) RecordAttendance(ctx context.Context, mid, uid id.ID, req api.A
 	err := c.do(ctx, http.MethodPut, "/api/meetings/"+mid.String()+"/attendance/"+uid.String(), req, &out)
 	return out, err
 }
+
+// MeetingRSVP keeps the caller's own answer to a meeting.
+func (c *Client) MeetingRSVP(ctx context.Context, mid id.ID, req api.RSVPRequest) (api.Meeting, error) {
+	var out api.Meeting
+	err := c.do(ctx, http.MethodPut, "/api/meetings/"+mid.String()+"/rsvp", req, &out)
+	return out, err
+}
 func (c *Client) MeetingCandidates(ctx context.Context, sid id.ID) ([]api.PersonRef, error) {
 	var out api.List[api.PersonRef]
 	err := c.do(ctx, http.MethodGet, "/api/spaces/"+sid.String()+"/meeting-candidates", nil, &out)

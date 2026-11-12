@@ -138,8 +138,9 @@ var sectionFuncs = map[string]string{"waAdvanced": "Pengaturan lanjutan"}
 var skipCalls = map[string]bool{"pageNotice": true, "pageEmpty": true, "pageUnavailable": true, "muted": true}
 
 // skipFuncs draw states, not settings: waHero is the bot's status line;
-// the ping composer's parts are its states, found by its heading.
-var skipFuncs = map[string]bool{"waHero": true, "pingComposerBody": true, "pingComposerFooter": true, "pingSentView": true}
+// the ping composer's parts are its states, found by its heading; Kredit
+// (Tentang › Dibuat oleh) holds credits, not settings.
+var skipFuncs = map[string]bool{"waHero": true, "pingComposerBody": true, "pingComposerFooter": true, "pingSentView": true, "kreditSettings": true}
 
 // generic labels say nothing on their own in a search: confirmations,
 // closing, reloading, and the channels and sides of a comparison that

@@ -5,6 +5,28 @@ Versi mengikuti aturan sebelum rilis publik:
 - **Minor** naik untuk pembaruan besar.
 - **1.0.0** untuk rilis publik.
 
+## 0.4.6-rc.6 — 2026-11-12 · Untukku baru, tandai @, Kehadiranmu, Ace ikut capek, animasi pembuka (pre-release)
+
+Untukku dan halaman detail (canvas 3747dbbac0d0):
+
+- **Untukku**: judul Minggu N dengan tanggal, asal Space dengan tile, saringan dengan jumlah, **+ Pengingat**. Pengingat yang ditandai selesai tetap tampil tercoret dengan **Buka lagi**, dan toast **Urungkan**. Baris tugas dan rapat membuka halaman detailnya.
+- **Pengingat pribadi** dalam satu kalimat: "Ingatkan aku untuk … pada [tanggal] pukul [jam] WIB", dengan pilihan cepat dan pratinjau Ace. Beberapa pengingat bisa dipilih lalu **Tandai selesai (N)**.
+- **Detail tugas**: progres, deskripsi, bukti, dan komentar. Ketik **@** untuk menandai anggota divisi; yang ditandai mendapat kabar di lonceng dan Ace (tanpa WhatsApp). **Ingatkan aku** sebelum tenggat.
+- **Rapat**: **Kehadiranmu**, yaitu Hadir, Datang terlambat, atau Tidak bisa hadir dengan alasan untuk penyelenggara. Kehadiran yang dicatat penyelenggara tidak berubah.
+- **Jobdesk saya** dikelompokkan per progres, dengan saringan Space.
+
+Ace ikut capek (canvas 4033a40b94aa, opsi B):
+
+- Saat kabar belum dibaca menumpuk, Ace melewati tahap Segar, Ada kabar, Mulai berat, Ngantuk, lalu Cemberut. Setelah dibersihkan (di Ace, lonceng, atau detail), Ace kembali segar. Dengan "+N", Ace melebar agar angkanya tidak menempel ke mata.
+- Pengaturan › Perangkat › Ace: **Ace ikut capek** (aktif bawaan), jarak antar tahap, dan mulai Cemberut. Dengan "kurangi gerakan", setiap tahap diam.
+
+Animasi pembuka dan Kredit:
+
+- **Animasi pembuka** (canvas 9b55464a544c, opsi C "Ace jadi garis progres"): Ace muncul, berkedip, memanjang jadi garis progres dengan mata di ujungnya, lalu menyusut ke bawah logo Space; 4,8 detik dengan kredit "by HIMASIF ASTRA 25/26". Tampil saat aplikasi dibuka, juga setelah pembaruan ("Memperbarui ke … · memulai ulang"). Aplikasi yang sudah siap tidak pernah ditahan melewati 4,8 detik; bila memuat lebih lama, Ace mengulang garis progres sampai siap. Dengan "kurangi gerakan" animasi diam dan hanya tampil selama memuat.
+- **Kredit** (canvas dec9ac46ca25, opsi B), dari Pengaturan › Tentang › **Dibuat oleh**: logo Tiyoouw yang bergerak (intro saat dibuka, klik memutar ulang, hover memisah jadi mata yang mengikuti kursor dan berkedip), dari kit logo resmi; nama pembuat, tautan tiyoouw.com dan github.com/Tiyouw, dan daftar kontributor dari `contributors.json` yang ikut terpasang, jadi tampil tanpa koneksi.
+
+Server 0.4.6-rc.6 menambah migrasi 0034 (tabel task_comment_mentions) dan 0035 (kolom rsvp, rsvp_note, rsvp_at di meeting_participants). Keduanya hanya menambah; server 0.4.6-rc.5 tetap berjalan di skema baru. Endpoint baru: GET /api/tasks/{id}/mention-candidates dan PUT /api/meetings/{id}/rsvp.
+
 ## 0.4.6-rc.5 — 2026-11-12 · Balasan GIF bot WhatsApp (server dan bridge; pre-release)
 
 - **`!setgif namaperintah`** sambil membalas GIF, video atau gambar menyimpan GIF; `!namaperintah` lalu membalas dengan GIF itu (video `gifPlayback`, diputar berulang tanpa suara, caption tetap ikut). Hanya pengelola bot yang bisa menyimpan; cakupan grup sama seperti stiker.

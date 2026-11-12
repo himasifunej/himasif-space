@@ -61,6 +61,13 @@ func (c *Client) AddTaskComment(ctx context.Context, t id.ID, req api.TaskCommen
 	err := c.do(ctx, http.MethodPost, taskPath(t)+"/comments", req, &r)
 	return r, err
 }
+
+// TaskMentionCandidates lists whom a comment on the task can tag with @.
+func (c *Client) TaskMentionCandidates(ctx context.Context, t id.ID) ([]api.TaskMentionCandidate, error) {
+	var r api.List[api.TaskMentionCandidate]
+	err := c.do(ctx, http.MethodGet, taskPath(t)+"/mention-candidates", nil, &r)
+	return r.Items, err
+}
 func (c *Client) RequestTaskHelp(ctx context.Context, t id.ID, req api.TaskHelpCreateRequest) (api.TaskHelpRequest, error) {
 	var r api.TaskHelpRequest
 	err := c.do(ctx, http.MethodPost, taskPath(t)+"/help", req, &r)

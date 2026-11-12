@@ -16,6 +16,7 @@ func (a *App) View(c *ui.Context) {
 	dark := a.DarkAppearance(c.Theme().Dark)
 	c.SetTheme(paletteTheme(dark, a.chrome.preferences))
 	t := c.Theme()
+	splash := false
 	ui.Column(c).Fill().Background(t.Background).TextColor(t.Text).Children(func() {
 		if bar := c.TitleBar(); bar.Height > 0 {
 			ui.Row(c).FillWidth().Height(bar.Height).Shrink(0).Padding(0, bar.Right+12, 0, bar.Left+12).AlignItems(ui.Center).DragWindow().Background(t.Surface).Children(func() {
@@ -23,6 +24,9 @@ func (a *App) View(c *ui.Context) {
 			})
 		}
 		ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
+			if splash = a.splashing(c); splash {
+				return
+			}
 			if a.accountFlowView(c) {
 				return
 			}
@@ -38,7 +42,7 @@ func (a *App) View(c *ui.Context) {
 			}
 		})
 	})
-	if a.screen != screenStarting && !a.firstScreenRun {
+	if a.screen != screenStarting && !splash && !a.firstScreenRun {
 		a.firstScreenRun = true
 		if a.FirstScreen != nil {
 			a.FirstScreen()

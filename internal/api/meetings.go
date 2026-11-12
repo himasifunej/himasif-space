@@ -12,6 +12,23 @@ type MeetingParticipant struct {
 	AttendanceStatus string     `json:"attendanceStatus"`
 	AttendanceNote   string     `json:"attendanceNote"`
 	ConfirmedBy      *id.ID     `json:"confirmedBy,omitempty"`
+	// RSVP is the participant's own answer beforehand: "" (none yet),
+	// RSVPYes, RSVPLate or RSVPNo, with a reason for the organizer.
+	RSVP     string `json:"rsvp,omitempty"`
+	RSVPNote string `json:"rsvpNote,omitempty"`
+}
+
+// A participant's answer to a meeting.
+const (
+	RSVPYes  = "yes"
+	RSVPLate = "late"
+	RSVPNo   = "no"
+)
+
+// RSVPRequest is the caller's own answer; Status "" withdraws it.
+type RSVPRequest struct {
+	Status string `json:"status"`
+	Note   string `json:"note,omitempty"`
 }
 
 type Meeting struct {

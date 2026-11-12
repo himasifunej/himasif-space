@@ -131,7 +131,7 @@ func runIslandSpike() bool {
 			a := mygo.Screen.PrimaryDisplay().WorkArea
 			w.SetPosition(a.X+(a.Width-200)/2, a.Y+8)
 			islandPrepareWindow(w.NativeHandle())
-			islandWindowShape(w.NativeHandle(), [4]float64{200, 36, 18, 0}, 0, 200)
+			islandWindowShape(w.NativeHandle(), [4]float64{200, 36, 18, 0}, 0, 0, 200)
 			islandClearBackdrop(w.NativeHandle())
 			if mode == "pill" {
 				w.ShowInactive()

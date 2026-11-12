@@ -15,7 +15,7 @@ func TestLoadDevicePreferencesDropsStarMascot(t *testing.T) {
 	if !legacy {
 		t.Fatal("the mascot's keys were not reported")
 	}
-	want := devicePreferences{IslandEnabled: true, IslandStyle: "A", IslandReduceMotion: true, IslandAnchor: .5, Autostart: true, Audio: "bel.wav", Volume: .7, Sound: true, QuietFrom: 22, QuietTo: 6}
+	want := devicePreferences{IslandEnabled: true, IslandStyle: "A", IslandReduceMotion: true, IslandAnchor: .5, Autostart: true, Audio: "bel.wav", Volume: .7, Sound: true, QuietFrom: 22, QuietTo: 6, AceTired: true, AceTiredRatio: "2.5", AceTiredTop: 15, AceTiredHeavy: 2, AceTiredSleepy: 6}
 	if prefs != want {
 		t.Fatalf("prefs %+v, want %+v", prefs, want)
 	}
@@ -33,9 +33,10 @@ func TestLoadDevicePreferencesDropsStarMascot(t *testing.T) {
 }
 
 // No file, or a broken one, gives the defaults: the island on, always
-// shown, glass, replacing Windows' toasts; the bell on at 45%.
+// shown, glass, replacing Windows' toasts; the bell on at 45%; Ace ikut
+// capek on, 2,5× from 15.
 func TestLoadDevicePreferencesDefaults(t *testing.T) {
-	want := devicePreferences{IslandEnabled: true, IslandStyle: "C", IslandReplaceToast: true, IslandAlwaysOn: true, IslandAnchor: .5, Volume: .45, Sound: true, QuietFrom: 22, QuietTo: 6}
+	want := devicePreferences{IslandEnabled: true, IslandStyle: "C", IslandReplaceToast: true, IslandAlwaysOn: true, IslandAnchor: .5, Volume: .45, Sound: true, QuietFrom: 22, QuietTo: 6, AceTired: true, AceTiredRatio: "2.5", AceTiredTop: 15, AceTiredHeavy: 2, AceTiredSleepy: 6}
 	for _, data := range []string{"", "{", `{"islandStyle":"Z","volume":4}`} {
 		if prefs, legacy := loadDevicePreferences([]byte(data)); prefs != want || legacy {
 			t.Errorf("%q: %+v legacy %v", data, prefs, legacy)

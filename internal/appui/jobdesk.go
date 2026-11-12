@@ -3,74 +3,66 @@ package appui
 import (
 	"fmt"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/himasifunej/himasif-space/internal/api"
 	"github.com/himasifunej/himasif-space/internal/id"
 	"github.com/himasifunej/himasif-space/internal/timeutil"
-	"github.com/himasifunej/himasif-space/internal/workspaceui"
 )
 
-// Jobdesk saya, as canvas A draws it: the user's tasks from every Space in
-// one list, grouped by what needs doing first, each with its Space, its
-// deadline and the Belum / Kerjakan / Serahkan steps. The board stays on the
+// Jobdesk saya, "Semua tugasku" of Untukku (canvas 3747dbbac0d0, design
+// 6): the tasks the user is PJ of, from every Space, grouped by progress,
+// with a Space filter; a row opens Detail tugas. The board stays on the
 // Space's "Board tugas" tab.
 
-// jobdeskUIState is the page's Space filter; id.Nil is "Semua ruang".
+// jobdeskUIState is the page's Space filter; id.Nil is "Semua Space".
 type jobdeskUIState struct {
 	space id.ID
 }
 
-// jobdeskGroup is one heading of the list, in the canvas' order.
-type jobdeskGroup int
-
-const (
-	jobdeskLate jobdeskGroup = iota
-	jobdeskWeek
-	jobdeskLater
-	jobdeskSubmitted
-)
-
-func (g jobdeskGroup) String() string {
-	return [...]string{"Lewat tenggat", "Minggu ini", "Nanti", "Diserahkan, menunggu tinjauan"}[g]
+// jobdeskGroup is one heading of the list: Dikerjakan, Belum mulai,
+// Diserahkan (waiting for review), Selesai.
+type jobdeskGroup struct {
+	label    string
+	progress string
 }
 
-// jobdeskGroupOf places an open task: late first, then due within seven
-// days, then later or without a deadline. Submitted tasks wait for review
-// in their own group; done and cancelled tasks leave the list.
-func jobdeskGroupOf(t api.Task, now time.Time) (jobdeskGroup, bool) {
-	switch t.Progress {
-	case api.TaskDone, api.TaskCancelled:
-		return 0, false
-	case api.TaskSubmitted:
-		return jobdeskSubmitted, true
-	}
-	if taskLate(t, now) {
-		return jobdeskLate, true
-	}
-	if taskDue(t).Before(now.AddDate(0, 0, 7)) {
-		return jobdeskWeek, true
-	}
-	return jobdeskLater, true
+var jobdeskGroupsOrder = []jobdeskGroup{
+	{"Dikerjakan", api.TaskDoing},
+	{"Belum mulai", api.TaskTodo},
+	{"Diserahkan", api.TaskSubmitted},
+	{"Selesai", api.TaskDone},
 }
 
-// jobdeskGroups sorts tasks into the groups, each by deadline.
-func jobdeskGroups(tasks []api.Task, now time.Time, space id.ID) [4][]api.Task {
-	var groups [4][]api.Task
+// jobdeskGroups sorts the tasks (of one Space, unless space is id.Nil)
+// into the groups, each by deadline, those without one last. Cancelled
+// tasks leave the list.
+func jobdeskGroups(tasks []api.Task, space id.ID) [][]api.Task {
+	out := make([][]api.Task, len(jobdeskGroupsOrder))
 	for _, t := range tasks {
 		if space != id.Nil && !slices.Contains(t.SpaceIDs, space) {
 			continue
 		}
-		if g, ok := jobdeskGroupOf(t, now); ok {
-			groups[g] = append(groups[g], t)
+		for i, g := range jobdeskGroupsOrder {
+			if t.Progress == g.progress {
+				out[i] = append(out[i], t)
+			}
 		}
 	}
-	for i := range groups {
-		slices.SortStableFunc(groups[i], func(x, y api.Task) int { return taskDue(x).Compare(taskDue(y)) })
+	for i := range out {
+		slices.SortStableFunc(out[i], func(x, y api.Task) int {
+			xn, yn := x.DeadlineAt == nil && x.DeadlineDate == nil, y.DeadlineAt == nil && y.DeadlineDate == nil
+			switch {
+			case xn && !yn:
+				return 1
+			case yn && !xn:
+				return -1
+			}
+			return taskDue(x).Compare(taskDue(y))
+		})
 	}
-	return groups
+	return out
 }
 
 // taskSpace is the Space a task is shown under: a shared Space when it is in
@@ -89,33 +81,23 @@ func (a *App) taskSpace(t api.Task) (api.Space, int, bool) {
 	return found, at, at >= 0
 }
 
-// shortTaskDate is a deadline as the canvas writes it: "5 Nov".
-func shortTaskDate(t api.Task) string {
+// jobdeskDue is a deadline as the list writes it: "Sel, 10 Nov · 23.59",
+// or "tanpa tenggat".
+func jobdeskDue(t api.Task) string {
+	loc, _ := timeutil.LoadZone(t.TimeZone)
+	if loc == nil {
+		loc = wib()
+	}
+	var at time.Time
 	switch {
-	case t.DeadlineDate != nil:
-		return fmt.Sprintf("%d %s", t.DeadlineDate.Day, shortMonth(int(t.DeadlineDate.Month)))
 	case t.DeadlineAt != nil:
-		loc, _ := timeutil.LoadZone(t.TimeZone)
-		if loc == nil {
-			loc = time.UTC
-		}
-		at := t.DeadlineAt.In(loc)
-		return fmt.Sprintf("%d %s", at.Day(), shortMonth(int(at.Month())))
+		at = t.DeadlineAt.In(loc)
+	case t.DeadlineDate != nil:
+		at = t.DeadlineDate.At(23, 59, loc)
+	default:
+		return "tanpa tenggat"
 	}
-	return "—"
-}
-
-// taskSummary is the line under a task's title: its description's first
-// line, or what it should produce.
-func taskSummary(t api.Task) string {
-	s := strings.TrimSpace(t.Description)
-	if i := strings.IndexByte(s, '\n'); i >= 0 {
-		s = strings.TrimSpace(s[:i])
-	}
-	if s == "" && strings.TrimSpace(t.ExpectedOutput) != "" {
-		s = "Hasil: " + strings.TrimSpace(t.ExpectedOutput)
-	}
-	return s
+	return fmt.Sprintf("%s, %d %s · %s", shortDays[at.Weekday()], at.Day(), untukMonths[at.Month()-1], at.Format("15.04"))
 }
 
 // segmented is the canvas' segmented control (.seg): returns the option
@@ -150,8 +132,7 @@ func (a *App) jobdeskSpaces() []api.Space {
 	var out []api.Space
 	for _, s := range a.access.spaces {
 		if slices.ContainsFunc(a.tasks.items, func(t api.Task) bool {
-			_, ok := jobdeskGroupOf(t, time.Time{})
-			return ok && slices.Contains(t.SpaceIDs, s.ID)
+			return t.Progress != api.TaskCancelled && slices.Contains(t.SpaceIDs, s.ID)
 		}) {
 			out = append(out, s)
 		}
@@ -164,12 +145,10 @@ func (a *App) jobdeskView(c *ui.Context) {
 	t := c.Theme()
 	phone := isMobile(c)
 	ui.Scroll(c.Key("jobdesk")).Fill().Children(func() {
-		body := ui.Column(c).FillWidth().MinWidth(0).Padding(28).Gap(20)
-		if phone {
-			body.Padding(16).Gap(16)
-		}
-		wide := !phone && body.Bounds().W >= 860
-		body.Children(func() {
+		ui.Column(c).FillWidth().MaxWidth(1000).MinWidth(0).Padding(20, phoneSize(phone, 16, 32), 40, phoneSize(phone, 16, 32)).Gap(18).Children(func() {
+			if backLink(c, "Untukku").Clicked() {
+				a.navigate(PathUntukku)
+			}
 			spaces := []api.Space(nil)
 			if a.tasks.loaded {
 				spaces = a.jobdeskSpaces()
@@ -177,33 +156,21 @@ func (a *App) jobdeskView(c *ui.Context) {
 			if a.jobdesk.space != id.Nil && !slices.ContainsFunc(spaces, func(s api.Space) bool { return s.ID == a.jobdesk.space }) {
 				a.jobdesk.space = id.Nil
 			}
-			head := ui.Column(c).FillWidth().MinWidth(0).Gap(12)
-			if !phone {
-				head.Row().AlignItems(ui.Start)
-			}
-			head.Children(func() {
-				ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
-					ui.Text(c, "Jobdesk saya").FontSize(20).Bold()
-					desc := "Semua tugas organisasi yang PJ-nya kamu, dari Space mana pun. Tugas yang sama dengan yang ada di board divisi, bukan salinan."
-					if phone {
-						desc = "Tugas dari semua Space yang PJ-nya kamu."
-					}
-					muted(c, desc).FontSize(13)
+			ui.Row(c.Key("jd-head")).FillWidth().Wrap().Gap(14).AlignItems(ui.Start).Children(func() {
+				ui.Column(c).Grow(1).MinWidth(240).Gap(2).Children(func() {
+					ui.Text(c, "Jobdesk saya").FontSize(20).FontWeight(600)
+					muted(c, "Tugas yang kamu pegang sebagai PJ, dari semua Space.").FontSize(13)
 				})
 				if len(spaces) > 1 {
-					options, selected := []string{"Semua ruang"}, 0
+					options, selected := []string{"Semua Space"}, 0
 					for i, s := range spaces {
 						options = append(options, s.Name)
 						if s.ID == a.jobdesk.space {
 							selected = i + 1
 						}
 					}
-					scroll := ui.ScrollHorizontal(c.Key("jobdesk-filter")).MinWidth(0).Shrink(1)
-					if phone {
-						scroll.FillWidth()
-					}
-					scroll.Children(func() {
-						if i := segmented(c, "Filter ruang", options, selected); i == 0 {
+					ui.ScrollHorizontal(c.Key("jobdesk-filter")).MinWidth(0).Shrink(1).Children(func() {
+						if i := quietSeg(c, "Filter Space", options, nil, selected); i == 0 {
 							a.jobdesk.space = id.Nil
 						} else if i > 0 {
 							a.jobdesk.space = spaces[i-1].ID
@@ -223,175 +190,74 @@ func (a *App) jobdeskView(c *ui.Context) {
 				pageUnavailable(c, "task", title, detail)
 				return
 			}
-			// The detail panel opens from the workspace's projection.
-			a.projectTasks()
-			groups := jobdeskGroups(a.tasks.items, c.Now(), a.jobdesk.space)
 			empty := true
-			for g, tasks := range groups {
+			now := c.Now()
+			for g, tasks := range jobdeskGroups(a.tasks.items, a.jobdesk.space) {
 				if len(tasks) == 0 {
 					continue
 				}
 				empty = false
-				group := jobdeskGroup(g)
-				ui.Column(c.Key(fmt.Sprint("grp", g))).FillWidth().MinWidth(0).Gap(8).Children(func() {
-					ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-						h := ui.Text(c, strings.ToUpper(group.String())).FontSize(12).FontWeight(600).TextColor(t.TextMuted)
-						if group == jobdeskLate {
-							h.TextColor(t.Danger)
-						}
-						ui.Text(c, fmt.Sprint(len(tasks))).FontSize(12).TextColor(faint(t))
+				group := jobdeskGroupsOrder[g]
+				ui.Column(c.Key("grp-" + group.progress)).FillWidth().MinWidth(0).Gap(2).Children(func() {
+					ui.Row(c).FillWidth().Gap(8).AlignItems(ui.End).Padding(0, 0, 6, 0).Margin(0, 0, 2, 0).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
+						ui.Text(c, group.label).FontSize(13).FontWeight(600)
+						ui.Text(c, fmt.Sprint(len(tasks))).Font(FontMono).FontSize(12).TextColor(faint(t))
 					})
-					if wide {
-						ui.Column(c).FillWidth().MinWidth(0).Radius(12).Background(t.Surface).Border(1, t.Border).Clip().Children(func() {
-							for i, task := range tasks {
-								a.jobdeskRow(c.Key(task.ID), task, i > 0)
-							}
-						})
-						return
-					}
 					for _, task := range tasks {
-						a.jobdeskCard(c.Key(task.ID), task)
+						a.jobdeskRow(c.Key(task.ID), task, now, phone)
 					}
 				})
 			}
 			if empty {
-				pageEmpty(c, "check", "Tidak ada tugas terbuka", "Tugas yang PJ-nya kamu akan muncul di sini, dari Space mana pun.")
+				pageEmpty(c, "check", "Tidak ada tugas di Space ini", "Tugas yang PJ-nya kamu akan muncul di sini, dari Space mana pun.")
 			}
 		})
 	})
 }
 
-// jobdeskRow is a desktop row: dot, title and summary, Space, deadline,
-// progress steps, Buka.
-func (a *App) jobdeskRow(c *ui.Context, task api.Task, divider bool) {
+// jobdeskRow is one task: its progress dot, number, title, deadline and
+// Space. It opens Detail tugas.
+func (a *App) jobdeskRow(c *ui.Context, task api.Task, now time.Time, phone bool) {
 	t := c.Theme()
-	row := ui.Row(c).FillWidth().MinWidth(0).Gap(14).Padding(12, 16).AlignItems(ui.Center)
-	if divider {
-		row.BorderWidth(1, 0, 0, 0).BorderColor(t.Border)
-	}
+	row := ui.ButtonBase(c).Label("Buka "+task.Title).Row().FillWidth().MinWidth(0).Gap(12).Height(44).Padding(0, 8).Radius(8).AlignItems(ui.Center)
 	if row.Hovered() {
 		row.Background(t.SurfaceHover)
 	}
-	row.Children(func() {
-		ui.Box(c).Size(16, 16).Shrink(0).Center().Children(func() {
-			ui.Box(c).Size(8, 8).Radius(4).Background(a.jobdeskDot(task))
-		})
-		a.jobdeskTitle(c, task)
-		ui.Box(c).Width(120).Shrink(0).Children(func() { a.taskSpaceChip(c, task) })
-		ui.Box(c).Width(80).Shrink(0).Children(func() { a.jobdeskDue(c, task) })
-		ui.Box(c).Width(240).Shrink(0).Children(func() { a.jobdeskSteps(c, task, false) })
-		ui.Box(c).Width(72).Shrink(0).Children(func() { a.jobdeskOpen(c, task, false) })
-	})
-}
-
-// jobdeskCard is the phone's stacked card for one task.
-func (a *App) jobdeskCard(c *ui.Context, task api.Task) {
-	t := c.Theme()
-	ui.Column(c).FillWidth().MinWidth(0).Padding(14).Gap(10).Radius(12).Background(t.Surface).Border(1, t.Border).Children(func() {
-		ui.Row(c).FillWidth().MinWidth(0).Gap(10).AlignItems(ui.Start).Children(func() {
-			ui.Box(c).Size(8, 8).Radius(4).Margin(6, 0, 0, 0).Shrink(0).Background(a.jobdeskDot(task))
-			a.jobdeskTitle(c, task)
-		})
-		ui.Row(c).FillWidth().Gap(12).AlignItems(ui.Center).Children(func() {
-			ui.Box(c).Grow(1).MinWidth(0).Children(func() { a.taskSpaceChip(c, task) })
-			a.jobdeskDue(c, task)
-		})
-		ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Box(c).Grow(1).MinWidth(0).Children(func() { a.jobdeskSteps(c, task, true) })
-			a.jobdeskOpen(c, task, true)
-		})
-	})
-}
-
-func (a *App) jobdeskDot(task api.Task) ui.Color {
-	if task.Category != "" {
-		return tagColor(task.Category)
-	}
-	return ui.Hex("#a2bbd2")
-}
-
-func (a *App) jobdeskTitle(c *ui.Context, task api.Task) {
-	t := c.Theme()
-	ui.Column(c).Grow(1).MinWidth(0).Gap(3).Children(func() {
+	done := task.Progress == api.TaskDone
+	row.FocusRing(row.FocusVisible()).Children(func() {
+		dot := spaceMix(t.TextMuted, t.Background, .4)
+		switch task.Progress {
+		case api.TaskDoing:
+			dot = t.Accent
+		case api.TaskSubmitted:
+			dot = t.Warning
+		case api.TaskDone:
+			dot = t.Success
+		}
+		ui.Box(c).Size(8, 8).Radius(4).Shrink(0).Background(dot)
+		if !phone {
+			ui.Text(c, a.taskCode(task)).Font(FontMono).FontSize(12).TextColor(faint(t)).Width(44).Shrink(0).MaxLines(1)
+		}
 		title := task.Title
 		if task.LocalPending {
 			title += " · perangkat, belum cloud"
 		}
-		ui.Text(c, title).FontSize(13).FontWeight(500).MaxLines(2)
-		if s := taskSummary(task); s != "" {
-			ui.Text(c, s).FontSize(11).TextColor(faint(t)).MaxLines(1)
+		tt := ui.Text(c, title).FontSize(13).Grow(1).MinWidth(0).MaxLines(1)
+		if done {
+			tt.TextColor(faint(t)).Strikethrough()
+		}
+		due := ui.Text(c, jobdeskDue(task)).Font(FontMono).FontSize(12).TextColor(t.TextMuted).Shrink(0).MaxLines(1)
+		if !phone {
+			due.Width(150)
+		}
+		if !done && taskLate(task, now) {
+			due.TextColor(t.Danger)
+		}
+		if s, i, ok := a.taskSpace(task); ok {
+			spaceTile(c, s, i)
 		}
 	})
-}
-
-// taskSpaceChip is the Space's tile and name.
-func (a *App) taskSpaceChip(c *ui.Context, task api.Task) {
-	s, i, ok := a.taskSpace(task)
-	if !ok {
-		return
-	}
-	ui.Row(c).MinWidth(0).Gap(6).AlignItems(ui.Center).Children(func() {
-		ui.Box(c).Size(16, 16).Shrink(0).Radius(4).Center().Background(ui.Hex(canvasTileColors[i%len(canvasTileColors)])).Children(func() {
-			ui.Text(c, spaceInitials(s)).FontSize(8).FontWeight(600).TextColor(canvasInk)
-		})
-		muted(c, s.Name).FontSize(12).MaxLines(1)
-	})
-}
-
-func (a *App) jobdeskDue(c *ui.Context, task api.Task) {
-	t := c.Theme()
-	d := ui.Text(c, shortTaskDate(task)).Font(FontMono).FontSize(12).TextColor(t.TextMuted).Shrink(0)
-	if taskLate(task, c.Now()) {
-		d.TextColor(t.Danger)
-	}
-}
-
-// jobdeskSteps is Belum / Kerjakan / Serahkan. A step moves the task the way
-// a drag on the board does (moveTask): with the same permissions, and
-// Serahkan opens the task's detail to attach the evidence first.
-func (a *App) jobdeskSteps(c *ui.Context, task api.Task, fill bool) {
-	t := c.Theme()
-	current := map[string]int{api.TaskTodo: 0, api.TaskDoing: 1, api.TaskSubmitted: 2}[task.Progress]
-	allowed := task.Permissions.Progress || task.Permissions.Manage
-	blocked := !allowed || a.tasks.busy || a.tasks.loading || (a.conn == connOffline && !a.offlineAvailable())
-	steps := ui.Row(c).Gap(2)
-	if fill {
-		steps.FillWidth()
-	}
-	steps.Children(func() {
-		for i, step := range []struct {
-			label string
-			lane  workspaceui.Lane
-		}{{"Belum", workspaceui.Todo}, {"Kerjakan", workspaceui.Doing}, {"Serahkan", workspaceui.Review}} {
-			on := i == current
-			b := ui.ButtonBase(c.Key(i)).Label(step.label+": "+task.Title).Tooltip(step.label).Height(26).Padding(0, 8).Radius(6).Center().Border(1, t.Border).TextColor(t.TextMuted).Disabled(blocked && !on)
-			if fill {
-				b.Grow(1).Height(36)
-			}
-			if on {
-				b.Background(accentSoft(t)).BorderColor(t.Accent).TextColor(t.Text)
-			} else if b.Hovered() && !blocked {
-				b.Background(t.SurfaceHover).TextColor(t.Text)
-			}
-			b.FocusRing(b.FocusVisible()).Children(func() { ui.Text(c, step.label).FontSize(11).MaxLines(1) })
-			if b.Clicked() && !on && !blocked {
-				a.moveTask(workspaceui.MoveRequest{TaskID: task.ID, Destination: step.lane})
-			}
-		}
-	})
-}
-
-func (a *App) jobdeskOpen(c *ui.Context, task api.Task, phone bool) {
-	t := c.Theme()
-	b := ui.ButtonBase(c.Key("open")).Label("Buka "+task.Title).Tooltip("Buka detail tugas").Height(28).Padding(0, 12).Radius(8).Center().Border(1, t.Border)
-	if phone {
-		b.Height(36)
-	}
-	if b.Hovered() {
-		b.Background(t.SurfaceHover)
-	}
-	b.FocusRing(b.FocusVisible()).Children(func() { ui.Text(c, "Buka").FontSize(13).FontWeight(500) })
-	if b.Clicked() {
-		a.workspace.Open(task.ID)
+	if row.Clicked() {
+		a.openUntukTask(task.ID, PathJobdesk)
 	}
 }

@@ -78,7 +78,7 @@ func (a *App) sidebarSections(c *ui.Context, collapsed bool) {
 	late, alert := a.jobdeskCount(now)
 	// Untukku holds the tasks, meetings and reminders of the week;
 	// Jobdesk saya and Reminder pribadi are reached from it.
-	if navRow(c, "Untukku", path == PathUntukku || path == PathJobdesk || path == PathReminder, collapsed, iconLead(c, "home"), late, alert, nil).Clicked() {
+	if navRow(c, "Untukku", path == PathUntukku || path == PathJobdesk || path == PathReminder || path == PathUntukTask || path == PathUntukRapat, collapsed, iconLead(c, "home"), late, alert, nil).Clicked() {
 		a.navigate(PathUntukku)
 	}
 

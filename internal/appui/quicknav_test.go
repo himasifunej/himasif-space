@@ -129,8 +129,9 @@ func TestQuicknavMatching(t *testing.T) {
 		}
 		return got[0]
 	}
-	// Ace is the Dynamic Island: its name finds the device page first.
-	if it := first("Ace"); it.title != "Notifikasi dan Dynamic Island" || it.trail != "Pengaturan › Perangkat ini" {
+	// Ace has its own section on the device page (Ace ikut capek): its
+	// name finds it first.
+	if it := first("Ace"); it.title != "Ace" || it.trail != "Pengaturan › Perangkat" {
 		t.Errorf("Ace → %q · %q", it.title, it.trail)
 	}
 	for q, want := range map[string]string{
@@ -172,7 +173,7 @@ func TestQuicknavPalette(t *testing.T) {
 	h.tt.Type("Ace")
 	h.want("Notifikasi dan Dynamic Island")
 	h.want("Pengaturan › Perangkat")
-	h.want("Selalu tampil")
+	h.want("Ace ikut capek")
 	h.tt.Key(0, ui.KeyDown)
 	if h.app.chrome.searchCursor != 1 {
 		t.Fatalf("Down left the cursor at %d", h.app.chrome.searchCursor)

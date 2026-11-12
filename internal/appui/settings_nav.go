@@ -88,6 +88,8 @@ func (a *App) settings(c *ui.Context, r *ui.Route) {
 			a.whatsappActivity(c)
 		case "Tentang":
 			a.changelogSettings(c)
+		case "Kredit":
+			a.kreditSettings(c)
 		case "Space":
 			sp := a.selectedSpace()
 			a.spaceSettings(c, sp != nil && sp.Kind == api.SpaceShared)
@@ -105,7 +107,9 @@ func (a *App) settings(c *ui.Context, r *ui.Route) {
 					for _, g := range groups {
 						muted(c.Key("g"+g.title), strings.ToUpper(g.title)).FontSize(10).Padding(12, 8, 6, 8).MaxLines(1)
 						for _, e := range g.entries {
-							if spaceButton(c.Key(e.key), e.label, e.icon, a.chrome.settingsTab == e.key).FillWidth().Clicked() {
+							// Kredit opens from Tentang, which stays lit.
+							on := a.chrome.settingsTab == e.key || a.chrome.settingsTab == "Kredit" && e.key == "Tentang"
+							if spaceButton(c.Key(e.key), e.label, e.icon, on).FillWidth().Clicked() {
 								a.chrome.settingsTab = e.key
 							}
 						}

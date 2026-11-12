@@ -96,6 +96,9 @@ func (s *Store) Task(ctx context.Context, q Querier, tid id.ID, lock string) (Ta
 	if err != nil {
 		return t, err
 	}
+	if err = taskCommentMentions(ctx, q, tid, t.Comments); err != nil {
+		return t, err
+	}
 	rows, err = q.Query(ctx, `select c.id,c.body,c.done,c.done_at,c.created_at,u.id,u.display_name from task_checklist_items c left join users u on u.id=c.done_by where c.task_id=$1 and c.deleted_at is null order by c.position,c.id`, tid)
 	if err != nil {
 		return t, err
@@ -366,7 +369,72 @@ func (s *Store) DeleteTaskChecklistItem(ctx context.Context, q Querier, tid, ite
 
 func (s *Store) AddTaskComment(ctx context.Context, q Querier, tid id.ID, c api.TaskComment) error {
 	_, e := q.Exec(ctx, `insert into task_comments(id,task_id,author_id,body,created_at) values($1,$2,$3,$4,$5)`, c.ID, tid, c.Author.ID, c.Body, c.CreatedAt)
+	for _, m := range c.Mentions {
+		if e != nil {
+			break
+		}
+		_, e = q.Exec(ctx, `insert into task_comment_mentions(comment_id,user_id) values($1,$2) on conflict do nothing`, c.ID, m.ID)
+	}
 	return e
+}
+
+// taskCommentMentions fills in whom each of the task's comments tags.
+func taskCommentMentions(ctx context.Context, q Querier, tid id.ID, comments []api.TaskComment) error {
+	if len(comments) == 0 {
+		return nil
+	}
+	rows, err := q.Query(ctx, `select m.comment_id,u.id,u.display_name from task_comment_mentions m join task_comments c on c.id=m.comment_id join users u on u.id=m.user_id where c.task_id=$1 order by u.display_name,u.id`, tid)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	at := map[id.ID]int{}
+	for i, c := range comments {
+		at[c.ID] = i
+	}
+	for rows.Next() {
+		var cid id.ID
+		var p api.PersonRef
+		if err := rows.Scan(&cid, &p.ID, &p.DisplayName); err != nil {
+			return err
+		}
+		if i, ok := at[cid]; ok {
+			comments[i].Mentions = append(comments[i].Mentions, p)
+		}
+	}
+	return rows.Err()
+}
+
+// TaskMentionCandidates are the people a comment on the task can tag: the
+// active members of the divisions of its Spaces, each once, with the role
+// and division they are seen under.
+func (s *Store) TaskMentionCandidates(ctx context.Context, q Querier, tid id.ID) ([]api.TaskMentionCandidate, error) {
+	rows, err := q.Query(ctx, `select distinct on (u.id) u.id,u.display_name,m.role,d.name
+		from task_spaces ts
+		join space_divisions sd on sd.space_id=ts.space_id
+		join memberships m on m.period_id=sd.period_id and m.division_id=sd.division_id
+		join divisions d on d.id=m.division_id
+		join users u on u.id=m.user_id
+		where ts.task_id=$1 and m.removed_at is null and u.disabled_at is null and u.kind='person'
+		order by u.id,(m.division_id=(select owner_division_id from tasks where id=$1)) desc,d.name`, tid)
+	if err != nil {
+		return nil, err
+	}
+	out, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (api.TaskMentionCandidate, error) {
+		var c api.TaskMentionCandidate
+		e := r.Scan(&c.ID, &c.DisplayName, &c.Role, &c.Division)
+		return c, e
+	})
+	if err != nil {
+		return nil, err
+	}
+	slices.SortFunc(out, func(a, b api.TaskMentionCandidate) int {
+		if c := strings.Compare(strings.ToLower(a.DisplayName), strings.ToLower(b.DisplayName)); c != 0 {
+			return c
+		}
+		return strings.Compare(a.ID.String(), b.ID.String())
+	})
+	return out, nil
 }
 func (s *Store) AddTaskHelp(ctx context.Context, q Querier, tid id.ID, h api.TaskHelpRequest) error {
 	_, e := q.Exec(ctx, `insert into task_help_requests(id,task_id,user_id,message,status,created_at) values($1,$2,$3,$4,$5,$6)`, h.ID, tid, h.User.ID, h.Message, h.Status, h.CreatedAt)
