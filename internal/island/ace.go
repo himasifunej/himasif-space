@@ -205,6 +205,11 @@ func (e *Expander) Tick(now time.Time, hover, click bool) {
 	}
 }
 
+// Open opens the details at once, as a choice made in other details
+// ("Hari ini" from Ace's inbox); they close as usual once the pointer
+// leaves.
+func (e *Expander) Open() { *e = Expander{Expanded: true} }
+
 // Reset closes the details, as the scene changes.
 func (e *Expander) Reset() { *e = Expander{} }
 

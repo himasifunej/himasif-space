@@ -101,6 +101,7 @@ func TestUpdateNoticeInInbox(t *testing.T) {
 	if p.inboxCount(uid.String()) != 0 {
 		t.Fatal("Nanti left it")
 	}
+	p.inbox.saves.Wait() // the presenter's writes first: the file is the test's now
 	box := islandInbox{}
 	box.add(updateNotice(update.Manifest{Version: "99.0.0"}, false, uid.String()), time.Now())
 	box.Entries[0].Notice.Tag = "update:" + appVersion() // as if now installed
