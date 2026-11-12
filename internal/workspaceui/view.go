@@ -36,6 +36,13 @@ func (s *State) Inspector(c *ui.Context) {
 func (s *State) view(c *ui.Context, inlineInspector bool) ui.Element {
 	t := c.Theme()
 	dragging := false
+	if s.OnBulkCancel == nil {
+		s.SetSelecting(false)
+	}
+	// Esc leaves select mode, unless it closes the card menu first.
+	if s.selecting && !s.menuOpen && c.Shortcut(0, ui.KeyEscape) {
+		s.SetSelecting(false)
+	}
 	vw, _ := c.Size()
 	phone := vw < 720
 	pad, titleSize := float32(22), float32(22)
@@ -65,7 +72,9 @@ func (s *State) view(c *ui.Context, inlineInspector bool) ui.Element {
 				} else {
 					ui.Text(c, fmt.Sprintf("%d tugas", len(s.tasks))).FontSize(12).TextColor(t.TextMuted)
 				}
+				s.selectToggle(c)
 			})
+			s.selectionBar(c)
 
 			scroll := ui.ScrollHorizontal(c.Key("board-scroll")).Grow(1).MinHeight(0).FillWidth().TrackScroll(&s.boardScroll).Label("Kolom board")
 			count := 4
@@ -197,15 +206,31 @@ var chipInk = ui.Hex("#24221c")
 
 func (s *State) card(c *ui.Context, task Task, dragging *bool) {
 	t := c.Theme()
-	card := ui.ButtonBase(c).Label("Tugas "+task.Title).FillWidth().MinWidth(0).Padding(12, 12, 12, 14).Radius(10).Background(t.SurfacePressed).Border(1, t.Border)
+	selecting := s.selecting
+	picked := selecting && s.picked[task.ID]
+	label := "Tugas " + task.Title
+	if selecting {
+		label = "Pilih tugas " + task.Title
+		if !task.Selectable {
+			label = task.Title + ", tidak dapat kamu batalkan"
+		}
+	}
+	card := ui.ButtonBase(c).Label(label).FillWidth().MinWidth(0).Padding(12, 12, 12, 14).Radius(10).Background(t.SurfacePressed).Border(1, t.Border)
 	card.FocusRing(card.FocusVisible())
-	if card.Hovered() {
+	if card.Hovered() && (!selecting || task.Selectable) {
 		card.Background(t.SurfaceHover)
 	}
-	if s.selected == task.ID {
+	if s.selected == task.ID && !selecting || picked {
 		card.BorderColor(t.Accent)
 	}
-	if s.OnMove != nil && !task.ReadOnly {
+	if selecting {
+		card.Checked(picked)
+		if !task.Selectable {
+			// Shown, so the board keeps its shape, but not pickable.
+			card.Opacity(0.45).Tooltip("Tidak dapat kamu batalkan")
+		}
+	}
+	if s.OnMove != nil && !task.ReadOnly && !selecting {
 		card.Drag(taskDrag{task.ID})
 	}
 	if card.Dragging() {
@@ -224,6 +249,14 @@ func (s *State) card(c *ui.Context, task Task, dragging *bool) {
 		}
 		ui.Column(c).FillWidth().MinWidth(0).Gap(8).Children(func() {
 			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(4).Children(func() {
+				if selecting && task.Selectable {
+					box := ui.Box(c.Key("pick")).Size(18, 18).Radius(5).Border(1.5, t.TextMuted).Center().Shrink(0).Margin(0, 4, 0, 0)
+					if picked {
+						box.Background(t.Accent).BorderColor(t.Accent).Children(func() {
+							ui.Icon(c, checkIcon).Size(13, 13).TextColor(t.AccentText)
+						})
+					}
+				}
 				ui.Row(c).Grow(1).MinWidth(0).Wrap().Gap(4).Children(func() {
 					for i, l := range labels {
 						chip := ui.Text(c.Key(i), l.Name).FontSize(10).Bold().Padding(2, 7).Radius(5).MaxLines(1)
@@ -234,7 +267,7 @@ func (s *State) card(c *ui.Context, task Task, dragging *bool) {
 						}
 					}
 				})
-				if s.OnMove != nil && !task.ReadOnly {
+				if s.OnMove != nil && !task.ReadOnly && !selecting {
 					more := ui.ButtonBase(c.Key("move-menu")).Label("Pindahkan "+task.Title).Size(26, 22).Radius(6).Center()
 					more.FocusRing(more.FocusVisible())
 					if more.Hovered() {
@@ -312,9 +345,18 @@ func (s *State) card(c *ui.Context, task Task, dragging *bool) {
 		})
 	})
 	if card.Clicked() {
-		s.Open(task.ID)
+		switch {
+		case selecting:
+			s.toggle(task.ID)
+		case s.OnBulkCancel != nil && task.Selectable && card.ClickModifiers()&(ui.Ctrl|ui.Shift|ui.Super) != 0:
+			// Ctrl/Shift+click starts select mode with this card.
+			s.selecting = true
+			s.toggle(task.ID)
+		default:
+			s.Open(task.ID)
+		}
 	}
-	if s.OnMove != nil {
+	if s.OnMove != nil && !selecting {
 		before := task.ID
 		_, y, _ := card.PointerPosition()
 		if y > card.Bounds().H/2 {
@@ -491,4 +533,79 @@ func (s *State) hasLane(l Lane) bool {
 		}
 	}
 	return false
+}
+
+// selectToggle is the board header's "Pilih", which enters or leaves
+// select mode; shown only when some task can be picked.
+func (s *State) selectToggle(c *ui.Context) {
+	if s.OnBulkCancel == nil || !s.selecting && !s.anySelectable() {
+		return
+	}
+	t := c.Theme()
+	label := "Pilih"
+	if s.selecting {
+		label = "Selesai memilih"
+	}
+	b := ui.ButtonBase(c.Key("select-mode")).Label(label).Row().AlignItems(ui.Center).Gap(8).Height(34).Padding(0, 12).Radius(8).Border(1, t.Border).Shrink(0).Tooltip("Pilih beberapa tugas (Ctrl/Shift+klik kartu)")
+	switch {
+	case s.selecting:
+		b.Background(t.SurfaceHover).BorderColor(t.Accent)
+	case b.Hovered():
+		b.Background(t.SurfaceHover)
+	}
+	b.FocusRing(b.FocusVisible()).Children(func() {
+		ui.Icon(c, checkboxIcon).Size(15, 15).Shrink(0)
+		ui.Text(c, label).FontSize(13).MaxLines(1)
+	})
+	if b.Clicked() {
+		s.SetSelecting(!s.selecting)
+		s.menuOpen = false
+	}
+}
+
+// selectionBar is select mode's bar: how many are picked, "Batalkan (N)"
+// and the way out.
+func (s *State) selectionBar(c *ui.Context) {
+	if !s.selecting {
+		return
+	}
+	t := c.Theme()
+	n := len(s.Selected())
+	ui.Row(c.Key("selection-bar")).FillWidth().AlignItems(ui.Center).Gap(10).Padding(8, 8, 8, 14).Radius(10).Background(t.Surface).Border(1, t.Accent).Wrap().Label("Pilihan tugas").Children(func() {
+		count := "Belum ada yang dipilih"
+		if n > 0 {
+			count = fmt.Sprintf("%d dipilih", n)
+		}
+		ui.Text(c, count).FontSize(13).Bold()
+		ui.Text(c, "Klik kartu untuk memilih · Esc untuk keluar").FontSize(12).TextColor(t.TextMuted).Grow(1).MinWidth(0).MaxLines(1)
+		if n > 0 {
+			clear := ui.ButtonBase(c.Key("selection-clear")).Label("Kosongkan pilihan").Height(32).Padding(0, 10).Radius(8).Center()
+			if clear.Hovered() {
+				clear.Background(t.SurfaceHover)
+			}
+			clear.FocusRing(clear.FocusVisible()).Children(func() { ui.Text(c, "Kosongkan").FontSize(13) })
+			if clear.Clicked() {
+				s.picked = nil
+			}
+		}
+		cancel := ui.ButtonBase(c.Key("selection-cancel")).Label(fmt.Sprintf("Batalkan (%d)", n)).Row().AlignItems(ui.Center).Gap(6).Height(32).Padding(0, 12).Radius(8).Background(t.Danger).TextColor(ui.Hex("#ffffff")).Disabled(n == 0)
+		if n == 0 {
+			cancel.Opacity(0.5)
+		}
+		cancel.FocusRing(cancel.FocusVisible()).Children(func() {
+			ui.Icon(c, cancelIcon).Size(15, 15)
+			ui.Text(c, fmt.Sprintf("Batalkan (%d)", n)).FontSize(13).FontWeight(600)
+		})
+		if cancel.Clicked() && n > 0 {
+			s.OnBulkCancel(s.Selected())
+		}
+		done := ui.ButtonBase(c.Key("selection-close")).Label("Keluar dari mode pilih").Size(32, 32).Radius(8).Center().Tooltip("Keluar (Esc)")
+		if done.Hovered() {
+			done.Background(t.SurfaceHover)
+		}
+		done.FocusRing(done.FocusVisible()).Children(func() { ui.Icon(c, closeIcon).Size(16, 16).TextColor(t.TextMuted) })
+		if done.Clicked() {
+			s.SetSelecting(false)
+		}
+	})
 }

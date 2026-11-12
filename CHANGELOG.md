@@ -9,6 +9,8 @@ Versi mengikuti aturan sebelum rilis publik:
 
 - **Batalkan tugas**: pilih alasan sekali ketuk (Salah input / duplikat, Tidak jadi dikerjakan, Digabung ke tugas lain, Diganti rencana, Lainnya). Catatan boleh kosong, kecuali untuk Lainnya. Riwayat mencatat "alasan: catatan".
 - Alasan terakhir sudah terpilih saat membatalkan tugas berikutnya, selama Space terbuka.
+- **Batalkan banyak tugas sekaligus**: tombol **Pilih** di board (atau Ctrl/Shift+klik kartu) memunculkan kotak centang. Hanya tugas yang boleh kamu batalkan yang bisa dipilih. Bilah pilihan menampilkan jumlahnya dan **Batalkan (N)**, yang membuka dialog yang sama dengan chip alasan: satu alasan untuk semua.
+  - Tugas dibatalkan satu per satu. Kalau ada yang gagal, ringkasannya tampil ("8 dibatalkan, 1 gagal: …") dan tugas yang gagal tetap terpilih untuk dicoba lagi. Esc keluar dari mode pilih.
 
 ## 0.4.6-rc.3 — 2026-11-11 · Kartu pembaruan (pre-release)
 

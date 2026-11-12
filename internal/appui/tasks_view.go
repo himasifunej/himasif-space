@@ -104,6 +104,14 @@ func (a *App) taskFeedback(c *ui.Context) {
 		c.AddToast(ui.Toast{Title: a.tasks.errToast, Type: "error", Timeout: 10 * time.Second})
 		a.tasks.errToast = ""
 	}
+	if a.workspace == nil || !a.workspace.Selecting() {
+		a.tasks.bulkFailed = ""
+	}
+	if a.tasks.bulkFailed != "" {
+		ui.Row(c.Key("bulk-failed")).FillWidth().Padding(10, 22).Children(func() {
+			ui.Text(c, a.tasks.bulkFailed).FontSize(12).TextColor(c.Theme().Danger).Grow(1).MinWidth(0)
+		})
+	}
 	if a.tasks.err != "" {
 		ui.Row(c).FillWidth().Padding(10, 22).Gap(8).Children(func() { ui.Text(c, a.tasks.err).FontSize(12).TextColor(c.Theme().Danger).Grow(1).MinWidth(0) })
 	}
@@ -826,18 +834,33 @@ func (a *App) cancelTaskDialog(c *ui.Context) {
 	if !a.tasks.cancelOpen {
 		return
 	}
-	t := a.taskByID(a.tasks.cancelID)
-	if t == nil {
-		a.tasks.cancelOpen = false
-		return
+	title, body, action := "", "Tugas pindah ke lajur Dibatalkan dan pengingatnya berhenti.", "Batalkan tugas"
+	if len(a.tasks.cancelIDs) > 0 {
+		// Several picked on the board: one reason for all.
+		a.tasks.cancelIDs = a.cancellableTasks(a.tasks.cancelIDs)
+		n := len(a.tasks.cancelIDs)
+		if n == 0 {
+			a.tasks.cancelOpen = false
+			return
+		}
+		title = fmt.Sprintf("Batalkan %d tugas?", n)
+		body = fmt.Sprintf("Semua %d tugas pindah ke lajur Dibatalkan dengan alasan yang sama, dan pengingatnya berhenti.", n)
+		action = fmt.Sprintf("Batalkan %d tugas", n)
+	} else {
+		t := a.taskByID(a.tasks.cancelID)
+		if t == nil {
+			a.tasks.cancelOpen = false
+			return
+		}
+		title = "Batalkan “" + t.Title + "”?"
 	}
 	th := c.Theme()
 	w, _ := c.Size()
 	ui.DialogBase(c.Key("cancel-task"), &a.tasks.cancelOpen, func(backdrop, panel ui.Element) {
 		backdrop.Background(ui.RGBA(0, 0, 0, .45))
 		panel.Width(min(float32(460), w-32)).Column().Padding(20).Gap(12).Radius(14).Background(th.Surface).Border(1, th.Border).Children(func() {
-			ui.Text(c, "Batalkan “"+t.Title+"”?").FontSize(17).Bold()
-			muted(c, "Tugas pindah ke lajur Dibatalkan dan pengingatnya berhenti. Riwayat, komentar dan bukti tetap tersimpan untuk evaluasi.")
+			ui.Text(c, title).FontSize(17).Bold()
+			muted(c, body+" Riwayat, komentar dan bukti tetap tersimpan untuk evaluasi.")
 			ui.Text(c, "Alasan pembatalan *").FontSize(12).Bold()
 			ui.Row(c.Key("cancel-reasons")).FillWidth().Gap(6).Wrap().Children(func() {
 				for _, r := range cancelReasons {
@@ -874,7 +897,7 @@ func (a *App) cancelTaskDialog(c *ui.Context) {
 				if spaceButton(c, "Kembali", "", false).Clicked() {
 					a.tasks.cancelOpen = false
 				}
-				b := spaceButton(c, "Batalkan tugas", "archive", false).Background(th.Danger).TextColor(ui.Hex("#ffffff")).Disabled(cancelReasonText(a.tasks.cancelChoice, a.tasks.cancelReason) == "")
+				b := spaceButton(c, action, "archive", false).Background(th.Danger).TextColor(ui.Hex("#ffffff")).Disabled(cancelReasonText(a.tasks.cancelChoice, a.tasks.cancelReason) == "")
 				if b.Clicked() {
 					a.confirmCancelTask()
 				}
