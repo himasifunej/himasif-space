@@ -3,6 +3,11 @@
 package main
 
 import (
+	"crypto/ed25519"
+	"crypto/sha256"
+	"encoding/hex"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -104,5 +109,85 @@ func TestUpdateNoticeInInbox(t *testing.T) {
 	}
 	if got := loadIslandInbox(d.root, time.Now()); len(got.Entries) != 0 {
 		t.Fatalf("installed version still in the inbox: %+v", got.Entries)
+	}
+}
+
+// An installer downloaded and checked at an earlier start is ready at
+// once at the next: its card says "Siap dipasang" before any check. It
+// is dropped when the file changed, the signature fails, the version is
+// no longer newer, or the offer was put off.
+func TestUpdaterRestoresReadyDownload(t *testing.T) {
+	pub, priv, _ := ed25519.GenerateKey(nil)
+	old := updateKeys
+	updateKeys = func() []ed25519.PublicKey { return []ed25519.PublicKey{pub} }
+	defer func() { updateKeys = old }()
+	setupData := []byte("installer")
+	sum := sha256.Sum256(setupData)
+	sign := func(version string) []byte {
+		env, err := update.Sign(update.Manifest{App: update.App, Channel: update.ChannelRC, Version: version, Released: "2026-11-12T00:00:00Z", Notes: "Kartu lebih cepat.",
+			Windows: &update.Installer{URL: "https://example.com/s.exe", SHA256: hex.EncodeToString(sum[:]), Size: int64(len(setupData))}}, priv)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return env
+	}
+	prepare := func(envelope, setup []byte) *desktopUpdater {
+		d := &desktopDevice{root: t.TempDir()}
+		d.prefs.UpdateChannel = update.ChannelRC
+		u := newDesktopUpdater(d)
+		_ = os.MkdirAll(u.dir(), 0o700)
+		_ = os.WriteFile(filepath.Join(u.dir(), "space-setup-99.0.0.exe"), setup, 0o600)
+		_ = os.WriteFile(filepath.Join(u.dir(), "result.json"), []byte("{}"), 0o600)
+		u.saveReady(envelope, update.ChannelRC, filepath.Join(u.dir(), "space-setup-99.0.0.exe"))
+		return u
+	}
+	u := prepare(sign("99.0.0"), setupData)
+	u.readResult()
+	if s, ok := u.UpdateStatus(); !ok || s.Stage != appui.UpdateReady || s.Version != "99.0.0" {
+		t.Fatalf("restored: %+v %v", s, ok)
+	}
+	if _, err := os.Stat(u.setup); err != nil {
+		t.Fatalf("installer removed: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(u.dir(), "result.json")); err == nil {
+		t.Fatal("the helper's report kept")
+	}
+
+	cases := map[string]*desktopUpdater{
+		"changed file": prepare(sign("99.0.0"), []byte("tampered")),
+		"older":        prepare(sign("0.0.1"), setupData),
+		"bad envelope": prepare([]byte(`{"format":1}`), setupData),
+	}
+	later := prepare(sign("99.0.0"), setupData)
+	later.d.prefs.UpdateLaterUntil = time.Now().Add(time.Hour)
+	cases["put off"] = later
+	stable := prepare(sign("99.0.0"), setupData)
+	stable.d.prefs.UpdateChannel = update.ChannelStable
+	cases["other channel"] = stable
+	for name, u := range cases {
+		u.readResult()
+		if _, ok := u.UpdateStatus(); ok {
+			t.Fatalf("%s: restored", name)
+		}
+		if entries, _ := os.ReadDir(u.dir()); len(entries) != 0 {
+			t.Fatalf("%s: %d files left", name, len(entries))
+		}
+	}
+}
+
+// The first check waits for the first screen, not a fixed delay.
+func TestUpdaterFirstScreen(t *testing.T) {
+	u := newDesktopUpdater(&desktopDevice{})
+	select {
+	case <-u.firstScreen:
+		t.Fatal("open before the first screen")
+	default:
+	}
+	u.screenShown()
+	u.screenShown() // told once per frame is fine
+	select {
+	case <-u.firstScreen:
+	case <-time.After(time.Second):
+		t.Fatal("not told")
 	}
 }

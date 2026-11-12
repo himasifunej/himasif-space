@@ -37,6 +37,12 @@ func (a *App) View(c *ui.Context) {
 			}
 		})
 	})
+	if a.screen != screenStarting && !a.firstScreenRun {
+		a.firstScreenRun = true
+		if a.FirstScreen != nil {
+			a.FirstScreen()
+		}
+	}
 }
 
 // DarkAppearance resolves the device theme for auxiliary native windows too.

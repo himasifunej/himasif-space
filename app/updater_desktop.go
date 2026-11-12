@@ -11,7 +11,9 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -28,11 +30,17 @@ import (
 // (NSIS /S) from a helper once Space has closed, which opens Space again.
 
 const (
+	// The first check runs once the window has drawn its first screen
+	// (appui.App.FirstScreen); updateFirstCheck is the latest it waits,
+	// for a Space started in the tray whose window draws nothing.
 	updateFirstCheck = 20 * time.Second
 	updateEvery      = 6 * time.Hour
 	updateLater      = 24 * time.Hour
 	updateLink       = "himasif-space://update"
 )
+
+// updateKeys are the keys manifests are checked with; tests swap them.
+var updateKeys = update.PublicKeys
 
 // Update states, as the settings row shows them.
 const (
@@ -47,18 +55,21 @@ const (
 // desktopUpdater's fields belong to the main window's thread; network and
 // file work runs in goroutines that hand results back with win.Update.
 type desktopUpdater struct {
-	d       *desktopDevice
-	client  *http.Client
-	state   string
-	offer   *update.Manifest
-	setup   string // the downloaded installer, checked
-	done    int64
-	total   int64
-	err     string
-	checked time.Time
-	notice  string // after an update: "Space diperbarui ke …"
-	notes   bool   // the notes of offer are open
-	cancel  context.CancelFunc
+	d      *desktopDevice
+	client *http.Client
+	state  string
+	offer  *update.Manifest
+	setup  string // the downloaded installer, checked
+	// envelope is the offer's signed manifest as the feed sent it, kept
+	// with the download for the next start (saveReady).
+	envelope []byte
+	done     int64
+	total    int64
+	err      string
+	checked  time.Time
+	notice   string // after an update: "Space diperbarui ke …"
+	notes    bool   // the notes of offer are open
+	cancel   context.CancelFunc
 	// background: the install under way is automatic (autoInstall).
 	background bool
 	// onClose: Nanti on a downloaded version installs it once the window
@@ -67,10 +78,18 @@ type desktopUpdater struct {
 	// failed: the last check could not read a feed; noFeed: it found
 	// nothing published (idleStatus).
 	failed, noFeed bool
+	// firstScreen is closed when the window has drawn its first screen.
+	firstScreen     chan struct{}
+	firstScreenOnce sync.Once
 }
 
 func newDesktopUpdater(d *desktopDevice) *desktopUpdater {
-	return &desktopUpdater{d: d, client: &http.Client{Timeout: 10 * time.Minute, Jar: nil}}
+	return &desktopUpdater{d: d, client: &http.Client{Timeout: 10 * time.Minute, Jar: nil}, firstScreen: make(chan struct{})}
+}
+
+// screenShown is appui.App.FirstScreen: the first check may run.
+func (u *desktopUpdater) screenShown() {
+	u.firstScreenOnce.Do(func() { close(u.firstScreen) })
 }
 
 func (u *desktopUpdater) dir() string { return filepath.Join(u.d.root, "updates") }
@@ -81,12 +100,16 @@ func (u *desktopUpdater) channel() string {
 	return updateChannel(u.d.prefs.UpdateChannel, appVersion())
 }
 
-// start reads what a finished update left, cleans up, and checks soon
-// and then every few hours.
+// start reads what a finished update left, cleans up, keeps a version
+// downloaded earlier (its card shows at once), and checks once the first
+// screen is drawn and then every few hours.
 func (u *desktopUpdater) start() {
 	u.readResult()
 	go func() {
-		time.Sleep(updateFirstCheck)
+		select {
+		case <-u.firstScreen:
+		case <-time.After(updateFirstCheck):
+		}
 		for {
 			u.d.win.Update(func() { u.check(false) })
 			time.Sleep(updateEvery)
@@ -95,7 +118,8 @@ func (u *desktopUpdater) start() {
 }
 
 // readResult shows what the helper of the last update reported, then
-// removes the installer, the helper and the report.
+// removes the installer, the helper and the report; an installer
+// downloaded and checked before is kept as ready (restoreReady).
 func (u *desktopUpdater) readResult() {
 	data, err := os.ReadFile(filepath.Join(u.dir(), updateResultFile))
 	if err == nil {
@@ -111,11 +135,62 @@ func (u *desktopUpdater) readResult() {
 			}
 		}
 	}
+	keep := u.restoreReady()
 	// The helper may still be finishing: what cannot go now goes next time.
 	entries, _ := os.ReadDir(u.dir())
 	for _, e := range entries {
-		_ = os.RemoveAll(filepath.Join(u.dir(), e.Name()))
+		if !keep[e.Name()] {
+			_ = os.RemoveAll(filepath.Join(u.dir(), e.Name()))
+		}
 	}
+}
+
+// readyFile records a downloaded and checked installer: the signed
+// manifest as the feed sent it, and the installer's file name.
+const readyFile = "ready.json"
+
+type readyRecord struct {
+	Envelope []byte `json:"envelope"`
+	Channel  string `json:"channel"`
+	Setup    string `json:"setup"`
+}
+
+// saveReady records the installer just downloaded, for the next start.
+func (u *desktopUpdater) saveReady(envelope []byte, channel, setup string) {
+	if len(envelope) == 0 {
+		return
+	}
+	data, _ := json.Marshal(readyRecord{Envelope: envelope, Channel: channel, Setup: filepath.Base(setup)})
+	_ = os.WriteFile(filepath.Join(u.dir(), readyFile), data, 0o600)
+}
+
+// restoreReady takes up an installer downloaded at an earlier start: its
+// manifest's signature is checked again, the version must still be newer,
+// of a channel this device reads and not put off, and the file must still
+// match the manifest. Then the card says "Siap dipasang" at once. It
+// returns the files to keep.
+func (u *desktopUpdater) restoreReady() map[string]bool {
+	data, err := os.ReadFile(filepath.Join(u.dir(), readyFile))
+	if err != nil {
+		return nil
+	}
+	var r readyRecord
+	if json.Unmarshal(data, &r) != nil || r.Setup == "" || r.Setup != filepath.Base(r.Setup) {
+		return nil
+	}
+	if !slices.Contains(updateFeeds(u.channel()), r.Channel) || time.Now().Before(u.d.prefs.UpdateLaterUntil) {
+		return nil
+	}
+	m, err := update.Open(r.Envelope, updateKeys(), r.Channel)
+	if err != nil || m.Windows == nil || !update.Offer(appVersion(), m) {
+		return nil
+	}
+	setup := filepath.Join(u.dir(), r.Setup)
+	if update.VerifyFile(setup, *m.Windows) != nil {
+		return nil
+	}
+	u.offer, u.state, u.setup, u.envelope = &m, updReady, setup, r.Envelope
+	return map[string]bool{readyFile: true, r.Setup: true}
 }
 
 // check reads the channel's manifests; manual reports "up to date" too,
@@ -137,9 +212,8 @@ func (u *desktopUpdater) check(manual bool) {
 		var results []feedResult
 		for _, ch := range updateFeeds(channel) {
 			var r feedResult
-			var data []byte
-			if data, r.err = update.Fetch(ctx, u.client, update.FeedURL(ch), current); r.err == nil {
-				r.manifest, r.err = update.Open(data, update.PublicKeys(), ch)
+			if r.envelope, r.err = update.Fetch(ctx, u.client, update.FeedURL(ch), current); r.err == nil {
+				r.manifest, r.err = update.Open(r.envelope, updateKeys(), ch)
 			}
 			results = append(results, r)
 		}
@@ -161,7 +235,7 @@ func (u *desktopUpdater) check(manual bool) {
 			if u.offer != nil && u.offer.Version == m.Version && u.state != updIdle {
 				return // already being handled
 			}
-			u.offer, u.state, u.setup, u.onClose = &m, updAvailable, "", false
+			u.offer, u.state, u.setup, u.onClose, u.envelope = &m, updAvailable, "", false, out.envelope
 			// Every new version is told (the window's card, Ace); automatic
 			// updates also fetch it and install it once Space's window is
 			// closed (autoInstall).
@@ -193,6 +267,11 @@ func (u *desktopUpdater) announce(manual bool) {
 	m := u.offer
 	p := &u.d.prefs
 	if !manual && (p.UpdateAnnounced == m.Version || time.Now().Before(p.UpdateLaterUntil)) {
+		return
+	}
+	// Quiet during the onboarding: the card comes once it ends, and Ace
+	// tells at a check after that.
+	if !manual && u.d.app != nil && u.d.app.Onboarding() {
 		return
 	}
 	p.UpdateAnnounced = m.Version
@@ -329,7 +408,7 @@ func (u *desktopUpdater) install() {
 // download fetches the installer in the background with its progress;
 // then installs it at once when then is set.
 func (u *desktopUpdater) download(then bool) {
-	m := *u.offer
+	m, envelope := *u.offer, u.envelope
 	u.state, u.done, u.total, u.err = updDownloading, 0, m.Windows.Size, ""
 	ctx, cancel := context.WithCancel(context.Background())
 	u.cancel = cancel
@@ -356,6 +435,7 @@ func (u *desktopUpdater) download(then bool) {
 				return
 			}
 			u.state, u.setup = updReady, path
+			u.saveReady(envelope, m.Channel, path)
 			if then {
 				u.runInstaller()
 			} else {

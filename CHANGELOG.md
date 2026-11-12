@@ -18,6 +18,10 @@ Desain ulang Pengaturan dari canvas c66c26d3f3e1, pilihan owner. Notifikasi dan 
 - **Aktivitas WhatsApp**: tabel pengiriman dengan status dalam kata-kata dan saringan Bermasalah.
 - **Tentang**: versi aplikasi dan server, lalu riwayat dengan versi terbaru terbuka.
 
+Polesan rc.4 (masukan owner 0.4.6-rc.2/rc.3):
+
+- **Pemeriksaan pembaruan lebih cepat**: begitu layar pertama tampil (sekitar 2–3 detik), bukan 20 detik setelah dibuka. Versi yang sudah diunduh dan diperiksa sebelumnya langsung tampil sebagai kartu "Siap dipasang" di kiri bawah. Tetap setiap 6 jam, dan tetap diam selama onboarding.
+
 ## 0.4.6-rc.3 — 2026-11-11 · Kartu pembaruan (pre-release)
 
 - **Kartu pembaruan** di pojok kiri bawah jendela Space, seperti enowX. Sebelumnya versi baru diunduh diam-diam dan hanya tampak di Pengaturan › Status layanan.

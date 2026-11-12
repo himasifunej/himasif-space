@@ -296,6 +296,7 @@ func attachDevice(win *mygo.Window, app *appui.App) {
 	app.Ace = aceDevice{d}
 	app.AppUpdates = func(c *ui.Context) { appui.SettingsBlock(c, func() { d.updateSettings(c) }) }
 	app.Updater = d.updater
+	app.FirstScreen = d.updater.screenShown
 	d.updater.start()
 	mygo.App.OnOpenURL(func(raw string) { d.handleLink(raw) })
 	mygo.App.OnSecondInstance(func([]string, string) { win.Show(); win.Focus() })

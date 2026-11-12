@@ -101,7 +101,12 @@ type App struct {
 	// desktop app's updater; nil on the web, which updates with the page.
 	AppUpdates func(*ui.Context)
 	// Updater feeds the update card (update_card.go); nil on the web.
-	Updater        Updater
+	Updater Updater
+	// FirstScreen is told once, from the UI thread, when the window has
+	// drawn its first screen past "Menyambungkan" (the updater's first
+	// check waits for it).
+	FirstScreen    func()
+	firstScreenRun bool
 	SessionChanged func(id.ID)
 	// Version is the app's version, shown in the settings.
 	Version string
