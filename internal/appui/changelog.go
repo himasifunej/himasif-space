@@ -141,6 +141,7 @@ func (a *App) changelogSettings(c *ui.Context) {
 				server = "Belum diperiksa"
 			}
 			SettingRow(c, "Server", strings.TrimPrefix(a.ServerURL, "https://"), func() { settingsValue(c, server).Font(FontMono) })
+			a.madeByRow(c)
 		})
 		if a.aboutOpen == nil {
 			a.aboutOpen = map[string]bool{}

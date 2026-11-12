@@ -5,6 +5,11 @@ Versi mengikuti aturan sebelum rilis publik:
 - **Minor** naik untuk pembaruan besar.
 - **1.0.0** untuk rilis publik.
 
+## Belum dirilis · Animasi pembuka dan Kredit (aplikasi)
+
+- **Animasi pembuka** (canvas 9b55464a544c, opsi C "Ace jadi garis progres"): Ace muncul, berkedip, memanjang jadi garis progres dengan mata di ujungnya, lalu menyusut ke bawah logo Space; 4,8 detik dengan kredit "by HIMASIF ASTRA 25/26". Tampil saat aplikasi dibuka, juga setelah pembaruan ("Memperbarui ke … · memulai ulang"). Aplikasi yang sudah siap tidak pernah ditahan melewati 4,8 detik; bila memuat lebih lama, Ace mengulang garis progres sampai siap. Dengan "kurangi gerakan" animasi diam dan hanya tampil selama memuat.
+- **Kredit** (canvas dec9ac46ca25, opsi B), dari Pengaturan › Tentang › **Dibuat oleh**: logo Tiyoouw yang bergerak (intro saat dibuka, klik memutar ulang, hover memisah jadi mata yang mengikuti kursor dan berkedip), dari kit logo resmi; nama pembuat, tautan tiyoouw.com dan github.com/Tiyouw, dan daftar kontributor dari `contributors.json` yang ikut terpasang, jadi tampil tanpa koneksi.
+
 ## 0.4.6-rc.5 — 2026-11-12 · Balasan GIF bot WhatsApp (server dan bridge; pre-release)
 
 - **`!setgif namaperintah`** sambil membalas GIF, video atau gambar menyimpan GIF; `!namaperintah` lalu membalas dengan GIF itu (video `gifPlayback`, diputar berulang tanpa suara, caption tetap ikut). Hanya pengelola bot yang bisa menyimpan; cakupan grup sama seperti stiker.

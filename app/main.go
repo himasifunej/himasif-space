@@ -58,6 +58,7 @@ func main() {
 		app.ServerURL = api.BaseURL
 		app.ClientName = clientName
 		app.Version = appVersion()
+		app.Splash = true
 		app.PreferencesStore = newPreferencesStore()
 		app.NoteDrafts = newNoteDraftStore()
 		app.PendingFiles = newPendingFileStore()
