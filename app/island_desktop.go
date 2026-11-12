@@ -1344,6 +1344,7 @@ func (p *islandPresenter) noticeDetails(c *ui.Context, x islandNotice, queued in
 			// From the inbox, each notice can be marked read on its own,
 			// whatever its actions.
 			if inbox && p.islandAction(c, "Tandai dibaca", islandIcons["close"], false) {
+				p.readInApp([]string{x.n.Tag})
 				p.dismiss()
 			}
 		})
@@ -1604,14 +1605,25 @@ func islandKindLabel(kind string) string {
 func (p *islandPresenter) dismissAll() {
 	account := p.account()
 	p.mu.Lock()
-	p.m.DismissAll(time.Now())
+	var read []string
+	if p.m.Current != nil {
+		read = append(read, p.m.Current.Tag)
+	}
+	for _, it := range p.m.Queue {
+		read = append(read, it.Tag)
+	}
 	p.ensureInbox(time.Now())
+	for _, e := range p.inbox.box.of(account) {
+		read = append(read, e.Notice.Tag)
+	}
+	p.m.DismissAll(time.Now())
 	if p.inbox.box.clear(account) {
 		p.inbox.changed = true
 		p.saveInbox()
 	}
 	p.inbox.open = false
 	p.mu.Unlock()
+	p.readInApp(read)
 	p.redraw()
 }
 

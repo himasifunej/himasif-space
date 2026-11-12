@@ -2,7 +2,6 @@ package appui
 
 import (
 	"context"
-	"github.com/egoist/mygo/ui"
 	"github.com/himasifunej/himasif-space/internal/api"
 	"github.com/himasifunej/himasif-space/internal/client"
 	"github.com/himasifunej/himasif-space/internal/id"
@@ -82,6 +81,15 @@ func (a *App) PollDeliveries() {
 			}
 			a.deliveries.items = items
 			a.deliveries.err = ""
+			// Read here, on another device or by Buka: Ace's inbox lets
+			// them go too.
+			var seen []id.ID
+			for _, d := range items {
+				if d.Channel == "device" && d.SeenAt != nil {
+					seen = append(seen, d.ID)
+				}
+			}
+			a.forgetReadNotices(seen)
 			if a.deliveries.offered == nil {
 				a.deliveries.offered = map[string]bool{}
 			}
@@ -175,6 +183,10 @@ func (a *App) OpenNotification(d api.Delivery) {
 		d.SourceID = *d.RelatedID
 	}
 	a.chrome.notificationsOpen = false
+	// Opening is reading, from the bell or from Ace's Buka alike.
+	if d.Channel == "device" && d.SeenAt == nil {
+		a.markDeliveriesSeen([]id.ID{d.ID})
+	}
 	cl, ok := a.api.(*client.Client)
 	if !ok {
 		return
@@ -308,39 +320,6 @@ func (a *App) applyNotificationNavigation() {
 	if a.access.err == "" {
 		a.deliveries.err = "Ruang objek notifikasi tidak lagi dapat diakses."
 		a.deliveries.navigation = nil
-	}
-}
-func (a *App) deliveryNotifications(c *ui.Context) {
-	if a.deliveries.notificationErr != "" {
-		ui.Text(c, a.deliveries.notificationErr).FontSize(12).TextColor(c.Theme().Danger)
-	}
-	if a.deliveries.err != "" {
-		muted(c, a.deliveries.err)
-	}
-	if len(a.deliveries.items) == 0 {
-		muted(c, "Belum ada pengingat terjadwal.")
-	}
-	for _, d := range a.deliveries.items {
-		d := d
-		ui.Column(c.Key(d.ID)).FillWidth().Gap(5).Padding(8).Children(func() {
-			ui.Text(c, d.Title).Bold()
-			muted(c, d.Body)
-			muted(c, deliveryStatusLabel(d.Status)+" · "+taskTimestamp(d.ScheduledAt, d.TimeZone))
-			if d.LastError != "" {
-				muted(c, d.LastError)
-			}
-			ui.Row(c).Wrap().Gap(4).Children(func() {
-				if spaceButton(c, "Buka", "", false).Clicked() {
-					a.OpenNotification(d)
-				}
-				if spaceButton(c, "Sudah lihat", "", false).Disabled(d.Channel != "device").Clicked() {
-					a.RespondNotification(d.ID, "seen", 0)
-				}
-				if spaceButton(c, "15 menit lagi", "", false).Disabled(d.Channel != "device").Clicked() {
-					a.RespondNotification(d.ID, "snooze", 15)
-				}
-			})
-		})
 	}
 }
 func (a *App) IsCurrentAccount(uid id.ID) bool { return a.screen == screenShell && a.user.ID == uid }

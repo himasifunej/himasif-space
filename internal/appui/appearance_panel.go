@@ -18,6 +18,7 @@ func (a *App) appearancePopover(c *ui.Context, anchor ui.Element) {
 	t := c.Theme()
 	p := &a.chrome.preferences
 	ui.PopoverBase(c.Key("appearance-quick"), anchor, &a.chrome.appearanceQuick, func(panel ui.Element) {
+		popPanel(panel, 0)
 		panel.Width(320).Padding(16).Gap(0).Radius(12).Background(t.Surface).Border(1, t.Border).Shadow(0, 12, 32, 0, ui.RGBA(0, 0, 0, .35)).MarginStart(18)
 		heading := func(s string) {
 			ui.Text(c, s).FontSize(12).FontWeight(500).TextColor(faint(t)).Padding(14, 0, 8, 0)

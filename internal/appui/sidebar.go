@@ -153,7 +153,7 @@ func (a *App) periodPicker(c *ui.Context, collapsed bool) {
 		label = periodLabel(*p)
 		text = "Periode " + p.Label
 	}
-	b := ui.ButtonBase(c).Label(label).Tooltip(label).FillWidth().Shrink(0).Margin(0, 2, 6, 2).Row().AlignItems(ui.Center).Gap(8).Padding(7, 10).Radius(8).Border(1, t.Border).TextColor(t.TextMuted)
+	b := ui.ButtonBase(c).Label(label).Tooltip(label).FillWidth().Shrink(0).Margin(0, 2, 6, 2).Row().AlignItems(ui.Center).Gap(8).Padding(7, 10).Radius(8).Border(1, t.Border).TextColor(t.TextMuted).Transition(motionState)
 	if collapsed {
 		b.Margin(0, 0, 6, 0).Padding(7, 0).Justify(ui.Center)
 	}
@@ -204,7 +204,7 @@ func (a *App) periodPicker(c *ui.Context, collapsed bool) {
 // It opens the account menu.
 func (a *App) profile(c *ui.Context, collapsed bool) {
 	t := c.Theme()
-	b := ui.ButtonBase(c).Label("Menu profil").Tooltip(a.user.DisplayName).FillWidth().Shrink(0).Row().AlignItems(ui.Center).Padding(6, 8).Gap(10).Radius(8)
+	b := ui.ButtonBase(c).Label("Menu profil").Tooltip(a.user.DisplayName).FillWidth().Shrink(0).Row().AlignItems(ui.Center).Padding(6, 8).Gap(10).Radius(8).Transition(motionState)
 	if collapsed {
 		b.Padding(6, 0).Justify(ui.Center)
 	}
@@ -231,6 +231,8 @@ func (a *App) profile(c *ui.Context, collapsed bool) {
 		a.chrome.appearanceQuick = false
 	}
 	ui.PopoverBase(c, b, &a.chrome.profileOpen, func(panel ui.Element) {
+		// It opens beside the profile, from its lower corner.
+		panel.TransformOrigin(0, 1).Transition(motionPop)
 		panel.Width(270).Padding(12).Gap(6).Radius(12).Background(t.Surface).Border(1, t.Border).Shadow(0, 12, 32, 0, ui.RGBA(0, 0, 0, .35)).MarginStart(8)
 		ui.Text(c, a.user.DisplayName).Bold()
 		muted(c, a.user.Email)

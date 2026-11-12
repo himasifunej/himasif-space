@@ -209,6 +209,7 @@ func (e *noteDocumentEditor) mentionMenu(c *ui.Context, anchor ui.Element) {
 	targets := e.Mentions(e.mention.query)
 	e.mention.index = min(e.mention.index, max(len(targets)-1, 0))
 	ui.PopoverBase(c.Key("mention-menu"), anchor, &e.mention.open, func(panel ui.Element) {
+		popPanel(panel, 0)
 		panel.Margin(4, 0, 0, 0).Width(280).MaxHeight(320).Padding(6).Gap(2).Radius(10).Background(t.Surface).Border(1, t.Border).Shadow(0, 8, 24, 0, ui.RGBA(0, 0, 0, .18)).Label("Sebut anggota atau tugas")
 		ui.Text(c, "SEBUT ANGGOTA ATAU TUGAS").FontSize(10).TextColor(faint(t)).Padding(4, 8)
 		if len(targets) == 0 {

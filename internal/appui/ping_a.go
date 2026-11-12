@@ -456,6 +456,7 @@ func (a *App) showPingToast(c *ui.Context) {
 // the same choice.
 func (a *App) pingNameBox(c *ui.Context, anchor ui.Element) {
 	ui.PopoverBase(c, anchor, &a.pingUI.boxOpen, func(panel ui.Element) {
+		popPanel(panel, 0)
 		t := c.Theme()
 		w, _ := c.Size()
 		panel.Margin(6, 0, 0, 0).Width(min(float32(380), w-24)).Padding(12).Gap(10).Radius(12).Background(t.Surface).Border(1, t.Border).Shadow(0, 8, 24, 0, ui.RGBA(0, 0, 0, .25)).Label("Kirim ping cepat")

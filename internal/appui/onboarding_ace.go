@@ -120,6 +120,7 @@ func (a *App) aceWizard(c *ui.Context) {
 	a.aceSpeak(key, line)
 	open := true
 	ui.DialogBase(c.Key("ace-wizard"), &open, func(backdrop, panel ui.Element) {
+		dialogMotion(backdrop, panel)
 		backdrop.Background(ui.RGBA(0, 0, 0, .45))
 		if phone {
 			backdrop.Justify(ui.End)
@@ -589,6 +590,7 @@ func (a *App) aceUpdateDialog(c *ui.Context) {
 		title = "Yang baru di " + wn.Version
 	}
 	ui.DialogBase(c.Key("ace-update"), &open, func(backdrop, panel ui.Element) {
+		dialogMotion(backdrop, panel)
 		backdrop.Background(ui.RGBA(0, 0, 0, .45)).Justify(ui.Start).Padding(min(float32(110), h/6), 0, 0, 0)
 		panel.Width(min(float32(520), w-32)).MaxHeight(h-140).Radius(16).Column().Background(t.Surface).Border(1, t.Border).Label(title).Children(func() {
 			ui.Scroll(c.Key("ace-update-scroll")).Grow(1).MinHeight(0).FillWidth().Children(func() {

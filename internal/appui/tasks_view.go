@@ -599,43 +599,6 @@ func taskTimestamp(t time.Time, zone string) string {
 	}
 	return t.In(loc).Format("02 Jan 2006 · 15:04 MST")
 }
-func (a *App) taskNotifications(c *ui.Context) {
-	if !a.tasks.notificationsLoaded && !a.tasks.notificationsBusy && a.tasks.notificationsErr == "" {
-		a.loadTaskNotifications()
-	}
-	if a.tasks.notificationsBusy {
-		muted(c, "Memuat notifikasi…")
-	}
-	if a.tasks.notificationsErr != "" {
-		ui.Text(c, a.tasks.notificationsErr).FontSize(12).TextColor(c.Theme().Danger)
-	}
-	if a.tasks.notificationsLoaded && len(a.tasks.notifications) == 0 {
-		muted(c, "Belum ada pembaruan tugas.")
-	}
-	ui.Scroll(c).FillWidth().MaxHeight(280).Children(func() {
-		ui.Column(c).FillWidth().Gap(6).Children(func() {
-			for _, n := range a.tasks.notifications {
-				b := ui.ButtonBase(c.Key(n.ID)).FillWidth().Padding(10).Radius(8).Border(1, c.Theme().Border).Label(n.Title)
-				if n.ReadAt == nil {
-					b.Background(c.Theme().SurfaceHover)
-				}
-				b.Children(func() {
-					ui.Column(c).FillWidth().MinWidth(0).Gap(5).Children(func() {
-						ui.Text(c, n.Title).FontSize(12).Bold()
-						muted(c, n.Body).FontSize(11)
-						muted(c, taskTimestamp(n.CreatedAt, timeutil.DefaultZoneName)).FontSize(10)
-					})
-				})
-				if b.Clicked() {
-					a.openTaskNotification(n)
-				}
-			}
-		})
-	})
-	if spaceButton(c, "Perbarui notifikasi", "refresh", false).Disabled(a.tasks.notificationsBusy).FillWidth().Clicked() {
-		a.loadTaskNotifications()
-	}
-}
 func (a *App) openTaskNotification(n api.Notification) {
 	s, ok := a.taskService()
 	if !ok {
@@ -857,6 +820,7 @@ func (a *App) cancelTaskDialog(c *ui.Context) {
 	th := c.Theme()
 	w, _ := c.Size()
 	ui.DialogBase(c.Key("cancel-task"), &a.tasks.cancelOpen, func(backdrop, panel ui.Element) {
+		dialogMotion(backdrop, panel)
 		backdrop.Background(ui.RGBA(0, 0, 0, .45))
 		panel.Width(min(float32(460), w-32)).Column().Padding(20).Gap(12).Radius(14).Background(th.Surface).Border(1, th.Border).Children(func() {
 			ui.Text(c, title).FontSize(17).Bold()

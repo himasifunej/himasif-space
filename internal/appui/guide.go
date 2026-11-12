@@ -360,6 +360,7 @@ func (a *App) guideSheet(c *ui.Context) {
 	t := c.Theme()
 	w, h := c.Size()
 	ui.DialogBase(c.Key("guide-sheet"), &a.guide.panel, func(backdrop, panel ui.Element) {
+		dialogMotion(backdrop, panel)
 		backdrop.Background(ui.RGBA(0, 0, 0, .45)).Justify(ui.End)
 		panel.Width(w).Height(h*0.82).Radius(18, 18, 0, 0).Column().Background(t.Surface).Border(1, t.Border).
 			Transition(ui.ElementTransition{Duration: 260 * time.Millisecond, Enter: &ui.Motion{Y: 60, Opacity: 0}}).Children(func() {
