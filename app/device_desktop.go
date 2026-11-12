@@ -12,6 +12,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -73,6 +74,16 @@ type devicePreferences struct {
 	// UpdateManual turns the automatic updates off: a new version is then
 	// only announced, as before 0.4.6.
 	UpdateManual bool `json:"updateManual,omitempty"`
+	// AceTired is Ace ikut capek (island.Tired): Ace at rest tires as
+	// unread notices pile up; missing from older files, on. Its stages
+	// begin AceTiredRatio ("1.5", "2", "2.5" or "custom") apart, counted
+	// back from AceTiredTop (Cemberut, 5 to 15); custom takes
+	// AceTiredHeavy and AceTiredSleepy (Mulai berat, Ngantuk) as set.
+	AceTired       bool   `json:"aceTired"`
+	AceTiredRatio  string `json:"aceTiredRatio,omitempty"`
+	AceTiredTop    int    `json:"aceTiredTop,omitempty"`
+	AceTiredHeavy  int    `json:"aceTiredHeavy,omitempty"`
+	AceTiredSleepy int    `json:"aceTiredSleepy,omitempty"`
 }
 
 // whatsNew is what to show once on starting version: nil on a fresh
@@ -109,7 +120,7 @@ var legacyDeviceKeys = []string{"aceMode", "aceName", "mascot", "X", "Y"}
 // reports keys of the removed mascot window, for the caller to write the
 // file again without them and drop the imported picture.
 func loadDevicePreferences(data []byte) (prefs devicePreferences, legacy bool) {
-	prefs = devicePreferences{Volume: .45, Sound: true, IslandEnabled: true, IslandStyle: "C", IslandReplaceToast: true, IslandAlwaysOn: true, IslandAnchor: .5, QuietFrom: 22, QuietTo: 6}
+	prefs = devicePreferences{Volume: .45, Sound: true, IslandEnabled: true, IslandStyle: "C", IslandReplaceToast: true, IslandAlwaysOn: true, IslandAnchor: .5, QuietFrom: 22, QuietTo: 6, AceTired: true, AceTiredRatio: island.RatioDefault, AceTiredTop: island.TopDefault, AceTiredHeavy: 2, AceTiredSleepy: 6}
 	if len(data) == 0 {
 		return prefs, false
 	}
@@ -129,6 +140,7 @@ func loadDevicePreferences(data []byte) (prefs devicePreferences, legacy bool) {
 	if prefs.Volume < 0 || prefs.Volume > 1 {
 		prefs.Volume = .45
 	}
+	prefs.normalizeAceTired()
 	return prefs, legacy
 }
 
@@ -577,4 +589,25 @@ func (d *desktopDevice) importBell() {
 			d.save()
 		})
 	}()
+}
+
+// normalizeAceTired keeps Ace ikut capek's numbers in their range: a
+// known ratio, Cemberut from 5 to 15, and the custom stages in order
+// below it.
+func (p *devicePreferences) normalizeAceTired() {
+	if !slices.Contains(island.Ratios, p.AceTiredRatio) {
+		p.AceTiredRatio = island.RatioDefault
+	}
+	if p.AceTiredTop == 0 {
+		p.AceTiredTop = island.TopDefault
+	}
+	p.AceTiredTop = max(island.TopMin, min(island.TopMax, p.AceTiredTop))
+	if p.AceTiredHeavy == 0 {
+		p.AceTiredHeavy = 2
+	}
+	if p.AceTiredSleepy == 0 {
+		p.AceTiredSleepy = 6
+	}
+	th := island.Thresholds(island.RatioCustom, p.AceTiredTop, p.AceTiredHeavy, p.AceTiredSleepy)
+	p.AceTiredHeavy, p.AceTiredSleepy = th[1], th[2]
 }

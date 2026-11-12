@@ -54,6 +54,7 @@ func (d *desktopDevice) settings(c *ui.Context) {
 	d.saveVolumeAtRest(c)
 	nav := []appui.SettingsNavItem{
 		{Title: "Dynamic Island", Icon: "spark", Status: d.prefs.islandSummary()},
+		{Title: "Ace", Icon: "eye", Status: d.prefs.aceSummary()},
 		{Title: "Notifikasi Windows", Icon: "bell", Status: d.prefs.toastSummary()},
 		{Title: "Mulai bersama Windows", Icon: "monitor", Status: onOff(d.prefs.Autostart)},
 		{Title: "Suara bel", Icon: "play", Status: d.prefs.bellSummary()},
@@ -64,6 +65,7 @@ func (d *desktopDevice) settings(c *ui.Context) {
 			ui.Text(c, d.err).FontSize(13).TextColor(c.Theme().Danger)
 		}
 		d.islandSettings(c)
+		d.aceSettings(c)
 		d.notificationSettings(c)
 		appui.SettingSection(c, "Mulai bersama Windows", "", func() {
 			on := d.prefs.Autostart

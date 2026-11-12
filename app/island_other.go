@@ -5,7 +5,7 @@ package main
 func islandSupported() bool                                            { return false }
 func islandEnvironmentAllowed() bool                                   { return false }
 func islandPrepareWindow(uintptr)                                      {}
-func islandWindowShape(uintptr, [4]float64, float64, int)              {}
+func islandWindowShape(uintptr, [4]float64, float64, float64, int)     {}
 func islandClearBackdrop(uintptr)                                      {}
 func islandSpikeAcrylic(uintptr)                                       {}
 func islandObstructed() bool                                           { return false }
