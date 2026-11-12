@@ -24,8 +24,13 @@ func (a *App) sidebar(c *ui.Context) {
 	sb := ui.Column(c.Key("sidebar"))
 	a.tourTarget("sidebar", sb)
 	sb.Transition(ui.ElementTransition{Duration: 180 * time.Millisecond, Size: true}).Width(width).Shrink(0).Padding(14, padX).Gap(2).Background(t.Surface).BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
-		// The logo goes to Space saya (canvas 26495b2dee24, 3A).
-		brand := ui.ButtonBase(c.Key("brand")).Label("Ke daftar Space").Tooltip("Ke daftar Space").Shrink(0).Row().Gap(10).Padding(4, 6, 12, 6).Margin(0, 0, 0, 0).Radius(10).AlignItems(ui.Center)
+		// The logo goes to Space saya (canvas 26495b2dee24, 3A). It stays
+		// at the left, on the nav icons' column (owner's rc.2 feedback: it
+		// drifted toward the middle as the sidebar opened): a button
+		// centers its children, so it starts them and pads the logo onto
+		// the icons' center.
+		brand := ui.ButtonBase(c.Key("brand")).Label("Ke daftar Space").Tooltip("Ke daftar Space").FillWidth().Shrink(0).Row().Justify(ui.Start).Gap(10).
+			Padding(6, 8, 6, brandInset(collapsed)).Margin(0, 0, 10, 0).Radius(10).AlignItems(ui.Center)
 		if brand.Hovered() {
 			brand.Background(t.SurfaceHover)
 		}
@@ -33,11 +38,11 @@ func (a *App) sidebar(c *ui.Context) {
 			a.openSpacePicker()
 		}
 		brand.FocusRing(brand.FocusVisible()).Children(func() {
-			ui.Image(c, spaceBrand()).Size(30, 30).Shrink(0).Fit(ui.Contain)
+			ui.Image(c, spaceBrand()).Size(brandLogo, brandLogo).Shrink(0).Fit(ui.Contain)
 			if !collapsed {
-				ui.Column(c).MinWidth(0).Gap(1).Children(func() {
-					ui.Text(c, "Space").FontSize(15).FontWeight(600).MaxLines(1)
-					ui.Text(c, "Ruang Kerja HIMASIF").FontSize(11).TextColor(faint(t)).MaxLines(1)
+				ui.Column(c).Grow(1).MinWidth(0).Gap(0).Children(func() {
+					ui.Text(c, "Space").FontSize(15).FontWeight(650).LineHeight(1.15).MaxLines(1)
+					ui.Text(c, "Ruang Kerja HIMASIF").FontSize(11).LineHeight(1.25).TextColor(faint(t)).MaxLines(1)
 				})
 			}
 		})
@@ -49,6 +54,19 @@ func (a *App) sidebar(c *ui.Context) {
 			a.sidebarFoot(c, collapsed)
 		})
 	})
+}
+
+// brandLogo is the sidebar logo's size; brandInset pads it onto the nav
+// icons' center: a nav row's icon (16) starts 10 into its row, which fills
+// the sidebar's content; collapsed, the icon is centered in the rail's 60
+// less its padding and its 1 px border.
+const brandLogo = 28
+
+func brandInset(collapsed bool) float32 {
+	if collapsed {
+		return float32(60-2*8-1-brandLogo) / 2
+	}
+	return 10 + 16/2 - brandLogo/2
 }
 
 func (a *App) sidebarSections(c *ui.Context, collapsed bool) {
