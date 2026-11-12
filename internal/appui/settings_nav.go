@@ -48,7 +48,7 @@ func (a *App) settingsGroups() []settingsGroup {
 			{"Command", "Command bot", "Pemicu dan template balasan", "terminal"},
 			{"Aktivitas", "Aktivitas WhatsApp", "Antrean dan status pengiriman", "message"},
 			{"Status layanan", "Status layanan", "API, bot, penjadwal, sumber", "shield"},
-			{"Darurat", "Spreadsheet darurat", "Salinan saat server tidak tersedia", "archive"},
+			{"Darurat", "Pusat darurat", "Sheet Google saat server mati", "archive"},
 		}},
 		{"Tentang", []settingsEntry{
 			{"Tentang", "Tentang Space", "Versi dan riwayat perubahan", "book"},

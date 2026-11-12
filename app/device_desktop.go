@@ -346,6 +346,8 @@ func attachDevice(win *mygo.Window, app *appui.App) {
 			case <-tick.C:
 				win.Update(func() {
 					app.PollDeliveries()
+					// The emergency sheet is read from the tray too.
+					app.TickEmergencySheet(time.Now())
 					d.updater.autoInstall()
 				})
 			}

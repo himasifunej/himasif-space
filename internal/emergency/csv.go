@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -91,4 +92,52 @@ func ParseChanges(data []byte) ([]api.EmergencyChange, error) {
 		return nil, errors.New("CSV tidak memiliki catatan perubahan darurat")
 	}
 	return changes, nil
+}
+
+// SnapshotRow is a row of a server snapshot's CSV: the IDs a change must
+// name, and the task's version and progress at the snapshot.
+type SnapshotRow struct {
+	SnapshotID, RowID, TaskID id.ID
+	Version                   int64
+	Progress                  string
+}
+
+// ParseSnapshotRows reads the rows of a snapshot CSV as the server writes
+// it, to pair them with a sheet's rows after recovery.
+func ParseSnapshotRows(data []byte) ([]SnapshotRow, error) {
+	reader := csv.NewReader(bytes.NewReader(bytes.TrimPrefix(data, []byte{0xef, 0xbb, 0xbf})))
+	header, err := reader.Read()
+	if err != nil {
+		return nil, errors.New("header snapshot tidak dapat dibaca")
+	}
+	indexes := map[string]int{}
+	for i, key := range header {
+		indexes[strings.TrimSpace(key)] = i
+	}
+	for _, key := range []string{"snapshot_id", "row_id", "task_id", "task_version", "base_progress"} {
+		if _, ok := indexes[key]; !ok {
+			return nil, fmt.Errorf("kolom snapshot tidak ditemukan: %s", key)
+		}
+	}
+	var out []SnapshotRow
+	for {
+		row, err := reader.Read()
+		if err == io.EOF {
+			return out, nil
+		}
+		if err != nil {
+			return nil, errors.New("CSV snapshot tidak valid")
+		}
+		var r SnapshotRow
+		var e1, e2, e3, e4 error
+		r.SnapshotID, e1 = id.Parse(row[indexes["snapshot_id"]])
+		r.RowID, e2 = id.Parse(row[indexes["row_id"]])
+		r.TaskID, e3 = id.Parse(row[indexes["task_id"]])
+		r.Version, e4 = strconv.ParseInt(row[indexes["task_version"]], 10, 64)
+		if err := errors.Join(e1, e2, e3, e4); err != nil {
+			return nil, errors.New("identitas snapshot tidak valid")
+		}
+		r.Progress = row[indexes["base_progress"]]
+		out = append(out, r)
+	}
 }

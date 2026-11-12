@@ -64,7 +64,7 @@ func TestSettingsTabsReachableAtDesktopWidths(t *testing.T) {
 	for _, size := range [][2]int{{1440, 900}, {880, 1000}, {390, 1000}} {
 		h.tt.SetSize(size[0], size[1])
 		for _, tab := range []struct{ name, label, heading string }{
-			{"Sinkronisasi", "Offline dan sinkronisasi", "Sinkronisasi perangkat"}, {"Darurat", "Spreadsheet darurat", "Salinan darurat dan rekonsiliasi"},
+			{"Sinkronisasi", "Offline dan sinkronisasi", "Sinkronisasi perangkat"}, {"Darurat", "Pusat darurat", "Pusat darurat"},
 			{"Status layanan", "Status layanan", "Status layanan"}, {"Perangkat", "Notifikasi dan Dynamic Island", "Halaman perangkat"},
 			{"WhatsApp", "Tautan dan bot WhatsApp", "WhatsApp divisi"}, {"Pengingat", "Pengingat dan ping", "Pengingat dan ping"},
 			{"Command", "Command bot", "Command bot"}, {"Aktivitas", "Aktivitas WhatsApp", "Aktivitas WhatsApp"}, {"Akun", "Profil dan keamanan", "Akun dan aplikasi"},

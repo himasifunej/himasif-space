@@ -51,6 +51,8 @@ func NoticeGlyph(kind string) *ui.SVG {
 		key = "note"
 	case "update":
 		key = "refresh"
+	case NoticeEmergency:
+		key = "alert"
 	}
 	return spaceIcons[key]
 }

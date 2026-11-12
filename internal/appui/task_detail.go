@@ -11,6 +11,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"github.com/himasifunej/himasif-space/internal/api"
+	"github.com/himasifunej/himasif-space/internal/emergency/sheet"
 	"github.com/himasifunej/himasif-space/internal/id"
 	"github.com/himasifunej/himasif-space/internal/workspaceui"
 )
@@ -263,6 +264,13 @@ func (a *App) taskDetailMain(c *ui.Context, t *api.Task) {
 	if t.LocalPending {
 		muted(c, "Tersimpan di perangkat — belum tersinkron. Isi resmi server belum berubah.")
 	}
+	if a.sheetLocked(t.ID) {
+		line := "Mode darurat: progres tugas ini diatur dari sheet darurat. Ubah di sheet."
+		if r, ok := a.sheetFromSheet(t.ID); ok {
+			line = "Mode darurat: progres " + strings.ToLower(progressLabel(r.Progress)) + " dari sheet (" + sheet.Lag(a.sheet.sess.Follow.Clock, time.Now()) + "). Ubah di sheet; server berubah setelah rekonsiliasi."
+		}
+		muted(c, line)
+	}
 	a.taskActionRow(c, task)
 	a.taskFieldGrid(c, task)
 	if len(t.Participants) > 0 {
@@ -471,7 +479,7 @@ func (a *App) taskFieldGrid(c *ui.Context, t api.Task) {
 
 // taskReopenView reopens a finished or cancelled task with a reason.
 func (a *App) taskReopenView(c *ui.Context, t api.Task) {
-	if !t.Permissions.Manage || (t.Progress != api.TaskDone && t.Progress != api.TaskCancelled) || a.offlineMode() {
+	if !t.Permissions.Manage || (t.Progress != api.TaskDone && t.Progress != api.TaskCancelled) || a.offlineMode() || a.sheetLocked(t.ID) {
 		return
 	}
 	ui.Column(c.Key("reopen")).FillWidth().Gap(8).Disabled(a.taskWriteBlocked()).Children(func() {
@@ -858,7 +866,7 @@ func (a *App) taskStatusPill(c *ui.Context, t api.Task) {
 	if custom := a.chrome.preferences.LaneColors[lane]; custom != "" {
 		color = spaceAccent(custom)
 	}
-	canMove := (t.Permissions.Progress || t.Permissions.Manage) && !(t.Progress == api.TaskDone || t.Progress == api.TaskCancelled) || t.Permissions.Manage
+	canMove := ((t.Permissions.Progress || t.Permissions.Manage) && !(t.Progress == api.TaskDone || t.Progress == api.TaskCancelled) || t.Permissions.Manage) && !a.sheetLocked(t.ID)
 	pill := ui.ButtonBase(c.Key("status-pill")).Label("Status: "+progressLabel(t.Progress)).Row().AlignItems(ui.Center).Gap(7).Height(30).Padding(0, 10).Radius(8).Background(th.SurfaceHover).Disabled(!canMove || a.tasks.busy || a.tasks.loading)
 	pill.FocusRing(pill.FocusVisible()).Children(func() {
 		ui.Box(c).Size(7, 7).Radius(4).Background(color)

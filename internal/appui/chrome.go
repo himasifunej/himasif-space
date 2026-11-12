@@ -174,6 +174,7 @@ func (a *App) shell(c *ui.Context) {
 	a.ensureOnboarding(c.Now())
 	a.watchNotificationPermission()
 	a.tickOffline(c.Now())
+	a.TickEmergencySheet(c.Now())
 	a.tickRealtime(c)
 	a.tickNotes(c.Now())
 	a.tickDeliveries(c.Now())
@@ -203,6 +204,7 @@ func (a *App) shell(c *ui.Context) {
 			a.sidebar(c)
 			ui.Column(c.Key("main-area")).Transition(ui.ElementTransition{Duration: 180 * time.Millisecond, Size: true, Position: true}).Grow(1).MinWidth(0).Children(func() {
 				a.header(c)
+				a.emergencyBanner(c)
 				ui.Row(c).Grow(1).MinHeight(0).FillWidth().AlignItems(ui.Stretch).Children(func() {
 					a.router.View(c, func(r *ui.Route) { a.page(c, r) }).Grow(1).MinWidth(0).MinHeight(0)
 					// Keep one inspector at a time so the board remains usable

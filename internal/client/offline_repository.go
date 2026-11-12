@@ -468,3 +468,29 @@ func (c *Client) RecoverPending(mid id.ID) error {
 	}
 	return errors.New("Perubahan tidak ditemukan.")
 }
+
+// DeviceRecord reads a small record this device keeps for the signed-in
+// account beside its offline cache (the emergency sheet's links and what
+// was read from it). name holds letters and dashes only.
+func (c *Client) DeviceRecord(name string) ([]byte, error) {
+	if c.Offline == nil {
+		return nil, ErrOfflineMissing
+	}
+	ns := c.offlineNamespace()
+	if ns == "" {
+		return nil, ErrOfflineMissing
+	}
+	return c.Offline.storage.Read("rec-" + name + "-" + ns)
+}
+
+// SaveDeviceRecord keeps a record DeviceRecord reads.
+func (c *Client) SaveDeviceRecord(name string, data []byte) error {
+	if c.Offline == nil {
+		return ErrOfflineMissing
+	}
+	ns := c.offlineNamespace()
+	if ns == "" {
+		return ErrOfflineMissing
+	}
+	return c.Offline.storage.Write("rec-"+name+"-"+ns, data)
+}

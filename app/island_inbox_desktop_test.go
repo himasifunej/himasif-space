@@ -138,3 +138,9 @@ func TestNoticeKinds(t *testing.T) {
 		t.Fatal("glyphs")
 	}
 }
+
+func TestEmergencyNoticesStayOutOfTheInbox(t *testing.T) {
+	if inboxKeeps(appui.Notice{Kind: appui.NoticeEmergency, Tag: "darurat-down", AccountID: "a"}) {
+		t.Fatal("an emergency line went to the inbox")
+	}
+}
