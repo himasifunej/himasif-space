@@ -91,7 +91,8 @@ var (
 	islandMuted       = ui.RGBA(245, 245, 247, .72)
 	islandRing        = ui.RGBA(255, 255, 255, .06)
 	islandButton      = ui.RGB(44, 44, 46)
-	islandButtonHover = ui.RGB(58, 58, 60)
+	islandButtonHover = ui.RGB(62, 62, 66)
+	islandButtonPress = ui.RGB(78, 78, 84)
 	islandPing        = ui.RGB(255, 159, 10)
 	islandMeeting     = ui.RGB(48, 209, 88)
 	islandMusic       = ui.RGB(10, 132, 255)
@@ -1193,11 +1194,13 @@ func islandWave(c *ui.Context, now time.Time, playing bool, scale float32) {
 
 // islandAction is a round button of the details; primary is white.
 func (p *islandPresenter) islandAction(c *ui.Context, label string, icon *ui.SVG, primary bool) bool {
-	b := ui.ButtonBase(c.Key("island-"+label)).Label(label).Height(32).Radius(16).Padding(0, 12).Gap(6).Background(islandButton)
-	fg := islandText
-	if primary {
-		b.Background(islandText)
-		fg = opaque(islandInk)
+	b := ui.ButtonBase(c.Key("island-"+label)).Label(label).Height(32).Radius(16).Padding(0, 12).Gap(6)
+	bg, fg, ring := islandActionColors(primary, b.Hovered(), b.Pressed())
+	// The style's own shades, eased, and a ring of its text color for the
+	// keyboard: MyGo's ring is Space's accent, foreign on Hitam or Kaca.
+	b.Background(b.AnimateColor("bg", bg, ui.Animation{Duration: 120 * time.Millisecond})).FocusRing(false)
+	if b.FocusVisible() {
+		b.Border(2, ring)
 	}
 	if icon != nil {
 		b.MinWidth(32).Padding(0, 8)
@@ -1214,6 +1217,32 @@ func (p *islandPresenter) islandAction(c *ui.Context, label string, icon *ui.SVG
 		return true
 	}
 	return false
+}
+
+// islandActionColors are an island button's background, text and focus
+// ring at rest, hovered or pressed, in the colors of the island's style:
+// the primary (light on a dark pill, dark on a light one) darkens toward
+// the pill as it is pressed; the others lighten on a dark pill and darken
+// on a light one.
+func islandActionColors(primary, hovered, pressed bool) (bg, fg, ring ui.Color) {
+	if primary {
+		bg, fg = islandText, opaque(islandInk)
+		switch {
+		case pressed:
+			bg = islandMix(islandText, opaque(islandInk), .22)
+		case hovered:
+			bg = islandMix(islandText, opaque(islandInk), .1)
+		}
+		return bg, fg, islandMix(islandText, opaque(islandInk), .5)
+	}
+	bg, fg = islandButton, islandText
+	switch {
+	case pressed:
+		bg = islandButtonPress
+	case hovered:
+		bg = islandButtonHover
+	}
+	return bg, fg, ui.RGBA(islandText.R, islandText.G, islandText.B, .6)
 }
 
 func (p *islandPresenter) noticeDetails(c *ui.Context, x islandNotice, queued int) {

@@ -21,6 +21,7 @@ Desain ulang Pengaturan dari canvas c66c26d3f3e1, pilihan owner. Notifikasi dan 
 Polesan rc.4 (masukan owner 0.4.6-rc.2/rc.3):
 
 - **Pemeriksaan pembaruan lebih cepat**: begitu layar pertama tampil (sekitar 2–3 detik), bukan 20 detik setelah dibuka. Versi yang sudah diunduh dan diperiksa sebelumnya langsung tampil sebagai kartu "Siap dipasang" di kiri bawah. Tetap setiap 6 jam, dan tetap diam selama onboarding.
+- **Tombol Ace Island terasa hidup**: "Buka Space", "Pengaturan island" dan tombol island lain berubah warna saat disorot, lebih dalam saat ditekan, dan bercincin saat dipilih dengan keyboard, dalam warna gaya island masing-masing (Ikut tema, Hitam, Kaca, Custom).
 
 ## 0.4.6-rc.3 — 2026-11-11 · Kartu pembaruan (pre-release)
 
