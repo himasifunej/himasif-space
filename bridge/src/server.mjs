@@ -22,7 +22,7 @@ const server = createServer(async (request, response) => {
   try {
     const url = new URL(request.url, 'http://bridge.internal');
     if (request.method === 'GET' && url.pathname === '/health') return reply(response, 200, { status: 'ready', connections: connections.connections.size });
-    const match = /^\/connections\/([a-f0-9-]+)(?:\/(connect|disconnect|logout|groups|events|ack|send|jobs|sticker))?(?:\/([a-f0-9-]+))?$/.exec(url.pathname);
+    const match = /^\/connections\/([a-f0-9-]+)(?:\/(connect|disconnect|logout|groups|events|ack|send|jobs|sticker|gif))?(?:\/([a-f0-9-]+))?$/.exec(url.pathname);
     if (!match) return reply(response, 404, { error: 'not found' });
     const [, id, operation, jobId] = match;
     const c = await connections.get(id);
@@ -40,6 +40,7 @@ const server = createServer(async (request, response) => {
     else if (request.method === 'POST' && operation === 'send') result = await connections.send(id, body);
     else if (request.method === 'GET' && operation === 'jobs' && jobId) result = await connections.job(id, jobId);
     else if (request.method === 'POST' && operation === 'sticker') result = await connections.sticker(id, body.groupJid, body.messageId);
+    else if (request.method === 'POST' && operation === 'gif') result = await connections.gif(id, body.groupJid, body.messageId);
     else return reply(response, 405, { error: 'method not allowed' });
     reply(response, 200, result);
   } catch (error) { reply(response, error.status ?? 500, { error: error.status ? error.message : 'bridge operation failed', attempted: error.attempted }); }

@@ -302,8 +302,9 @@ Template contoh pengguna berisi salam bulan, daftar bernomor dengan judul, PJ Hu
 | Pengelolaan | Delegasi/perubahan yang didukung secara eksplisit | Kemampuan yang sama dengan aplikasi; detail sintaks diputuskan saat implementasi |
 | Rekap/evaluasi | Daftar aktif, pending, ringkasan dan laporan SOP | Menurut ruang dan kewenangan |
 | Stiker | `!sticker` dari gambar/video terlampir atau reply | Grup yang diaktifkan |
-| Command tersimpan | Contoh `!damn` mengirim stiker yang ditetapkan | Konfigurasi per divisi |
-| Pengaturan command | Menetapkan nama pemicu, respons teks/media/stiker dan cakupan grup | Pengelola bot berwenang |
+| GIF | `!setgif <pemicu>` sambil membalas GIF, video atau gambar; dikonversi menjadi mp4 pendek tanpa suara (maks. 10 detik, 4 MiB) yang diputar berulang | Pengelola bot berwenang |
+| Command tersimpan | Contoh `!damn` mengirim stiker atau GIF yang ditetapkan | Konfigurasi per divisi |
+| Pengaturan command | Menetapkan nama pemicu, respons teks/media/stiker/GIF dan cakupan grup | Pengelola bot berwenang |
 
 - **CMD-01 — Disepakati:** command kustom per divisi mencakup respons teks/media/stiker tersimpan. `!damn` bukan slot global tunggal bagi semua divisi.
 - **CMD-02 — Turunan:** nama command tidak boleh diam-diam menggantikan command inti atau memberikan hak akses baru. Custom command awal bukan eksekusi script/shell atau workflow AI bebas.

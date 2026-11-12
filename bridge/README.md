@@ -12,6 +12,9 @@ Node 22+ dan FFmpeg diperlukan. `bridge/.env.example` menjelaskan bearer interna
 - Event inbound memiliki sequence persisten dan harus diakui backend setelah commit. Antrean penuh menghentikan koneksi sementara, bukan mereset pairing.
 - Reconnect memakai jeda bertambah; logout/bad session membutuhkan tindakan pengelola. Tidak ada restart beruntun untuk mencoba mengatasi pesan hilang.
 - Stiker memakai media grup yang tersimpan/quoted, input maksimal 16 MiB, durasi enam detik, kanvas transparan 512×512 dan keluaran maksimal 1 MiB. Tidak menjalankan shell dari pesan.
+- GIF (`POST /connections/:id/gif`, body `groupJid` dan `messageId`) memakai media grup yang tersimpan/quoted: GIF WhatsApp, video, gambar atau stiker. Hasilnya mp4 H.264 tanpa suara, lebar maksimal 480 px, 15 fps, maksimal 10 detik (gambar menjadi klip diam 3 detik) dan 4 MiB; durasinya diukur dengan `ffprobe` dan dikembalikan sebagai `durationMs`. Server Go memeriksa jenis, ukuran dan durasi lagi sebelum menyimpan command.
+- `POST /connections/:id/send` dengan `mediaType: "gif"` mengirim aset mp4 itu sebagai video `gifPlayback` (diputar berulang tanpa suara) beserta caption; aset selain `video/mp4` ditolak sebelum dijurnal.
+- FFmpeg **dan** `ffprobe` harus ada di `PATH` unit bridge. Tanpanya stiker maupun GIF gagal dikonversi dan command tidak disimpan.
 
 Start setelah dependensi disiapkan: `npm start`. Layanan belum dijalankan oleh agen pada tahap implementasi ini.
 

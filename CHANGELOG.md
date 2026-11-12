@@ -5,6 +5,16 @@ Versi mengikuti aturan sebelum rilis publik:
 - **Minor** naik untuk pembaruan besar.
 - **1.0.0** untuk rilis publik.
 
+## 0.4.6-rc.5 — 2026-11-12 · Balasan GIF bot WhatsApp (server dan bridge; pre-release)
+
+- **`!setgif namaperintah`** sambil membalas GIF, video atau gambar menyimpan GIF; `!namaperintah` lalu membalas dengan GIF itu (video `gifPlayback`, diputar berulang tanpa suara, caption tetap ikut). Hanya pengelola bot yang bisa menyimpan; cakupan grup sama seperti stiker.
+- Bridge mengonversi media menjadi mp4 pendek: maksimal 10 detik, lebar 480 px, 4 MiB, gambar menjadi klip 3 detik. Server memeriksa ulang jenis (mp4), ukuran dan durasi sebelum menyimpan.
+- Editor Command bot menampilkan jenis media sebagai **GIF** (juga Stiker, Gambar, Video), bukan nama teknisnya.
+- Perbaikan: stiker dari **gambar diam** sebelumnya menghasilkan berkas kosong di FFmpeg 7; kini dikonversi dengan benar, dan keluaran kosong ditolak.
+- Butuh `ffmpeg` dan `ffprobe` di host bridge; bridge dan server perlu di-deploy bersama.
+
+Server dan bridge 0.4.6-rc.5; aplikasi Windows tetap 0.4.6-rc.4 sampai rilis klien berikutnya. tc-vps kini punya ffmpeg 6.1.1 (libx264, libwebp) untuk !setgif dan !setsticker.
+
 ## 0.4.6-rc.4 — 2026-11-12 · Pengaturan baru, lonceng Notifikasi, batal massal (pre-release)
 
 Desain ulang Pengaturan dari canvas c66c26d3f3e1, pilihan owner. Notifikasi dan Dynamic Island, Tautan dan bot WhatsApp, dan Status layanan tidak berubah.

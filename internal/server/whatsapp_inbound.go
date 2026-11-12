@@ -43,11 +43,13 @@ func (s *Server) processWACommand(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	fields := strings.Fields(peekBody)
-	if len(fields) > 0 && (strings.EqualFold(fields[0], "!sticker") || strings.EqualFold(fields[0], "!setsticker")) {
-		prepareCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		prepared := s.prepareWASticker(prepareCtx, peekID, pid, cid)
-		cancel()
-		ctx = context.WithValue(ctx, waStickerKey{}, prepared)
+	if len(fields) > 0 && strings.HasPrefix(fields[0], "!") {
+		if kind, ok := waMediaCommand(strings.ToLower(fields[0][1:])); ok {
+			prepareCtx, cancel := context.WithTimeout(ctx, kind.Timeout)
+			prepared := s.prepareWAMedia(prepareCtx, kind, peekID, pid, cid)
+			cancel()
+			ctx = context.WithValue(ctx, waMediaKey{}, prepared)
+		}
 	}
 	found := false
 	err = s.store.Tx(ctx, func(q store.Querier) error {
@@ -279,8 +281,9 @@ func (s *Server) runWACommand(r *http.Request, q store.Querier, p *principal, pe
 		return s.waReportCommand(r, q, p, period, group, command, args)
 	case "cek", "done", "bantu", "delegasi":
 		return s.waTaskCommand(r, q, p, period, group, in, command, args)
-	case "sticker", "setsticker":
-		return s.waStickerCommand(r, q, p, conn, group, in, command, args)
+	case "sticker", "setsticker", "setgif":
+		kind, _ := waMediaCommand(command)
+		return s.waMediaCommand(r, q, p, conn, group, in, kind, command, args)
 	default:
 		err := q.QueryRow(r.Context(), `select response,asset_id,media_type from wa_custom_commands where connection_id=$1 and trigger=$2 and (cardinality(group_ids)=0 or $3=any(group_ids))`, conn.ID, command, group.ID).Scan(&reply.Text, &reply.AssetID, &reply.MediaType)
 		if errors.Is(err, pgx.ErrNoRows) {

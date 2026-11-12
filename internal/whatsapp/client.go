@@ -150,6 +150,8 @@ type Asset struct {
 	AssetID string `json:"assetId"`
 	MIME    string `json:"mime"`
 	Size    int64  `json:"size"`
+	// DurationMS is the length of a GIF (a gif-playback mp4); 0 for a sticker.
+	DurationMS int64 `json:"durationMs,omitempty"`
 }
 
 func path(cid id.ID) string { return "/connections/" + cid.String() }
@@ -200,5 +202,13 @@ func (c *Client) Job(ctx context.Context, cid, jid id.ID) (*Job, error) {
 func (c *Client) Sticker(ctx context.Context, cid id.ID, group, message string) (Asset, error) {
 	var out Asset
 	err := c.call(ctx, "POST", path(cid)+"/sticker", map[string]any{"groupJid": group, "messageId": message}, &out)
+	return out, err
+}
+
+// GIF converts a stored or quoted group message (a GIF, video or image) into
+// a short silent mp4 the bridge sends with gifPlayback (mediaType "gif").
+func (c *Client) GIF(ctx context.Context, cid id.ID, group, message string) (Asset, error) {
+	var out Asset
+	err := c.call(ctx, "POST", path(cid)+"/gif", map[string]any{"groupJid": group, "messageId": message}, &out)
 	return out, err
 }
