@@ -234,14 +234,18 @@ func settingRow(c *ui.Context, title, description string, stack bool, control fu
 	if stack && settingsPage.narrow {
 		row = ui.Column(c.Key("row-"+title)).FillWidth().MinWidth(0).Padding(14, 16).Gap(10)
 	} else {
-		row = ui.Row(c.Key("row-"+title)).FillWidth().MinWidth(0).Padding(14, 16).Gap(16).AlignItems(ui.Center)
+		// The label starts from 180 px and takes what the control leaves;
+		// a control too wide to sit beside that goes under the label
+		// instead of squeezing it to a letter a line, and wraps when it
+		// is wider than the row.
+		row = ui.Row(c.Key("row-"+title)).FillWidth().MinWidth(0).Padding(14, 16).Gap(16).AlignItems(ui.Center).Wrap()
 	}
 	if !settingsPage.first {
 		row.BorderWidth(1, 0, 0, 0).BorderColor(t.Border)
 	}
 	settingsPage.first = false
 	row.Children(func() {
-		label := ui.Column(c.Key("label")).Grow(1).MinWidth(0).MaxWidth(600).Gap(2)
+		label := ui.Column(c.Key("label")).Grow(1).Basis(180).MinWidth(0).MaxWidth(600).Gap(2)
 		labelClicked = label.Clicked()
 		label.Children(func() {
 			ui.Text(c, title).FontSize(14).FontWeight(500)
@@ -249,7 +253,7 @@ func settingRow(c *ui.Context, title, description string, stack bool, control fu
 				muted(c, description).FontSize(13)
 			}
 		})
-		ui.Row(c).Shrink(0).Gap(10).AlignItems(ui.Center).Wrap().Children(control)
+		ui.Row(c).Gap(10).AlignItems(ui.Center).Wrap().Children(control)
 	})
 	return labelClicked
 }
