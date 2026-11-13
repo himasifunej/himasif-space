@@ -354,6 +354,14 @@ func (a *App) untukComments(c *ui.Context, t api.Task) {
 	if !t.Permissions.Comment {
 		return
 	}
+	a.commentComposer(c, t, "Tulis komentar… ketik @ untuk menandai orang")
+}
+
+// commentComposer is the comment box with its @ list, shared by Untukku's
+// Detail tugas and the board's "Komentar dan aktivitas": typing @ lists the
+// task's people, Enter or Tab picks one, Esc closes the list.
+func (a *App) commentComposer(c *ui.Context, t api.Task, placeholder string) {
+	th := c.Theme()
 	a.loadMentionPeople(t.ID)
 	st := &a.untuk.mention
 	q, at, typing := mentionQuery(a.tasks.comment)
@@ -363,7 +371,7 @@ func (a *App) untukComments(c *ui.Context, t api.Task) {
 		st.active = 0
 	}
 	if open {
-		ui.Column(c.Key("cm-mention")).Label("Tandai orang").Width(320).Padding(4).Radius(10).Background(spaceMix(th.Surface, th.Accent, .06)).Border(1, spaceMix(th.Accent, th.Border, .3)).Shadow(0, 8, 24, 0, ui.RGBA(0, 0, 0, .35)).Children(func() {
+		ui.Column(c.Key("cm-mention")).Label("Tandai orang").FillWidth().MaxWidth(320).Padding(4).Radius(10).Background(spaceMix(th.Surface, th.Accent, .06)).Border(1, spaceMix(th.Accent, th.Border, .3)).Shadow(0, 8, 24, 0, ui.RGBA(0, 0, 0, .35)).Children(func() {
 			head := "Tandai orang"
 			if q != "" {
 				head = "Cocok dengan “" + q + "”"
@@ -399,7 +407,7 @@ func (a *App) untukComments(c *ui.Context, t api.Task) {
 		})
 	}
 	ui.Row(c.Key("cm-form")).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
-		in := ui.TextInput(c.Key(fmt.Sprint("task-comment-", st.gen)), &a.tasks.comment).Label("Tulis komentar").Placeholder("Tulis komentar… ketik @ untuk menandai orang").Grow(1).MinWidth(0).Disabled(a.taskWriteBlocked())
+		in := ui.TextInput(c.Key(fmt.Sprint("task-comment-", st.gen)), &a.tasks.comment).Label("Tulis komentar").Placeholder(placeholder).Grow(1).MinWidth(0).Disabled(a.taskWriteBlocked())
 		if st.focus {
 			in.Focus()
 			st.focus = false
