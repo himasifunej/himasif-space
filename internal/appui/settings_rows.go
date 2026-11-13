@@ -8,12 +8,13 @@ import (
 )
 
 // Canvas A of the device page (Pengaturan › Perangkat ini): a column of
-// sections at the left, each with its state, above a search; at the right
-// the sections, each a box of rows: a label and its description at the
-// left, a switch or a small control at the right, saved as it changes.
-// Narrow, the search sits above the sections and wide controls go under
-// their label. The desktop's device settings (package main) and the web
-// app's draw with these.
+// sections at the left, each with its state; at the right the sections,
+// each a box of rows: a label and its description at the left, a switch
+// or a small control at the right, saved as it changes. Narrow, wide
+// controls go under their label. The search over every settings page is
+// at the top of the settings tabs (settingsFinder), not on this page. The
+// desktop's device settings (package main) and the web app's draw with
+// these.
 
 // settingsPage is the state of the device page now drawn. Only the UI
 // thread touches it.
@@ -49,10 +50,9 @@ func settingsMatch(text string) bool {
 
 func settingsSearching() bool { return strings.TrimSpace(settingsPage.query) != "" }
 
-// SettingsLayout draws a device page titled title: the column of nav and
-// its search at the left of the sections when the pane is wide, the search
-// above them when it is narrow. status draws at the right of the title, as
-// the saved state; body draws the sections.
+// SettingsLayout draws a device page titled title: the column of its
+// sections at the left of them when the pane is wide. status draws at the
+// right of the title, as the saved state; body draws the sections.
 func SettingsLayout(c *ui.Context, title, description string, nav []SettingsNavItem, status func(), body func()) {
 	t := c.Theme()
 	w, _ := c.Size()
@@ -85,9 +85,6 @@ func SettingsLayout(c *ui.Context, title, description string, nav []SettingsNavI
 					status()
 				}
 			})
-			if settingsPage.narrow {
-				SettingsSearch(c)
-			}
 			body()
 			if settingsSearching() && settingsPage.shown == 0 {
 				ui.Column(c.Key("settings-none")).FillWidth().Gap(8).Padding(32, 0).AlignItems(ui.Center).Children(func() {
@@ -105,18 +102,10 @@ func SettingsLayout(c *ui.Context, title, description string, nav []SettingsNavI
 	}
 	ui.Row(c).Fill().MinWidth(0).Children(func() {
 		ui.Column(c.Key("settings-sections")).Width(248).Shrink(0).FillHeight().Padding(20, 12).Gap(2).BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Label("Bagian pengaturan").Children(func() {
-			SettingsSearch(c)
-			ui.Column(c).Height(10).Shrink(0)
 			settingsNav(c, nav)
 		})
 		ui.Scroll(c.Key("settings-body")).Grow(1).MinWidth(0).FillHeight().Label("Isi pengaturan").Children(sections)
 	})
-}
-
-// SettingsSearch is the page's search: it keeps the sections and rows that
-// hold every word typed.
-func SettingsSearch(c *ui.Context) {
-	ui.TextInput(c.Key("settings-search"), &settingsPage.query).Label("Cari di Perangkat ini").Placeholder("Cari di Perangkat ini").FillWidth()
 }
 
 // settingsNav is the column of sections: a click scrolls to the section and

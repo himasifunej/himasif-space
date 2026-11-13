@@ -36,6 +36,10 @@ type chromeState struct {
 	// settingsDetail shows one settings page instead of the grouped list
 	// on narrow windows.
 	settingsDetail bool
+	// settingsFind is the search at the top of the settings tabs, over
+	// every settings page; settingsCursor is its highlighted result.
+	settingsFind   string
+	settingsCursor int
 	// bell is the bell popover's paging.
 	bell bellState
 }
