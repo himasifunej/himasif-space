@@ -243,12 +243,16 @@ func emergencyStatus(status string) string {
 	}
 	return status
 }
-func (a *App) emergencyView(c *ui.Context) {
+
+// emergencyLegacy is the CSV copy of before the sheet: a server snapshot
+// to keep, and a CSV of changes to reconcile. Still there for a sheet not
+// prepared, under Cara lama in Pusat darurat.
+func (a *App) emergencyLegacy(c *ui.Context) {
 	st := &a.emergency
 	if st.user != a.user.ID || st.period != a.periodID {
 		*st = emergencyUIState{seq: st.seq + 1, user: a.user.ID, period: a.periodID, space: a.selectedSpaceID()}
 	}
-	settingsBody(c, "Salinan darurat dan rekonsiliasi", "Siapkan salinan tugas dan tinjau perubahan setelah layanan pulih.", func() {
+	func() {
 		if a.period() == nil {
 			muted(c, "Pilih periode terlebih dahulu.")
 			return
@@ -305,78 +309,85 @@ func (a *App) emergencyView(c *ui.Context) {
 			if spaceButton(c, "Muat ulang pratinjau server", "refresh", false).Disabled(st.busy || a.offlineMode()).Clicked() {
 				a.reconcileEmergency("preview")
 			}
-			for _, result := range st.results {
-				change := api.EmergencyChange{}
-				for _, item := range st.changes {
-					if item.RowID == result.RowID {
-						change = item
-						break
-					}
-				}
-				pageSection(c.Key(result.RowID.String()), emergencyStatus(result.Status), result.Message, func() {
-					if result.Snapshot != nil {
-						muted(c, result.Snapshot.SpaceName+" · snapshot "+taskTimestamp(result.Snapshot.CapturedAt, a.period().TimeZone))
-					}
-					if result.Baseline != nil {
-						base := result.Baseline
-						ui.Text(c, base.Title).Bold()
-						muted(c, "Snapshot: "+base.Progress+" · "+base.Assignee.DisplayName+" · "+base.DeadlineValue+" · versi "+fmt.Sprint(base.Version))
-					}
-					if result.Current != nil {
-						now := result.Current
-						muted(c, "Server: "+now.Progress+" · "+now.Assignee.DisplayName+" · "+now.DeadlineValue+" · versi "+fmt.Sprint(now.Version))
-					}
-					ui.Text(c, "Usulan: "+change.Progress+" · pelapor: "+change.ReportedBy+" · waktu laporan: "+change.ReportedAt)
-					if change.Note != "" {
-						ui.Text(c, change.Note)
-					}
-					if result.AppliedAt != nil {
-						muted(c, "Dicatat oleh "+result.AppliedBy+" · "+taskTimestamp(*result.AppliedAt, a.period().TimeZone))
-					}
-					if emergencySelectable(result) {
-						checked := st.selected[result.RowID]
-						if ui.Checkbox(c, &checked, "Pilih perubahan ini").Disabled(st.busy).Changed() {
-							if st.selected == nil {
-								st.selected = map[id.ID]bool{}
-							}
-							st.selected[result.RowID] = checked
-							st.confirmed = false
-						}
-					}
-					if result.Current != nil && spaceButton(c, "Buka tugas untuk tinjauan", "task", false).Disabled(st.busy).Clicked() {
-						a.OpenNotification(api.Delivery{SourceKind: "task", SourceID: result.Current.TaskID})
-					}
-				})
+			a.emergencyResults(c)
+		})
+	}()
+}
+
+// emergencyResults lists a reconciliation's preview, row by row, with the
+// choices and the reason: for a CSV and for the sheet alike.
+func (a *App) emergencyResults(c *ui.Context) {
+	st := &a.emergency
+	for _, result := range st.results {
+		change := api.EmergencyChange{}
+		for _, item := range st.changes {
+			if item.RowID == result.RowID {
+				change = item
+				break
 			}
-			selected, ready := 0, 0
-			for _, result := range st.results {
-				if emergencySelectable(result) && st.selected[result.RowID] {
-					selected++
-					if result.Status == "ready" {
-						ready++
+		}
+		pageSection(c.Key(result.RowID.String()), emergencyStatus(result.Status), result.Message, func() {
+			if result.Snapshot != nil {
+				muted(c, result.Snapshot.SpaceName+" · snapshot "+taskTimestamp(result.Snapshot.CapturedAt, a.period().TimeZone))
+			}
+			if result.Baseline != nil {
+				base := result.Baseline
+				ui.Text(c, base.Title).Bold()
+				muted(c, "Snapshot: "+base.Progress+" · "+base.Assignee.DisplayName+" · "+base.DeadlineValue+" · versi "+fmt.Sprint(base.Version))
+			}
+			if result.Current != nil {
+				now := result.Current
+				muted(c, "Server: "+now.Progress+" · "+now.Assignee.DisplayName+" · "+now.DeadlineValue+" · versi "+fmt.Sprint(now.Version))
+			}
+			ui.Text(c, "Usulan: "+change.Progress+" · pelapor: "+change.ReportedBy+" · waktu laporan: "+change.ReportedAt)
+			if change.Note != "" {
+				ui.Text(c, change.Note)
+			}
+			if result.AppliedAt != nil {
+				muted(c, "Dicatat oleh "+result.AppliedBy+" · "+taskTimestamp(*result.AppliedAt, a.period().TimeZone))
+			}
+			if emergencySelectable(result) {
+				checked := st.selected[result.RowID]
+				if ui.Checkbox(c, &checked, "Pilih perubahan ini").Disabled(st.busy).Changed() {
+					if st.selected == nil {
+						st.selected = map[id.ID]bool{}
 					}
-				}
-			}
-			if selected == 0 {
-				return
-			}
-			ui.Field(c, "Alasan menerapkan rekonsiliasi", func() {
-				if ui.TextArea(c, &st.reason).Label("Alasan menerapkan rekonsiliasi").FillWidth().Height(80).Changed() {
+					st.selected[result.RowID] = checked
 					st.confirmed = false
 				}
-			})
-			ui.Checkbox(c, &st.confirmed, "Saya sudah memeriksa baris terpilih, baseline dan keadaan server terbaru.").Disabled(st.busy)
-			if spaceButton(c, fmt.Sprintf("Terapkan %d progres yang siap", ready), "check", false).Disabled(st.busy || a.offlineMode() || ready == 0 || !st.confirmed || strings.TrimSpace(st.reason) == "").Clicked() {
-				a.reconcileEmergency("apply")
 			}
-			for _, resolution := range []struct{ action, label string }{{"manual_reviewed", "Catat tinjauan manual untuk baris terpilih"}, {"ignored", "Abaikan baris terpilih dengan alasan"}} {
-				if spaceButton(c.Key(resolution.action), resolution.label, "check", false).Disabled(st.busy || a.offlineMode() || !st.confirmed || strings.TrimSpace(st.reason) == "").Clicked() {
-					a.reconcileEmergency(resolution.action)
-				}
+			if result.Current != nil && spaceButton(c, "Buka tugas untuk tinjauan", "task", false).Disabled(st.busy).Clicked() {
+				a.OpenNotification(api.Delivery{SourceKind: "task", SourceID: result.Current.TaskID})
 			}
-			muted(c, "Penyerahan hasil, approval, perubahan PJ/deadline dan catatan lain ditangani pada tugas masing-masing. Waktu laporan sheet tidak mengganti waktu bukti atau pencatatan server.")
 		})
+	}
+	selected, ready := 0, 0
+	for _, result := range st.results {
+		if emergencySelectable(result) && st.selected[result.RowID] {
+			selected++
+			if result.Status == "ready" {
+				ready++
+			}
+		}
+	}
+	if selected == 0 {
+		return
+	}
+	ui.Field(c, "Alasan menerapkan rekonsiliasi", func() {
+		if ui.TextArea(c, &st.reason).Label("Alasan menerapkan rekonsiliasi").FillWidth().Height(80).Changed() {
+			st.confirmed = false
+		}
 	})
+	ui.Checkbox(c, &st.confirmed, "Saya sudah memeriksa baris terpilih, baseline dan keadaan server terbaru.").Disabled(st.busy)
+	if spaceButton(c, fmt.Sprintf("Terapkan %d progres yang siap", ready), "check", false).Disabled(st.busy || a.offlineMode() || ready == 0 || !st.confirmed || strings.TrimSpace(st.reason) == "").Clicked() {
+		a.reconcileEmergency("apply")
+	}
+	for _, resolution := range []struct{ action, label string }{{"manual_reviewed", "Catat tinjauan manual untuk baris terpilih"}, {"ignored", "Abaikan baris terpilih dengan alasan"}} {
+		if spaceButton(c.Key(resolution.action), resolution.label, "check", false).Disabled(st.busy || a.offlineMode() || !st.confirmed || strings.TrimSpace(st.reason) == "").Clicked() {
+			a.reconcileEmergency(resolution.action)
+		}
+	}
+	muted(c, "Penyerahan hasil, approval, perubahan PJ/deadline dan catatan lain ditangani pada tugas masing-masing. Waktu laporan sheet tidak mengganti waktu bukti atau pencatatan server.")
 }
 
 func emergencySelectable(result api.EmergencyReconcileResult) bool {

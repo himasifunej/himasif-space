@@ -46,3 +46,16 @@ func TestChangesOnlyIdentityAndIntentAreImported(t *testing.T) {
 		t.Fatal("wrong export accepted")
 	}
 }
+
+func TestParseSnapshotRowsReadsTheServersCSV(t *testing.T) {
+	sid, rid, tid := id.New(), id.New(), id.New()
+	data := "\xef\xbb\xbfsnapshot_id,row_id,task_id,captured_at_utc,task_version,title,expected_output,assignee,deadline_kind,deadline_value,time_zone,base_progress,base_match_status,new_progress,reported_at,reported_by,change_note\n" +
+		sid.String() + "," + rid.String() + "," + tid.String() + ",2026-11-12T06:00:00Z,7,\"Poster, A3\",,Raka,date,2026-11-20,Asia/Jakarta,doing,none,,,,\n"
+	rows, err := ParseSnapshotRows([]byte(data))
+	if err != nil || len(rows) != 1 || rows[0] != (SnapshotRow{SnapshotID: sid, RowID: rid, TaskID: tid, Version: 7, Progress: "doing"}) {
+		t.Fatalf("%v %+v", err, rows)
+	}
+	if _, err := ParseSnapshotRows([]byte("title\nx\n")); err == nil {
+		t.Fatal("a CSV without IDs was read")
+	}
+}

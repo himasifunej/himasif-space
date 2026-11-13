@@ -153,6 +153,7 @@ type App struct {
 	splash                    splashState
 	operations                operationsUIState
 	emergency                 emergencyUIState
+	sheet                     sheetUIState
 	offlineSync               offlineUIState
 	notificationSettingsState notificationSettingsState
 	pingHistory               pingHistoryState
