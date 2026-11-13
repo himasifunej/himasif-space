@@ -51,6 +51,7 @@ type mentionState struct {
 	people        []api.TaskMentionCandidate
 	picked        []api.TaskMentionCandidate
 	active        int
+	hover         pickHover
 	dismissed     string
 	focus         bool
 	// gen renews the input after a name is put in, so the caret goes to
@@ -385,11 +386,10 @@ func (a *App) commentComposer(c *ui.Context, t api.Task, placeholder string) {
 			case len(matches) == 0:
 				muted(c, "Tidak ada anggota bernama itu.").FontSize(12).Padding(10, 8)
 			}
+			st.hover.begin()
 			for i, p := range matches {
 				o := ui.ButtonBase(c.Key(p.ID)).Label("Tandai "+p.DisplayName).Row().FillWidth().Height(40).Gap(10).AlignItems(ui.Center).Padding(0, 8).Radius(7)
-				if i == st.active || o.Hovered() {
-					o.Background(th.SurfaceHover)
-				}
+				pickRow(c, o, i, &st.active, &st.hover)
 				o.Children(func() {
 					avatar(c, p.DisplayName, 24)
 					ui.Column(c).Grow(1).MinWidth(0).Children(func() {

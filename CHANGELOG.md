@@ -5,6 +5,10 @@ Versi mengikuti aturan sebelum rilis publik:
 - **Minor** naik untuk pembaruan besar.
 - **1.0.0** untuk rilis publik.
 
+## Belum dirilis
+
+- **Tandai @**: baris di daftar "Tandai orang" (komentar tugas di Board tugas dan Untukku) dan daftar sebut di Catatan kini menyala saat ditunjuk mouse, dengan kursor tangan. Mouse dan panah ↑/↓ memakai sorotan yang sama, jadi hanya satu baris yang menyala.
+
 ## 0.4.6-rc.7 — 2026-11-13 · Formulir baru, tandai @ di board, cari pengaturan, darurat via Sheets (pre-release)
 
 Tanpa migrasi dan tanpa perubahan server; server tetap 0.4.6-rc.6.

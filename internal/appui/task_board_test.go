@@ -168,6 +168,31 @@ func TestTaskDetailCommentMention(t *testing.T) {
 		if r.W == 0 || r.H == 0 || r.X+r.W > size[0] || r.Y+r.H > size[1] {
 			t.Fatalf("%v: @ row at %+v", size, r)
 		}
+		// The owner's rc.7 report: the rows had no hover. Pointing at a row
+		// highlights it, as ↑/↓ does, and only one row is highlighted.
+		first, second := r, chromeRect(t, h.tt, "Tandai Bima Ketua")
+		px := func(b ui.Rect) any { return h.tt.Image().At(int(b.X+b.W-6), int(b.Y+b.H/2)) }
+		firstOn, secondOff := px(first), px(second)
+		if firstOn == secondOff || h.app.untuk.mention.active != 0 {
+			t.Fatalf("%v: the first row should start highlighted", size)
+		}
+		h.tt.Move(second.X+second.W-6, second.Y+second.H/2)
+		h.tt.Frame()
+		h.tt.Frame()
+		if st := &h.app.untuk.mention; st.active != 1 {
+			t.Fatalf("%v: pointing at the 2nd row left active at %d", size, st.active)
+		}
+		if px(second) != firstOn || px(first) != secondOff {
+			t.Fatalf("%v: hovered row not highlighted alone", size)
+		}
+		// ↑ with the mouse resting still moves the highlight.
+		h.tt.Key(0, ui.KeyUp)
+		h.tt.Frame()
+		h.tt.Frame()
+		if st := &h.app.untuk.mention; st.active != 0 {
+			t.Fatalf("%v: ↑ under a resting mouse left active at %d", size, st.active)
+		}
+		h.tt.Move(1, 1)
 		h.tt.Type("nar")
 		h.tt.Frame()
 		h.dontWant("Tandai Bima Ketua")
