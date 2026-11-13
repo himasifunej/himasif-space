@@ -1,15 +1,14 @@
 [
   {
     "version": "0.4.6",
-    "date": "2026-11-12",
-    "title": "Untukku baru, tandai @, Kehadiranmu, Ace ikut capek",
+    "date": "2026-11-13",
+    "title": "Formulir baru, tandai @ di board, cari pengaturan, darurat via Sheets",
     "notes": [
-      "Untukku baru: minggu ini per hari, saringan, dan pengingat pribadi dalam satu kalimat (selalu WIB).",
-      "Komentar tugas bisa menandai orang dengan @; yang ditandai diberi tahu di lonceng dan Ace.",
-      "Rapat: jawab Kehadiranmu (Hadir, Datang terlambat, Tidak bisa hadir) sebelum rapat.",
-      "Ace ikut capek saat kabar menumpuk, dan segar lagi setelah dibaca; bisa diatur di Pengaturan.",
-      "Animasi pembuka Ace saat Space dibuka atau selesai diperbarui.",
-      "Halaman Kredit di Tentang › Dibuat oleh; Jobdesk saya dikelompokkan per progres."
+      "Formulir tugas, rapat, dan akses kini satu pola: lembar dari kanan, bagian berjudul, tombol simpan selalu terlihat, Esc bertanya dulu.",
+      "Ketik @ di komentar detail tugas Board tugas untuk menandai anggota.",
+      "Cari pengaturan: satu pencarian di atas daftar Pengaturan untuk semua halaman.",
+      "Skala tampilan tidak lagi terjepit satu huruf per baris di jendela lebar.",
+      "Pusat darurat: saat server tidak tersedia, tim mencatat progres di Google Sheet yang diisi dari cache."
     ]
   },
   {
