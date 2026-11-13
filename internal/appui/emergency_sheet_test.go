@@ -291,6 +291,11 @@ func TestEmergencyCenterScreens(t *testing.T) {
 	h.click("Setelah pulih")
 	h.want("1 · Bekukan sheet")
 	h.click("Sudah dibekukan")
+	h.want("Menunggu salinan sesudah jam itu (Google bisa tertinggal sampai ±30 menit).")
+	// Frozen before the copy's clock (12 Nov 13.33), not at the time the
+	// test runs: the copy read is then the final one.
+	h.app.sheet.sess.Frozen = h.app.sheet.sess.Follow.Clock.Add(-time.Minute)
+	h.tt.Frame()
 	h.want("Versi final")
 	captureNativeUI(t, h, "darurat-setelah-pulih")
 }
