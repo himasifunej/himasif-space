@@ -1,9 +1,12 @@
 package appui
 
 import (
+	"context"
+	"slices"
 	"testing"
 	"time"
 
+	"github.com/egoist/mygo/ui"
 	"github.com/himasifunej/himasif-space/internal/api"
 	"github.com/himasifunej/himasif-space/internal/id"
 	"github.com/himasifunej/himasif-space/internal/timeutil"
@@ -106,4 +109,78 @@ func TestTaskDetailModalFollowsCanvas(t *testing.T) {
 	}
 	h.click("Serahkan hasil")
 	h.want("Tautan hasil (https://…)")
+}
+
+// boardMentionFake answers the board's comment box: whom to tag, and the
+// comments sent.
+type boardMentionFake struct {
+	*fakeAPI
+	TasksAPI
+	app      *App
+	people   []api.TaskMentionCandidate
+	comments []api.TaskCommentRequest
+}
+
+func (f *boardMentionFake) TaskMentionCandidates(context.Context, id.ID) ([]api.TaskMentionCandidate, error) {
+	return f.people, nil
+}
+func (f *boardMentionFake) AddTaskComment(_ context.Context, _ id.ID, req api.TaskCommentRequest) (api.TaskComment, error) {
+	f.comments = append(f.comments, req)
+	return api.TaskComment{ID: id.New(), Body: req.Body}, nil
+}
+func (f *boardMentionFake) SpaceTasks(context.Context, id.ID, api.TaskFilter) ([]api.Task, error) {
+	return slices.Clone(f.app.tasks.items), nil
+}
+
+// The owner's rc.6 report: in the board's task detail (#T9, Mediatek ·
+// Board tugas) typing @ in "Komentar dan aktivitas" showed nothing. The
+// box there is the same as Untukku's now: @ lists the task's people, a
+// name goes in, and the comment is sent with the person tagged.
+func TestTaskDetailCommentMention(t *testing.T) {
+	for _, size := range [][2]float32{{1440, 900}, {900, 760}} {
+		h := newChromeHarness(t, nil)
+		h.tt.SetSize(int(size[0]), int(size[1]))
+		testAuthorizedSpace(h.app, h.api.divisions[0])
+		h.app.chrome.tab = "Board tugas"
+		h.app.router.Push(PathSpaces)
+		nara := id.New()
+		task := api.Task{ID: id.New(), Title: "Redesain Page Vote", Progress: api.TaskTodo, MatchStatus: api.MatchNone, Assignee: api.PersonRef{ID: h.app.user.ID, DisplayName: h.app.user.DisplayName},
+			Comments:    []api.TaskComment{{ID: id.New(), Author: api.PersonRef{DisplayName: "Aruna Desain"}, Body: "Cek ya @Nara Tekno", Mentions: []api.PersonRef{{ID: nara, DisplayName: "Nara Tekno"}}, CreatedAt: time.Date(2026, 11, 5, 8, 0, 0, 0, time.UTC)}},
+			Permissions: api.TaskPermissions{Progress: true, Comment: true}}
+		h.app.tasks = tasksUIState{scope: h.app.selectedSpaceID(), loaded: true, items: []api.Task{task}}
+		f := &boardMentionFake{fakeAPI: h.api, app: h.app, people: []api.TaskMentionCandidate{
+			{ID: id.New(), DisplayName: "Bima Ketua", Role: api.RoleKadiv, Division: "BPH"},
+			{ID: nara, DisplayName: "Nara Tekno", Role: api.RoleMember, Division: "Mediatek", OnTask: true},
+		}}
+		h.app.api = f
+		h.tt.Advance(400 * time.Millisecond)
+		h.click("Tugas " + task.Title)
+		h.want("Komentar dan aktivitas")
+		h.click("Tulis komentar")
+		h.tt.Type("Sudah @")
+		h.tt.Frame()
+		h.settle()
+		h.want("Tandai orang")
+		h.want("Tandai Nara Tekno")
+		h.want("Tandai Bima Ketua")
+		// The list lies inside the window, not clipped away.
+		r, _ := h.tt.Find("Tandai Nara Tekno")
+		if r.W == 0 || r.H == 0 || r.X+r.W > size[0] || r.Y+r.H > size[1] {
+			t.Fatalf("%v: @ row at %+v", size, r)
+		}
+		h.tt.Type("nar")
+		h.tt.Frame()
+		h.dontWant("Tandai Bima Ketua")
+		h.tt.Key(0, ui.KeyEnter)
+		h.tt.Frame()
+		if h.app.tasks.comment != "Sudah @Nara Tekno " {
+			t.Fatalf("%v: comment %q", size, h.app.tasks.comment)
+		}
+		h.tt.Type("revisi")
+		h.tt.Key(0, ui.KeyEnter)
+		h.settle()
+		if len(f.comments) != 1 || len(f.comments[0].Mentions) != 1 || f.comments[0].Mentions[0] != nara {
+			t.Fatalf("%v: sent %+v", size, f.comments)
+		}
+	}
 }

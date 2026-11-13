@@ -36,6 +36,10 @@ type chromeState struct {
 	// settingsDetail shows one settings page instead of the grouped list
 	// on narrow windows.
 	settingsDetail bool
+	// settingsFind is the search at the top of the settings tabs, over
+	// every settings page; settingsCursor is its highlighted result.
+	settingsFind   string
+	settingsCursor int
 	// bell is the bell popover's paging.
 	bell bellState
 }
@@ -174,6 +178,7 @@ func (a *App) shell(c *ui.Context) {
 	a.ensureOnboarding(c.Now())
 	a.watchNotificationPermission()
 	a.tickOffline(c.Now())
+	a.TickEmergencySheet(c.Now())
 	a.tickRealtime(c)
 	a.tickNotes(c.Now())
 	a.tickDeliveries(c.Now())
@@ -191,6 +196,7 @@ func (a *App) shell(c *ui.Context) {
 	}
 	if isMobile(c) {
 		a.mobileShell(c)
+		a.meetingSheetRoot(c)
 		a.pingDialog(c)
 		a.onboardingOverlays(c)
 		a.updateCardView(c)
@@ -203,6 +209,7 @@ func (a *App) shell(c *ui.Context) {
 			a.sidebar(c)
 			ui.Column(c.Key("main-area")).Transition(ui.ElementTransition{Duration: 180 * time.Millisecond, Size: true, Position: true}).Grow(1).MinWidth(0).Children(func() {
 				a.header(c)
+				a.emergencyBanner(c)
 				ui.Row(c).Grow(1).MinHeight(0).FillWidth().AlignItems(ui.Stretch).Children(func() {
 					a.router.View(c, func(r *ui.Route) { a.page(c, r) }).Grow(1).MinWidth(0).MinHeight(0)
 					// Keep one inspector at a time so the board remains usable
@@ -218,14 +225,15 @@ func (a *App) shell(c *ui.Context) {
 				})
 			})
 			if a.taskBoardVisible() && !a.chrome.appearance {
-				if a.tasks.draft != nil && a.tasks.draft.taskID == id.Nil {
-					a.taskCreatePanel(c)
+				if a.tasks.draft != nil {
+					a.taskSheet(c)
 				} else if a.workspace != nil && a.workspace.SelectedID() != id.Nil {
 					a.taskDetailModal(c)
 				}
 			}
 		})
 	})
+	a.meetingSheetRoot(c)
 	a.pingDialog(c)
 	a.onboardingOverlays(c)
 	a.updateCardView(c)
@@ -269,6 +277,16 @@ func (a *App) toasts(c *ui.Context) {
 			})
 		}
 	})
+}
+
+// meetingSheetRoot draws Rapat baru / Ubah rapat from the window's root,
+// not from inside the page: on a phone the Space's tabs are a pager whose
+// pages do not draw what opens over the window.
+func (a *App) meetingSheetRoot(c *ui.Context) {
+	path := a.router.Path()
+	if a.meetings.draft != nil && !a.chrome.appearance && (path == PathSpaces || path == PathMedhum) && a.chrome.tab == "Rapat" {
+		a.meetingSheet(c)
+	}
 }
 
 func (a *App) taskBoardVisible() bool {

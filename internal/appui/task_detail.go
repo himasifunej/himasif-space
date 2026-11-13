@@ -11,6 +11,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"github.com/himasifunej/himasif-space/internal/api"
+	"github.com/himasifunej/himasif-space/internal/emergency/sheet"
 	"github.com/himasifunej/himasif-space/internal/id"
 	"github.com/himasifunej/himasif-space/internal/workspaceui"
 )
@@ -263,6 +264,13 @@ func (a *App) taskDetailMain(c *ui.Context, t *api.Task) {
 	if t.LocalPending {
 		muted(c, "Tersimpan di perangkat — belum tersinkron. Isi resmi server belum berubah.")
 	}
+	if a.sheetLocked(t.ID) {
+		line := "Mode darurat: progres tugas ini diatur dari sheet darurat. Ubah di sheet."
+		if r, ok := a.sheetFromSheet(t.ID); ok {
+			line = "Mode darurat: progres " + strings.ToLower(progressLabel(r.Progress)) + " dari sheet (" + sheet.Lag(a.sheet.sess.Follow.Clock, time.Now()) + "). Ubah di sheet; server berubah setelah rekonsiliasi."
+		}
+		muted(c, line)
+	}
 	a.taskActionRow(c, task)
 	a.taskFieldGrid(c, task)
 	if len(t.Participants) > 0 {
@@ -471,7 +479,7 @@ func (a *App) taskFieldGrid(c *ui.Context, t api.Task) {
 
 // taskReopenView reopens a finished or cancelled task with a reason.
 func (a *App) taskReopenView(c *ui.Context, t api.Task) {
-	if !t.Permissions.Manage || (t.Progress != api.TaskDone && t.Progress != api.TaskCancelled) || a.offlineMode() {
+	if !t.Permissions.Manage || (t.Progress != api.TaskDone && t.Progress != api.TaskCancelled) || a.offlineMode() || a.sheetLocked(t.ID) {
 		return
 	}
 	ui.Column(c.Key("reopen")).FillWidth().Gap(8).Disabled(a.taskWriteBlocked()).Children(func() {
@@ -668,6 +676,7 @@ type activity struct {
 	who, text string
 	note      string
 	comment   bool
+	cm        api.TaskComment
 }
 
 // taskActivity merges comments with what happened to the task, newest
@@ -676,7 +685,7 @@ type activity struct {
 func (a *App) taskActivity(t api.Task) []activity {
 	var out []activity
 	for _, cm := range t.Comments {
-		out = append(out, activity{key: "c" + cm.ID.String(), at: cm.CreatedAt, who: cm.Author.DisplayName, text: cm.Body, comment: true})
+		out = append(out, activity{key: "c" + cm.ID.String(), at: cm.CreatedAt, who: cm.Author.DisplayName, text: cm.Body, comment: true, cm: cm})
 	}
 	if a.tasks.historyLoaded && a.tasks.inspected == t.ID {
 		for _, e := range a.tasks.history {
@@ -717,14 +726,7 @@ func (a *App) taskDetailSide(c *ui.Context, t *api.Task) {
 	tid := t.ID
 	sectionTitle(c, "comment", "Komentar dan aktivitas", "")
 	if t.Permissions.Comment {
-		in := ui.TextInput(c.Key("task-comment"), &a.tasks.comment).Label("Komentar").Placeholder("Tulis komentar lalu Enter…").FillWidth().Disabled(a.taskWriteBlocked())
-		if in.Submitted() && strings.TrimSpace(a.tasks.comment) != "" {
-			body := a.tasks.comment
-			a.mutateTask("Komentar", func(s TasksAPI) error {
-				_, err := s.AddTaskComment(context.Background(), tid, api.TaskCommentRequest{Body: body})
-				return err
-			}, func() { a.tasks.comment = "" })
-		}
+		a.commentComposer(c, *t, "Tulis komentar… ketik @ untuk menandai")
 	}
 	for _, item := range a.taskActivity(*t) {
 		ui.Row(c.Key(item.key)).FillWidth().Gap(10).AlignItems(ui.Start).Children(func() {
@@ -732,7 +734,7 @@ func (a *App) taskDetailSide(c *ui.Context, t *api.Task) {
 			ui.Column(c).Grow(1).MinWidth(0).Gap(3).Children(func() {
 				ui.Text(c, item.who).FontSize(13).Bold()
 				if item.comment {
-					ui.Text(c, item.text).FontSize(13).Padding(8, 10).Radius(8).Background(th.Surface).Border(1, th.Border).FillWidth()
+					ui.Column(c).FillWidth().Padding(8, 10).Radius(8).Background(th.Surface).Border(1, th.Border).Children(func() { commentBody(c, item.cm) })
 				} else {
 					ui.Text(c, item.text).FontSize(13)
 				}
@@ -858,7 +860,7 @@ func (a *App) taskStatusPill(c *ui.Context, t api.Task) {
 	if custom := a.chrome.preferences.LaneColors[lane]; custom != "" {
 		color = spaceAccent(custom)
 	}
-	canMove := (t.Permissions.Progress || t.Permissions.Manage) && !(t.Progress == api.TaskDone || t.Progress == api.TaskCancelled) || t.Permissions.Manage
+	canMove := ((t.Permissions.Progress || t.Permissions.Manage) && !(t.Progress == api.TaskDone || t.Progress == api.TaskCancelled) || t.Permissions.Manage) && !a.sheetLocked(t.ID)
 	pill := ui.ButtonBase(c.Key("status-pill")).Label("Status: "+progressLabel(t.Progress)).Row().AlignItems(ui.Center).Gap(7).Height(30).Padding(0, 10).Radius(8).Background(th.SurfaceHover).Disabled(!canMove || a.tasks.busy || a.tasks.loading)
 	pill.FocusRing(pill.FocusVisible()).Children(func() {
 		ui.Box(c).Size(7, 7).Radius(4).Background(color)

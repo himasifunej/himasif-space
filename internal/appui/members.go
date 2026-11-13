@@ -30,7 +30,6 @@ type memberManagementState struct {
 	drawerOpen            bool
 	on45, replace45       bool
 	replaceAsk, removeAsk bool
-	discardAsk            bool
 	role                  string
 	groups                []string
 	roleIDs               []id.ID

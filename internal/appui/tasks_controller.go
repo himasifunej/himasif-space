@@ -45,12 +45,15 @@ type taskDraft struct {
 	shared                                                                                                                     map[id.ID]bool
 }
 type tasksUIState struct {
-	seq                                                      uint64
-	scope                                                    id.ID
-	personal, loaded, loading, busy                          bool
-	items                                                    []api.Task
-	err, notice                                              string
-	draft                                                    *taskDraft
+	seq                             uint64
+	scope                           id.ID
+	personal, loaded, loading, busy bool
+	items                           []api.Task
+	err, notice                     string
+	draft                           *taskDraft
+	// draftStart is the draft as opened, to tell whether closing loses
+	// anything.
+	draftStart                                               taskDraft
 	members                                                  map[id.ID][]api.Member
 	membersBusy                                              map[id.ID]bool
 	memberErrors                                             map[id.ID]string
@@ -159,7 +162,7 @@ func (a *App) loadTasks() {
 				return
 			}
 			a.conn = connOnline
-			a.tasks.items = a.overlayPendingTasks(tasks)
+			a.tasks.items = a.overlaySheetTasks(a.overlayPendingTasks(tasks))
 			a.tasks.loaded = true
 			a.projectTasks()
 			if a.tasks.pendingOpen != id.Nil {
@@ -268,8 +271,12 @@ func (a *App) projectTasks() {
 		if t.LocalPending {
 			title += " · perangkat, belum cloud"
 		}
+		locked := a.sheetLocked(t.ID)
+		if _, ok := a.sheetFromSheet(t.ID); ok {
+			title += " · dari sheet"
+		}
 		lane := taskLane(t)
-		card := workspaceui.Task{ID: t.ID, Title: title, Description: t.Description, ExpectedOutput: t.ExpectedOutput, Category: t.Category, Color: a.taskCardColor(t.Category, t.Assignee.DisplayName, lane), Assignee: t.Assignee.DisplayName, Deadline: taskDate(t.DeadlineDate, t.DeadlineAt, t.TimeZone), Posting: taskDate(t.PostingDate, t.PostingAt, t.TimeZone), Space: a.taskSpaceNames(t), Lane: lane, ReadOnly: !t.Permissions.Manage && (!t.Permissions.Progress || t.Progress == api.TaskDone || t.Progress == api.TaskCancelled)}
+		card := workspaceui.Task{ID: t.ID, Title: title, Description: t.Description, ExpectedOutput: t.ExpectedOutput, Category: t.Category, Color: a.taskCardColor(t.Category, t.Assignee.DisplayName, lane), Assignee: t.Assignee.DisplayName, Deadline: taskDate(t.DeadlineDate, t.DeadlineAt, t.TimeZone), Posting: taskDate(t.PostingDate, t.PostingAt, t.TimeZone), Space: a.taskSpaceNames(t), Lane: lane, ReadOnly: locked || !t.Permissions.Manage && (!t.Permissions.Progress || t.Progress == api.TaskDone || t.Progress == api.TaskCancelled)}
 		for _, l := range taskLabels(t.Category) {
 			card.Labels = append(card.Labels, workspaceui.Label{Name: l, Color: tagColor(l)})
 		}
@@ -289,7 +296,7 @@ func (a *App) projectTasks() {
 		if !a.tasks.personal && a.taskRemindable(t) {
 			card.Remind = "Ingatkan " + firstName(t.Assignee.DisplayName)
 		}
-		card.Selectable = taskCancellable(t)
+		card.Selectable = taskCancellable(t) && !locked
 		tasks = append(tasks, card)
 	}
 	for i, color := range a.chrome.preferences.LaneColors {
@@ -376,6 +383,11 @@ func (a *App) moveTask(m workspaceui.MoveRequest) {
 	if t == nil || (!t.Permissions.Progress && !t.Permissions.Manage) || (t.Progress == api.TaskDone || t.Progress == api.TaskCancelled) && !t.Permissions.Manage {
 		return
 	}
+	if a.sheetLocked(t.ID) {
+		a.sheetLockNotice()
+		a.projectTasks()
+		return
+	}
 	if m.Destination == workspaceui.Review && t.Progress != api.TaskSubmitted {
 		a.workspace.Open(t.ID)
 		a.tasks.evidenceFor = t.ID
@@ -434,6 +446,7 @@ func (a *App) beginTask() {
 	a.chrome.tab = "Board tugas"
 	a.chrome.appearance = false
 	a.loadTaskMembers(ds[0].ID)
+	a.taskDraftKeep()
 }
 func (a *App) editTask(t api.Task) {
 	a.chrome.datePickers = nil
@@ -446,6 +459,7 @@ func (a *App) editTask(t api.Task) {
 	d.posting, d.postingTime = draftDate(t.PostingDate, t.PostingAt, t.TimeZone)
 	a.tasks.draft = d
 	a.loadTaskMembers(d.owner)
+	a.taskDraftKeep()
 }
 func draftDate(d *timeutil.Date, at *time.Time, zone string) (string, string) {
 	if d != nil {
@@ -670,7 +684,7 @@ func (a *App) beginBulkCancel(ids []id.ID) {
 func (a *App) cancellableTasks(ids []id.ID) []id.ID {
 	var out []id.ID
 	for _, tid := range ids {
-		if t := a.taskByID(tid); t != nil && taskCancellable(*t) {
+		if t := a.taskByID(tid); t != nil && taskCancellable(*t) && !a.sheetLocked(tid) {
 			out = append(out, tid)
 		}
 	}
@@ -699,7 +713,7 @@ func (a *App) cancelTasks(ids []id.ID, reason string) {
 	}
 	var jobs []job
 	for _, tid := range ids {
-		if t := a.taskByID(tid); t != nil && taskCancellable(*t) {
+		if t := a.taskByID(tid); t != nil && taskCancellable(*t) && !a.sheetLocked(tid) {
 			jobs = append(jobs, job{t.ID, t.Title, t.Version})
 		}
 	}

@@ -101,6 +101,10 @@ func (a *App) refreshOffline(sync bool) {
 	})
 }
 func (a *App) queueProgress(t api.Task, progress string) {
+	if a.sheetLocked(t.ID) {
+		a.sheetLockNotice()
+		return
+	}
 	if period := a.period(); period == nil || period.Status == api.PeriodClosed || period.ID != t.PeriodID {
 		a.tasks.err = "Periode tugas sudah ditutup atau tidak lagi dipilih."
 		return

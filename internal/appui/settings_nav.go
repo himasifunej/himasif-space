@@ -48,7 +48,7 @@ func (a *App) settingsGroups() []settingsGroup {
 			{"Command", "Command bot", "Pemicu dan template balasan", "terminal"},
 			{"Aktivitas", "Aktivitas WhatsApp", "Antrean dan status pengiriman", "message"},
 			{"Status layanan", "Status layanan", "API, bot, penjadwal, sumber", "shield"},
-			{"Darurat", "Spreadsheet darurat", "Salinan saat server tidak tersedia", "archive"},
+			{"Darurat", "Pusat darurat", "Sheet Google saat server mati", "archive"},
 		}},
 		{"Tentang", []settingsEntry{
 			{"Tentang", "Tentang Space", "Versi dan riwayat perubahan", "book"},
@@ -101,9 +101,12 @@ func (a *App) settings(c *ui.Context, r *ui.Route) {
 	if w >= 900 {
 		ui.Row(c).Fill().MinWidth(0).Children(func() {
 			ui.Scroll(c.Key("settings-navigation")).Width(248).Shrink(0).FillHeight().Background(t.Surface).BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Label("Tab pengaturan").Children(func() {
-				ui.Column(c).FillWidth().Padding(20, 12).Gap(2).Children(func() {
-					ui.Text(c, "Pengaturan").FontSize(18).Bold().Padding(0, 8)
-					muted(c, "Pengaturan perangkat tidak otomatis mengubah perangkat lain.").FontSize(11).Padding(2, 8, 10, 8)
+				ui.Column(c).FillWidth().Padding(16, 12).Gap(2).Children(func() {
+					// The top bar already says Pengaturan: the column starts
+					// with the search over every page.
+					if a.settingsFinder(c) {
+						return
+					}
 					for _, g := range groups {
 						muted(c.Key("g"+g.title), strings.ToUpper(g.title)).FontSize(10).Padding(12, 8, 6, 8).MaxLines(1)
 						for _, e := range g.entries {
@@ -131,34 +134,45 @@ func (a *App) settings(c *ui.Context, r *ui.Route) {
 		})
 		return
 	}
-	settingsBody(c, "Pengaturan", "Akun, perangkat ini, dan divisi. Pengaturan perangkat tidak otomatis mengubah perangkat lain.", func() {
-		for _, g := range groups {
-			ui.Column(c.Key("g" + g.title)).FillWidth().Gap(8).Children(func() {
-				muted(c, strings.ToUpper(g.title)).FontSize(10).Padding(0, 4)
-				ui.Column(c).FillWidth().Radius(12).Background(t.Surface).Border(1, t.Border).Children(func() {
-					for i, e := range g.entries {
-						b := ui.ButtonBase(c.Key(e.key)).Label(e.label).FillWidth().Row().Gap(12).Padding(12, 14).AlignItems(ui.Center)
-						if i > 0 {
-							b.BorderWidth(1, 0, 0, 0).BorderColor(t.Border)
-						}
-						if b.Hovered() {
-							b.Background(t.SurfaceHover)
-						}
-						b.FocusRing(b.FocusVisible()).Children(func() {
-							ui.Icon(c, spaceIcon(e.icon)).Size(18, 18).TextColor(t.TextMuted).Shrink(0)
-							ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
-								ui.Text(c, e.label).MaxLines(1)
-								muted(c, e.detail).FontSize(11).MaxLines(1)
-							})
-							ui.Icon(c, spaceIcon("chevron")).Size(16, 16).TextColor(t.TextMuted).Shrink(0)
-						})
-						if b.Clicked() {
-							a.chrome.settingsTab = e.key
-							a.chrome.settingsDetail = true
-						}
-					}
-				})
-			})
-		}
+	ui.Scroll(c).Fill().Label("Isi pengaturan").Children(func() {
+		ui.Column(c).FillWidth().MinWidth(0).MaxWidth(1000).Padding(20, 16).Gap(20).Children(func() {
+			if a.settingsFinder(c) {
+				return
+			}
+			a.settingsList(c, groups)
+		})
 	})
+}
+
+// settingsList is the grouped list of settings pages of a narrow window.
+func (a *App) settingsList(c *ui.Context, groups []settingsGroup) {
+	t := c.Theme()
+	for _, g := range groups {
+		ui.Column(c.Key("g" + g.title)).FillWidth().Gap(8).Children(func() {
+			muted(c, strings.ToUpper(g.title)).FontSize(10).Padding(0, 4)
+			ui.Column(c).FillWidth().Radius(12).Background(t.Surface).Border(1, t.Border).Children(func() {
+				for i, e := range g.entries {
+					b := ui.ButtonBase(c.Key(e.key)).Label(e.label).FillWidth().Row().Gap(12).Padding(12, 14).AlignItems(ui.Center)
+					if i > 0 {
+						b.BorderWidth(1, 0, 0, 0).BorderColor(t.Border)
+					}
+					if b.Hovered() {
+						b.Background(t.SurfaceHover)
+					}
+					b.FocusRing(b.FocusVisible()).Children(func() {
+						ui.Icon(c, spaceIcon(e.icon)).Size(18, 18).TextColor(t.TextMuted).Shrink(0)
+						ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
+							ui.Text(c, e.label).MaxLines(1)
+							muted(c, e.detail).FontSize(11).MaxLines(1)
+						})
+						ui.Icon(c, spaceIcon("chevron")).Size(16, 16).TextColor(t.TextMuted).Shrink(0)
+					})
+					if b.Clicked() {
+						a.chrome.settingsTab = e.key
+						a.chrome.settingsDetail = true
+					}
+				}
+			})
+		})
+	}
 }

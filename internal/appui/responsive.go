@@ -49,15 +49,15 @@ func (a *App) mobileShell(c *ui.Context) {
 		a.router.View(c, func(r *ui.Route) { a.page(c, r) }).Grow(1).MinHeight(0).FillWidth().MinWidth(0)
 		a.mobileNav(c)
 	})
-	overlay := a.chrome.appearance || (a.taskBoardVisible() && ((a.tasks.draft != nil && a.tasks.draft.taskID == id.Nil) || (a.workspace != nil && a.workspace.SelectedID() != id.Nil)))
+	overlay := a.chrome.appearance || (a.taskBoardVisible() && (a.tasks.draft != nil || (a.workspace != nil && a.workspace.SelectedID() != id.Nil)))
 	if overlay {
 		ui.Overlay(c, func() {
 			ui.Column(c.Key("mobile-panel")).Absolute().Left(0).Top(0).Width(w).Height(h).Background(t.Background).Children(func() {
 				switch {
 				case a.chrome.appearance:
 					a.appearance(c)
-				case a.tasks.draft != nil && a.tasks.draft.taskID == id.Nil:
-					a.taskCreatePanel(c)
+				case a.tasks.draft != nil:
+					a.taskSheet(c)
 				default:
 					a.workspace.Inspector(c)
 				}

@@ -9,7 +9,6 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/himasifunej/himasif-space/internal/api"
 	"github.com/himasifunej/himasif-space/internal/id"
-	"github.com/himasifunej/himasif-space/internal/workspaceui"
 )
 
 // meetingTabs are the detail's sub-tabs.
@@ -25,26 +24,7 @@ func (a *App) meetingsView(c *ui.Context) {
 		c.AddToast(ui.Toast{Title: st.toast, Type: "success", Timeout: 5 * time.Second})
 		st.toast = ""
 	}
-	ui.Row(c).Fill().MinWidth(0).Children(func() {
-		ui.Column(c).Grow(1).MinWidth(0).FillHeight().Children(func() { a.meetingsPage(c) })
-		if a.meetings.draft != nil && !a.chrome.appearance {
-			workspaceui.Drawer(c.Key("meeting-drawer"), &a.chrome.drawerWidth, func() {
-				ui.Row(c).FillWidth().Padding(18).AlignItems(ui.Center).Children(func() {
-					title := "Rapat baru"
-					if a.meetings.draft.id != id.Nil {
-						title = "Ubah rapat"
-					}
-					ui.Text(c, title).FontSize(18).Bold().Grow(1)
-					if spaceIconButton(c, "Tutup formulir", "close").Disabled(a.meetings.busy).Clicked() {
-						a.meetings.draft = nil
-					}
-				})
-				if a.meetings.draft != nil {
-					ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Children(func() { a.meetingForm(c) })
-				}
-			})
-		}
-	})
+	ui.Column(c).Fill().MinWidth(0).Children(func() { a.meetingsPage(c) })
 	if a.meetings.confirmOpen {
 		i := slices.IndexFunc(a.meetings.items, func(x api.Meeting) bool { return x.ID == a.meetings.confirmID })
 		if i < 0 {

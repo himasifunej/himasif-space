@@ -40,7 +40,7 @@ type islandInbox struct {
 // account's deliveries, or a version on offer newer than this Space; not
 // Ace speaking or a test.
 func inboxKeeps(n appui.Notice) bool {
-	if n.AccountID == "" || n.Tag == "" || n.Kind == appui.NoticeAce || n.Kind == appui.NoticeTest {
+	if n.AccountID == "" || n.Tag == "" || n.Kind == appui.NoticeAce || n.Kind == appui.NoticeTest || n.Kind == appui.NoticeEmergency {
 		return false
 	}
 	if n.Kind == "update" {

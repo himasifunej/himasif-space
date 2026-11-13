@@ -14,6 +14,10 @@ import (
 )
 
 func (d *desktopDevice) handleLink(raw string) {
+	if u, err := url.Parse(raw); err == nil && u.Scheme == "himasif-space" && u.Host == "darurat" {
+		d.handleEmergencyLink(u)
+		return
+	}
 	if kind, cid, ok := cardLinkTarget(raw); ok {
 		d.openCard(raw, kind, cid)
 		return

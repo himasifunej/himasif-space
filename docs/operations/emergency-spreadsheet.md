@@ -1,4 +1,61 @@
-# Salinan spreadsheet darurat
+# Sheet darurat (Google Sheets) dan salinan CSV
+
+## Sheet darurat (v1, branch `feat/darurat-sheets-v1`)
+
+Rencana dan hasil spike ada di note enowX "Space — Darurat via Google Sheets" (`002f576e0dd5`); desain di canvas `dcb4562af51c` (opsi B dan desain 5). Cakupan v1: **tugas saja**. Server tidak berubah.
+
+**Persiapan, selagi server hidup** (Pengaturan › Pusat darurat › Persiapan):
+
+1. **Simpan template (.xlsx)**: tab Meta (`jam_sheet = NOW()`) dan Tugas. Kolom I–K (`task_id`, `task_version`, `base_progress`) disembunyikan dan berisi dropdown Progres.
+2. Pemilik sheet mengunggahnya ke Drive dan menyimpannya sebagai Google Spreadsheet, lalu:
+   - mengatur zona waktu Jakarta dan penghitungan "setiap menit";
+   - membagikan "Siapa saja yang memiliki link: Editor";
+   - melindungi kolom I–K (proteksi dari .xlsx hilang saat impor);
+   - mempublikasikan seluruh dokumen sebagai .xlsx dengan publikasi ulang otomatis.
+3. **Uji dan simpan** link publish dan link edit. Keduanya disimpan per akun di penyimpanan offline perangkat (`rec-darurat-*`), tidak di server.
+
+**Saat gangguan:** server tak terjangkau 2 menit memulai mode darurat.
+
+- Ace Island menawarkan **Buka sheet** dan **Salin link**. Ace tetap muncul dari tray karena ticker 15 detik desktop memanggil `TickEmergencySheet`.
+- Satu pengelola memakai **Isi sheet dari cache**: salin baris lalu tempel di A1 tab Tugas, atau simpan .xlsx untuk diimpor.
+- Setiap desktop yang menyimpan link membaca `pub?output=xlsx` tiap 3 menit, ditambah jitter sampai 1 menit.
+  - Hanya salinan dengan jam Meta lebih baru yang dipakai. Google bisa mengirim salinan lama sesudah yang baru.
+  - Respons HTML, 404, 5xx, jaringan putus atau berkas rusak tidak mengubah data perangkat. Jeda dilipatgandakan sampai 15 menit, dan 429 mengikuti Retry-After sampai 30 menit.
+  - Lebih dari 30 baris berubah atau hilang sekaligus ditahan sampai pengelola memilih **Terapkan** atau **Abaikan**.
+  - Baris tanpa ID dan baris yang tidak terbaca ditampilkan, tidak diterapkan. Baris yang hilang dari sheet tidak menghapus apa pun.
+- Progres dari sheet tampil di board ("· dari sheet"). Progres, pembatalan dan pembukaan kembali tugas yang ada di sheet dikunci di Space sampai **Akhiri mode darurat**.
+
+**Setelah pulih:**
+
+1. **Sudah dibekukan** (link edit dijadikan Pelihat). Space menunggu salinan yang jam Meta-nya sesudah jam pembekuan, yaitu versi final.
+2. **Siapkan rekonsiliasi**:
+   - Space membuat snapshot server baru per Space lewat endpoint yang sudah ada.
+   - Baris dengan `task_version` sheet yang masih sama dengan versi di snapshot masuk ke pratinjau, lalu diterapkan atau ditinjau dengan alasan seperti CSV.
+   - Baris yang tugasnya berubah di server, tidak ada di snapshot, atau tanpa ID masuk **Ditinjau manual**.
+   - Pelapor kosong dicatat "Tidak dicatat di sheet".
+3. Centang **Publikasi dihentikan** dan **Akses dibatasi**, lalu pilih **Akhiri mode darurat**.
+
+**Kode:**
+- `internal/emergency/sheet`: link, xlsx, parse, follow, fetch.
+- `internal/qr`: encoder QR tanpa dependensi, dicocokkan dengan python-qrcode.
+- `internal/appui/emergency_sheet*.go`.
+- `app/emergency_links_desktop.go`.
+
+**Diuji:**
+- Unit test: salinan lama sesudah baru, HTML, 429, 5xx, 404, berkas rusak, ID ganda atau rusak, baris tanpa ID, rem 30 baris, kunci progres, pemasangan rekonsiliasi.
+- Pembacaan read-only sheet uji owner lewat `SPACE_SHEET_E2E`: 6 baris [DUMMY] terbaca dari kolom ID tersembunyi.
+
+**Belum diuji:**
+- jeda dari edit sel sampai salinan publish;
+- edit anonim lewat link edit;
+- menempel ke kolom tersembunyi Google Sheets;
+- "Ganti spreadsheet" dengan tetap mempertahankan link publish;
+- banyak desktop di satu NAT;
+- rekonsiliasi terhadap server sungguhan.
+
+## Salinan spreadsheet darurat (CSV, cara lama)
+
+Tetap tersedia di Pusat darurat › **Cara lama: salinan CSV**.
 
 Checkpoint 29 Oktober 2026: implementasi API/klien/UI/parser ditulis, **belum build/test/migrasi/runtime**. Tidak membuat spreadsheet publik, mengunggah ke Google atau mengubah sumber Reo. Prosedur dan skenario di bawah masih harus dibuktikan pada fase verifikasi akhir.
 

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/ui"
-	"github.com/himasifunej/himasif-space/internal/id"
 )
 
 // header is canvas A's topbar: the breadcrumb above the page title, the
@@ -21,13 +20,6 @@ func (a *App) header(c *ui.Context) {
 		w -= 60
 	} else {
 		w -= 248
-	}
-	if a.taskBoardVisible() && !a.chrome.appearance && a.tasks.draft != nil && a.tasks.draft.taskID == id.Nil {
-		if a.chrome.drawerWidth > 0 {
-			w -= a.chrome.drawerWidth
-		} else {
-			w -= 416
-		}
 	}
 	path := a.router.Path()
 	title := pageTitle(path)

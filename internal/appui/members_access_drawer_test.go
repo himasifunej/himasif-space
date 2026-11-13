@@ -304,7 +304,7 @@ func TestMemberAccessDrawerAsksBeforeDiscarding(t *testing.T) {
 	h.click("Tutup ubah akses")
 	h.tt.Frame()
 	h.want("Buang 1 perubahan yang belum disimpan (role dasar)?")
-	h.click("Lanjut mengubah")
+	h.click("Lanjut mengisi")
 	h.tt.Frame()
 	if h.app.access.members.role != api.RoleCompanion || h.app.access.members.editing == id.Nil {
 		t.Fatal("continuing lost the change")

@@ -1631,7 +1631,7 @@ func islandGlyphColor(style, kind string) ui.Color {
 	switch kind {
 	case "task":
 		return ui.RGB(10, 132, 255)
-	case "deadline", "reminder":
+	case "deadline", "reminder", appui.NoticeEmergency:
 		return ui.RGB(255, 69, 58)
 	case "meeting":
 		return ui.RGB(48, 209, 88)
@@ -1654,7 +1654,7 @@ func insideIsland(x, y float64, g [3]float64) bool {
 // islandKindLabel names where a notice comes from: "Rapat" for a
 // meeting's, whatever channel carried it.
 func islandKindLabel(kind string) string {
-	if l, ok := map[string]string{"ping": "Ping", "task": "Tugas", "meeting": "Rapat", "reminder": "Pengingat", "deadline": "Tenggat", "update": "Pembaruan", "note": "Catatan", appui.NoticeAce: "Kenalan", appui.NoticeTest: "Percobaan"}[kind]; ok {
+	if l, ok := map[string]string{"ping": "Ping", "task": "Tugas", "meeting": "Rapat", "reminder": "Pengingat", "deadline": "Tenggat", "update": "Pembaruan", "note": "Catatan", appui.NoticeAce: "Kenalan", appui.NoticeTest: "Percobaan", appui.NoticeEmergency: "Darurat"}[kind]; ok {
 		return l
 	}
 	return "Pengingat"
@@ -1709,6 +1709,10 @@ func (p *islandPresenter) act(link string) {
 			}
 			if u != nil && u.Scheme == "himasif-space" && u.Host == "ace" {
 				p.d.handleAceLink(u)
+				return
+			}
+			if u != nil && u.Scheme == "himasif-space" && u.Host == "darurat" {
+				p.d.handleEmergencyLink(u)
 				return
 			}
 			activate := u == nil || u.Query().Get("action") != "snooze"

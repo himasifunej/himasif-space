@@ -5,8 +5,9 @@ import (
 	"time"
 )
 
-// Drawer shares the same edge resize gesture across task detail, forms and
-// appearance. It participates in layout, leaving the board interactive.
+// Drawer is the appearance panel's resizable edge beside the page. It
+// participates in layout, leaving the board interactive, so changes show
+// as they are made. Forms open in appui's side sheet instead.
 func Drawer(c *ui.Context, width *float32, body func()) ui.Element {
 	w, _ := c.Size()
 	maxWidth := max(float32(280), min(float32(640), w-600))

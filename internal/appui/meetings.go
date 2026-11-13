@@ -7,6 +7,7 @@ import (
 	"github.com/himasifunej/himasif-space/internal/api"
 	"github.com/himasifunej/himasif-space/internal/client"
 	"github.com/himasifunej/himasif-space/internal/id"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -37,9 +38,13 @@ type meetingsState struct {
 	loaded, loading, busy bool
 	err                   string
 	draft                 *meetingDraft
-	selected              id.ID
-	participant           id.ID
-	arrival, note         string
+	// draftStart is the draft as opened, to tell whether closing loses
+	// anything; who filters the participants.
+	draftStart    meetingDraft
+	who           string
+	selected      id.ID
+	participant   id.ID
+	arrival, note string
 	// Rapat A: the detail's sub-tab (Ringkasan · Kehadiran · Notulen), the
 	// "Saya diundang" filter, the … menu, the cancel dialog and, on a
 	// phone, whether the detail page is open.
@@ -172,6 +177,8 @@ func (a *App) beginMeeting(m *api.Meeting) {
 		}
 	}
 	a.meetings.draft = d
+	a.meetings.draftStart, a.meetings.who = *d, ""
+	a.meetings.draftStart.participants = slices.Clone(d.participants)
 	a.chrome.appearance = false
 	a.chrome.datePickers = nil
 }
@@ -346,86 +353,183 @@ func (a *App) setMeetingCancelled(m api.Meeting, cancelled bool) {
 	})
 }
 
+// meetingDirty is whether the draft differs from the meeting as opened.
+func (a *App) meetingDirty() bool {
+	d, o := a.meetings.draft, a.meetings.draftStart
+	if d == nil {
+		return false
+	}
+	p := slices.Clone(d.participants)
+	q := slices.Clone(o.participants)
+	slices.SortFunc(p, func(x, y id.ID) int { return strings.Compare(x.String(), y.String()) })
+	slices.SortFunc(q, func(x, y id.ID) int { return strings.Compare(x.String(), y.String()) })
+	d2 := *d
+	d2.participants, o.participants = nil, nil
+	return !reflect.DeepEqual(d2, o) || !slices.Equal(p, q)
+}
+
+// meetingSheet is Rapat baru / Ubah rapat in the side sheet.
+func (a *App) meetingSheet(c *ui.Context) {
+	d := a.meetings.draft
+	title, submit, where := "Rapat baru", "Buat rapat", ""
+	if sp := a.selectedSpace(); sp != nil {
+		where = sp.Name
+	}
+	if d.id != id.Nil {
+		title, submit = "Ubah rapat", "Simpan rapat"
+		if d.title != "" {
+			where += " · " + d.title
+		}
+	}
+	state := fmt.Sprintf("%d peserta dipilih", len(d.participants))
+	if a.conn != connOnline {
+		state = "Rapat hanya bisa disimpan saat tersambung."
+	}
+	a.sideSheet(c, formSheet{
+		key: "meeting-sheet", title: title, context: where,
+		dirty: a.meetingDirty(), discard: "Buang perubahan rapat yang belum disimpan?",
+		busy: a.meetings.busy, state: state, err: a.meetings.err,
+		submit: submit, icon: "check", blocked: a.conn != connOnline || strings.TrimSpace(d.title) == "",
+		onSubmit: a.saveMeeting,
+		onClose:  func() { a.meetings.draft, a.meetings.err = nil, "" },
+	}, func() { a.meetingForm(c) })
+}
+
 func (a *App) meetingForm(c *ui.Context) {
 	d := a.meetings.draft
-	ui.Column(c.Key(d)).FillWidth().Padding(16).Gap(10).Border(1, c.Theme().Border).Radius(10).Children(func() {
-		taskInput(c, "meeting-title", "Judul rapat *", &d.title)
-		taskLongInput(c, "meeting-description", "Tujuan / agenda", &d.description)
+	t := c.Theme()
+	formSection(c, "Rapat", "Yang dibaca peserta di undangan.", func() {
+		taskInputHint(c, "meeting-title", "Judul rapat *", "Contoh: Rapat koordinasi showcase", &d.title)
+		taskLongInput(c, "meeting-description", "Tujuan atau agenda", &d.description)
+	})
+	formSection(c, "Waktu", "Zona "+d.zone+". Jam selesai boleh kosong: rapat berlangsung sampai selesai.", func() {
 		a.whenField(c, "meeting-when", "Mulai rapat", &d.date, &d.start, true)
-		clockField(c, "meeting-end", "Jam selesai", &d.end, false)
-		muted(c, "Jam selesai boleh dikosongkan: rapat berlangsung sampai selesai.")
-		if d.end != "" {
-			a.dateField(c, "meeting-end-date", "Tanggal selesai (jika beda hari)", &d.endDate, false, false)
-		}
-		taskInput(c, "meeting-location", "Lokasi", &d.location)
-		taskInput(c, "meeting-url", "Tautan rapat", &d.url)
-		taskInput(c, "meeting-zone", "Zona waktu", &d.zone)
-		ui.Text(c, "Pengingat").Bold()
-		ui.Row(c).Wrap().Gap(6).Children(func() {
-			for _, slot := range []struct{ label, value string }{{"1 hari", "1440"}, {"1 jam", "60"}, {"15 menit", "15"}} {
-				parts := strings.Split(d.minutes, ",")
-				chosen := slices.Contains(parts, slot.value)
-				if spaceButton(c, slot.label, "bell", chosen).Clicked() {
-					if chosen {
-						parts = slices.DeleteFunc(parts, func(v string) bool { return v == slot.value })
-					} else {
-						parts = append(parts, slot.value)
+		formPair(c, func() {
+			clockField(c, "meeting-end", "Jam selesai", &d.end, false)
+		}, func() {
+			if d.end != "" {
+				a.dateField(c, "meeting-end-date", "Tanggal selesai (jika beda hari)", &d.endDate, false, false)
+			}
+		})
+		ui.Column(c).FillWidth().Gap(8).Children(func() {
+			fieldLabel(c, "Pengingat", false)
+			ui.Row(c).Wrap().Gap(6).Children(func() {
+				for _, slot := range []struct{ label, value string }{{"1 hari sebelum", "1440"}, {"1 jam sebelum", "60"}, {"15 menit sebelum", "15"}} {
+					parts := strings.Split(d.minutes, ",")
+					chosen := slices.Contains(parts, slot.value)
+					if spaceButton(c, slot.label, "bell", chosen).Clicked() {
+						if chosen {
+							parts = slices.DeleteFunc(parts, func(v string) bool { return v == slot.value })
+						} else {
+							parts = append(parts, slot.value)
+						}
+						parts = slices.DeleteFunc(parts, func(v string) bool { return v == "" })
+						d.minutes = strings.Join(parts, ",")
 					}
-					parts = slices.DeleteFunc(parts, func(v string) bool { return v == "" })
-					d.minutes = strings.Join(parts, ",")
+				}
+			})
+		})
+		taskInput(c, "meeting-zone", "Zona waktu", &d.zone)
+	})
+	formSection(c, "Tempat", "Isi salah satu, atau keduanya untuk rapat hybrid.", func() {
+		formPair(c, func() {
+			taskInputHint(c, "meeting-location", "Lokasi", "Contoh: Sekre HIMASIF", &d.location)
+		}, func() {
+			taskInputHint(c, "meeting-url", "Tautan rapat", "https://…", &d.url)
+		})
+	})
+	formSection(c, fmt.Sprintf("Peserta · %d dari %d", len(d.participants), len(a.meetings.members)), "Yang dipilih mendapat undangan dan menjawab Kehadiranmu.", func() {
+		if len(a.meetings.members) > 6 {
+			ui.TextInput(c.Key("meeting-who"), &a.meetings.who).Label("Cari peserta").Placeholder("Cari anggota…").FillWidth()
+		}
+		ui.Column(c.Key("meeting-people")).FillWidth().Radius(8).Border(1, t.Border).Children(func() {
+			first := true
+			q := strings.ToLower(strings.TrimSpace(a.meetings.who))
+			for _, m := range a.meetings.members {
+				if q != "" && !strings.Contains(strings.ToLower(m.DisplayName), q) {
+					continue
+				}
+				chosen := slices.Contains(d.participants, m.ID)
+				b := ui.ButtonBase(c.Key(m.ID)).Label("Peserta "+m.DisplayName).Row().FillWidth().Gap(10).Padding(8, 10).AlignItems(ui.Center)
+				if !first {
+					b.BorderWidth(1, 0, 0, 0).BorderColor(t.Border)
+				}
+				first = false
+				if b.Hovered() {
+					b.Background(t.SurfaceHover)
+				}
+				b.FocusRing(b.FocusVisible()).Children(func() {
+					avatar(c, m.DisplayName, 24)
+					ui.Text(c, m.DisplayName).FontSize(13).Grow(1).MinWidth(0).MaxLines(1)
+					box := ui.Box(c).Size(16, 16).Radius(4).Border(1, t.Border).Shrink(0).Center()
+					if chosen {
+						box.Background(t.Accent).BorderColor(t.Accent).Children(func() {
+							ui.Icon(c, spaceIcon("check")).Size(12, 12).TextColor(t.AccentText)
+						})
+					}
+				})
+				if b.Clicked() {
+					if chosen {
+						d.participants = slices.DeleteFunc(d.participants, func(u id.ID) bool { return u == m.ID })
+					} else {
+						d.participants = append(d.participants, m.ID)
+					}
 				}
 			}
 		})
-		ui.Text(c, "Notulensi").Bold()
-		if spaceButton(c, "Tanpa notulensi terkait", "note", d.note == "").Clicked() {
-			d.note = ""
-		}
-		for _, note := range a.meetings.notes {
-			note := note
-			if spaceButton(c, note.Title, "note", d.note == note.ID.String()).Clicked() {
-				d.note = note.ID.String()
-			}
-		}
-		if spaceButton(c, "Buat notulensi di Notes", "plus", false).Clicked() {
-			a.chrome.tab = "Catatan"
-			a.ensureNotes()
-			a.beginNote()
-			a.notes.templateKind = api.TemplateMeeting
-			a.notes.newTitle = "Notulensi · " + d.title
-		}
-		ui.Text(c, "Peserta").Bold()
-		for _, m := range a.meetings.members {
-			m := m
-			chosen := slices.Contains(d.participants, m.ID)
-			label := m.DisplayName
-			if chosen {
-				label = "✓ " + label
-			}
-			if spaceButton(c, label, "users", chosen).Clicked() {
-				if chosen {
-					d.participants = slices.DeleteFunc(d.participants, func(u id.ID) bool { return u == m.ID })
-				} else {
+		ui.Row(c).Gap(8).Children(func() {
+			if spaceButton(c, "Pilih semua", "", false).Clicked() {
+				d.participants = d.participants[:0]
+				for _, m := range a.meetings.members {
 					d.participants = append(d.participants, m.ID)
 				}
 			}
-		}
-		if d.id != id.Nil {
-			label := "Batalkan rapat"
-			if d.cancelled {
-				label = "Rapat dibatalkan · klik untuk aktifkan kembali"
-			}
-			if spaceButton(c, label, "", d.cancelled).Clicked() {
-				d.cancelled = !d.cancelled
-			}
-		}
-		ui.Row(c).Gap(8).Children(func() {
-			if spaceButton(c, "Simpan rapat", "check", true).Disabled(a.meetings.busy || a.conn != connOnline).Clicked() {
-				a.saveMeeting()
-			}
-			if spaceButton(c, "Tutup formulir", "close", false).Disabled(a.meetings.busy).Clicked() {
-				a.meetings.draft = nil
+			if spaceButton(c, "Kosongkan", "", false).Disabled(len(d.participants) == 0).Clicked() {
+				d.participants = nil
 			}
 		})
-		muted(c, fmt.Sprintf("%d peserta dipilih. Kehadiran dikonfirmasi penyelenggara.", len(d.participants)))
 	})
+	formSection(c, "Notulensi", "Catatan rapat yang terhubung ke undangan.", func() {
+		ui.Column(c).FillWidth().Gap(6).Children(func() {
+			if spaceButton(c, "Tanpa notulensi terkait", "note", d.note == "").FillWidth().Clicked() {
+				d.note = ""
+			}
+			for _, note := range a.meetings.notes {
+				note := note
+				if spaceButton(c, note.Title, "note", d.note == note.ID.String()).FillWidth().Clicked() {
+					d.note = note.ID.String()
+				}
+			}
+			if spaceButton(c, "Buat notulensi di Notes", "plus", false).Clicked() {
+				a.chrome.tab = "Catatan"
+				a.ensureNotes()
+				a.beginNote()
+				a.notes.templateKind = api.TemplateMeeting
+				a.notes.newTitle = "Notulensi · " + d.title
+			}
+		})
+	})
+	if d.id != id.Nil {
+		ui.Row(c.Key("meeting-cancel")).FillWidth().MinWidth(0).Gap(12).Padding(20, 0, 0, 0).AlignItems(ui.Center).Children(func() {
+			ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
+				title, hint := "Batalkan rapat", "Ditandai dibatalkan saat disimpan; peserta diberi tahu. Bisa diaktifkan lagi."
+				if d.cancelled {
+					title, hint = "Rapat akan dibatalkan", "Simpan untuk membatalkan, atau aktifkan lagi di sini."
+				}
+				fieldLabel(c, title, false)
+				formHint(c, hint)
+			})
+			label := "Batalkan rapat"
+			if d.cancelled {
+				label = "Aktifkan lagi"
+			}
+			b := spaceButton(c, label, "", false).Shrink(0)
+			if !d.cancelled {
+				b.TextColor(t.Danger)
+			}
+			if b.Clicked() {
+				d.cancelled = !d.cancelled
+			}
+		})
+	}
 }

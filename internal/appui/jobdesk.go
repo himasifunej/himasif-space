@@ -105,7 +105,8 @@ func jobdeskDue(t api.Task) string {
 func segmented(c *ui.Context, label string, options []string, selected int) int {
 	t := c.Theme()
 	clicked := -1
-	ui.Row(c.Key("seg-"+label)).Label(label).Gap(2).Padding(3).Radius(9).Border(1, t.Border).Shrink(0).Children(func() {
+	// Wider than its place, the options wrap instead of spilling out.
+	ui.Row(c.Key("seg-"+label)).Label(label).Gap(2).Padding(3).Radius(9).Border(1, t.Border).Wrap().Children(func() {
 		for i, o := range options {
 			b := ui.ButtonBase(c.Key(i)).Label(o).Height(30).Padding(0, 12).Radius(7).Center().TextColor(t.TextMuted)
 			if i == selected {
