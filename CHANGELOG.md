@@ -5,6 +5,14 @@ Versi mengikuti aturan sebelum rilis publik:
 - **Minor** naik untuk pembaruan besar.
 - **1.0.0** untuk rilis publik.
 
+## Belum dirilis
+
+- **Tandai @ di board**: kotak komentar di detail tugas Board tugas ("Komentar dan aktivitas") kini memunculkan daftar anggota saat mengetik **@**, sama dengan Detail tugas di Untukku; @nama di linimasa disorot.
+- **Formulir samping baru** (canvas 3c8b4b7134bc): Tugas baru, Ubah tugas, Rapat baru/Ubah rapat, dan Ubah akses anggota memakai satu lembar dari kanan dengan bagian berjudul, label di atas kolom, dan tombol simpan yang selalu terlihat. **Esc** atau klik di luar bertanya dulu bila ada isian yang belum disimpan; **Ctrl+Enter** menyimpan. Peserta rapat dipilih dari daftar centang dengan **Pilih semua**.
+- **Pengaturan**: satu kotak **Cari pengaturan** di atas daftar tab mencari di semua halaman, bagian, dan tombol; judul "Pengaturan" tidak lagi muncul dua kali.
+- **Tampilan dan tema**: baris **Skala tampilan** tidak lagi terjepit menjadi satu huruf per baris di jendela lebar; pilihan yang tidak muat pindah ke bawah labelnya.
+- **Darurat via Google Sheets**: Pusat darurat, sheet diisi dari cache, dan kabar Ace saat server tidak tersedia.
+
 ## 0.4.6-rc.6 — 2026-11-12 · Untukku baru, tandai @, Kehadiranmu, Ace ikut capek, animasi pembuka (pre-release)
 
 Untukku dan halaman detail (canvas 3747dbbac0d0):
