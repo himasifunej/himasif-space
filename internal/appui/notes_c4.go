@@ -38,6 +38,7 @@ type noteMentionMenu struct {
 	block, item int
 	query       string
 	index       int
+	hover       pickHover
 }
 
 // notePick is the open PJ or tenggat picker of an action item.
@@ -216,11 +217,10 @@ func (e *noteDocumentEditor) mentionMenu(c *ui.Context, anchor ui.Element) {
 			muted(c, "Tidak ada anggota atau tugas bernama “"+e.mention.query+"”").FontSize(12).Padding(8)
 			return
 		}
+		e.mention.hover.begin()
 		for i, target := range targets {
 			b := ui.ButtonBase(c.Key(target.kind+target.id.String())).Label("Sebut "+target.text).Row().Justify(ui.Start).FillWidth().Height(32).Padding(0, 8).Gap(8).AlignItems(ui.Center).Radius(6)
-			if i == e.mention.index || b.Hovered() {
-				b.Background(t.SurfaceHover)
-			}
+			pickRow(c, b, i, &e.mention.index, &e.mention.hover)
 			b.Children(func() {
 				if target.kind == api.MentionUser {
 					avatar(c, strings.TrimPrefix(target.text, "@"), 20)
