@@ -206,34 +206,6 @@ func TestTaskModalAndAppearanceAreExclusiveAtMinimumWidth(t *testing.T) {
 	}
 }
 
-func TestCreateTaskPanelResizesBoard(t *testing.T) {
-	h := newChromeHarness(t, nil)
-	h.tt.SetSize(1440, 900)
-	testAuthorizedSpace(h.app, h.api.divisions[0])
-	h.app.chrome.tab = "Board tugas"
-	h.app.router.Push(PathSpaces)
-	h.app.tasks = tasksUIState{scope: h.app.selectedSpaceID(), loaded: true}
-	h.tt.Advance(500 * time.Millisecond)
-	before := chromeRect(t, h.tt, "Kolom board")
-	laneBefore := chromeRect(t, h.tt, "Kolom Belum mulai")
-	h.app.tasks.draft = &taskDraft{}
-	h.tt.Frame()
-	h.tt.Advance(500 * time.Millisecond)
-	board := chromeRect(t, h.tt, "Kolom board")
-	laneAfter := chromeRect(t, h.tt, "Kolom Belum mulai")
-	if laneAfter.W >= laneBefore.W-10 {
-		t.Fatalf("lane should shrink with board: before=%+v after=%+v", laneBefore, laneAfter)
-	}
-	panel := chromeRect(t, h.tt, "Tutup tugas baru")
-	if board.W >= before.W || board.X+board.W > panel.X || board.W < 200 {
-		t.Fatalf("board should shrink beside the creation panel: before=%+v board=%+v panel=%+v", before, board, panel)
-	}
-	done := chromeRect(t, h.tt, "Kolom Selesai")
-	if done.X+done.W > board.X+board.W+1 {
-		t.Fatalf("all four columns should fit when the board has enough room: board=%+v done=%+v", board, done)
-	}
-}
-
 func TestPhoneShellUsesBottomTabsAndFullScreenPanels(t *testing.T) {
 	h := newChromeHarness(t, nil)
 	h.tt.SetSize(390, 844)

@@ -22,7 +22,8 @@ func fieldLabel(c *ui.Context, label string, required bool) {
 	if required {
 		label += " *"
 	}
-	ui.Text(c, label).FontSize(12).Bold()
+	// As ui.Field draws its label, so all of a form's labels look alike.
+	ui.Text(c, label).FontWeight(500)
 }
 
 func (a *App) dateField(c *ui.Context, key, label string, value *string, required, inline bool) {

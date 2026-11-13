@@ -195,6 +195,7 @@ func (a *App) shell(c *ui.Context) {
 	}
 	if isMobile(c) {
 		a.mobileShell(c)
+		a.meetingSheetRoot(c)
 		a.pingDialog(c)
 		a.onboardingOverlays(c)
 		a.updateCardView(c)
@@ -222,14 +223,15 @@ func (a *App) shell(c *ui.Context) {
 				})
 			})
 			if a.taskBoardVisible() && !a.chrome.appearance {
-				if a.tasks.draft != nil && a.tasks.draft.taskID == id.Nil {
-					a.taskCreatePanel(c)
+				if a.tasks.draft != nil {
+					a.taskSheet(c)
 				} else if a.workspace != nil && a.workspace.SelectedID() != id.Nil {
 					a.taskDetailModal(c)
 				}
 			}
 		})
 	})
+	a.meetingSheetRoot(c)
 	a.pingDialog(c)
 	a.onboardingOverlays(c)
 	a.updateCardView(c)
@@ -273,6 +275,16 @@ func (a *App) toasts(c *ui.Context) {
 			})
 		}
 	})
+}
+
+// meetingSheetRoot draws Rapat baru / Ubah rapat from the window's root,
+// not from inside the page: on a phone the Space's tabs are a pager whose
+// pages do not draw what opens over the window.
+func (a *App) meetingSheetRoot(c *ui.Context) {
+	path := a.router.Path()
+	if a.meetings.draft != nil && !a.chrome.appearance && (path == PathSpaces || path == PathMedhum) && a.chrome.tab == "Rapat" {
+		a.meetingSheet(c)
+	}
 }
 
 func (a *App) taskBoardVisible() bool {

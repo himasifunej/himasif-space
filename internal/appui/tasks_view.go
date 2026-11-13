@@ -3,6 +3,8 @@ package appui
 import (
 	"context"
 	"fmt"
+	"maps"
+	"reflect"
 	"slices"
 	"strings"
 	"time"
@@ -380,32 +382,59 @@ func taskLate(t api.Task, now time.Time) bool {
 	}
 	return taskDue(t).Before(now)
 }
-func (a *App) taskCreatePanel(c *ui.Context) {
-	t := c.Theme()
-	workspaceui.Drawer(c.Key("create-task-drawer"), &a.chrome.drawerWidth, func() {
-		ui.Row(c).FillWidth().Padding(16, 20).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
-			ui.Text(c, "Tugas baru").FontSize(17).Bold().Grow(1)
-			if spaceIconButton(c, "Tutup tugas baru", "close").Disabled(a.tasks.busy).Clicked() {
-				a.tasks.draft = nil
-			}
-		})
-		ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Label("Area scroll form tugas").Children(func() { ui.Column(c).FillWidth().Padding(20).Gap(14).Children(func() { a.taskEditor(c) }) })
-		ui.Column(c).FillWidth().Padding(14, 20).Gap(8).BorderWidth(1, 0, 0, 0).BorderColor(t.Border).Children(func() {
-			if a.tasks.err != "" {
-				ui.Text(c, a.tasks.err).FontSize(12).TextColor(t.Danger)
-			}
-			ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Box(c).Grow(1)
-				if spaceButton(c, "Batal", "", false).Disabled(a.tasks.busy).Clicked() {
-					a.tasks.draft = nil
-				}
-				if primarySpaceButton(c, "Simpan tugas", "check").Disabled(a.taskWriteBlocked()).Clicked() {
-					a.saveTask()
-				}
-			})
-		})
-	})
+
+// taskDraftKeep notes the draft as opened, for taskDirty.
+func (a *App) taskDraftKeep() {
+	d := a.tasks.draft
+	if d == nil {
+		return
+	}
+	a.tasks.draftStart = *d
+	a.tasks.draftStart.shared = maps.Clone(d.shared)
 }
+
+// taskDirty is whether the draft differs from the task as opened.
+func (a *App) taskDirty() bool {
+	d := a.tasks.draft
+	return d != nil && !reflect.DeepEqual(*d, a.tasks.draftStart)
+}
+
+// taskSheet is Tugas baru / Ubah tugas in the side sheet.
+func (a *App) taskSheet(c *ui.Context) {
+	d := a.tasks.draft
+	title, submit, where := "Tugas baru", "Buat tugas", ""
+	for _, div := range a.manageableDivisions() {
+		if div.ID == d.owner {
+			where = div.Name + " · Board tugas"
+		}
+	}
+	var extra func()
+	if d.taskID != id.Nil {
+		title, submit = "Ubah tugas", "Simpan tugas"
+		if t := a.taskByID(d.taskID); t != nil {
+			where = a.taskCode(*t) + " · " + t.Title
+		}
+		if a.tasks.err != "" {
+			extra = func() {
+				if spaceButton(c, "Pakai data server", "refresh", false).Tooltip("Buang isian dan muat tugas seperti di server").Clicked() {
+					if current := a.taskByID(d.taskID); current != nil {
+						a.editTask(*current)
+						a.tasks.err = ""
+					}
+				}
+			}
+		}
+	}
+	a.sideSheet(c, formSheet{
+		key: "task-sheet", title: title, context: where,
+		dirty: a.taskDirty(), discard: "Buang isian tugas yang belum disimpan?",
+		busy: a.tasks.busy, err: a.tasks.err,
+		submit: submit, icon: "check", blocked: a.taskWriteBlocked(),
+		onSubmit: a.saveTask, extra: extra,
+		onClose: func() { a.tasks.draft, a.tasks.err = nil, "" },
+	}, func() { a.taskEditor(c) })
+}
+
 func taskInput(c *ui.Context, key, label string, value *string) {
 	ui.Field(c, label, func() { ui.TextInput(c.Key(key), value).FillWidth().Label(label) })
 }
@@ -423,40 +452,48 @@ func (a *App) taskEditor(c *ui.Context) {
 		return
 	}
 	disabled := a.taskWriteBlocked()
-	ui.Column(c).FillWidth().Gap(14).Disabled(disabled).Children(func() {
-		if d.taskID == id.Nil && len(a.manageableDivisions()) > 1 {
-			name := "Pilih divisi pemilik"
-			for _, div := range a.manageableDivisions() {
-				if div.ID == d.owner {
-					name = div.Name
-				}
-			}
-			b := spaceButton(c, name, "grid", false).FillWidth()
-			if b.Clicked() {
-				a.tasks.ownerOpen = !a.tasks.ownerOpen
-			}
-			popover(c, b, &a.tasks.ownerOpen, 270, func() {
+	zone := timeutil.DefaultZoneName
+	if p := a.period(); p != nil && p.TimeZone != "" {
+		zone = p.TimeZone
+	}
+	ui.Column(c).FillWidth().Disabled(disabled).Children(func() {
+		formSection(c, "Tugas", "Satu hasil yang jelas, agar PJ tahu kapan tugas ini selesai.", func() {
+			if d.taskID == id.Nil && len(a.manageableDivisions()) > 1 {
+				name := "Pilih divisi pemilik"
 				for _, div := range a.manageableDivisions() {
-					if spaceButton(c.Key(div.ID), div.Name, "grid", false).FillWidth().Clicked() {
-						d.owner = div.ID
-						d.assignee = id.Nil
-						a.tasks.ownerOpen = false
-						a.loadTaskMembers(div.ID)
+					if div.ID == d.owner {
+						name = div.Name
 					}
 				}
-			})
-		}
-		// Canvas A "Tugas baru": Judul, Hasil, PJ as chips, Jadwal; the rest
-		// folds under "Detail lainnya", open when any of it is filled.
-		taskInputHint(c, "task-title", "Judul tugas *", "Contoh: Desain poster open recruitment", &d.title)
-		taskInputHint(c, "task-output", "Hasil yang diharapkan *", "Contoh: Poster 1080×1350 di folder Drive", &d.output)
-		a.taskAssigneeChips(c, d)
-		zone := timeutil.DefaultZoneName
-		if p := a.period(); p != nil {
-			zone = p.TimeZone
-		}
-		a.rangeWhenField(c, "task-schedule", d)
-		muted(c, "Jadwal pengerjaan · "+zone).FontSize(11)
+				ui.Field(c, "Divisi pemilik", func() {
+					b := spaceButton(c, name, "grid", false).FillWidth()
+					if b.Clicked() {
+						a.tasks.ownerOpen = !a.tasks.ownerOpen
+					}
+					popover(c, b, &a.tasks.ownerOpen, 270, func() {
+						for _, div := range a.manageableDivisions() {
+							if spaceButton(c.Key(div.ID), div.Name, "grid", false).FillWidth().Clicked() {
+								d.owner = div.ID
+								d.assignee = id.Nil
+								a.tasks.ownerOpen = false
+								a.loadTaskMembers(div.ID)
+							}
+						}
+					})
+				})
+			}
+			taskInputHint(c, "task-title", "Judul tugas *", "Contoh: Desain poster open recruitment", &d.title)
+			taskInputHint(c, "task-output", "Hasil yang diharapkan *", "Contoh: Poster 1080×1350 di folder Drive", &d.output)
+		})
+		formSection(c, "Penanggung jawab", "PJ utama diingatkan Ace dan bot WhatsApp sampai tugas diserahkan.", func() {
+			ui.Column(c).FillWidth().Gap(8).Children(func() { a.taskAssigneeChips(c, d) })
+		})
+		formSection(c, "Waktu", "Jadwal pengerjaan dalam zona "+zone+".", func() {
+			a.rangeWhenField(c, "task-schedule", d)
+			if d.taskID != id.Nil {
+				taskInputHint(c, "task-change-reason", "Alasan perubahan PJ atau tenggat", "Dicatat di riwayat tugas", &d.reason)
+			}
+		})
 		var shared []api.Space
 		for _, s := range a.access.spaces {
 			if s.Kind != api.SpaceShared || s.ReadOnly {
@@ -473,57 +510,45 @@ func (a *App) taskEditor(c *ui.Context) {
 			filled = filled || on
 		}
 		open := a.tasks.detailMoreOpen || filled
-		more := ui.ButtonBase(c.Key("task-more")).Label("Detail lainnya").Row().AlignItems(ui.Center).Gap(8).FillWidth().Padding(8, 0).TextColor(c.Theme().TextMuted)
+		more := ui.ButtonBase(c.Key("task-more")).Label("Detail lainnya").Row().AlignItems(ui.Center).Gap(8).FillWidth().Padding(20, 0, 8, 0).TextColor(c.Theme().TextMuted)
 		if more.Hovered() {
 			more.TextColor(c.Theme().Text)
 		}
 		more.FocusRing(more.FocusVisible()).Children(func() {
-			ui.Text(c, "Detail lainnya").FontSize(13).FontWeight(600).Grow(1)
-			muted(c, "Deskripsi, label, jadwal posting, Space bersama").FontSize(11)
 			icon := "right"
 			if open {
 				icon = "down"
 			}
 			ui.Icon(c, spaceIcon(icon)).Size(14, 14)
+			ui.Text(c, "DETAIL LAINNYA").FontSize(11).FontWeight(600)
+			ui.Text(c, "Deskripsi, label, jadwal posting, Space bersama").FontSize(12).TextColor(faint(c.Theme())).Grow(1).MinWidth(0).MaxLines(1)
 		})
 		if more.Clicked() && !filled {
 			a.tasks.detailMoreOpen = !a.tasks.detailMoreOpen
 		}
 		if open {
-			taskLongInput(c, "task-description", "Deskripsi", &d.description)
-			taskInput(c, "task-category", "Label · pisahkan dengan koma", &d.category)
-			// Posting is its own schedule; the H-2 design deadline follows it.
-			a.whenField(c, "task-posting", "Jadwal posting", &d.posting, &d.postingTime, false)
-			if d.posting == "" {
-				d.postingTime = ""
-			}
-			muted(c, "Tanpa jam tetap berupa tanggal, tanpa menambahkan jam otomatis. Tenggat dan posting disimpan terpisah.")
-			if len(shared) > 0 {
-				ui.Text(c, "Bagikan juga ke").FontSize(12).Bold()
-				for _, s := range shared {
-					on := d.shared[s.ID]
-					if spaceButton(c.Key(s.ID), s.Name, "grid", on).FillWidth().Clicked() {
-						d.shared[s.ID] = !on
-					}
+			ui.Column(c.Key("task-more-fields")).FillWidth().Gap(16).Padding(8, 0, 4, 0).Children(func() {
+				taskLongInput(c, "task-description", "Deskripsi", &d.description)
+				taskInputHint(c, "task-category", "Label", "Pisahkan dengan koma, misalnya Desain, Urgent", &d.category)
+				// Posting is its own schedule; the H-2 design deadline follows it.
+				a.whenField(c, "task-posting", "Jadwal posting", &d.posting, &d.postingTime, false)
+				if d.posting == "" {
+					d.postingTime = ""
 				}
-				muted(c, "Space divisi pemilik selalu memuat tugas ini. Tugas internal tidak dibagikan otomatis.")
-			}
-		}
-		if d.taskID != id.Nil {
-			taskInput(c, "task-change-reason", "Alasan perubahan PJ/tenggat", &d.reason)
-		}
-		if d.taskID != id.Nil && spaceButton(c, "Simpan tugas", "check", true).FillWidth().Clicked() {
-			a.saveTask()
-		}
-		if d.taskID != id.Nil {
-			if spaceButton(c, "Buang isian & gunakan data server", "refresh", false).FillWidth().Clicked() {
-				if current := a.taskByID(d.taskID); current != nil {
-					a.editTask(*current)
+				formHint(c, "Tanpa jam tetap berupa tanggal. Tenggat dan posting disimpan terpisah.")
+				if len(shared) > 0 {
+					ui.Column(c).FillWidth().Gap(6).Children(func() {
+						fieldLabel(c, "Bagikan juga ke", false)
+						for _, s := range shared {
+							on := d.shared[s.ID]
+							if spaceButton(c.Key(s.ID), s.Name, "grid", on).FillWidth().Clicked() {
+								d.shared[s.ID] = !on
+							}
+						}
+						formHint(c, "Space divisi pemilik selalu memuat tugas ini. Tugas internal tidak dibagikan otomatis.")
+					})
 				}
-			}
-		}
-		if d.taskID != id.Nil && spaceButton(c, "Batalkan perubahan", "close", false).FillWidth().Clicked() {
-			a.tasks.draft = nil
+			})
 		}
 	})
 }
@@ -533,10 +558,6 @@ func (a *App) taskDetails(c *ui.Context, tid id.ID) {
 		return
 	}
 	a.inspectTask(*t)
-	if d := a.tasks.draft; d != nil && d.taskID == tid {
-		a.taskEditor(c)
-		return
-	}
 	a.taskDetailMain(c, t)
 	if !a.tasks.detailSplit {
 		a.taskDetailSide(c, t)
@@ -859,7 +880,7 @@ const taskAssigneeMax = 8
 func (a *App) taskAssigneeChips(c *ui.Context, d *taskDraft) {
 	t := c.Theme()
 	members := a.tasks.members[d.owner]
-	ui.Text(c, "PJ *").FontSize(12).Bold()
+	fieldLabel(c, "PJ", true)
 	if a.tasks.membersBusy[d.owner] && len(members) == 0 {
 		muted(c, "Memuat anggota…")
 	}

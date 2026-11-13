@@ -110,7 +110,7 @@ func (a *App) openMemberAccess(member api.Member) {
 	m.groups = slices.Clone(member.Groups)
 	m.roleIDs = slices.Clone(member.CustomRoleIDs)
 	m.on45 = slices.Contains(member.Roles, api.Role45)
-	m.replace45, m.replaceAsk, m.removeAsk, m.discardAsk = false, false, false, false
+	m.replace45, m.replaceAsk, m.removeAsk = false, false, false
 	m.actingCustom = false
 	m.actingCaps = slices.Clone(authz.Default45)
 	m.err, m.notice = "", ""
@@ -121,18 +121,7 @@ func (a *App) openMemberAccess(member api.Member) {
 func (a *App) closeMemberAccess() {
 	m := &a.access.members
 	m.editing = id.Nil
-	m.drawerOpen, m.replaceAsk, m.removeAsk, m.discardAsk = false, false, false, false
-}
-
-// leaveMemberAccess closes the drawer from its X, the backdrop or Escape:
-// with unsaved changes it asks first instead of dropping them.
-func (a *App) leaveMemberAccess(member api.Member) {
-	m := &a.access.members
-	if len(a.memberAccessChanges(member)) > 0 && !m.busy {
-		m.drawerOpen, m.discardAsk = true, true
-		return
-	}
-	a.closeMemberAccess()
+	m.drawerOpen, m.replaceAsk, m.removeAsk = false, false, false
 }
 
 // memberAccessChanges names what differs from the member's saved access.
@@ -246,59 +235,45 @@ func (a *App) memberAccessPanel(c *ui.Context) {
 		a.closeMemberAccess()
 		return
 	}
-	t := c.Theme()
-	vw, vh := c.Size()
-	phone := isMobile(c) || vw < 720
-	ui.DialogBase(c.Key("member-access"), &m.drawerOpen, func(backdrop, panel ui.Element) {
-		dialogMotion(backdrop, panel)
-		backdrop.Background(ui.RGBA(0, 0, 0, 0.35))
-		if phone {
-			backdrop.Justify(ui.End).AlignItems(ui.Stretch)
-			panel.FillWidth().Height(vh*0.92).Radius(16, 16, 0, 0).Padding(4, 0, 0, 0)
-		} else {
-			backdrop.Row().Justify(ui.End).AlignItems(ui.Stretch)
-			panel.Width(min(float32(480), vw-48)).FillHeight().BorderWidth(0, 0, 0, 1)
-		}
-		panel.Background(t.Surface).BorderColor(t.Border).Border(1, t.Border).Label("Ubah akses " + member.DisplayName).Children(func() {
-			if phone {
-				ui.Box(c.Key("grip")).Size(36, 4).Radius(2).Background(t.Border).AlignSelf(ui.Center).Margin(4, 0, 4, 0)
-			}
-			a.memberAccessHead(c, *member)
-			ui.Scroll(c.Key("member-access-body")).Grow(1).MinHeight(0).FillWidth().Label("Isi ubah akses").Children(func() {
-				ui.Column(c).FillWidth().MinWidth(0).Padding(20, 20, 24, 20).Gap(20).Children(func() {
-					a.memberAccessBody(c, *member)
-				})
-			})
-			a.memberAccessFoot(c, *member)
+	changes := a.memberAccessChanges(*member)
+	state := "Belum ada perubahan"
+	if n := len(changes); n > 0 {
+		state = fmt.Sprintf("%d perubahan belum disimpan", n)
+	}
+	a.sideSheet(c, formSheet{
+		key: "member-access", title: "Ubah akses · " + member.DisplayName, closeLabel: "Tutup ubah akses",
+		head:    func() { a.memberAccessHead(c, *member) },
+		dirty:   len(changes) > 0,
+		discard: fmt.Sprintf("Buang %d perubahan yang belum disimpan (%s)?", len(changes), strings.Join(changes, ", ")),
+		busy:    m.busy, state: state, err: m.err,
+		submit: "Simpan akses", icon: "check",
+		blocked:  len(changes) == 0 || (m.on45 && m.actingCustom && len(m.actingCaps) == 0),
+		onSubmit: func() { a.saveMemberAccess(*member) },
+		onClose:  a.closeMemberAccess,
+	}, func() {
+		ui.Column(c).FillWidth().MinWidth(0).Padding(20, 0, 0, 0).Gap(20).Children(func() {
+			a.memberAccessBody(c, *member)
 		})
-		if m.replaceAsk {
-			a.memberReplace45Dialog(c, *member)
-		}
 	})
-	if !m.drawerOpen && m.editing != id.Nil {
-		a.leaveMemberAccess(*member)
+	if m.replaceAsk {
+		a.memberReplace45Dialog(c, *member)
 	}
 }
 
 func (a *App) memberAccessHead(c *ui.Context, member api.Member) {
 	t := c.Theme()
-	ui.Row(c).FillWidth().MinWidth(0).Padding(16, 20).Gap(12).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
-		avatar(c, member.DisplayName, 40)
-		ui.Column(c).Grow(1).MinWidth(0).Gap(3).Children(func() {
-			ui.Text(c, "Ubah akses · "+member.DisplayName).FontSize(16).Bold().MaxLines(2)
-			parts := []string{}
-			if len(member.Groups) > 0 {
-				parts = append(parts, memberGroups(member))
-			}
-			if active, _, ok := a.memberWork(member.UserID, time.Now()); ok {
-				parts = append(parts, fmt.Sprintf("%d tugas aktif", active))
-			}
-			if len(parts) > 0 {
-				ui.Text(c, strings.Join(parts, " · ")).FontSize(12).TextColor(t.TextMuted).MaxLines(1)
-			}
-		})
-		if spaceIconButton(c, "Tutup ubah akses", "close").Clicked() {
-			a.leaveMemberAccess(member)
+	avatar(c, member.DisplayName, 40)
+	ui.Column(c).Grow(1).MinWidth(0).Gap(3).Children(func() {
+		ui.Text(c, "Ubah akses · "+member.DisplayName).FontSize(18).Bold().MaxLines(2)
+		parts := []string{}
+		if len(member.Groups) > 0 {
+			parts = append(parts, memberGroups(member))
+		}
+		if active, _, ok := a.memberWork(member.UserID, time.Now()); ok {
+			parts = append(parts, fmt.Sprintf("%d tugas aktif", active))
+		}
+		if len(parts) > 0 {
+			ui.Text(c, strings.Join(parts, " · ")).FontSize(12).TextColor(t.TextMuted).MaxLines(1)
 		}
 	})
 }
@@ -796,48 +771,6 @@ func memberBlockedButton(c *ui.Context, label, reason string) ui.Element {
 		ui.Text(c, label).FontSize(13)
 	})
 	return b
-}
-
-func (a *App) memberAccessFoot(c *ui.Context, member api.Member) {
-	t := c.Theme()
-	m := &a.access.members
-	changes := a.memberAccessChanges(member)
-	ui.Column(c).FillWidth().MinWidth(0).Padding(12, 20, 16, 20).Gap(8).BorderWidth(1, 0, 0, 0).BorderColor(t.Border).Children(func() {
-		if m.err != "" {
-			ui.Text(c, m.err).FontSize(12).TextColor(t.Danger).LineHeight(1.5)
-		}
-		if m.discardAsk && len(changes) > 0 {
-			ui.Text(c, fmt.Sprintf("Buang %d perubahan yang belum disimpan (%s)?", len(changes), strings.Join(changes, ", "))).FontSize(13).Bold().LineHeight(1.5)
-			ui.Row(c).FillWidth().Gap(8).Justify(ui.End).Children(func() {
-				if spaceButton(c, "Lanjut mengubah", "", false).Clicked() {
-					m.discardAsk = false
-				}
-				if primarySpaceButton(c, "Buang perubahan", "close").Clicked() {
-					a.closeMemberAccess()
-				}
-			})
-			return
-		}
-		ui.Row(c).FillWidth().MinWidth(0).Gap(8).AlignItems(ui.Center).Children(func() {
-			status := "Belum ada perubahan"
-			color := t.TextMuted
-			if n := len(changes); n > 0 {
-				status = fmt.Sprintf("%d perubahan belum disimpan", n)
-				color = t.Accent
-			}
-			if m.busy {
-				status = "Menyimpan…"
-			}
-			ui.Text(c, status).FontSize(12).TextColor(color).Grow(1).MinWidth(0).MaxLines(2)
-			if spaceButton(c, "Batal", "", false).Disabled(m.busy).Clicked() {
-				a.closeMemberAccess()
-			}
-			blocked := len(changes) == 0 || m.busy || (m.on45 && m.actingCustom && len(m.actingCaps) == 0)
-			if primarySpaceButton(c, "Simpan akses", "check").Disabled(blocked).Clicked() {
-				a.saveMemberAccess(member)
-			}
-		})
-	})
 }
 
 // memberRadioCard is a base-role choice: a radio, its name and meaning.

@@ -45,12 +45,15 @@ type taskDraft struct {
 	shared                                                                                                                     map[id.ID]bool
 }
 type tasksUIState struct {
-	seq                                                      uint64
-	scope                                                    id.ID
-	personal, loaded, loading, busy                          bool
-	items                                                    []api.Task
-	err, notice                                              string
-	draft                                                    *taskDraft
+	seq                             uint64
+	scope                           id.ID
+	personal, loaded, loading, busy bool
+	items                           []api.Task
+	err, notice                     string
+	draft                           *taskDraft
+	// draftStart is the draft as opened, to tell whether closing loses
+	// anything.
+	draftStart                                               taskDraft
 	members                                                  map[id.ID][]api.Member
 	membersBusy                                              map[id.ID]bool
 	memberErrors                                             map[id.ID]string
@@ -434,6 +437,7 @@ func (a *App) beginTask() {
 	a.chrome.tab = "Board tugas"
 	a.chrome.appearance = false
 	a.loadTaskMembers(ds[0].ID)
+	a.taskDraftKeep()
 }
 func (a *App) editTask(t api.Task) {
 	a.chrome.datePickers = nil
@@ -446,6 +450,7 @@ func (a *App) editTask(t api.Task) {
 	d.posting, d.postingTime = draftDate(t.PostingDate, t.PostingAt, t.TimeZone)
 	a.tasks.draft = d
 	a.loadTaskMembers(d.owner)
+	a.taskDraftKeep()
 }
 func draftDate(d *timeutil.Date, at *time.Time, zone string) (string, string) {
 	if d != nil {
