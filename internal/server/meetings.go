@@ -233,6 +233,11 @@ func validateMeeting(req *api.MeetingRequest) error {
 	if _, err := time.LoadLocation(req.TimeZone); err != nil {
 		return badRequest("Zona waktu tidak valid.")
 	}
+	switch req.Kind {
+	case "", api.MeetingDivision, api.MeetingMedhum, api.MeetingBPH, api.MeetingPengurus:
+	default:
+		return badRequest("Jenis rapat tidak dikenal.")
+	}
 	if len(req.Participants) > 500 {
 		return badRequest("Maksimal 500 peserta.")
 	}
@@ -255,19 +260,30 @@ func (s *Server) fillMeeting(r *http.Request, q store.Querier, p *principal, m *
 	if !create && m.Version != req.ExpectedVersion {
 		return conflict("Rapat telah berubah. Muat ulang sebelum menyimpan.")
 	}
-	// Every participant must currently be able to open this space. No invitation
-	// to a meeting grants membership or access to its notes.
+	kind, err := s.meetingKind(r, q, *m, req.Kind, create)
+	if err != nil {
+		return err
+	}
+	// Every participant must currently be able to open this space; a Rapat
+	// pengurus may also invite the kadiv of any division of the period
+	// (MTG-06). No invitation to a meeting grants membership or access to
+	// its notes.
 	participants := []id.ID{}
 	for _, uid := range req.Participants {
 		if slices.Contains(participants, uid) {
 			continue
 		}
 		var valid bool
-		err := q.QueryRow(r.Context(), `select exists(select 1 from memberships mm join space_divisions sd on sd.period_id=mm.period_id and sd.division_id=mm.division_id join users u on u.id=mm.user_id where sd.space_id=$1 and mm.user_id=$2 and mm.removed_at is null and u.disabled_at is null and u.kind='person')`, m.SpaceID, uid).Scan(&valid)
+		err := q.QueryRow(r.Context(), `select exists(select 1 from memberships mm join space_divisions sd on sd.period_id=mm.period_id and sd.division_id=mm.division_id join users u on u.id=mm.user_id where sd.space_id=$1 and mm.user_id=$2 and mm.removed_at is null and u.disabled_at is null and u.kind='person')
+			or ($3 and exists(select 1 from memberships mm join users u on u.id=mm.user_id where mm.period_id=$4 and mm.user_id=$2 and mm.role='kadiv' and mm.removed_at is null and u.disabled_at is null))`,
+			m.SpaceID, uid, kind == api.MeetingPengurus, m.PeriodID).Scan(&valid)
 		if err != nil {
 			return err
 		}
 		if !valid {
+			if kind == api.MeetingPengurus {
+				return badRequest("Peserta rapat pengurus harus anggota BPH atau kadiv periode ini.")
+			}
 			return badRequest("Peserta harus merupakan anggota aktif ruang rapat.")
 		}
 		participants = append(participants, uid)
@@ -311,6 +327,7 @@ func (s *Server) fillMeeting(r *http.Request, q store.Querier, p *principal, m *
 	m.NoteID = req.NoteID
 	m.ReminderMinutes = req.ReminderMinutes
 	m.Cancelled = req.Cancelled
+	m.Kind = kind
 	m.UpdatedAt = s.now().UTC()
 	m.Version++
 	if err := s.store.SaveMeeting(r.Context(), q, *m, participants, create); err != nil {
@@ -578,7 +595,13 @@ func (s *Server) meetingCandidates(w http.ResponseWriter, r *http.Request, p *pr
 		if !slices.Contains(view.Capabilities, api.CapMembersRead) {
 			return errForbidden
 		}
-		rows, err := q.Query(r.Context(), `select distinct u.id,u.display_name from space_divisions sd join memberships m on m.period_id=sd.period_id and m.division_id=sd.division_id join users u on u.id=m.user_id where sd.space_id=$1 and m.removed_at is null and u.disabled_at is null and u.kind='person' order by u.display_name,u.id`, sid)
+		// BPH's space also offers every division's kadiv, for a Rapat
+		// pengurus (MTG-06); other kinds still take members only.
+		bph := sp.Kind == api.SpaceDivision && slices.ContainsFunc(sp.Divisions, func(d api.Division) bool { return d.Slug == "bph" })
+		rows, err := q.Query(r.Context(), `select u.id,u.display_name from users u where u.disabled_at is null and u.kind='person' and (
+				exists(select 1 from space_divisions sd join memberships m on m.period_id=sd.period_id and m.division_id=sd.division_id where sd.space_id=$1 and m.user_id=u.id and m.removed_at is null)
+				or ($2 and exists(select 1 from memberships m where m.period_id=$3 and m.user_id=u.id and m.role='kadiv' and m.removed_at is null)))
+			order by u.display_name,u.id`, sid, bph, sp.PeriodID)
 		if err != nil {
 			return err
 		}
@@ -603,4 +626,35 @@ func (s *Server) meetingCandidates(w http.ResponseWriter, r *http.Request, p *pr
 // app's Indonesian form: "5 Des 2026 · 08.00 WIB".
 func meetingWhen(t time.Time) string {
 	return fmt.Sprintf("%d %s %d · %02d.%02d %s", t.Day(), waMonths[t.Month()-1], t.Year(), t.Hour(), t.Minute(), t.Format("MST"))
+}
+
+// meetingKind returns the kind a meeting saves with: asked is the request's,
+// empty keeping the meeting's own (or the space's default on create). A
+// Rapat BPH or Rapat pengurus is held only in BPH's space; Medhum's are its
+// shared space's (MTG-06).
+func (s *Server) meetingKind(r *http.Request, q store.Querier, m api.Meeting, asked string, create bool) (string, error) {
+	sp, err := s.store.SpaceByID(r.Context(), q, m.SpaceID)
+	if err != nil {
+		return "", err
+	}
+	bph := sp.Kind == api.SpaceDivision && slices.ContainsFunc(sp.Divisions, func(d api.Division) bool { return d.Slug == "bph" })
+	kind := asked
+	if kind == "" && !create && m.Kind != "" {
+		kind = m.Kind
+	}
+	if kind == "" {
+		kind = api.MeetingDivision
+		if sp.Kind == api.SpaceShared {
+			kind = api.MeetingMedhum
+		}
+	}
+	switch {
+	case (kind == api.MeetingBPH || kind == api.MeetingPengurus) && !bph:
+		return "", badRequest("Rapat BPH dan rapat pengurus dibuat di Space BPH.")
+	case kind == api.MeetingMedhum && sp.Kind != api.SpaceShared:
+		return "", badRequest("Rapat Medhum dibuat di Space Medhum.")
+	case kind == api.MeetingDivision && sp.Kind == api.SpaceShared:
+		return "", badRequest("Rapat divisi dibuat di Space divisinya.")
+	}
+	return kind, nil
 }

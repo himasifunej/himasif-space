@@ -213,3 +213,45 @@ func (s *Server) monitorOverview(w http.ResponseWriter, r *http.Request, p *prin
 	writeJSON(w, http.StatusOK, out)
 	return nil
 }
+
+// monitorMeetings is GET /api/periods/{periodId}/monitor/meetings: every
+// meeting of the period on one timeline, with its kind and its notes' title
+// (canvas "Rapat lintas divisi"), for holders of org.monitor. from and to
+// (RFC 3339) bound it; by default four weeks back and eight ahead.
+// Reading it is logged once; opening a note is logged with its division.
+func (s *Server) monitorMeetings(w http.ResponseWriter, r *http.Request, p *principal) error {
+	ctx, q := r.Context(), s.store.DB()
+	period, err := s.requireMonitor(ctx, q, r, p)
+	if err != nil {
+		return err
+	}
+	now := s.now()
+	from, to := now.AddDate(0, 0, -28), now.AddDate(0, 0, 56)
+	for _, b := range []struct {
+		name string
+		at   *time.Time
+	}{{"from", &from}, {"to", &to}} {
+		if v := r.URL.Query().Get(b.name); v != "" {
+			t, err := time.Parse(time.RFC3339, v)
+			if err != nil {
+				return badRequest("Rentang waktu harus RFC 3339.")
+			}
+			*b.at = t
+		}
+	}
+	if !to.After(from) || to.Sub(from) > 400*24*time.Hour {
+		return badRequest("Rentang waktu rapat tidak valid (paling lama 400 hari).")
+	}
+	items, err := s.store.PeriodMeetings(ctx, q, period.ID, from, to)
+	if err != nil {
+		return err
+	}
+	uid, kind := p.actor()
+	pid := period.ID
+	if err := s.store.Audit(ctx, q, store.AuditEvent{ActorUserID: uid, ActorKind: kind, Action: "monitor.read", Source: "api", PeriodID: &pid,
+		RequestID: requestID(ctx), OccurredAt: s.now(), After: map[string]any{"detail": "Membaca timeline rapat lintas divisi", "route": r.Pattern}}); err != nil {
+		return err
+	}
+	writeJSON(w, http.StatusOK, api.List[api.MonitorMeeting]{Items: nonNil(items)})
+	return nil
+}

@@ -49,3 +49,11 @@ func (c *Client) SpaceView(ctx context.Context, sid id.ID) (api.Space, error) {
 	err := c.do(ctx, http.MethodGet, "/api/spaces/"+sid.String(), nil, &out)
 	return out, err
 }
+
+// MonitorMeetings returns the cross-division meeting timeline of a period
+// (holders of org.monitor only), the server's default range.
+func (c *Client) MonitorMeetings(ctx context.Context, p id.ID) ([]api.MonitorMeeting, error) {
+	var out api.List[api.MonitorMeeting]
+	err := c.do(ctx, http.MethodGet, periodPath(p)+"/monitor/meetings", nil, &out)
+	return out.Items, err
+}

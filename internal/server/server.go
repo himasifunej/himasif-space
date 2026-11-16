@@ -223,6 +223,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("DELETE /api/periods/{periodId}/monitors/{grantId}", s.handle(s.revokeMonitor))
 	mux.Handle("GET /api/periods/{periodId}/monitors/audit", s.handle(s.monitorAudit))
 	mux.Handle("GET /api/periods/{periodId}/monitor", s.handle(s.monitorOverview))
+	mux.Handle("GET /api/periods/{periodId}/monitor/meetings", s.handle(s.monitorMeetings))
 	mux.Handle("GET /api/periods/{periodId}/handover", s.handle(s.getHandover))
 	mux.Handle("PUT /api/periods/{periodId}/handover", s.handle(s.putHandover))
 

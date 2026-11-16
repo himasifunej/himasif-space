@@ -44,3 +44,18 @@ func TestMonitoredSpacesKeptAcrossRefresh(t *testing.T) {
 		t.Fatalf("revoked monitor still keeps %+v", got)
 	}
 }
+
+func TestMonitorMeetingFilter(t *testing.T) {
+	bph := api.MonitorMeeting{Kind: api.MeetingBPH}
+	div := api.MonitorMeeting{Kind: api.MeetingDivision}
+	medhum := api.MonitorMeeting{Kind: api.MeetingMedhum}
+	if !monitorMeetingMatches(bph, "") || !monitorMeetingMatches(bph, "bph") || monitorMeetingMatches(bph, "divisi") {
+		t.Error("bph filter")
+	}
+	if !monitorMeetingMatches(div, "divisi") || !monitorMeetingMatches(medhum, "divisi") || monitorMeetingMatches(div, "pengurus") {
+		t.Error("divisi filter")
+	}
+	if meetingKindLabel(api.MeetingPengurus) != "Rapat pengurus" || meetingKindLabel("") != "Rapat divisi" {
+		t.Error("labels")
+	}
+}

@@ -29,6 +29,7 @@ type meetingDraft struct {
 	note                                                                        string
 	participants                                                                []id.ID
 	cancelled                                                                   bool
+	kind                                                                        string
 }
 type meetingsState struct {
 	space                 id.ID
@@ -152,6 +153,7 @@ func (a *App) beginMeeting(m *api.Meeting) {
 		d.url = m.JoinURL
 		d.zone = m.TimeZone
 		d.cancelled = m.Cancelled
+		d.kind = m.Kind
 		loc, _ = time.LoadLocation(d.zone)
 		if loc == nil {
 			loc = time.UTC
@@ -225,7 +227,7 @@ func (a *App) saveMeeting() {
 			mins = append(mins, v)
 		}
 	}
-	req := api.MeetingRequest{Title: d.title, Description: d.description, Location: d.location, JoinURL: d.url, StartsAt: start, EndsAt: end, TimeZone: d.zone, Participants: slices.Clone(d.participants), ReminderMinutes: mins, Cancelled: d.cancelled, ExpectedVersion: d.version}
+	req := api.MeetingRequest{Title: d.title, Description: d.description, Location: d.location, JoinURL: d.url, StartsAt: start, EndsAt: end, TimeZone: d.zone, Participants: slices.Clone(d.participants), ReminderMinutes: mins, Cancelled: d.cancelled, ExpectedVersion: d.version, Kind: d.kind}
 	if strings.TrimSpace(d.note) != "" {
 		nid, err := id.Parse(strings.TrimSpace(d.note))
 		if err != nil {
@@ -400,6 +402,7 @@ func (a *App) meetingForm(c *ui.Context) {
 	t := c.Theme()
 	formSection(c, "Rapat", "Yang dibaca peserta di undangan.", func() {
 		taskInputHint(c, "meeting-title", "Judul rapat *", "Contoh: Rapat koordinasi showcase", &d.title)
+		a.meetingKindField(c, d)
 		taskLongInput(c, "meeting-description", "Tujuan atau agenda", &d.description)
 	})
 	formSection(c, "Waktu", "Zona "+d.zone+". Jam selesai boleh kosong: rapat berlangsung sampai selesai.", func() {

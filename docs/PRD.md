@@ -442,7 +442,7 @@ Konteks “seperti pet ChatGPT” adalah inspirasi interaksi untuk aplikasi Spac
 - **MTG-03 — Disepakati:** peserta menerima reminder rapat dan bisa diberi ping manual terkait rapat tersebut.
 - **MTG-04 — Disepakati:** hasil rapat dapat menghasilkan beberapa tugas yang memiliki hubungan ke note/rapat asal tanpa menggandakan tugas di tampilan divisi/pribadi.
 - **MTG-05 — Turunan:** perubahan waktu, peserta atau pembatalan memperbarui jadwal dan mengirim informasi yang relevan; slot lama tidak tetap mengirim.
-- **MTG-06 — Turunan:** jenis rapat dapat mewakili rapat divisi, Medhum, pengurus atau BPH sesuai cakupan akses. Modul awal tidak memaksa semua jenis rapat memiliki aturan kehadiran/SOP yang sama.
+- **MTG-06 — Turunan:** jenis rapat dapat mewakili rapat divisi, Medhum, pengurus atau BPH sesuai cakupan akses. Modul awal tidak memaksa semua jenis rapat memiliki aturan kehadiran/SOP yang sama. *Diterapkan 16 Nov 2026:* jenis `division`, `medhum`, `bph`, `pengurus`; Rapat BPH dan Rapat pengurus dibuat di Space BPH, Rapat pengurus dapat mengundang kadiv semua divisi (undangan tidak membuka catatan BPH). Pemegang izin pemantauan melihat timeline rapat lintas divisi beserta notulensinya (MON-03).
 
 ## 16. Offline, sinkronisasi perangkat dan konflik
 

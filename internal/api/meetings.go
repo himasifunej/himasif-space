@@ -32,19 +32,22 @@ type RSVPRequest struct {
 }
 
 type Meeting struct {
-	ID              id.ID                `json:"id"`
-	PeriodID        id.ID                `json:"periodId"`
-	SpaceID         id.ID                `json:"spaceId"`
-	OwnerDivisionID id.ID                `json:"ownerDivisionId"`
-	OrganizerID     id.ID                `json:"organizerId"`
-	Title           string               `json:"title"`
-	Description     string               `json:"description"`
-	Location        string               `json:"location"`
-	JoinURL         string               `json:"joinUrl"`
-	StartsAt        time.Time            `json:"startsAt"`
-	EndsAt          *time.Time           `json:"endsAt"`
-	TimeZone        string               `json:"timeZone"`
-	NoteID          *id.ID               `json:"noteId,omitempty"`
+	ID              id.ID      `json:"id"`
+	PeriodID        id.ID      `json:"periodId"`
+	SpaceID         id.ID      `json:"spaceId"`
+	OwnerDivisionID id.ID      `json:"ownerDivisionId"`
+	OrganizerID     id.ID      `json:"organizerId"`
+	Title           string     `json:"title"`
+	Description     string     `json:"description"`
+	Location        string     `json:"location"`
+	JoinURL         string     `json:"joinUrl"`
+	StartsAt        time.Time  `json:"startsAt"`
+	EndsAt          *time.Time `json:"endsAt"`
+	TimeZone        string     `json:"timeZone"`
+	NoteID          *id.ID     `json:"noteId,omitempty"`
+	// Kind is the kind of meeting (MTG-06): division, medhum, bph or
+	// pengurus. Older servers leave it out.
+	Kind            string               `json:"kind,omitempty"`
 	Cancelled       bool                 `json:"cancelled"`
 	ReminderMinutes []int                `json:"reminderMinutes"`
 	Participants    []MeetingParticipant `json:"participants"`
@@ -75,7 +78,9 @@ type MeetingRequest struct {
 	Participants    []id.ID    `json:"participants"`
 	ReminderMinutes []int      `json:"reminderMinutes"`
 	Cancelled       bool       `json:"cancelled"`
-	ExpectedVersion int64      `json:"expectedVersion"`
+	// Kind: empty keeps the meeting's kind (its default on create).
+	Kind            string `json:"kind,omitempty"`
+	ExpectedVersion int64  `json:"expectedVersion"`
 }
 
 type AttendanceRequest struct {
@@ -83,4 +88,28 @@ type AttendanceRequest struct {
 	ArrivedAt       *time.Time `json:"arrivedAt,omitempty"`
 	Note            string     `json:"note"`
 	ExpectedVersion int64      `json:"expectedVersion"`
+}
+
+// Kinds of meeting (MTG-06). bph and pengurus are held in the BPH space;
+// pengurus also invites the kadiv of every division.
+const (
+	MeetingDivision = "division"
+	MeetingMedhum   = "medhum"
+	MeetingBPH      = "bph"
+	MeetingPengurus = "pengurus"
+)
+
+// MonitorMeeting is one meeting on the cross-division timeline of BPH.
+type MonitorMeeting struct {
+	ID        id.ID      `json:"id"`
+	SpaceID   id.ID      `json:"spaceId"`
+	SpaceName string     `json:"spaceName"`
+	Kind      string     `json:"kind"`
+	Title     string     `json:"title"`
+	StartsAt  time.Time  `json:"startsAt"`
+	EndsAt    *time.Time `json:"endsAt,omitempty"`
+	TimeZone  string     `json:"timeZone"`
+	Cancelled bool       `json:"cancelled"`
+	NoteID    *id.ID     `json:"noteId,omitempty"`
+	NoteTitle string     `json:"noteTitle,omitempty"`
 }

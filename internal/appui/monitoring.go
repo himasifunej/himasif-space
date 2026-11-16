@@ -33,6 +33,15 @@ type monitoringUIState struct {
 	// opened are the spaces a monitor opened; they stay in the space list
 	// across its refreshes until the period changes.
 	opened []api.Space
+	// tab is the page's tab: "" for the summary, "Rapat" for the
+	// cross-division meeting timeline (canvas "Rapat lintas divisi").
+	tab                             string
+	meetings                        []api.MonitorMeeting
+	meetingsLoaded, meetingsLoading bool
+	meetingsErr, meetingFilter      string
+	// pendingMeeting is the meeting a timeline row opens once its space
+	// (pendingSpace) is selected.
+	pendingMeeting, pendingSpace id.ID
 }
 
 func (a *App) monitorService() (MonitorAPI, bool) {
@@ -84,6 +93,7 @@ func (a *App) openMonitoredSpace(sid id.ID) {
 	if slices.ContainsFunc(a.access.spaces, func(s api.Space) bool { return s.ID == sid }) {
 		a.selectSpace(sid)
 		a.chrome.tab = "Beranda"
+		a.applyPendingMeeting()
 		a.navigate(PathSpaces)
 		return
 	}
@@ -101,6 +111,7 @@ func (a *App) openMonitoredSpace(sid id.ID) {
 			}
 			a.monitoring.opening = id.Nil
 			if err != nil {
+				a.monitoring.pendingMeeting, a.monitoring.pendingSpace = id.Nil, id.Nil
 				a.monitoring.err = a.failed(err)
 				return
 			}
@@ -109,6 +120,7 @@ func (a *App) openMonitoredSpace(sid id.ID) {
 			a.access.spaces = append(a.access.spaces, sp)
 			a.selectSpace(sp.ID)
 			a.chrome.tab = "Beranda"
+			a.applyPendingMeeting()
 			a.navigate(PathSpaces)
 		}
 	})
@@ -190,8 +202,19 @@ func (a *App) monitoringPage(c *ui.Context, r *ui.Route) {
 				a.loadMonitoring()
 			}
 		})
+		ui.Row(c.Key("monitor-tabs")).Gap(6).Wrap().Children(func() {
+			for _, tab := range []struct{ key, label, icon string }{{"", "Ringkasan divisi", "grid"}, {"Rapat", "Rapat lintas divisi", "meeting"}} {
+				if spaceButton(c.Key("tab-"+tab.key), tab.label, tab.icon, a.monitoring.tab == tab.key).Clicked() {
+					a.monitoring.tab = tab.key
+				}
+			}
+		})
 		if a.monitoring.err != "" {
 			pageNotice(c, "alert", "Pemantauan belum dapat dimuat", a.monitoring.err)
+		}
+		if a.monitoring.tab == "Rapat" {
+			a.monitorMeetingsView(c)
+			return
 		}
 		if !a.monitoring.loaded {
 			if a.monitoring.loading {
