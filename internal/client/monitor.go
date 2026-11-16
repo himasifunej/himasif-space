@@ -34,3 +34,18 @@ func (c *Client) MonitorAudit(ctx context.Context, p id.ID) ([]api.MonitorAuditE
 	err := c.do(ctx, http.MethodGet, periodPath(p)+"/monitors/audit", nil, &out)
 	return out.Items, err
 }
+
+// MonitorOverview returns the monitoring dashboard of a period (holders of
+// org.monitor only).
+func (c *Client) MonitorOverview(ctx context.Context, p id.ID) (api.MonitorOverview, error) {
+	var out api.MonitorOverview
+	err := c.do(ctx, http.MethodGet, periodPath(p)+"/monitor", nil, &out)
+	return out, err
+}
+
+// SpaceView returns one space with the caller's access to it.
+func (c *Client) SpaceView(ctx context.Context, sid id.ID) (api.Space, error) {
+	var out api.Space
+	err := c.do(ctx, http.MethodGet, "/api/spaces/"+sid.String(), nil, &out)
+	return out, err
+}

@@ -32,7 +32,9 @@ func newMonitorOrg(t *testing.T) *monitorOrg {
 	return m
 }
 
-func (o *monitorOrg) monitorsPath() string { return "/api/periods/" + o.period.ID.String() + "/monitors" }
+func (o *monitorOrg) monitorsPath() string {
+	return "/api/periods/" + o.period.ID.String() + "/monitors"
+}
 
 func (o *monitorOrg) grant() api.MonitorGrant {
 	o.t.Helper()
@@ -265,5 +267,41 @@ func TestMonitorRevokedWhenPeriodCloses(t *testing.T) {
 	// A closed period takes no new grant.
 	if c := o.call("POST", o.monitorsPath(), o.admin, api.MonitorGrantRequest{UserID: o.bphID}, nil); c != 409 {
 		t.Fatalf("grant in closed period = %d", c)
+	}
+}
+
+// The dashboard is for monitors only; it counts every division's work and
+// its reading is logged.
+func TestMonitorOverview(t *testing.T) {
+	o := newMonitorOrg(t)
+	path := "/api/periods/" + o.period.ID.String() + "/monitor"
+	for _, tok := range []string{o.bph, o.kadiv, o.member, o.admin} {
+		if c := o.call("GET", path, tok, nil, nil); c != 403 {
+			t.Fatalf("overview without grant = %d", c)
+		}
+	}
+	o.grant()
+	var ov api.MonitorOverview
+	if c := o.call("GET", path, o.bph, nil, &ov); c != 200 {
+		t.Fatalf("overview = %d", c)
+	}
+	i := slices.IndexFunc(ov.Spaces, func(s api.MonitorSpaceSummary) bool { return s.SpaceID == o.spaces["division-mediatek"] })
+	if i < 0 {
+		t.Fatalf("no mediatek row: %+v", ov.Spaces)
+	}
+	// The task's deadline (5 Nov 2026) has passed and it is not submitted.
+	row := ov.Spaces[i]
+	if row.Running != 1 || row.Overdue != 1 || row.Own || row.Progress != 0 {
+		t.Fatalf("mediatek row %+v", row)
+	}
+	if ov.Totals.Running != 1 || ov.Totals.Overdue != 1 || len(ov.Workload) != 1 || ov.Workload[0].UserID != o.memberID {
+		t.Fatalf("totals %+v workload %+v", ov.Totals, ov.Workload)
+	}
+	if j := slices.IndexFunc(ov.Spaces, func(s api.MonitorSpaceSummary) bool { return s.Name == "BPH" }); j < 0 || !ov.Spaces[j].Own {
+		t.Fatalf("BPH row is not the monitor's own: %+v", ov.Spaces)
+	}
+	var detail string
+	if err := o.st.DB().QueryRow(context.Background(), `select after ->> 'detail' from audit_events where action = 'monitor.read' and actor_user_id = $1 and scope_id is null`, o.bphID).Scan(&detail); err != nil || detail == "" {
+		t.Fatalf("overview read not audited: %q %v", detail, err)
 	}
 }

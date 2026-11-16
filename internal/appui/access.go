@@ -179,7 +179,7 @@ func (a *App) loadSpaces() {
 			}
 			a.conn = connOnline
 			previousSelection := a.access.selected
-			a.access.spaces = spaces
+			a.access.spaces = a.withMonitoredSpaces(spaces)
 			if a.access.members.division != id.Nil && !a.spacePermissionsForDivision(a.access.members.division, api.CapMembersRead) {
 				a.access.members = memberManagementState{seq: a.access.members.seq + 1}
 			}

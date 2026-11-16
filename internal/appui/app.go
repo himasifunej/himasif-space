@@ -164,6 +164,7 @@ type App struct {
 	taskNotification          taskNotificationState
 	organization              organizationUIState
 	monitorAdmin              monitorAdminUIState
+	monitoring                monitoringUIState
 	archives                  archiveAdminUIState
 	account                   accountFlowState
 	spaceTabs                 spaceTabsUIState

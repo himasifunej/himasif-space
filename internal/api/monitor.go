@@ -71,3 +71,55 @@ type MonitorAuditEvent struct {
 	DivisionName string    `json:"divisionName,omitempty"`
 	Detail       string    `json:"detail,omitempty"`
 }
+
+// MonitorOverview is the monitoring dashboard of a period (canvas
+// "Pemantauan organisasi"): every space with its work, and the people with
+// the most running tasks. It is a snapshot at GeneratedAt.
+type MonitorOverview struct {
+	PeriodID    id.ID                 `json:"periodId"`
+	GeneratedAt time.Time             `json:"generatedAt"`
+	Totals      MonitorTotals         `json:"totals"`
+	Spaces      []MonitorSpaceSummary `json:"spaces"`
+	Workload    []MonitorWorkload     `json:"workload"`
+	// HeavyLoad is how many running tasks make one person's load heavy.
+	HeavyLoad int `json:"heavyLoad"`
+}
+
+// MonitorTotals adds up the spaces of a period.
+type MonitorTotals struct {
+	Running          int `json:"running"`
+	RunningSpaces    int `json:"runningSpaces"`
+	Overdue          int `json:"overdue"`
+	AwaitingReview   int `json:"awaitingReview"`
+	MeetingsThisWeek int `json:"meetingsThisWeek"`
+	MeetingsNoNotes  int `json:"meetingsNoNotes"`
+}
+
+// MonitorSpaceSummary is one row of the dashboard.
+type MonitorSpaceSummary struct {
+	SpaceID        id.ID      `json:"spaceId"`
+	Name           string     `json:"name"`
+	Kind           string     `json:"kind"`
+	Divisions      []Division `json:"divisions"`
+	Running        int        `json:"running"`
+	Done           int        `json:"done"`
+	Overdue        int        `json:"overdue"`
+	AwaitingReview int        `json:"awaitingReview"`
+	Heavy          int        `json:"heavy"`
+	// Progress is done over done and running, 0–100.
+	Progress       int        `json:"progress"`
+	LastMeeting    string     `json:"lastMeeting,omitempty"`
+	LastMeetingAt  *time.Time `json:"lastMeetingAt,omitempty"`
+	SOPFindings    int        `json:"sopFindings"`
+	SOPNeedsReview int        `json:"sopNeedsReview"`
+	// Own says the caller is a member of this space, not monitoring it.
+	Own bool `json:"own,omitempty"`
+}
+
+// MonitorWorkload is one person's running tasks across the period.
+type MonitorWorkload struct {
+	UserID      id.ID    `json:"userId"`
+	DisplayName string   `json:"displayName"`
+	Divisions   []string `json:"divisions"`
+	Running     int      `json:"running"`
+}
