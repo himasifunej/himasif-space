@@ -5,6 +5,12 @@ Versi mengikuti aturan sebelum rilis publik:
 - **Minor** naik untuk pembaruan besar.
 - **1.0.0** untuk rilis publik.
 
+## 0.4.6-rc.9 — 2026-11-16 · Perbaikan bar progres musik di Ace Island (pre-release)
+
+Hanya aplikasi desktop; tanpa migrasi dan tanpa perubahan server, jadi server tetap 0.4.6-rc.8.
+
+- **Ace Island**: bar progres musik di Ace Island tidak lagi maju-mundur setelah Next/Prev. Island kini memakai jamnya sendiri, tidak lagi mengikuti waktu dari Windows yang sering tertinggal sesaat setelah lagu berganti.
+
 ## 0.4.6-rc.8 — 2026-11-16 · Pemantauan organisasi BPH, Rapat BPH, ringkasan mingguan (pre-release)
 
 Server berubah, dengan migrasi aditif 0036–0038 (izin pemantauan, jenis rapat, ringkasan mingguan). Keputusan owner atas OPEN-15: PRD §4.4 (MON-01–08), ADR 0002.
