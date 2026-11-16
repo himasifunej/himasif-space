@@ -123,3 +123,32 @@ type MonitorWorkload struct {
 	Divisions   []string `json:"divisions"`
 	Running     int      `json:"running"`
 }
+
+// Channels of the weekly digest of BPH.
+const (
+	DigestWhatsApp = "whatsapp"
+	DigestEmail    = "email"
+	DigestBoth     = "both"
+)
+
+// MonitorDigestSettings is a monitor's weekly digest (MON-08): whether it
+// is sent, by which channel, and what last week's would say.
+type MonitorDigestSettings struct {
+	Enabled bool   `json:"enabled"`
+	Channel string `json:"channel"`
+	// Monitor says the caller holds org.monitor in a period now; only then
+	// is a digest sent.
+	Monitor bool `json:"monitor"`
+	// Preview is last week's digest as WhatsApp would show it; empty for
+	// non-monitors.
+	Preview string `json:"preview,omitempty"`
+	// WhatsAppLinked says a WhatsApp number is linked to the account in
+	// the period, so a WhatsApp digest can reach it.
+	WhatsAppLinked bool `json:"whatsAppLinked"`
+}
+
+// MonitorDigestRequest changes a monitor's digest.
+type MonitorDigestRequest struct {
+	Enabled bool   `json:"enabled"`
+	Channel string `json:"channel"`
+}

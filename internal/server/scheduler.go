@@ -27,6 +27,10 @@ func (s *Server) RunScheduler(ctx context.Context) {
 			s.workerProgress("scheduler", true)
 			s.log.Error("scheduler", "err", err)
 		}
+		// The weekly digest of BPH (MON-08) rides on the same tick.
+		if err := s.runMonitorDigests(c); err != nil && ctx.Err() == nil {
+			s.log.Error("scheduler: monitor digest", "err", err)
+		}
 		cancel()
 		s.workerFinish("scheduler")
 		select {

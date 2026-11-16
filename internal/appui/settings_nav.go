@@ -32,10 +32,12 @@ func (a *App) settingsGroups() []settingsGroup {
 			division = sp.Name
 		}
 	}
+	account := []settingsEntry{{"Akun", "Profil dan keamanan", "Nama, email, kata sandi, keluar", "user"}}
+	if a.isMonitor() {
+		account = append(account, settingsEntry{"Ringkasan mingguan", "Ringkasan mingguan BPH", "Senin 07.00, WhatsApp atau email", "eye"})
+	}
 	return []settingsGroup{
-		{"Akun", []settingsEntry{
-			{"Akun", "Profil dan keamanan", "Nama, email, kata sandi, keluar", "user"},
-		}},
+		{"Akun", account},
 		{"Perangkat ini", []settingsEntry{
 			{"Perangkat", "Notifikasi dan Dynamic Island", "Island, toast, bel, aplikasi desktop", "bell"},
 			{"Tampilan", "Tampilan dan tema", "Tema, palet, aksen, warna board", "palette"},
@@ -90,6 +92,8 @@ func (a *App) settings(c *ui.Context, r *ui.Route) {
 			a.changelogSettings(c)
 		case "Kredit":
 			a.kreditSettings(c)
+		case "Ringkasan mingguan":
+			a.monitorDigestSettings(c)
 		case "Space":
 			sp := a.selectedSpace()
 			a.spaceSettings(c, sp != nil && sp.Kind == api.SpaceShared)

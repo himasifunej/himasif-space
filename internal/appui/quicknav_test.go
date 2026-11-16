@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/himasifunej/himasif-space/internal/api"
+	"github.com/himasifunej/himasif-space/internal/id"
 	"github.com/himasifunej/himasif-space/tools/quicknavgen"
 )
 
@@ -36,7 +38,10 @@ func TestQuicknavSettingsIndexUpToDate(t *testing.T) {
 		t.Fatal("quicknav_settings_gen.go is stale: run go generate ./internal/appui")
 	}
 	keys := map[string]bool{}
-	for _, g := range (&App{}).settingsGroups() {
+	// A monitor of BPH also has Ringkasan mingguan.
+	pid := id.New()
+	monitor := &App{periodID: pid, periods: []api.Period{{ID: pid, Monitor: true}}}
+	for _, g := range monitor.settingsGroups() {
 		for _, e := range g.entries {
 			keys[e.key] = true
 		}

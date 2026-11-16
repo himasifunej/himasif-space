@@ -57,3 +57,17 @@ func (c *Client) MonitorMeetings(ctx context.Context, p id.ID) ([]api.MonitorMee
 	err := c.do(ctx, http.MethodGet, periodPath(p)+"/monitor/meetings", nil, &out)
 	return out.Items, err
 }
+
+// MonitorDigest returns the caller's weekly digest settings and a preview.
+func (c *Client) MonitorDigest(ctx context.Context) (api.MonitorDigestSettings, error) {
+	var out api.MonitorDigestSettings
+	err := c.do(ctx, http.MethodGet, "/api/me/monitor-digest", nil, &out)
+	return out, err
+}
+
+// SaveMonitorDigest turns the weekly digest on or off and picks its channel.
+func (c *Client) SaveMonitorDigest(ctx context.Context, req api.MonitorDigestRequest) (api.MonitorDigestSettings, error) {
+	var out api.MonitorDigestSettings
+	err := c.do(ctx, http.MethodPut, "/api/me/monitor-digest", req, &out)
+	return out, err
+}

@@ -282,6 +282,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PUT /api/reminders/preferences", s.handle(s.putReminderPreferences))
 	mux.Handle("GET /api/me/ui-preferences", s.handle(s.getUIPreferences))
 	mux.Handle("PUT /api/me/ui-preferences", s.handle(s.putUIPreferences))
+	mux.Handle("GET /api/me/monitor-digest", s.handle(s.monitorDigestSettings))
+	mux.Handle("PUT /api/me/monitor-digest", s.handle(s.monitorDigestSettings))
 	mux.Handle("GET /api/me/onboarding", s.handle(s.getOnboarding))
 	mux.Handle("POST /api/me/onboarding", s.handle(s.markOnboarding))
 	mux.Handle("PUT /api/me/profile", s.handle(s.updateProfile))

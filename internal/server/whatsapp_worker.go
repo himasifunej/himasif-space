@@ -387,7 +387,18 @@ func (s *Server) dispatchWAClaim(ctx context.Context, claim waClaim) error {
 		if claim.Status == "queued" {
 			valid := conn.Enabled && period.Status != api.PeriodClosed && request.GroupJID == jid
 			if groupID == nil {
-				valid = valid && sourceKind == "link_dm" && waUserJID.MatchString(request.ToJID) && len(request.Mentions) == 0 && request.AssetID == ""
+				valid = valid && (sourceKind == "link_dm" || sourceKind == "monitor_digest") && waUserJID.MatchString(request.ToJID) && len(request.Mentions) == 0 && request.AssetID == ""
+			}
+			// The weekly digest of BPH goes only while its recipient still
+			// holds org.monitor (MON-06, MON-08).
+			if sourceKind == "monitor_digest" {
+				monitor := false
+				if actorID != nil {
+					if monitor, err = s.store.MonitorActive(ctx, q, period.ID, *actorID); err != nil {
+						return err
+					}
+				}
+				valid = valid && monitor
 			}
 			// A note summary (C7) goes only while its sender may still read
 			// the Space.

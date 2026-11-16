@@ -165,6 +165,7 @@ type App struct {
 	organization              organizationUIState
 	monitorAdmin              monitorAdminUIState
 	monitoring                monitoringUIState
+	digest                    monitorDigestUIState
 	archives                  archiveAdminUIState
 	account                   accountFlowState
 	spaceTabs                 spaceTabsUIState
