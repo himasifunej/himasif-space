@@ -139,6 +139,12 @@ func (s *Server) changePeriodStatus(w http.ResponseWriter, r *http.Request, p *p
 		if out, err = s.store.SetPeriodStatus(r.Context(), q, pid, status, s.now()); err != nil {
 			return err
 		}
+		if status == api.PeriodClosed {
+			// org.monitor is per period (OPEN-15 decision 6).
+			if err := s.revokeMonitorsOnClose(r, q, p, pid); err != nil {
+				return err
+			}
+		}
 		return s.record(r, q, p, store.AuditEvent{Action: action, PeriodID: &pid, TargetType: "period", TargetID: &pid,
 			Before: map[string]any{"status": cur.Status}, After: map[string]any{"status": status}})
 	})
@@ -261,7 +267,13 @@ func (s *Server) periodSpaces(w http.ResponseWriter, r *http.Request, p *princip
 	if err != nil {
 		return err
 	}
-	views, err := s.spaceViews(ctx, q, p, period, spaces)
+	// A monitor's spaces are listed only when asked for (the monitoring
+	// page), so the sidebar keeps the caller's own; listing opens nothing.
+	mode := monitorNone
+	if r.URL.Query().Get("monitor") == "1" {
+		mode = monitorList
+	}
+	views, err := s.spaceViewsMode(ctx, q, p, period, spaces, mode)
 	if err != nil {
 		return err
 	}

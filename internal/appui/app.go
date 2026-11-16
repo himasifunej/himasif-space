@@ -163,6 +163,7 @@ type App struct {
 	uiPrefs                   uiPreferencesSync
 	taskNotification          taskNotificationState
 	organization              organizationUIState
+	monitorAdmin              monitorAdminUIState
 	archives                  archiveAdminUIState
 	account                   accountFlowState
 	spaceTabs                 spaceTabsUIState

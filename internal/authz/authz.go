@@ -40,6 +40,16 @@ var AdminCaps = []string{
 	api.CapPeriodsManage, api.CapKadivManage,
 }
 
+// MonitorCaps are what org.monitor opens of a division its holder is not a
+// member of (OPEN-15, owner's decisions of 16 Nov 2026): its work in full
+// (tasks with description, proof, attachments and comments), its members,
+// notes and meeting notes, and its SOP recap. No task management, no
+// comments, no notes editing and no administration. Personal reminders and
+// drafts are not division data and are never reached through it.
+var MonitorCaps = []string{
+	api.CapSpaceRead, api.CapMembersRead, api.CapNotesRead, api.CapSOPRead,
+}
+
 // ArchiveCaps are what an archive grant opens of a space.
 var ArchiveCaps = []string{api.CapSpaceRead, api.CapNotesRead}
 

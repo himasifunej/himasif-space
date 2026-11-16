@@ -16,6 +16,9 @@ import (
 type principal struct {
 	User    store.User
 	Session store.Session
+	// monitor is org.monitor in this request: set only for API requests
+	// with a session, so WhatsApp and workers never act as a monitor.
+	monitor *monitorState
 }
 
 // actor returns the principal as the actor of an audit event.
@@ -49,7 +52,7 @@ func (s *Server) principal(r *http.Request) (*principal, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &principal{User: u, Session: sess}, nil
+	return &principal{User: u, Session: sess, monitor: &monitorState{}}, nil
 }
 
 // bearer returns the token of the Authorization header.

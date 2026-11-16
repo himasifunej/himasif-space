@@ -21,6 +21,7 @@ type scope struct {
 	division api.Division
 	admin    bool
 	member   *store.Membership // the caller's active membership, if any
+	monitor  bool              // the caller opens it through org.monitor (OPEN-15)
 	binding  authz.Binding
 	caps     []string // effective in an open period
 }
@@ -50,6 +51,15 @@ func (s *Server) loadScope(ctx context.Context, q store.Querier, r *http.Request
 	}
 	m, err := s.store.ActiveMembership(ctx, q, pid, did, p.User.ID)
 	if errors.Is(err, store.ErrNotFound) {
+		// Not a member: org.monitor may still open it, read-mostly.
+		ok, err := s.monitorActive(ctx, q, p, period)
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			sc.monitor, sc.caps = true, authz.Normalize(authz.MonitorCaps)
+			p.monitorOpened(period.ID, div)
+		}
 		return sc, nil
 	}
 	if err != nil {
@@ -111,6 +121,8 @@ func (sc *scope) access() api.Access {
 	case sc.member != nil:
 		a.Roles = sc.binding.Roles()
 		a.CustomRoleIDs = nonNil(sc.member.CustomRoleIDs)
+	case sc.monitor:
+		a.Roles = []string{api.RoleMonitor}
 	}
 	if a.ReadOnly {
 		a.Capabilities = authz.ReadOnly(a.Capabilities)
@@ -135,7 +147,22 @@ func memberAPI(m store.Membership, roles map[id.ID]api.CustomRole, closed bool) 
 // an archive grant opens one space of a closed period, read-only; the
 // organization admin opens all for administration. Anything else is left
 // out.
+// How spaceViews treats org.monitor: not at all (the caller's own spaces),
+// listing the spaces it opens without opening them, or opening them.
+const (
+	monitorNone = iota
+	monitorList
+	monitorOpen
+)
+
 func (s *Server) spaceViews(ctx context.Context, q store.Querier, p *principal, period api.Period, spaces []store.Space) ([]api.Space, error) {
+	return s.spaceViewsMode(ctx, q, p, period, spaces, monitorOpen)
+}
+
+// spaceViewsMode is spaceViews with a choice of how org.monitor counts: a
+// monitor opens, read-mostly, every space of an open period they have no
+// membership in, and each one opened is logged.
+func (s *Server) spaceViewsMode(ctx context.Context, q store.Querier, p *principal, period api.Period, spaces []store.Space, mode int) ([]api.Space, error) {
 	closed := period.Status == api.PeriodClosed
 	finish := func(sp store.Space, access string, roles []api.Access, caps []string) api.Space {
 		// The input may be a shared policy slice, such as authz.AdminCaps.
@@ -209,6 +236,23 @@ func (s *Server) spaceViews(ctx context.Context, q store.Querier, p *principal, 
 			out = append(out, finish(sp, api.AccessMember, bindings, caps))
 		case archived[sp.ID]:
 			out = append(out, finish(sp, api.AccessArchive, []api.Access{}, authz.ArchiveCaps))
+		case mode != monitorNone:
+			ok, err := s.monitorActive(ctx, q, p, period)
+			if err != nil {
+				return nil, err
+			}
+			if !ok {
+				continue
+			}
+			var roles []api.Access
+			for _, d := range sp.Divisions {
+				roles = append(roles, api.Access{DivisionID: d.ID, Roles: []string{api.RoleMonitor}, CustomRoleIDs: []id.ID{},
+					Capabilities: authz.Normalize(authz.MonitorCaps), PeriodStatus: period.Status})
+			}
+			out = append(out, finish(sp, api.AccessMonitor, roles, authz.MonitorCaps))
+			if mode == monitorOpen {
+				p.monitorOpened(period.ID, sp.Divisions...)
+			}
 		}
 	}
 	return out, nil
