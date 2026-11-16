@@ -122,11 +122,26 @@ func (s *Server) buildMonitorOverview(ctx context.Context, q store.Querier, peri
 	if err != nil {
 		return out, err
 	}
+	kadiv := map[id.ID][]api.PersonRef{}
+	err = each(ctx, q, func(scan func(...any) error) error {
+		var did id.ID
+		var p api.PersonRef
+		if err := scan(&did, &p.ID, &p.DisplayName); err != nil {
+			return err
+		}
+		kadiv[did] = append(kadiv[did], p)
+		return nil
+	}, `select m.division_id, u.id, u.display_name from memberships m join users u on u.id = m.user_id
+		where m.period_id = $1 and m.role = 'kadiv' and m.removed_at is null and u.disabled_at is null order by u.display_name`, period.ID)
+	if err != nil {
+		return out, err
+	}
 	for i := range out.Spaces {
 		r := &out.Spaces[i]
 		for _, d := range r.Divisions {
 			r.SOPFindings += sop[d.ID][0]
 			r.SOPNeedsReview += sop[d.ID][1]
+			r.Kadiv = append(r.Kadiv, kadiv[d.ID]...)
 		}
 		if r.Running > 0 {
 			out.Totals.RunningSpaces++

@@ -195,6 +195,11 @@ func (s *Server) sendPing(w http.ResponseWriter, r *http.Request, p *principal) 
 		if p.admin() || !slices.Contains(view.Capabilities, api.CapPingSend) {
 			return errForbidden
 		}
+		if view.Access == api.AccessMonitor {
+			// A WhatsApp ping goes to the division's group: a monitor's
+			// ping reaches the kadiv's devices only (MON-04, MON-05).
+			req.Channels = []string{"device"}
+		}
 		if req.SourceKind != "" {
 			if req.SourceID == nil {
 				return badRequest("Pilih objek sumber ping.")
@@ -210,7 +215,9 @@ func (s *Server) sendPing(w http.ResponseWriter, r *http.Request, p *principal) 
 				if err := s.taskAccess(r.Context(), q, p, period, &t); err != nil {
 					return err
 				}
-				if !t.Permissions.Manage {
+				// A monitor pings the kadiv about a task they can read
+				// (OPEN-15 decision 5); others need to manage it.
+				if !t.Permissions.Manage && view.Access != api.AccessMonitor {
 					return errForbidden
 				}
 			} else {
@@ -231,6 +238,16 @@ func (s *Server) sendPing(w http.ResponseWriter, r *http.Request, p *principal) 
 			}
 			if !allowed {
 				return badRequest("Penerima tidak lagi menjadi anggota ruang ini.")
+			}
+			if view.Access == api.AccessMonitor {
+				// A monitor pings a kadiv, not the members (decision 5).
+				var kadiv bool
+				if err := q.QueryRow(r.Context(), `select exists(select 1 from memberships m join space_divisions sd on sd.period_id=m.period_id and sd.division_id=m.division_id where sd.space_id=$1 and m.user_id=$2 and m.removed_at is null and m.role='kadiv')`, sid, uid).Scan(&kadiv); err != nil {
+					return err
+				}
+				if !kadiv {
+					return fail(http.StatusForbidden, api.CodeForbidden, "Pemantau hanya dapat mengirim ping ke kadiv.")
+				}
 			}
 		}
 		message := deliveryMessage{}

@@ -153,7 +153,7 @@ func TestMonitorReadsDivisionWorkAndIsAudited(t *testing.T) {
 		t.Fatalf("space = %d %+v", c, sp)
 	}
 	for _, c := range sp.Capabilities {
-		if !slices.Contains([]string{api.CapSpaceRead, api.CapMembersRead, api.CapNotesRead, api.CapSOPRead}, c) {
+		if !slices.Contains([]string{api.CapSpaceRead, api.CapMembersRead, api.CapNotesRead, api.CapSOPRead, api.CapResultsReview, api.CapPingSend}, c) {
 			t.Fatalf("monitor holds %s", c)
 		}
 	}

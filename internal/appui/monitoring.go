@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/himasifunej/himasif-space/internal/api"
@@ -42,6 +43,59 @@ type monitoringUIState struct {
 	// pendingMeeting is the meeting a timeline row opens once its space
 	// (pendingSpace) is selected.
 	pendingMeeting, pendingSpace id.ID
+	// A monitor's pings to a division's kadiv (MON-05), by space.
+	pinging map[id.ID]bool
+	pinged  map[id.ID]time.Time
+}
+
+// monitorPingMessage is what a monitor's ping to a kadiv says.
+const monitorPingMessage = "Mohon cek progres divisi di Space (dari pemantauan BPH)."
+
+// pingMonitoredKadiv pings the kadiv of a monitored division on their
+// devices only: a WhatsApp ping would go to the division's group, and the
+// division is not told it is being monitored (MON-04).
+func (a *App) pingMonitoredKadiv(s api.MonitorSpaceSummary) {
+	svc, ok := a.deliveryService()
+	if !ok || len(s.Kadiv) == 0 || a.monitoring.pinging[s.SpaceID] {
+		return
+	}
+	to := []id.ID{}
+	for _, k := range s.Kadiv {
+		to = append(to, k.ID)
+	}
+	if a.monitoring.pinging == nil {
+		a.monitoring.pinging, a.monitoring.pinged = map[id.ID]bool{}, map[id.ID]time.Time{}
+	}
+	a.monitoring.pinging[s.SpaceID] = true
+	gen, sid := a.gen, s.SpaceID
+	a.async(func() func() {
+		err := svc.SendPing(context.Background(), sid, api.PingRequest{Message: monitorPingMessage, Recipients: to, Channels: []string{"device"}})
+		return func() {
+			if gen != a.gen {
+				return
+			}
+			delete(a.monitoring.pinging, sid)
+			if err != nil {
+				a.monitoring.err = a.failed(err)
+				return
+			}
+			a.monitoring.pinged[sid] = time.Now()
+		}
+	})
+}
+
+// monitorKadiv returns the kadiv of a monitored space, as the dashboard
+// knows them.
+func (a *App) monitorKadiv(sid id.ID) []id.ID {
+	var out []id.ID
+	for _, s := range a.monitoring.overview.Spaces {
+		if s.SpaceID == sid {
+			for _, k := range s.Kadiv {
+				out = append(out, k.ID)
+			}
+		}
+	}
+	return out
 }
 
 func (a *App) monitorService() (MonitorAPI, bool) {
@@ -283,6 +337,15 @@ func (a *App) monitoringPage(c *ui.Context, r *ui.Route) {
 					}
 					if spaceButton(c, open, "arrow", false).Disabled(a.monitoring.opening != id.Nil).Clicked() {
 						a.openMonitoredSpace(s.SpaceID)
+					}
+					if !s.Own && len(s.Kadiv) > 0 {
+						label := "Ping kadiv " + s.Name
+						if sent, ok := a.monitoring.pinged[s.SpaceID]; ok {
+							label = fmt.Sprintf("Kadiv di-ping %02d.%02d", sent.Hour(), sent.Minute())
+						}
+						if spaceButton(c, label, "send", false).Disabled(a.monitoring.pinging[s.SpaceID] || a.conn != connOnline).Clicked() {
+							a.pingMonitoredKadiv(s)
+						}
 					}
 				})
 			}

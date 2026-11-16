@@ -112,6 +112,8 @@ type MonitorSpaceSummary struct {
 	LastMeetingAt  *time.Time `json:"lastMeetingAt,omitempty"`
 	SOPFindings    int        `json:"sopFindings"`
 	SOPNeedsReview int        `json:"sopNeedsReview"`
+	// Kadiv are the kadiv of the space's divisions, whom a monitor may ping.
+	Kadiv []PersonRef `json:"kadiv,omitempty"`
 	// Own says the caller is a member of this space, not monitoring it.
 	Own bool `json:"own,omitempty"`
 }
