@@ -5,8 +5,15 @@ Versi mengikuti aturan sebelum rilis publik:
 - **Minor** naik untuk pembaruan besar.
 - **1.0.0** untuk rilis publik.
 
-## Belum dirilis
+## 0.4.6-rc.8 — 2026-11-16 · Pemantauan organisasi BPH, Rapat BPH, ringkasan mingguan (pre-release)
 
+Server berubah, dengan migrasi aditif 0036–0038 (izin pemantauan, jenis rapat, ringkasan mingguan). Keputusan owner atas OPEN-15: PRD §4.4 (MON-01–08), ADR 0002.
+
+- **Izin pemantauan** (`org.monitor`): admin memberi atau mencabut per akun BPH di Organisasi → Pemantauan, per periode; dicabut otomatis saat periode ditutup. Setiap pembukaan divisi dan tindakan pemantau tercatat di log yang dibaca admin; divisi tidak diberi tahu.
+- **Pemantauan organisasi** (`/pemantauan`): progres, terlambat, menunggu tinjauan, beban berat, rapat terakhir dan rekap SOP per divisi, beban kerja per orang. **Lihat** membuka divisi dalam mode pemantauan: tugas, bukti, komentar dan notulensi terbaca; reminder pribadi dan draf tetap tertutup.
+- **Rapat BPH dan Rapat pengurus** di Space BPH; rapat pengurus bisa mengundang kadiv semua divisi. Tab **Rapat lintas divisi** menampilkan semua rapat dengan notulensinya.
+- **Ringkasan mingguan BPH**: Senin 07.00 WIB lewat pesan pribadi WhatsApp dan/atau email; atur atau matikan di Pengaturan → Ringkasan mingguan.
+- Pemantau bisa **ping kadiv** (ke perangkat saja) dan **menyetujui bukti** di tempat kadiv dapat.
 - **Tandai @**: baris di daftar "Tandai orang" (komentar tugas di Board tugas dan Untukku) dan daftar sebut di Catatan kini menyala saat ditunjuk mouse, dengan kursor tangan. Mouse dan panah ↑/↓ memakai sorotan yang sama, jadi hanya satu baris yang menyala.
 
 ## 0.4.6-rc.7 — 2026-11-13 · Formulir baru, tandai @ di board, cari pengaturan, darurat via Sheets (pre-release)
