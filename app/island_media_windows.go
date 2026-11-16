@@ -230,7 +230,7 @@ func (s *islandMediaSession) read() (islandMedia, bool) {
 		return islandMedia{}, false
 	}
 	defer islandRelease(session)
-	m := islandMedia{App: islandMediaApp(islandHString(session, vtSourceAppUserModel)), At: time.Now()}
+	m := islandMedia{App: islandMediaApp(islandHString(session, vtSourceAppUserModel))}
 	o := islandMediaOut
 	o.ptr = 0
 	if !islandFailed(islandCOM(session, vtTryGetProperties, uintptr(unsafe.Pointer(&o.ptr)))) && o.ptr != 0 {
@@ -258,16 +258,17 @@ func (s *islandMediaSession) read() (islandMedia, bool) {
 		updated, ok4 := islandTicks(tl, vtTimelineLastUpdated)
 		islandRelease(tl)
 		if ok1 && ok2 && ok3 && end > start {
-			m.Duration = time.Duration(end-start) * 100
-			m.Position = time.Duration(pos-start) * 100
-			// DateTime counts 100 ns from 1601; players update it now and then.
+			m.tl.Duration = time.Duration(end-start) * 100
+			m.tl.Position = time.Duration(pos-start) * 100
+			// DateTime counts 100 ns from 1601; the watcher's follow
+			// judges it.
 			if ok4 && updated > 0 {
-				if at := time.Unix(0, (updated-116444736000000000)*100); at.Before(m.At) && m.At.Sub(at) < time.Hour {
-					m.At = at
-				}
+				m.tl.Updated = time.Unix(0, (updated-116444736000000000)*100)
 			}
 		}
 	}
+	// Read when the timeline was, not before the properties' wait.
+	m.At = time.Now()
 	return m, m.Title != ""
 }
 
