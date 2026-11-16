@@ -122,7 +122,7 @@ func (a *App) mobileTopBar(c *ui.Context) {
 	w, _ := c.Size()
 	ui.Row(c.Key("mobile-top")).FillWidth().Height(56).Shrink(0).Padding(0, 8, 0, 12).Gap(6).AlignItems(ui.Center).Background(t.Background).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
 		ui.Image(c, spaceBrand()).Size(30, 30).Shrink(0).Fit(ui.Contain)
-		title := map[string]string{PathUntukku: "Untukku", PathUntukTask: "Detail tugas", PathUntukRapat: "Rapat", PathJobdesk: "Jobdesk saya", PathReminder: "Reminder pribadi", PathArsip: "Arsip periode", PathPengaturan: "Pengaturan", PathOrganisasi: "Organisasi", PathEvaluasi: "Evaluasi SOP", PathLainnya: "Lainnya", PathPanduan: "Panduan"}[a.router.Path()]
+		title := map[string]string{PathUntukku: "Untukku", PathUntukTask: "Detail tugas", PathUntukRapat: "Rapat", PathJobdesk: "Jobdesk saya", PathReminder: "Reminder pribadi", PathArsip: "Arsip periode", PathPengaturan: "Pengaturan", PathOrganisasi: "Organisasi", PathEvaluasi: "Evaluasi SOP", PathLainnya: "Lainnya", PathPanduan: "Panduan", PathPemantauan: "Pemantauan"}[a.router.Path()]
 		if title == "" {
 			title = a.spaceTitle()
 		}
@@ -311,6 +311,9 @@ func (a *App) lainnyaPage(c *ui.Context) {
 	}
 	if a.isAdmin() {
 		entries = append(entries, entry{"Organisasi", "Periode dan kadiv", "shield", func() { a.navigate(PathOrganisasi) }})
+	}
+	if a.isMonitor() {
+		entries = append(entries, entry{"Pemantauan", "Semua divisi, hanya-baca", "eye", func() { a.navigate(PathPemantauan) }})
 	}
 	ui.Scroll(c.Key("lainnya")).Fill().Label("Menu lainnya").Children(func() {
 		ui.Column(c).FillWidth().Padding(16, 16, 32, 16).Gap(14).Children(func() {

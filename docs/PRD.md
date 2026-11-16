@@ -92,7 +92,7 @@ Baseline keterlambatan, rentang evaluasi keberhasilan, dan target numerik belum 
 | Humas | Kalender, konsep/caption, follow-up dan publikasi | Space Humas dan pekerjaan Medhum |
 | Mediatek | Desain, tekno, video, delegasi internal | Space Mediatek dan pekerjaan Medhum |
 | Litbang | Membaca bukti, meninjau temuan dan melakukan evaluasi SOP | Akses evaluasi yang diberikan; tidak otomatis notes internal semua divisi |
-| BPH | Pemantauan organisasi lintas divisi | Bukan akses otomatis ke reminder pribadi atau seluruh notes privat |
+| BPH | Pemantauan organisasi lintas divisi (Ketua Umum, Sekretaris, Bendahara; tanpa Waketum) | Lewat izin `org.monitor` per akun dari admin (§4.4); reminder pribadi dan draf catatan tetap tertutup |
 | Admin organisasi | Periode, penetapan kadiv, pengelolaan keanggotaan dan kontinuitas sistem | Satu akun organisasi; tidak berarti semua data pribadi dipublikasikan |
 
 ### 4.2 Matriks kemampuan bawaan
@@ -131,6 +131,19 @@ Peninjauan **temuan SOP** mengikuti kewenangan kadiv/Litbang, terpisah dari kema
 - **ACC-11 — Turunan:** pemberi role tidak dapat memberi hak melebihi kewenangannya. Setiap perubahan mencatat pelaku, waktu, ruang lingkup dan nilai sebelum/sesudah.
 - **ACC-12 — Disepakati:** satu akun admin organisasi diteruskan antarperiode, terpisah dari akun pribadi. Saat serah terima, penerus mengganti kredensial/pemulihan dan mengakhiri sesi lama.
 - **ACC-13 — Turunan:** audit tindakan admin mencatat akun admin bersama; sistem tidak mengarang identitas pribadi pelaku di balik kredensial bersama. Catatan serah terima mencatat siapa pengelolanya.
+
+### 4.4 Pemantauan organisasi oleh BPH
+
+Keputusan owner 16 November 2026 yang menutup `OPEN-15` untuk pemantauan BPH. BPH = Ketua Umum, Sekretaris dan Bendahara; Waketum tidak termasuk. Desain: canvas enowX `cb4d7d888789` "Space — Fitur BPH".
+
+- **MON-01 — Disepakati:** izin pemantauan (`org.monitor`) bisa diberikan kepada seluruh BPH, tetapi diberikan admin organisasi per akun, bukan melekat pada jabatan. Pengganti jabatan tidak mewarisinya (sejalan dengan PRI-04).
+- **MON-02 — Disepakati:** pemantau melihat pekerjaan divisi secara lengkap: tugas beserta deskripsi, bukti/lampiran dan komentar. Reminder pribadi dan catatan privat (draf catatan) tetap tertutup, selalu.
+- **MON-03 — Disepakati:** pemantau dapat membaca notulensi rapat divisi lain.
+- **MON-04 — Disepakati:** privat: divisi tidak diberi tahu saat pemantau membukanya. Setiap akses tetap tercatat di log audit dan dapat dilihat admin.
+- **MON-05 — Disepakati:** pemantau boleh bertindak: ping kadiv dan menyetujui (meninjau) bukti di tempat kadiv dapat melakukannya. Tindakan ini tercatat sebagai tindakan pemantau.
+- **MON-06 — Disepakati:** izin berlaku per periode dan dicabut otomatis saat periode ditutup.
+- **MON-07 — Turunan:** server satu-satunya penentu; pemantau tidak mengubah, memindah atau mengomentari tugas, tidak menyunting catatan, tidak mengelola anggota/role, dan tidak membuat salinan darurat CSV divisi lain. Izin tidak berlaku lewat command WA atau proses latar.
+- **MON-08 — Turunan:** ringkasan mingguan (Senin 07.00 WIB, WA/email) hanya dikirim ke pemegang izin pemantauan dan bisa dimatikan per orang; isinya hitungan dan judul, tanpa isi catatan.
 
 ## 5. Periode, arsip dan serah terima
 
@@ -429,7 +442,7 @@ Konteks “seperti pet ChatGPT” adalah inspirasi interaksi untuk aplikasi Spac
 - **MTG-03 — Disepakati:** peserta menerima reminder rapat dan bisa diberi ping manual terkait rapat tersebut.
 - **MTG-04 — Disepakati:** hasil rapat dapat menghasilkan beberapa tugas yang memiliki hubungan ke note/rapat asal tanpa menggandakan tugas di tampilan divisi/pribadi.
 - **MTG-05 — Turunan:** perubahan waktu, peserta atau pembatalan memperbarui jadwal dan mengirim informasi yang relevan; slot lama tidak tetap mengirim.
-- **MTG-06 — Turunan:** jenis rapat dapat mewakili rapat divisi, Medhum, pengurus atau BPH sesuai cakupan akses. Modul awal tidak memaksa semua jenis rapat memiliki aturan kehadiran/SOP yang sama.
+- **MTG-06 — Turunan:** jenis rapat dapat mewakili rapat divisi, Medhum, pengurus atau BPH sesuai cakupan akses. Modul awal tidak memaksa semua jenis rapat memiliki aturan kehadiran/SOP yang sama. *Diterapkan 16 Nov 2026:* jenis `division`, `medhum`, `bph`, `pengurus`; Rapat BPH dan Rapat pengurus dibuat di Space BPH, Rapat pengurus dapat mengundang kadiv semua divisi (undangan tidak membuka catatan BPH). Pemegang izin pemantauan melihat timeline rapat lintas divisi beserta notulensinya (MON-03).
 
 ## 16. Offline, sinkronisasi perangkat dan konflik
 
@@ -728,7 +741,7 @@ Rincian pekerjaan, keluaran dan handoff tiap sesi ada pada [Rencana implementasi
 | Litbang | Medhum, SOP, evaluasi dan kebutuhan lain TBC | Evaluasi Medhum pilot; kebutuhan lain belum dirinci |
 | Kader | Love Letter/LL, ulang tahun dan kebutuhan lain TBC | Lanjutan |
 | PSDM | Fitur khusus masih TBC | Lanjutan; memakai fondasi tugas/notes/rapat saat diperluas |
-| BPH | Pemantauan dan timeline rapat; kebutuhan lain TBC | Fondasi rapat/pemantauan tersedia; kebutuhan khusus berikutnya |
+| BPH | Pemantauan dan timeline rapat; kebutuhan lain TBC | MVP pemantauan (MON-01–08): izin `org.monitor`, dashboard, Rapat BPH dan timeline rapat lintas divisi, ringkasan mingguan, ping kadiv dan persetujuan bukti. Menyusul: persetujuan proker/LPJ, keuangan Bendahara, surat bernomor/absensi Sekretaris, eskalasi otomatis |
 | Branding | Logo tetap, Ace default, aset pengenalan lintas periode | Nama disepakati; desain aset belum dibuat |
 | Maskot | Editor animasi lengkap atau perilaku lebih kompleks | Lanjutan; impor sederhana lebih dahulu |
 | Notes | Kolaborasi edit simultan setara editor multiuser penuh | Bukan syarat awal; satu editor lebih dahulu |
@@ -756,7 +769,8 @@ Bagian ini bukan permintaan konfirmasi tambahan sebelum PRD selesai. Rincian ber
 | OPEN-12 | Profil perangkat rendah, dataset uji, target RAM/CPU/baterai/ukuran/latensi | Sebelum menyatakan pilot memenuhi performa |
 | OPEN-13 | Installer, signing, pembaruan, rollback versi dan integrasi toast Windows | Sesi desktop/distribusi |
 | OPEN-14 | Recurrence/ulang tahun, authoring pengganti Trello, CMS dan fitur TBC divisi | Sesi kebutuhan lanjutan masing-masing |
-| OPEN-15 | Akses role khusus pendamping, pemantauan BPH dan laporan pribadi yang lebih rinci | Matriks izin implementasi; default tidak membuka data privat |
+| ~~OPEN-15~~ | **Ditutup 16 Nov 2026** untuk pemantauan BPH: keputusan owner MON-01–08 (§4.4). Rincian lain yang tadinya ikut di baris ini dipindah ke OPEN-16 | — |
+| OPEN-16 | Akses role khusus pendamping dan laporan pribadi yang lebih rinci (sisa OPEN-15) | Matriks izin implementasi; default tidak membuka data privat |
 
 Batas penting: akses admin bersama dan 45 adalah keputusan pengguna yang sudah final untuk baseline ini. Sesi berikutnya tidak boleh menggantinya dengan admin per orang, role Plt., kedaluwarsa otomatis 45, atau izin role bagi 45 tanpa perubahan keputusan eksplisit.
 
@@ -786,3 +800,4 @@ Sumber konteks:
 | Versi | Perubahan |
 |---|---|
 | 1.0 | Sintesis lengkap Q1–Q74, klarifikasi tanggal/role/tinjauan, scope pilot/lanjutan, penerimaan dan rencana sesi; belum implementasi |
+| 1.1 | 16 Nov 2026: keputusan owner atas OPEN-15 untuk pemantauan BPH (§4.4 MON-01–08); OPEN-15 ditutup, sisanya menjadi OPEN-16 |

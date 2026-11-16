@@ -294,7 +294,7 @@ func meetingArrivalDefault(m api.Meeting, now time.Time) (time.Time, bool) {
 // meetingRequestFrom is the meeting as an update request, for a change of
 // one field (Batalkan / Aktifkan kembali).
 func meetingRequestFrom(m api.Meeting) api.MeetingRequest {
-	req := api.MeetingRequest{Title: m.Title, Description: m.Description, Location: m.Location, JoinURL: m.JoinURL, StartsAt: m.StartsAt, EndsAt: m.EndsAt, TimeZone: m.TimeZone, NoteID: m.NoteID, ReminderMinutes: slices.Clone(m.ReminderMinutes), Cancelled: m.Cancelled, ExpectedVersion: m.Version}
+	req := api.MeetingRequest{Title: m.Title, Description: m.Description, Location: m.Location, JoinURL: m.JoinURL, StartsAt: m.StartsAt, EndsAt: m.EndsAt, TimeZone: m.TimeZone, NoteID: m.NoteID, ReminderMinutes: slices.Clone(m.ReminderMinutes), Cancelled: m.Cancelled, ExpectedVersion: m.Version, Kind: m.Kind}
 	if req.ReminderMinutes == nil {
 		req.ReminderMinutes = []int{}
 	}

@@ -218,6 +218,12 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/periods", s.handle(s.createPeriod))
 	mux.Handle("POST /api/periods/{periodId}/activate", s.handle(s.activatePeriod))
 	mux.Handle("POST /api/periods/{periodId}/close", s.handle(s.closePeriod))
+	mux.Handle("GET /api/periods/{periodId}/monitors", s.handle(s.listMonitorGrants))
+	mux.Handle("POST /api/periods/{periodId}/monitors", s.handle(s.grantMonitor))
+	mux.Handle("DELETE /api/periods/{periodId}/monitors/{grantId}", s.handle(s.revokeMonitor))
+	mux.Handle("GET /api/periods/{periodId}/monitors/audit", s.handle(s.monitorAudit))
+	mux.Handle("GET /api/periods/{periodId}/monitor", s.handle(s.monitorOverview))
+	mux.Handle("GET /api/periods/{periodId}/monitor/meetings", s.handle(s.monitorMeetings))
 	mux.Handle("GET /api/periods/{periodId}/handover", s.handle(s.getHandover))
 	mux.Handle("PUT /api/periods/{periodId}/handover", s.handle(s.putHandover))
 
@@ -276,6 +282,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PUT /api/reminders/preferences", s.handle(s.putReminderPreferences))
 	mux.Handle("GET /api/me/ui-preferences", s.handle(s.getUIPreferences))
 	mux.Handle("PUT /api/me/ui-preferences", s.handle(s.putUIPreferences))
+	mux.Handle("GET /api/me/monitor-digest", s.handle(s.monitorDigestSettings))
+	mux.Handle("PUT /api/me/monitor-digest", s.handle(s.monitorDigestSettings))
 	mux.Handle("GET /api/me/onboarding", s.handle(s.getOnboarding))
 	mux.Handle("POST /api/me/onboarding", s.handle(s.markOnboarding))
 	mux.Handle("PUT /api/me/profile", s.handle(s.updateProfile))
@@ -434,8 +442,14 @@ func (s *Server) periods(w http.ResponseWriter, r *http.Request, p *principal) {
 		s.internal(w, r, err)
 		return
 	}
+	monitors, err := s.store.MonitorPeriodIDs(r.Context(), s.store.DB(), p.User.ID)
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
 	for i := range ps {
 		ps[i].Member = mine[ps[i].ID]
+		ps[i].Monitor = monitors[ps[i].ID] && !p.admin()
 	}
 	writeJSON(w, http.StatusOK, api.List[api.Period]{Items: nonNil(ps)})
 }

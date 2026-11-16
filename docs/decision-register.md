@@ -103,7 +103,21 @@ Keputusan terakhir pengguna mengalahkan rekomendasi awal asisten. Baris yang men
 16. **Overdue harian dan rekap divisi.** Window tujuh hari dan DM pemilik pada Reo bukan kebijakan baru Space.
 17. **Tahapan tidak menghapus scope.** Rapat, notes dan template tetap ada; AI/CMS/fitur TBC tetap dicatat sebagai lanjutan.
 18. **Ace = Dynamic Island (11 Nov 2026, owner).** Maskot bintang dan jendelanya (mengambang/tepi layar, impor PNG/GIF) dihapus; ACE-02–07 di PRD tidak berlaku lagi. Ace hidup sebagai pil bermata di Dynamic Island.
+19. **Pemantauan BPH (16 Nov 2026, owner; menutup OPEN-15).** Izin `org.monitor` per akun dari admin untuk BPH (Ketum, Sekretaris, Bendahara; tanpa Waketum), per periode. Rancangan canvas yang menyebut "hanya-baca", "komentar dan lampiran tertutup" dan "isi notulen tidak dibuka" diganti keputusan di bawah. Rinciannya di PRD §4.4 (MON-01–08).
+
+## Keputusan owner 16 November 2026 — OPEN-15 (pemantauan BPH)
+
+| # | Pertanyaan canvas | Keputusan | PRD |
+|---|---|---|---|
+| 1 | Ketum saja atau seluruh BPH? | Seluruh BPH, diberikan admin per akun; pengganti jabatan tidak mewarisi | MON-01 |
+| 2 | Judul saja, atau deskripsi, bukti, komentar? | Lengkap: tugas dengan deskripsi, bukti/lampiran dan komentar. Catatan privat dan reminder pribadi selalu tertutup | MON-02 |
+| 3 | Boleh membuka notulensi divisi lain? | Boleh | MON-03 |
+| 4 | Divisi diberi tahu saat dibuka? | Tidak (privat); setiap akses tetap masuk log audit yang dilihat admin | MON-04 |
+| 5 | Boleh bertindak? | Boleh: ping kadiv dan menyetujui/meninjau di tempat kadiv dapat; tercatat sebagai tindakan pemantau | MON-05 |
+| 6 | Berlaku per periode? | Ya, dicabut otomatis saat periode ditutup | MON-06 |
+
+Penerapan teknis: [ADR 0002](adr/0002-pemantauan-bph.md).
 
 ## Status keputusan vs rincian teknis
 
-Seluruh pertanyaan terpetakan; jawaban yang berkembang dibaca bersama koreksi terakhir dan konfirmasi final pengguna. Parameter teknis yang belum dibahas tercatat sebagai `OPEN-01` sampai `OPEN-15` dalam PRD, bukan disisipkan sebagai keputusan terselubung. Tugas saat ini adalah dokumentasi PRD; implementasi aplikasi belum dimulai.
+Seluruh pertanyaan terpetakan; jawaban yang berkembang dibaca bersama koreksi terakhir dan konfirmasi final pengguna. Parameter teknis yang belum dibahas tercatat sebagai `OPEN-01` sampai `OPEN-16` dalam PRD (OPEN-15 ditutup 16 Nov 2026), bukan disisipkan sebagai keputusan terselubung. Tugas saat ini adalah dokumentasi PRD; implementasi aplikasi belum dimulai.

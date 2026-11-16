@@ -46,7 +46,7 @@ func (s *Server) createEmergencySnapshot(w http.ResponseWriter, r *http.Request,
 		if err != nil {
 			return err
 		}
-		if !slices.Contains(view.Capabilities, api.CapSpaceRead) {
+		if !slices.Contains(view.Capabilities, api.CapSpaceRead) || view.Access == api.AccessMonitor { // the emergency copy is the division's own, not a monitor's
 			return errForbidden
 		}
 		rows, err := q.Query(r.Context(), `select t.id,t.version,t.title,t.expected_output,u.id,u.display_name,t.deadline_date::text,t.deadline_at,p.time_zone,t.progress,t.match_status from tasks t join task_spaces ts on ts.task_id=t.id join periods p on p.id=t.period_id join users u on u.id=t.assignee_id where ts.space_id=$1 and ($2 or t.progress not in ('done','cancelled')) and ($3::uuid is null or t.assignee_id=$3) order by t.id limit 5001`, sid, req.IncludeCompleted, req.PersonID)
@@ -155,7 +155,7 @@ func (s *Server) emergencySnapshotAccess(r *http.Request, q store.Querier, p *pr
 	if err != nil {
 		return out, err
 	}
-	if !slices.Contains(view.Capabilities, api.CapSpaceRead) {
+	if !slices.Contains(view.Capabilities, api.CapSpaceRead) || view.Access == api.AccessMonitor { // the emergency copy is the division's own, not a monitor's
 		return out, errForbidden
 	}
 	return out, nil

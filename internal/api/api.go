@@ -107,6 +107,9 @@ type Period struct {
 	// GET /api/periods; the app opens such a period first. Absent from
 	// older servers.
 	Member bool `json:"member,omitempty"`
+	// Monitor says the caller holds org.monitor in this period (OPEN-15).
+	// Absent from older servers.
+	Monitor bool `json:"monitor,omitempty"`
 }
 
 // Division is a division whose identity lasts across periods.

@@ -49,7 +49,11 @@ func (s *Server) handle(h func(http.ResponseWriter, *http.Request, *principal) e
 	return s.authed(func(w http.ResponseWriter, r *http.Request, p *principal) {
 		if err := h(w, r, p); err != nil {
 			s.answerError(w, r, p, err)
+			return
 		}
+		// Every division a monitor opened is written to the audit log
+		// (OPEN-15 decision 4): the division is not told, the admin sees it.
+		s.auditMonitor(r, p)
 	})
 }
 
@@ -118,7 +122,12 @@ func (s *Server) record(r *http.Request, q store.Querier, p *principal, e store.
 	if e.OccurredAt.IsZero() {
 		e.OccurredAt = s.now()
 	}
-	return s.store.Audit(r.Context(), q, e)
+	if err := s.store.Audit(r.Context(), q, e); err != nil {
+		return err
+	}
+	// An action reached through org.monitor is logged as the monitor's, in
+	// the same transaction (OPEN-15 decision 5).
+	return s.recordMonitorAct(r, q, p, e.Action)
 }
 
 // readJSON reads a JSON body into v, rejecting unknown fields and trailing

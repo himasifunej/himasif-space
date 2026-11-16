@@ -9,7 +9,7 @@ import (
 )
 
 // organizationTabs are the tabs of Pengaturan organisasi.
-var organizationTabs = []struct{ name, icon string }{{"Periode", "calendar"}, {"Kadiv", "users"}, {"Serah terima", "archive"}}
+var organizationTabs = []struct{ name, icon string }{{"Periode", "calendar"}, {"Kadiv", "users"}, {"Serah terima", "archive"}, {"Pemantauan", "eye"}}
 
 func (a *App) organizationAdminView(c *ui.Context) {
 	if !a.isAdmin() {
@@ -56,6 +56,8 @@ func (a *App) organizationAdminView(c *ui.Context) {
 		switch a.organization.tab {
 		case "Kadiv":
 			a.organizationKadivView(c)
+		case "Pemantauan":
+			a.organizationMonitorView(c)
 		case "Serah terima":
 			a.organizationHandoverView(c)
 		default:

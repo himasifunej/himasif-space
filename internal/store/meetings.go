@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-const meetingColumns = `id,period_id,space_id,owner_division_id,organizer_id,title,description,location,join_url,starts_at,ends_at,time_zone,note_id,cancelled,reminder_minutes,version,created_at,updated_at`
+const meetingColumns = `id,period_id,space_id,owner_division_id,organizer_id,title,description,location,join_url,starts_at,ends_at,time_zone,note_id,cancelled,reminder_minutes,version,created_at,updated_at,kind`
 
 // meetingRead adds the shared timer (stage T2), which is written only by
 // SetMeetingTimer.
@@ -18,7 +18,7 @@ const meetingRead = meetingColumns + `,timer,timer_version`
 func scanMeeting(row pgx.Row) (api.Meeting, error) {
 	var m api.Meeting
 	var timer []byte
-	err := row.Scan(&m.ID, &m.PeriodID, &m.SpaceID, &m.OwnerDivisionID, &m.OrganizerID, &m.Title, &m.Description, &m.Location, &m.JoinURL, &m.StartsAt, &m.EndsAt, &m.TimeZone, &m.NoteID, &m.Cancelled, &m.ReminderMinutes, &m.Version, &m.CreatedAt, &m.UpdatedAt, &timer, &m.TimerVersion)
+	err := row.Scan(&m.ID, &m.PeriodID, &m.SpaceID, &m.OwnerDivisionID, &m.OrganizerID, &m.Title, &m.Description, &m.Location, &m.JoinURL, &m.StartsAt, &m.EndsAt, &m.TimeZone, &m.NoteID, &m.Cancelled, &m.ReminderMinutes, &m.Version, &m.CreatedAt, &m.UpdatedAt, &m.Kind, &timer, &m.TimerVersion)
 	if err == nil && len(timer) > 0 && string(timer) != "null" {
 		m.Timer = &api.MeetingTimer{}
 		err = json.Unmarshal(timer, m.Timer)
@@ -94,12 +94,12 @@ func (s *Store) MeetingParticipants(ctx context.Context, q Querier, mid id.ID) (
 }
 func (s *Store) SaveMeeting(ctx context.Context, q Querier, m api.Meeting, participants []id.ID, create bool) error {
 	if create {
-		_, err := q.Exec(ctx, `insert into meetings (`+meetingColumns+`) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`, m.ID, m.PeriodID, m.SpaceID, m.OwnerDivisionID, m.OrganizerID, m.Title, m.Description, m.Location, m.JoinURL, m.StartsAt, m.EndsAt, m.TimeZone, m.NoteID, m.Cancelled, m.ReminderMinutes, m.Version, m.CreatedAt, m.UpdatedAt)
+		_, err := q.Exec(ctx, `insert into meetings (`+meetingColumns+`) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`, m.ID, m.PeriodID, m.SpaceID, m.OwnerDivisionID, m.OrganizerID, m.Title, m.Description, m.Location, m.JoinURL, m.StartsAt, m.EndsAt, m.TimeZone, m.NoteID, m.Cancelled, m.ReminderMinutes, m.Version, m.CreatedAt, m.UpdatedAt, m.Kind)
 		if err != nil {
 			return err
 		}
 	} else {
-		_, err := q.Exec(ctx, `update meetings set title=$2,description=$3,location=$4,join_url=$5,starts_at=$6,ends_at=$7,time_zone=$8,note_id=$9,cancelled=$10,reminder_minutes=$11,version=$12,updated_at=$13 where id=$1`, m.ID, m.Title, m.Description, m.Location, m.JoinURL, m.StartsAt, m.EndsAt, m.TimeZone, m.NoteID, m.Cancelled, m.ReminderMinutes, m.Version, m.UpdatedAt)
+		_, err := q.Exec(ctx, `update meetings set title=$2,description=$3,location=$4,join_url=$5,starts_at=$6,ends_at=$7,time_zone=$8,note_id=$9,cancelled=$10,reminder_minutes=$11,version=$12,updated_at=$13,kind=$14 where id=$1`, m.ID, m.Title, m.Description, m.Location, m.JoinURL, m.StartsAt, m.EndsAt, m.TimeZone, m.NoteID, m.Cancelled, m.ReminderMinutes, m.Version, m.UpdatedAt, m.Kind)
 		if err != nil {
 			return err
 		}
@@ -123,4 +123,21 @@ func (s *Store) SaveMeeting(ctx context.Context, q Querier, m api.Meeting, parti
 func (s *Store) SetMeetingRSVP(ctx context.Context, q Querier, mid, uid id.ID, status, note string, at time.Time) (bool, error) {
 	tag, err := q.Exec(ctx, `update meeting_participants set rsvp=$3,rsvp_note=$4,rsvp_at=$5 where meeting_id=$1 and user_id=$2`, mid, uid, status, note, at)
 	return tag.RowsAffected() > 0, err
+}
+
+// PeriodMeetings returns the meetings of a period between from and to,
+// with the name of their space and the title of their note, for the
+// cross-division timeline of BPH.
+func (s *Store) PeriodMeetings(ctx context.Context, q Querier, pid id.ID, from, to time.Time) ([]api.MonitorMeeting, error) {
+	rows, err := q.Query(ctx, `select m.id, m.space_id, sp.name, m.kind, m.title, m.starts_at, m.ends_at, m.time_zone, m.cancelled, m.note_id, coalesce(n.title, '')
+		from meetings m join spaces sp on sp.id = m.space_id left join notes n on n.id = m.note_id
+		where m.period_id = $1 and m.starts_at >= $2 and m.starts_at < $3 order by m.starts_at, m.id`, pid, from, to)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, func(r pgx.CollectableRow) (api.MonitorMeeting, error) {
+		var m api.MonitorMeeting
+		err := r.Scan(&m.ID, &m.SpaceID, &m.SpaceName, &m.Kind, &m.Title, &m.StartsAt, &m.EndsAt, &m.TimeZone, &m.Cancelled, &m.NoteID, &m.NoteTitle)
+		return m, err
+	})
 }

@@ -41,6 +41,7 @@ var appPages = []appPage{
 	{PathArsip, "Arsip periode", "archive", "arsip periode lalu", true},
 	{PathArchiveAccess, "Izin arsip", "shield", "akses arsip", true},
 	{PathOrganisasi, "Organisasi", "shield", "admin periode kadiv serah terima", true},
+	{PathPemantauan, "Pemantauan organisasi", "eye", "bph pemantauan monitor semua divisi", true},
 	{PathPanduan, "Panduan", "book", "bantuan tutorial", true},
 	{PathPengaturan, "Pengaturan", "settings", "setelan", true},
 	{PathLainnya, "Lainnya", "more", "menu", false},
@@ -94,7 +95,7 @@ func (a *App) navIndex() []navItem {
 	var out []navItem
 	admin := a.isAdmin()
 	for _, p := range appPages {
-		if !p.palette || (p.path == PathOrganisasi && !admin) || (p.path == PathPanduan && admin) || (p.path == PathArchiveAccess && len(a.archiveManagedDivisions()) == 0) {
+		if !p.palette || (p.path == PathOrganisasi && !admin) || (p.path == PathPemantauan && !a.isMonitor()) || (p.path == PathPanduan && admin) || (p.path == PathArchiveAccess && len(a.archiveManagedDivisions()) == 0) {
 			continue
 		}
 		path := p.path

@@ -88,3 +88,24 @@ func TestAdminAndReadOnly(t *testing.T) {
 		t.Error("Normalize(nil)")
 	}
 }
+
+// org.monitor opens work to read; it never manages tasks, notes, members or
+// roles, and never comments (OPEN-15).
+func TestMonitorCaps(t *testing.T) {
+	for _, c := range MonitorCaps {
+		if !slices.Contains(Operational, c) {
+			t.Errorf("monitor holds non-operational %s", c)
+		}
+	}
+	for _, c := range []string{api.CapTasksManage, api.CapNotesManage, api.CapCommentsWrite, api.CapTasksOwn, api.CapHelpRequest,
+		api.CapWhatsAppManage, api.CapSOPReview} {
+		if has(MonitorCaps, c) {
+			t.Errorf("monitor holds %s", c)
+		}
+	}
+	for _, c := range Administrative {
+		if has(MonitorCaps, c) {
+			t.Errorf("monitor holds administrative %s", c)
+		}
+	}
+}

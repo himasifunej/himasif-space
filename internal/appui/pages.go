@@ -55,6 +55,8 @@ func (a *App) page(c *ui.Context, r *ui.Route) {
 		a.cardPage(c, r, "task")
 	case r.Match(PathMeetingCard):
 		a.cardPage(c, r, "meeting")
+	case r.Match(PathPemantauan):
+		a.monitoringPage(c, r)
 	case r.Match(PathOrganisasi) && a.isAdmin():
 		a.organizationPage(c, r)
 	default:
@@ -169,6 +171,8 @@ func (a *App) spacePage(c *ui.Context, r *ui.Route, shared bool) {
 		a.spaceTabBar(c, sp)
 		if s := a.selectedSpace(); s != nil && s.ReadOnly {
 			pageNotice(c, "lock", "Hanya baca", "Periode atau akses arsip ini tidak mengizinkan perubahan.")
+		} else if s != nil && s.Access == api.AccessMonitor {
+			pageNotice(c, "eye", "Mode pemantauan", "Kamu membuka divisi ini lewat izin pemantauan: tugas, bukti, komentar dan notulensi dapat dibaca. Divisi tidak diberi tahu; pembukaan ini tercatat di log admin.")
 		}
 
 		switch a.chrome.tab {

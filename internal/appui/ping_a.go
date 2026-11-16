@@ -58,8 +58,18 @@ func (a *App) resetPingState(sp *api.Space, division id.ID) {
 }
 
 // pingPeople are the Space's members one may ping, without oneself.
+// A monitor pings the kadiv only (MON-05; the server refuses others).
 func (a *App) pingPeople() []api.PersonRef {
-	return slices.DeleteFunc(slices.Clone(a.meetings.members), func(p api.PersonRef) bool { return p.ID == a.user.ID || p.ID == id.Nil })
+	var kadiv []id.ID
+	if sp := a.selectedSpace(); sp != nil && sp.Access == api.AccessMonitor {
+		kadiv = a.monitorKadiv(sp.ID)
+		if kadiv == nil {
+			kadiv = []id.ID{}
+		}
+	}
+	return slices.DeleteFunc(slices.Clone(a.meetings.members), func(p api.PersonRef) bool {
+		return p.ID == a.user.ID || p.ID == id.Nil || kadiv != nil && !slices.Contains(kadiv, p.ID)
+	})
 }
 
 func pingPersonName(people []api.PersonRef, uid id.ID) string {

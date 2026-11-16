@@ -112,6 +112,9 @@ func (a *App) sidebarSections(c *ui.Context, collapsed bool) {
 	if navRow(c, "Arsip", path == PathArsip || path == PathArchiveAccess, collapsed, iconLead(c, "arsip"), "", false, nil).Clicked() {
 		a.navigate(PathArsip)
 	}
+	if a.isMonitor() && navRow(c, "Pemantauan", path == PathPemantauan, collapsed, iconLead(c, "eye"), "", false, nil).Clicked() {
+		a.navigate(PathPemantauan)
+	}
 	if a.isAdmin() && navRow(c, "Organisasi", path == PathOrganisasi, collapsed, iconLead(c, "shield"), "", false, nil).Clicked() {
 		a.navigate(PathOrganisasi)
 	}
