@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"fmt"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -118,4 +120,83 @@ func (s *Server) RunOperationsMonitor(ctx context.Context) {
 			flush()
 		}
 	}
+}
+
+// Restart delays of a worker that panicked: doubling from the first to the
+// last, so a worker that panics on every cycle does not spin.
+var (
+	workerRestartFirst = time.Second
+	workerRestartMax   = time.Minute
+)
+
+// recoverWorker turns a panic of a worker goroutine into a log line with
+// its stack and a failed worker_health state, instead of the end of the
+// whole process (SEC-07). It must be deferred directly. It reports whether
+// it recovered one.
+func (s *Server) recoverWorker(name string, recovered *bool) {
+	p := recover()
+	if p == nil {
+		return
+	}
+	if recovered != nil {
+		*recovered = true
+	}
+	s.log.Error("worker panic", "worker", name, "panic", fmt.Sprint(p), "stack", string(debug.Stack()))
+	s.workers.mu.Lock()
+	defer s.workers.mu.Unlock()
+	// Only workers listed in workerSilence have a worker_health row; the
+	// others (realtime, operations monitor) only log.
+	if signal, ok := s.workers.signals[name]; ok {
+		now := s.now()
+		signal.State = "failed"
+		signal.Progressed = now
+		signal.Failed = &now
+		signal.CycleFailed = true
+		s.workers.signals[name] = signal
+	}
+}
+
+// Supervise runs a worker until ctx ends. When run panics, the panic is
+// logged, the worker is marked failed and run starts again after a delay
+// that grows with consecutive panics. A run that returns by itself ends
+// Supervise: workers return when ctx ends or when they are disabled.
+func (s *Server) Supervise(ctx context.Context, name string, run func(context.Context)) {
+	delay := workerRestartFirst
+	for {
+		panicked := false
+		started := s.now()
+		func() {
+			defer s.recoverWorker(name, &panicked)
+			run(ctx)
+		}()
+		if !panicked || ctx.Err() != nil {
+			return
+		}
+		// A worker that ran a while before panicking starts from the
+		// shortest delay again.
+		if s.now().Sub(started) > 10*workerRestartMax {
+			delay = workerRestartFirst
+		}
+		s.log.Info("worker restarting", "worker", name, "after", delay.String())
+		t := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			t.Stop()
+			return
+		case <-t.C:
+		}
+		delay = min(2*delay, workerRestartMax)
+	}
+}
+
+// goSafe runs fn in a goroutine tracked by wg, recovering its panic as a
+// failure of the worker name (a one-off task, such as polling one
+// connection or sending a recovery email).
+func (s *Server) goSafe(wg *sync.WaitGroup, name string, fn func()) {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer s.recoverWorker(name, nil)
+		fn()
+	}()
 }

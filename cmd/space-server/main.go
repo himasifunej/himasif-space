@@ -22,6 +22,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/himasifunej/himasif-space/internal/auth"
 	"github.com/himasifunej/himasif-space/internal/config"
 	"github.com/himasifunej/himasif-space/internal/mail"
 	"github.com/himasifunej/himasif-space/internal/seed"
@@ -55,6 +56,9 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	// Bound the Argon2id runs (19 MiB each) of the whole process: the API
+	// unit has MemoryMax=256M (SEC-02).
+	auth.SetHashLimits(cfg.HashConcurrency, cfg.HashQueue)
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	if cfg.Development() {
 		log = slog.New(slog.NewTextHandler(os.Stdout, nil))
@@ -122,18 +126,20 @@ func serve(ctx context.Context, cfg config.Config, st *store.Store, log *slog.Lo
 	api := server.New(cfg, st, mailer, log)
 	schedulerCtx, stopScheduler := context.WithCancel(ctx)
 	monitorCtx, stopMonitor := context.WithCancel(context.WithoutCancel(ctx))
-	monitorDone := make(chan struct{})
-	go func() { defer close(monitorDone); api.RunOperationsMonitor(monitorCtx) }()
-	realtimeDone := make(chan struct{})
-	go func() { defer close(realtimeDone); api.RunRealtime(schedulerCtx) }()
-	schedulerDone := make(chan struct{})
-	go func() { defer close(schedulerDone); api.RunScheduler(schedulerCtx) }()
-	connectorsDone := make(chan struct{})
-	go func() { defer close(connectorsDone); api.RunConnectors(schedulerCtx) }()
-	whatsappDone := make(chan struct{})
-	go func() { defer close(whatsappDone); api.RunWhatsApp(schedulerCtx) }()
-	sopDone := make(chan struct{})
-	go func() { defer close(sopDone); api.RunSOP(schedulerCtx) }()
+	// Every background worker runs under Supervise: a panic is logged,
+	// marks the worker failed and restarts it after a delay, instead of
+	// ending the process (SEC-07). Shutdown waits for all of them.
+	start := func(ctx context.Context, name string, run func(context.Context)) <-chan struct{} {
+		done := make(chan struct{})
+		go func() { defer close(done); api.Supervise(ctx, name, run) }()
+		return done
+	}
+	monitorDone := start(monitorCtx, "operations", api.RunOperationsMonitor)
+	realtimeDone := start(schedulerCtx, "realtime", api.RunRealtime)
+	schedulerDone := start(schedulerCtx, "scheduler", api.RunScheduler)
+	connectorsDone := start(schedulerCtx, "connectors", api.RunConnectors)
+	whatsappDone := start(schedulerCtx, "whatsapp", api.RunWhatsApp)
+	sopDone := start(schedulerCtx, "sop", api.RunSOP)
 	defer func() {
 		stopScheduler()
 		<-schedulerDone
@@ -143,6 +149,9 @@ func serve(ctx context.Context, cfg config.Config, st *store.Store, log *slog.Lo
 		<-realtimeDone
 		stopMonitor()
 		<-monitorDone
+		// Recovery emails still being sent finish before the store closes,
+		// also when serving failed.
+		api.Wait()
 	}()
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
@@ -168,9 +177,6 @@ func serve(ctx context.Context, cfg config.Config, st *store.Store, log *slog.Lo
 	if err := srv.Shutdown(sctx); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
-	<-schedulerDone
-	// Recovery emails still being sent finish before the store closes.
-	api.Wait()
 	return nil
 }
 

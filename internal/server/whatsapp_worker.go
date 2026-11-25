@@ -29,19 +29,23 @@ func (s *Server) RunWhatsApp(ctx context.Context) {
 		workers.Add(1)
 		go func() {
 			defer workers.Done()
-			defer s.workerStop(name)
-			ticker := time.NewTicker(interval)
-			defer ticker.Stop()
-			for {
-				s.workerStart(name)
-				work()
-				s.workerFinish(name)
-				select {
-				case <-ctx.Done():
-					return
-				case <-ticker.C:
+			// Each loop is supervised on its own: a panic in one restarts
+			// it after a delay and leaves the other three running.
+			s.Supervise(ctx, name, func(ctx context.Context) {
+				defer s.workerStop(name)
+				ticker := time.NewTicker(interval)
+				defer ticker.Stop()
+				for {
+					s.workerStart(name)
+					work()
+					s.workerFinish(name)
+					select {
+					case <-ctx.Done():
+						return
+					case <-ticker.C:
+					}
 				}
-			}
+			})
 		}()
 	}
 	run("wa.poll", 10*time.Second, func() {
@@ -65,9 +69,7 @@ func (s *Server) RunWhatsApp(ctx context.Context) {
 				polling.Wait()
 				return
 			}
-			polling.Add(1)
-			go func(cid id.ID) {
-				defer polling.Done()
+			s.goSafe(&polling, "wa.poll", func() {
 				defer func() { <-slots }()
 				work, cancel := context.WithTimeout(ctx, 45*time.Second)
 				defer cancel()
@@ -75,7 +77,7 @@ func (s *Server) RunWhatsApp(ctx context.Context) {
 					s.workerProgress("wa.poll", true)
 					s.log.Info("whatsapp polling deferred", "connection_id", cid)
 				}
-			}(cid)
+			})
 		}
 		polling.Wait()
 	})
@@ -131,9 +133,7 @@ func (s *Server) RunWhatsApp(ctx context.Context) {
 				sending.Wait()
 				return
 			}
-			sending.Add(1)
-			go func(cid id.ID) {
-				defer sending.Done()
+			s.goSafe(&sending, "wa.outbox", func() {
 				defer func() { <-slots }()
 				for n := 0; n < 5 && ctx.Err() == nil; n++ {
 					work, cancel := context.WithTimeout(ctx, 40*time.Second)
@@ -150,7 +150,7 @@ func (s *Server) RunWhatsApp(ctx context.Context) {
 						return
 					}
 				}
-			}(cid)
+			})
 		}
 		sending.Wait()
 	})
