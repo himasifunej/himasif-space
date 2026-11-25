@@ -1,6 +1,6 @@
 # ADR 0002 — Pemantauan organisasi oleh BPH (`org.monitor`)
 
-Tanggal: 16 November 2026, WIB. Status: **berlaku**. Menerapkan keputusan owner yang menutup `OPEN-15` (PRD §4.4 MON-01–08, [Register keputusan](../decision-register.md)).
+Tanggal: 16 November 2026, WIB; tambahan 25 November 2026. Status: **berlaku**. Menerapkan keputusan owner yang menutup `OPEN-15` (PRD §4.4 MON-01–08, [Register keputusan](../decision-register.md)).
 
 ## Keputusan
 
@@ -27,3 +27,16 @@ Menambah cabang di `spaceViews`/`loadScope` membuat izin pemantauan mengikuti at
 - Pemantau yang memakai aplikasi lama tetap bisa membuka divisi lewat endpoint yang ada; layar pemantauan baru ada di aplikasi versi ini.
 - Satu baris audit per divisi per permintaan: halaman yang memuat ulang sering menambah log. Tidak ada penggabungan, karena keputusan owner meminta setiap akses tercatat.
 - Migrasi `0036`–`0038` (izin, jenis rapat dan ringkasan mingguan; nomor 0034–0035 sudah dipakai main) bersifat aditif dan aman dijalankan pada pilot tc-vps yang sedang hidup.
+
+## Tambahan 25 November 2026 — NIM dan bacaan admin (keputusan owner no. 9)
+
+Owner mengesahkan dua perilaku yang sudah ada di kode; tidak ada perubahan kode, hanya dokumentasi dan komentar ([Register](../decision-register.md) K-09, PRD MON-09 dan ACC-14).
+
+| Area | Keputusan | Di kode |
+|---|---|---|
+| NIM untuk pemantau | Pemantau **boleh** melihat NIM anggota semua divisi yang dipantaunya. NIM ikut `members.read`, yang ada di `MonitorCaps` | `api.Member.NIM` (`internal/api/access.go`), diisi `memberAPI` (`internal/server/scope.go`) untuk setiap pemanggil yang lolos `members.read` |
+| Bacaan admin | Akun admin organisasi bersama **boleh membaca** isi tugas dan rapat semua divisi lewat `space.read` di `AdminCaps`. Tetap tanpa kemampuan kerja (`tasks.manage`, `comments.write`, `notes.manage`) dan tanpa reminder pribadi atau draf | `authz.AdminCaps` (`internal/authz/authz.go`); handler tugas dan rapat memeriksa `space.read` |
+| NIM di luar aplikasi | NIM tetap tidak pernah tampil di halaman publik, tautan kartu (`/t/…`, `/r/…`) atau balasan bot di grup (di pesan pribadi hanya bentuk tersamar) | `note_sharing.go`, `whatsapp_link_move.go` |
+
+Konsekuensi: bacaan pemantau tercatat (`monitor.read`), tetapi bacaan oleh admin belum diaudit per akses. Karena akun admin dipakai bergantian, rekomendasinya bacaan admin ikut diaudit kelak bersama daftar sesi aktif (F2-09); sampai itu, keputusan ini berlaku tanpa audit baca admin.
+

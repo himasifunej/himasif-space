@@ -2,6 +2,8 @@
 
 Tanggal: 27 Oktober 2026, WIB. Acuan: [PRD](PRD.md), [Register keputusan](decision-register.md), [Riset Android](research/android-options.md).
 
+> **Sejak 25 November 2026 yang berlaku adalah bagian [Menuju 1.0.0](#menuju-100) di akhir dokumen.** Tahap 0–6 di bawah adalah roadmap historis; Tahap 6 (Flutter) dicabut oleh keputusan owner K-16.
+
 Dokumen ini menjabarkan urutan yang disepakati. **Sesi 1A merged melalui PR #1** (`627298f`), **backend 1B–1C melalui PR #2** (`d92a372`), **backend reminder melalui PR #3**, dan **UI native beserta inti tugas melalui PR #4** (`8608fc4`). Penyambungan UI reminder pribadi melengkapi hasil gabungan tersebut; lihat [handoff integrasi tugas](handoff/native-integration-tasks.md) dan [handoff UI reminder](handoff/personal-reminders-ui.md). Pengguna menyetujui prototype UI 03.1. Status tiap tahap tetap bergantung pada verifikasi fungsinya, bukan sekadar tersedianya tampilan. Tidak ada tanggal rilis atau estimasi durasi yang disepakati. Satu tahap dapat memakai beberapa sesi; jangan menganggap seluruh aplikasi selesai dalam enam percakapan.
 
 ## Prinsip handoff setiap sesi
@@ -217,6 +219,8 @@ Penerimaan: seluruh kriteria pilot pada PRD §24, AC-45 dan hasil pengukuran yan
 
 ## Tahap 6 — Mobile
 
+> **Dicabut 25 Nov 2026 (K-16):** tanpa Flutter. Mobile memakai PWA dari build web yang sama (F1-20, 1.0.x) sambil menunggu MyGo mendukung mobile. Isi tahap ini disimpan sebagai riwayat.
+
 ### Sesi 6A: Flutter Android
 
 - Gunakan API/akun/periode/otorisasi yang sama, bukan database tugas kedua.
@@ -248,3 +252,54 @@ Setiap backlog lanjutan memerlukan rincian kebutuhan tersendiri. Roadmap ini mem
 ## Koreksi scope dan checkpoint 29 Oktober
 
 Pengguna meminta kelanjutan **tanpa mobile**, hasil akhir bisa diunduh, build/test tetap di akhir. Tahap 6A/6B pada roadmap historis di atas ditunda dan tidak menjadi pekerjaan aktif. Tahap 2C–5B beserta sisa integrasi, operasional/pilot dan verifikasi lengkap tetap dilanjutkan. UI Evaluasi, ralat lintas divisi, riwayat/prasyarat pengiriman dan ekspor CSV sudah ditulis; lampiran biner Notes mulai dilengkapi. Semua perubahan terbaru belum dibuild/diuji/dimigrasikan. Lihat [checkpoint](handoff/sop-ui-files.md) dan [worklog](handoff/remaining-stages-worklog.md). Paket rilis unduhan belum tersedia.
+
+## Menuju 1.0.0
+
+Tanggal: 25 November 2026, WIB. Sumber: keputusan owner 25 Nov 2026 ([Register](decision-register.md), bagian terakhir; [PRD](PRD.md) §2.3 dan §24.1) dan note rencana owner "Audit Space — Rencana" (`8d4b128e8a55`), yang memuat rincian tiap item (berkas, uji, ketergantungan) dan status centangnya. Bagian ini ringkasan untuk orang yang hanya membaca repo; bila berbeda, note rencana dan register yang berlaku.
+
+**Sasaran:** 1.0.0 stabil di `space.himasif.id` sebelum pengurus baru mulai (**paling lambat Senin 7 Des 2026**): Mediatek, Humas dan BPH berjalan penuh dan ramah pengguna awal, dan alur Medhum (broadcast → desain → ACC bersama → posting) jalan lintas divisi.
+
+### Jadwal
+
+| Tanggal | Kegiatan |
+|---|---|
+| Rab 25 – Jum 27 Nov | Gelombang 1 (dokumen, `make check` di Windows, menu SOP tersembunyi, parser broadcast Humas, pengaman server). Branch `release/1.0.0` menjadi tujuan PR |
+| Jum 27 – Sab 28 Nov | Uji Mediatek putaran 1 di pilot ([skrip](handoff/uji-pengguna-mediatek.md)) |
+| Sab 28 Nov – Sel 1 Des | Gelombang 2 (ACC bersama Medhum, "Tetap masuk", keluar akun membersihkan perangkat, deploy ke repo) |
+| Sen 30 Nov | Instans stabil disiapkan kosong; alarm; record DNS `space.himasif.id` aktif |
+| Sel 1 Des | Gladi pulih; gelombang 3 (alur anggota dari WA, kontras, `!done T12`, panduan awal) |
+| Rab 2 Des | Kunci fitur; 1.0.0-rc.1 ke instans uji lewat kanal rc |
+| Kam 3 – Jum 4 Des | Uji Humas + alur Medhum dan BPH ([skrip BPH](handoff/uji-pengguna-bph.md)), ulang singkat Mediatek; perbaikan menjadi rc.2 |
+| Sab 5 Des | Terbitkan 1.0.0; instans stabil dibuka |
+| Min 6 – Sen 7 Des | Undang kadiv dan BPH baru, lalu anggota Mediatek, Humas dan BPH |
+
+### Wajib 1.0.0
+
+| Kelompok | Item |
+|---|---|
+| A. Fondasi dan pengaman | F1-01 `make check` hijau di Windows · F1-10 keputusan 25 Nov ke repo · F0-08 keputusan privasi (NIM pemantau, bacaan admin) · F0-04 `recover` worker latar · F0-03 pembatas laju dan login · F0-10 periksa server · F0-02 pengaman repo · F2-12 form grill-me |
+| B. Mediatek dan pengalaman awal | F1-24 uji Mediatek · F0-06 keluar akun membersihkan perangkat · F2-01 "Tetap masuk" ([ADR 0003](adr/0003-instans-dan-sesi-1-0.md)) · F1-04 alur anggota dari WA · F1-05 kontras dan warna status · F2-02 `!done T12` · F1-23 onboarding dan panduan pasang |
+| C. Humas dan alur Medhum | F1-06 parser broadcast membaca template nyata · F1-28 ACC bersama, broadcast → konten, kabar dua sisi · F1-25 menu SOP disembunyikan tetapi disiapkan · F1-19 uji Humas dan alur Medhum (Reo tetap jalan) |
+| D. BPH | F1-26 uji BPH: kontrol sederhana dan rapat |
+| E. Gerbang rilis | F1-21 domain `space.himasif.id` · F1-14 deploy ke repo · F0-14 jebakan rollback · F0-16 DB stabil dengan periode 2026/2027 · F0-12 rahasia pemulihan · F0-13 alarm email · F0-11 gladi pulih · F1-22 instans dan DB stabil · F1-18 pengaman rilis desktop · F1-13 terbitkan 1.0.0 |
+
+Sesudah 1.0.0 (1.0.x, 8–20 Des): istilah baku di seluruh aplikasi (F1-08), PWA (F1-20), retensi WA 1 hari (F1-11), bridge yang terlihat (F1-17), akun demo (F0-01), dan sisa daftar di note rencana.
+
+### Aturan kerja menuju 1.0.0
+
+- Branch dari `main`, PR **draft** ke `release/1.0.0`; owner yang menggabungkan. Urutan gabung gelombang 1: dokumen (F1-10) → `.gitattributes` (F1-01) → yang lain, lalu branch lain di-rebase.
+- Satu branch tidak menyentuh berkas branch lain yang sedang jalan. Nomor migrasi dipesan: `0039` untuk F1-28, `0040` untuk F1-11.
+- Setiap PR: `go vet` dan `go test -p=1` untuk paket yang disentuh, build linux, windows dan wasm bergiliran (Celeron dan PC owner berbagi memori), dan satu baris di "Belum dirilis" `CHANGELOG.md`.
+- Jangan deploy, menyentuh server pilot atau DB, mengirim WA atau email, atau menerbitkan rilis tanpa permintaan owner.
+
+### Urutan pemangkasan bila meleset
+
+Dipangkas berurutan, mulai dari yang paling atas:
+
+1. **F1-23** panduan: cukup satu halaman pasang dan masuk.
+2. **F2-02** nomor tugas: pindah ke 1.0.1 seluruhnya.
+3. **F1-05** kontras: hanya lencana status di tema gelap.
+4. **F1-28** alur Medhum: ACC bersama dan kabar dua sisi tetap; broadcast yang membuat konten pindah ke 1.0.1 (broadcast tetap mencocokkan seperti sekarang).
+5. **F1-04** alur anggota: hanya RSVP dan "Coba lagi".
+
+Yang **tidak** dipangkas: domain, DB stabil bersih, gladi pulih, alarm, pengaman login, "Tetap masuk", dan ACC bersama.
