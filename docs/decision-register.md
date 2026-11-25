@@ -191,7 +191,7 @@ Sumber: note enowX "Audit Space" (`5bda2328ea62`) bagian "Keputusan owner (25 No
 
 Rekomendasinya tertulis di note rencana; sampai dijawab, perlakukan sebagai **belum diputuskan**:
 
-- ~~Cloudflare for SaaS tersedia di akun Cloudflare owner?~~ **Fakta (dicek 26 Nov 2026):** tersedia di paket Free; zona `tiyoouw.app` sudah memakainya untuk newsletter. Jalur `space.himasif.id` diusulkan di bagian "Usulan, menunggu owner: jalur domain" di bawah.
+- ~~Cloudflare for SaaS tersedia di akun Cloudflare owner?~~ **Fakta (dicek 26 Nov 2026):** tersedia di paket Free; zona `tiyoouw.app` sudah memakainya untuk newsletter. Jalur `space.himasif.id`: bagian "Jalur domain `space.himasif.id` (F1-21)" di bawah (disetujui, dijalankan).
 - Instans mana yang menautkan nomor bot (R-09) dan apakah instans uji berjalan tanpa bridge setelah stabil dibuka (F1-22).
 - Kesediaan meninjau ±3 PR per hari dan menjalankan uji 3–4 Des; bila tidak, pemangkasan sesuai urutan di note rencana.
 
@@ -248,7 +248,23 @@ Jadi arah kewenangannya sekarang terbalik dari S-01: divisi yang dievaluasi meny
 
 Total sekitar **2 hari kerja satu session, ukuran M**. Risiko: kebijakan pilot yang sudah ada di DB uji dibuat oleh kadiv Humas/Mediatek; migrasi menandainya Draf tanpa mengubah isinya. DB stabil mulai kosong (R-02), jadi tidak ada data lama di sana. Karena menu SOP tersembunyi (R-13) dan Litbang baru ikut periode depan (K-17), F2-17 **tidak menahan 1.0.0**: bisa di gelombang 2 bila ada session kosong, atau di 1.0.x.
 
-## Usulan, menunggu owner: jalur domain `space.himasif.id` (F1-21)
+## Jalur domain `space.himasif.id` (F1-21): disetujui, dijalankan
+
+**Status: dijalankan (bagian Cloudflare dan tunnel), 26 Nov 2026.** Owner memilih **A** (zona SaaS `tiyoouw.my.id`). Karena instans stabil (F1-22) belum ada, owner memilih origin sementara yang menjawab **404**, supaya record cPanel dan sertifikat siap lebih dulu. Pengujian tetap di `space.tiyoouw.app`. Langkah 1 dan 6 di bawah menunggu F1-22.
+
+| Langkah | Hasil 26 Nov 2026 |
+|---|---|
+| 2. Tunnel tc-vps | Berkas lokal `~/.config/himasif-space-pilot/cloudflared.yml` (cadangan `.bak-20261126-f1-21`): aturan `space.himasif.id` dan `origin-space.tiyoouw.my.id` → `http_status:404`, sebelum aturan penutup, dengan komentar TODO F1-22. `ingress validate` OK. **Tunnel belum di-restart** karena ada deploy rc ke instans uji; sampai restart berikutnya kedua host tetap 404 lewat aturan penutup, jadi perilakunya sama. Aturan `space.tiyoouw.app` → `8788` tidak berubah |
+| 3. DNS `tiyoouw.my.id` | CNAME `origin-space` (berproksi) → tunnel tc-vps `56423224-….cfargotunnel.com`; `https://origin-space.tiyoouw.my.id/` menjawab 404 |
+| 4. Fallback origin | `origin-space.tiyoouw.my.id`, status **active** |
+| 5. Custom hostname | `space.himasif.id`, DV, validasi TXT, CA Google Trust Services, min TLS 1.2; status **pending** sampai owner memasang record |
+| Dicek sebelum dan sesudah | `space.tiyoouw.app/api/health` 200; `hermes.tiyoouw.my.id/health` 200; `news.tiyoouw.com` 404 di `/` (memang jawaban gateway newsletter); fallback `tiyoouw.app` tetap `origin-news.tiyoouw.app` aktif, `news.tiyoouw.com` tetap aktif. Zona `tiyoouw.app` tidak diubah |
+
+Nilai TXT yang persis ada di note Rencana (F1-21) dan diberikan ke owner. Nilai validasi sertifikat berlaku 14 hari (CA Google, menurut dokumen Cloudflare); bila kedaluwarsa, worker mengambil nilai baru. `himasif.id` tidak punya record CAA.
+
+**TODO F1-22:** arahkan kedua aturan tunnel ke port instans stabil (bukan `8788`, R-03), restart `himasif-space-pilot-tunnel`, lalu jalankan langkah 6.
+
+### Usulan awal (riset 26 Nov 2026)
 
 Riset hanya-baca 26 Nov 2026 lewat API Cloudflare (token vault `cloudflare-tiyo`), dokumen resmi Cloudflare, dan `dig +tcp`. **Tidak ada yang diubah di Cloudflare, DNS, atau tunnel.**
 
