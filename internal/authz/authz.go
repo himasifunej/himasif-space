@@ -32,8 +32,12 @@ var memberCaps = []string{api.CapSpaceRead, api.CapMembersRead, api.CapTasksOwn,
 var Default45 = []string{api.CapTasksManage, api.CapResultsReview, api.CapPingSend, api.CapWhatsAppManage}
 
 // AdminCaps are the organization admin's capabilities in any division: the
-// administration of it, no work and no private data, and not the 45, which
-// only the original kadiv appoints.
+// administration of it, and reading its work, but doing none of it. With
+// space.read the shared admin account may read tasks and meetings in full
+// (owner decision no. 9, 25 Nov 2026; PRD ACC-14); such reads are not
+// audited yet (F2-09). No task management, comments or notes editing, no
+// private data (personal reminders, drafts), and not the 45, which only the
+// original kadiv appoints.
 var AdminCaps = []string{
 	api.CapSpaceRead, api.CapMembersRead,
 	api.CapInvitationsManage, api.CapMembersManage, api.CapRolesManage, api.CapArchivesManage,

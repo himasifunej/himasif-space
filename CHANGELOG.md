@@ -5,6 +5,10 @@ Versi mengikuti aturan sebelum rilis publik:
 - **Minor** naik untuk pembaruan besar.
 - **1.0.0** untuk rilis publik.
 
+## Belum dirilis
+
+- **Dokumen**: keputusan owner 25 Nov 2026 menuju 1.0.0 dicatat di register keputusan, PRD (versi 1.2), ADR 0003 (instans uji dan stabil, nomor bot bersama, "Tetap masuk", PWA) dan ADR 0002 (NIM untuk pemantau, bacaan admin); skrip uji pengguna Mediatek dan BPH.
+
 ## 0.4.6-rc.9 — 2026-11-16 · Perbaikan bar progres musik di Ace Island (pre-release)
 
 Hanya aplikasi desktop; tanpa migrasi dan tanpa perubahan server, jadi server tetap 0.4.6-rc.8.

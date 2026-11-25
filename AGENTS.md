@@ -7,14 +7,24 @@ Context for AI coding agents and for anyone landing here from a shared link. Rea
 **Space — Ruang Kerja HIMASIF** is the workspace app of HIMASIF, the Information Systems student association at Universitas Jember, built for its 2025/2026 board (*HIMASIF ASTRA 25/26*). Its job: after every meeting, each task has a clear expected result, one main owner (*PJ utama*) and a deadline, and people are reminded on their device and in WhatsApp instead of having to open a spreadsheet.
 
 - Each **division** has a *Space* per **period** (2025/2026, 2026/2027, …): task board, agenda, shared notes, meetings, members.
-- Cross-division work (e.g. **Medhum**, Mediatek × Humas) has shared spaces without copying tasks.
+- Cross-division work has shared spaces without copying tasks. **Medhum is not a division**: it is the shared Mediatek × Humas content flow (Humas broadcast → design task for the Mediatek PIC with a Deadline → shared ACC → posting), modelled as a shared Space.
 - Each member has **Untukku** ("for me"): one day-by-day timeline of their tasks, meetings and reminders across all Spaces.
 - Windows desktop adds tray, notifications, offline cache, auto-update and **Ace Island** (the mascot *Ace* as a small floating island with an inbox).
-- A non-AI **WhatsApp bot** per division answers commands (`!tugas`, `!hari`, `!cek`, …), sends scheduled reminders, and records submission evidence used by the Medhum SOP review.
+- A non-AI **WhatsApp bot** per division answers commands (`!tugas`, `!hari`, `!cek`, …), sends scheduled reminders, and records submission evidence. The SOP review menus stay hidden until Litbang joins, but remain ready (PRD EVA-11).
 
-Status: **pilot, pre-1.0** (see `app/mygo.json` for the current version). Users: HIMASIF board members; UI language: Indonesian. Download: <https://space.tiyoouw.app/unduh/windows>. Web: <https://space.tiyoouw.app>.
+Status: **pilot, pre-1.0** (see `app/mygo.json` for the current version). Target: **1.0.0 stable at `space.himasif.id` by Monday 7 Dec 2026 at the latest**, before the new board starts, with Mediatek, Humas and BPH fully working and the Medhum flow running across divisions (PRD §2.3). Users: HIMASIF board members; UI language: Indonesian.
 
-Product requirements: [docs/PRD.md](docs/PRD.md) (requirement IDs like `ACC-10`, `NFR-01`), decisions: [docs/decision-register.md](docs/decision-register.md), technical decisions: [docs/adr/](docs/adr).
+Instances (ADR 0003): `space.tiyoouw.app` is the **test instance** (pilot DB, demo accounts, rc channel) and stays after 1.0.0; `space.himasif.id` will be the **stable instance** with a new DB that starts empty (period 2026/2027), no demo accounts, and new secrets. Download today: <https://space.tiyoouw.app/unduh/windows>. Web today: <https://space.tiyoouw.app>.
+
+Product requirements: [docs/PRD.md](docs/PRD.md) (requirement IDs like `ACC-10`, `NFR-01`), decisions: [docs/decision-register.md](docs/decision-register.md) (the owner's decisions of 25 Nov 2026 toward 1.0.0 are its last section), technical decisions: [docs/adr/](docs/adr), work toward 1.0.0: [docs/implementation-plan.md](docs/implementation-plan.md#menuju-100).
+
+Decisions that are easy to get wrong (details in the register):
+- **Medhum dates and PIC:** the date in a Humas broadcast is the posting date; the design Deadline is posting − 2 days, once. The Mediatek PIC is set by the Mediatek kadiv at the start of the month; a broadcast's `pj med` is matched against it, never used to set it.
+- **Shared ACC (Medhum design tasks only):** one ACC from the content's PJ Humas, a Humas manager (kadiv/45) or a Mediatek manager (kadiv/45, task owner); the PIC never ACCs their own work; who, which side and when is recorded. Enforced on the server.
+- **Bot number:** the Space bot shares Reo's number (Reo = the owner's Hermes agent) with a group allowlist on both sides; groups move to Space one at a time, never served by both. Tests use the "Test" group.
+- **Mobile:** no Flutter; a PWA of the same web build until MyGo supports mobile.
+- **Privacy:** BPH monitors may see NIMs of every division they monitor; the shared admin account may read tasks and meetings (ADR 0002).
+- **Terms:** "Hasil yang diharapkan", "Reminder", "Deadline", "Command", "Ace (Dynamic Island)", "Notulensi" (the notes) and "notulen" (the note-taker) in new text.
 
 Lead developer and maintainer: Ahimsa Jenar Bramsaifstyo Kusuma (Tiyoouw), [@Tiyouw](https://github.com/Tiyouw), <https://tiyoouw.com>.
 
@@ -78,9 +88,9 @@ CI (`.github/workflows/ci.yml`) runs `make fmt vet`, the contributors check, and
 
 - **Language.** UI text, bot messages, commit messages, CHANGELOG, README/CONTRIBUTING and most docs are in **Indonesian**. Code comments, identifiers and this file are in English. Match the surrounding comment density and style.
 - **Commits:** `Area: what changed` in Indonesian, e.g. `Untukku: tes tidak bergantung pada jam saat dijalankan`. One coherent change per commit, tests and docs included.
-- **Branches:** `feat/…`, `fix/…`, `design/…`, `docs/…`, `release/<version>`. Features merge into a `release/…` branch, which merges into `main`.
-- **Versions:** `app/mygo.json` `"version"` and `var version` in `app/main.go` must match. Pre-1.0: patch per update, minor for big updates; pre-releases `X.Y.Z-rc.N`.
-- **Changelogs:** user-visible changes go under the top "Belum dirilis" section of `CHANGELOG.md`. At release, `internal/appui/changelog.json` gets 3–6 short user-facing notes (≤ 600 chars total, they are signed into the update manifest).
+- **Branches:** `feat/…`, `fix/…`, `design/…`, `docs/…`, `chore/…`, `release/<version>`. Features merge into a `release/…` branch, which merges into `main`. Until 1.0.0, open draft PRs against `release/1.0.0`.
+- **Versions:** `app/mygo.json` `"version"` and `var version` in `app/main.go` must match. Pre-1.0: patch per update, minor for big updates; pre-releases `X.Y.Z-rc.N`. Version numbers during development are free; the first stable release is `1.0.0`, fixes after it are `1.0.x`.
+- **Changelogs:** user-visible changes go under the top "Belum dirilis" section of `CHANGELOG.md` (create it above the latest release if it is missing; one line per PR). At release, `internal/appui/changelog.json` gets 3–6 short user-facing notes (≤ 600 chars total, they are signed into the update manifest).
 - **Time:** instants are `timestamptz` (UTC); dates without time use `timeutil.Date`; default zone `Asia/Jakarta`. Tests must not depend on the wall clock or the machine's zone.
 - **IDs:** UUIDv7 from `internal/id`, never derived from titles, rows or deadlines.
 - **Formatting:** `gofmt`; no other linters. Keep dependencies minimal: RAM, CPU and download size are product requirements.
@@ -103,6 +113,7 @@ CI (`.github/workflows/ci.yml`) runs `make fmt vet`, the contributors check, and
 - Don't publish releases, change the update feed, deploy the server, or change GitHub repository settings unless the maintainer explicitly asks. Releasing needs the signing key and is the maintainer's job.
 - Don't push to `main` or merge PRs; open a (draft) PR instead.
 - Don't invent product behaviour that isn't in the PRD or decision register; ask.
+- Don't add Flutter or another mobile frontend, CMS features, or SOP behaviour that runs without an active SOP policy; these were decided against or deferred.
 
 ## How to contribute
 

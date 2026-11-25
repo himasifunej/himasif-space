@@ -1,6 +1,6 @@
 # Register keputusan Space
 
-Tanggal: 27 Oktober 2026, WIB. Dokumen pendamping [PRD](PRD.md). Tujuannya menjaga setiap cabang pembahasan Q1–Q74, terutama keputusan yang berubah selama diskusi.
+Tanggal: 27 Oktober 2026, WIB; diperbarui 25 November 2026 (keputusan menuju 1.0.0, lihat bagian terakhir). Dokumen pendamping [PRD](PRD.md). Tujuannya menjaga setiap cabang pembahasan Q1–Q74, terutama keputusan yang berubah selama diskusi.
 
 Keputusan terakhir pengguna mengalahkan rekomendasi awal asisten. Baris yang menyebut rekomendasi ditolak/diganti tidak menjadi fitur aktif. Pengguna sudah mengonfirmasi rangkuman akhir dan meminta PRD lengkap sebelum implementasi.
 
@@ -96,8 +96,8 @@ Keputusan terakhir pengguna mengalahkan rekomendasi awal asisten. Baris yang men
 9. **Semua anggota melihat Space divisi.** Jobdesk saya bukan satu-satunya tempat kerja pengguna.
 10. **Arsip perlu izin untuk pengurus baru.** Tidak membuka otomatis seluruh data periode sebelumnya.
 11. **Berbagi reminder ke individu.** Jabatan baru tidak mewarisi akses pribadi secara otomatis.
-12. **Flutter sudah dipilih.** Riset pembanding tidak berarti masih perlu persetujuan Capacitor/Compose.
-13. **Windows+web awal.** Web tidak lagi seluruhnya future plan; Flutter tahap berikutnya.
+12. ~~**Flutter sudah dipilih.**~~ **Dicabut 25 Nov 2026 (owner, no. 16):** tanpa Flutter. Mobile memakai PWA dari aplikasi web yang sama sambil menunggu MyGo mendukung mobile (ARC-03 direvisi). Lihat K-16.
+13. **Windows+web awal.** Web tidak lagi seluruhnya future plan. Tahap mobile berikutnya adalah PWA, bukan Flutter (koreksi 12).
 14. **Brand sudah dipilih.** Space/Ace/himasif-space menggantikan semua kandidat nama terdahulu.
 15. **H-2/H-1/H-0 pukul 06.00 WIB.** Jangan membawa bawaan Reo H-1/H-0 atau usulan asisten yang belum dikoreksi.
 16. **Overdue harian dan rekap divisi.** Window tujuh hari dan DM pemilik pada Reo bukan kebijakan baru Space.
@@ -118,6 +118,81 @@ Keputusan terakhir pengguna mengalahkan rekomendasi awal asisten. Baris yang men
 
 Penerapan teknis: [ADR 0002](adr/0002-pemantauan-bph.md).
 
+Tambahan 25 Nov 2026 (K-09): pemantau juga melihat **NIM** anggota semua divisi yang dipantaunya, dan akun admin organisasi bersama boleh **membaca** isi tugas dan rapat semua divisi. Keduanya sudah perilaku kode; keputusan ini mengesahkannya.
+
 ## Status keputusan vs rincian teknis
 
-Seluruh pertanyaan terpetakan; jawaban yang berkembang dibaca bersama koreksi terakhir dan konfirmasi final pengguna. Parameter teknis yang belum dibahas tercatat sebagai `OPEN-01` sampai `OPEN-16` dalam PRD (OPEN-15 ditutup 16 Nov 2026), bukan disisipkan sebagai keputusan terselubung. Tugas saat ini adalah dokumentasi PRD; implementasi aplikasi belum dimulai.
+Seluruh pertanyaan terpetakan; jawaban yang berkembang dibaca bersama koreksi terakhir dan konfirmasi final pengguna. Parameter teknis yang belum dibahas tercatat sebagai `OPEN-01` sampai `OPEN-16` dalam PRD (OPEN-15 ditutup 16 Nov 2026), bukan disisipkan sebagai keputusan terselubung. Paragraf ini ditulis sebelum implementasi (27 Okt 2026); keadaan terbaru ada di bagian di bawah.
+
+## Keputusan owner 25 November 2026 — menuju 1.0.0
+
+Sumber: note enowX "Audit Space" (`5bda2328ea62`) bagian "Keputusan owner (25 Nov)", "putaran kedua" dan "nomor bot", serta rencana kerja (`8d4b128e8a55`). Nomor K-xx mengikuti nomor pertanyaan owner; huruf R menandai putaran kedua dan lanjutan. Baris berlabel **ikut rekomendasi** diputuskan owner dengan menerima rekomendasi yang ditulis di note. Kode yang belum mengikuti keputusan disebut di kolom "Item"; keputusan tidak berarti fiturnya sudah ada.
+
+### Arah rilis
+
+| # | Keputusan | Item | Acuan |
+|---|---|---|---|
+| K-01 | **Stabil** = rilis yang siap dipakai Mediatek, Humas dan BPH, berjalan penuh dan ramah pengguna awal, dengan alur Medhum jalan lintas divisi, sehingga anggotanya bisa diundang. Urutan uji: Mediatek dulu, baru Humas, alur Medhum, dan BPH | F1-24, F1-19, F1-26 | PRD §2.3 |
+| R-01 | **Stabil = 1.0.0**, terbit sebelum pengurus baru mulai, **paling lambat Senin 7 Des 2026**. Nomor versi selama pengembangan bebas (mis. 0.4.6-rc.10, 1.0.0-rc.1). Jadwal: 1.0.0-rc.1 Rab 2 Des, 1.0.0 Sab 5 Des | F1-13 | PRD §2.3, §24.1 |
+| K-01a | **Medhum bukan divisi** (koreksi owner). Medhum adalah alur bersama Mediatek + Humas: Humas merencanakan konten (broadcast) → tugas desain ke PIC Mediatek dengan Deadline → ACC bersama → posting. Space bersama `medhum` tetap model datanya | F1-28 | PRD §3, §9 |
+| K-02 | **Pergantian periode tidak dijalankan di Space.** Periode 2025/2026 dipakai untuk uji pengguna; pergantian pengurus paling lambat 7 Des 2026 | F0-16 | PRD §5 |
+| R-02 | **DB stabil mulai kosong** dengan periode 2026/2027; penguji diundang ulang. Data DB uji tidak dipindah | F1-22, F0-16 | PRD §18 OPS-11 |
+| R-03 | **`tiyoouw.app` dipertahankan sebagai instans uji** (`space.tiyoouw.app`). Akun demo tetap di sana dan **tidak pernah** ada di instans stabil | F1-22, F0-01 | PRD §18 OPS-11, [ADR 0003](adr/0003-instans-dan-sesi-1-0.md) |
+| K-03 | Akun demo pilot belum dirotasi. Risiko dicatat; penutupannya syarat sebelum DB stabil dibuka (tidak ada akun demo, data `[DUMMY]` atau kredensial yang pernah ter-commit di instans stabil) | F0-01, F1-22 | — |
+| K-18 | **Domain stabil `space.himasif.id`**, sementara tetap di tc-vps; migrasi server tahun depan. Menggantikan `app.himasif.id` (Q35) | F1-21 | PRD OPS-01 |
+| R-04 | **DNS himasif.id tetap di IDCloudHost** (akun owner), tidak dipindah ke Cloudflare. Owner menambah record manual lewat cPanel: `CNAME space`, `TXT _cf-custom-hostname.space`, `TXT _acme-challenge.space` (jalur Cloudflare for SaaS) | F1-21 | ADR 0003 |
+
+### Medhum (putaran kedua)
+
+| # | Keputusan | Item | Acuan |
+|---|---|---|---|
+| R-05 | **Deadline desain = tanggal posting − 2 hari.** Tanggal dalam broadcast Humas adalah tanggal posting. Sama dengan kode sekarang; menegaskan koreksi 1 dan MED-01–02 | — | PRD §9.2 |
+| R-06 | **PIC Mediatek ditetapkan kadiv Mediatek di awal bulan**; broadcast mengikuti penetapan itu. `pj med` di broadcast dibaca untuk dicocokkan, bukan untuk menetapkan. Sama dengan kode sekarang; menegaskan koreksi 2 | F1-06, F1-28 | PRD §9.1, WA-16 |
+| R-07 | **ACC desain bersama** (ikut rekomendasi): satu ACC cukup dari salah satu: PJ Humas konten itu, pengelola Humas (kadiv/45), atau pengelola Mediatek (kadiv/45, pemilik tugas). PIC desain tidak boleh meng-ACC karyanya sendiri. "Minta perbaikan" boleh dari orang yang sama dan wajib dengan catatan. Jejak: siapa, dari sisi mana, dan kapan; tampil di konten dan tercatat di riwayat tugas dan audit. Konten baru bisa ditandai diposting setelah ACC. **Mengubah koreksi 3** hanya untuk tugas desain Medhum: di sana tinjauan adalah ACC bersama; tugas lain tetap pencocokan bukti oleh pengelola | F1-28 | PRD §9.4 MED-10–14 |
+| R-08 | **Reo tetap jalan.** Pindah penuh ke Space tidak mendesak (awalnya Reo adalah Hermes milik owner) | F2-16 | PRD §11.2 |
+
+### Nomor bot (25 Nov, lanjutan; menggantikan rekomendasi sebelumnya untuk F1-19/F1-22)
+
+| # | Keputusan | Item | Acuan |
+|---|---|---|---|
+| R-09 | Bot Space **memakai nomor Reo** (Reo = Hermes milik owner). Selama Reo jalan, dua bridge (Hermes dan Space) tertaut ke nomor yang sama sebagai perangkat tertaut (multi-device) | F1-19, F1-22 | PRD BOT-12, ADR 0003 |
+| R-10 | Untuk uji sudah ada **grup Test**; Reo/Hermes sudah dilarang merespons di grup itu | F1-19 | PRD BOT-12 |
+| R-11 | Keduanya wajib memakai **allowlist grup**: Space hanya merespons di grup Test, lalu di grup yang dipindahkan; Reo tidak merespons di grup yang sudah dipindah ke Space. **Cutover per grup**, bukan sekaligus. Dua sistem tidak pernah melayani satu grup bersamaan (OPS-08) | F1-19, F2-16 | PRD BOT-12–13 |
+
+### Operasi dan keamanan
+
+| # | Keputusan | Item | Acuan |
+|---|---|---|---|
+| K-05 | Pemegang akses server, vault dan rilis sekarang hanya owner; diserahkan ke Rahardan atau kadiv Mediatek baru setelah live | F3-08, F0-12 | — |
+| K-06 | **Alarm lewat email** ke owner, lalu Rahardan dan kadiv baru: API mati, backup gagal, disk hampir penuh, bot WA perlu dipasangkan ulang | F0-13 | PRD OPS-13 |
+| K-07 | Repo GitHub boleh diberi aturan `main`, Dependabot dan secret scanning | F0-02 | — |
+| K-09 | **Privasi:** pemantau BPH boleh melihat NIM semua divisi yang dipantaunya; akun admin organisasi bersama boleh membaca isi tugas dan rapat. Kode tidak berubah. Rekomendasi: baca oleh admin diaudit kelak (F2-09), karena akunnya dipakai bergantian | F0-08 | PRD MON-09, ACC-14; [ADR 0002](adr/0002-pemantauan-bph.md) |
+| K-10 | **Retensi pesan WA masuk: 1 hari**, untuk mengejar Command yang terlewat saat server down. Bila tertinggal banyak, bot mengirim satu pesan maaf dan meminta kirim ulang | F1-11 (1.0.x) | PRD OPS-12 |
+| R-12 | **RPO 24 jam** (backup harian 02.00 WIB, ditambah backup sebelum tiap deploy dan migrasi); **RTO 4 jam** sejak owner tahu, antara 07.00–22.00 WIB (di luar itu dimulai pagi berikutnya); **retensi 14 harian + 8 mingguan** di luar tc-vps. Sesi WA tidak termasuk RTO (pairing ulang butuh pemegang HP bot). Bila gladi melebihi 4 jam, langkahnya yang diperbaiki, bukan angkanya. Menutup OPEN-11 | F0-11 | PRD OPS-05 |
+| K-08 | Izin pemantau saat diganti di tengah periode tetap berlaku sampai admin mencabut; karena BPH berganti bersama periode (izin dicabut otomatis), cukup jaring pengaman berprioritas rendah (ikut rekomendasi) | F0-05 | PRD MON-06 |
+
+### Produk
+
+| # | Keputusan | Item | Acuan |
+|---|---|---|---|
+| K-13 | **Istilah baku:** "Hasil yang diharapkan", "Reminder", "Deadline", "Command", "Ace (Dynamic Island)", "Notulensi" untuk hasil catatan rapat, "notulen" untuk orang yang mencatat. Penggantian di seluruh aplikasi menyusul (1.0.x); dokumen baru memakai istilah ini | F1-08 | PRD §3 (istilah baku) |
+| K-14 | **BPH untuk 1.0.0:** kontrol sederhana dan rapat: Pemantauan organisasi, Rapat BPH dan Rapat pengurus, ringkasan mingguan, ping kadiv. Paket BPH lanjutan menjadi future upgrade | F1-26 | PRD §25 |
+| K-15 | **Kebutuhan divisi** digali lewat lima form grill-me (Mediatek, Humas, gabungan Medhum, BPH, Litbang); jawaban tidak menahan 1.0.0. Paling banyak satu modul baru per rilis minor. **Space fokus Reminder dan tidak berperan terhadap CMS** | F2-12 | PRD §25 |
+| K-16 | **Mobile tanpa Flutter.** PWA dari aplikasi web yang sama sambil menunggu MyGo mendukung mobile. Mencabut koreksi 12 dan merevisi ARC-03 | F1-20, F2-14 | PRD ARC-03, ADR 0003 |
+| K-17 | **Litbang belum ikut pilot.** Arahnya deteksi otomatis tanpa manusia (kelak). SOP follow-up H-4 digantikan Reminder Space | F1-25, F2-15 | PRD §17 |
+| R-13 | **Menu SOP disembunyikan sampai Litbang ikut, tetapi disiapkan:** menu Evaluasi SOP, follow-up H-4 dan rekap SOP tidak tampil dan tidak berjalan bila divisi tidak punya kebijakan SOP aktif; admin tetap bisa mengaturnya tanpa rilis baru | F1-25 | PRD §17 EVA-11 |
+| K-04 | **Template broadcast Humas** dari jawaban owner menjadi acuan parser: `N. <konsep>, pj humas @nama, pj med @nama (19 nov) <catatan>`, judul bulan dalam kurung siku, bagian `DADAKAN`, catatan `tanggal = DL` | F1-06 | PRD §10.2 WA-16 |
+| K-11 | **"Tetap masuk di perangkat ini"** di web (ikut rekomendasi): pilihan di layar masuk, bawaan mati; token disimpan di `localStorage` hanya bila dicentang; keluar akun menghapusnya. Merevisi baris penyimpanan token web di ADR 0001 | F2-01, F0-06 | ADR 0003 |
+| K-12 | **Nomor tugas di Command WA** (ikut rekomendasi): `!done T12` dan `#T12` diterima; UUID lama tetap diterima. Untuk 1.0.0 cukup `!done` dan `!cek`. Catatan "tidak dulu" di canvas A tahap 6 dicabut | F2-02 | PRD CMD-07 |
+| K-19 | **Authenticode belum** (ikut rekomendasi). Peringatan SmartScreen saat pemasangan pertama diterima, asal panduan pasang jelas; ditinjau lagi sesudah 1.0.0 | F1-23 | PRD OPS-09 |
+| K-20 | **Note lama ditandai arsip** dengan tautan ke `docs/`, bukan disinkronkan. Repo adalah sumber kebenaran (ikut rekomendasi) | F1-27 | — |
+
+### Yang masih menunggu konfirmasi owner
+
+Rekomendasinya tertulis di note rencana; sampai dijawab, perlakukan sebagai **belum diputuskan**:
+
+- Cloudflare for SaaS tersedia di akun Cloudflare owner? Bila tidak, jalur cadangan `A` ke IP tc-vps butuh keputusan (F1-21).
+- Instans mana yang menautkan nomor bot (R-09) dan apakah instans uji berjalan tanpa bridge setelah stabil dibuka (F1-22).
+- Kesediaan meninjau ±3 PR per hari dan menjalankan uji 3–4 Des; bila tidak, pemangkasan sesuai urutan di note rencana.
+
+Rekomendasi ACC bersama (R-07) dan "bot Space tidak masuk grup yang dilayani Reo" sudah tercakup oleh R-07 dan R-11.

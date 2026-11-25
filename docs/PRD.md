@@ -1,8 +1,8 @@
 # PRD Space — Ruang Kerja HIMASIF
 
-Versi: 1.0  
-Tanggal: 27 Oktober 2026, WIB  
-Status: PRD sebelum implementasi; keputusan produk berasal dari pembahasan Q1–Q74 dan konfirmasi pengguna.  
+Versi: 1.2  
+Tanggal: 27 Oktober 2026, WIB; diperbarui 25 November 2026  
+Status: awalnya PRD sebelum implementasi (Q1–Q74). Sejak 25 Nov 2026 memuat keputusan owner menuju rilis stabil **1.0.0** (lihat §2.3 dan [Register keputusan](decision-register.md), bagian "Keputusan owner 25 November 2026").  
 Pemilik kebutuhan awal: Ahimsa, Kadiv Mediatek HIMASIF.  
 Nama repository yang disepakati: `himasif-space`. Folder kerja saat penyusunan masih bernama `HIMASIF`; dokumen ini tidak mengubahnya atau membuat repository jarak jauh.
 
@@ -44,7 +44,7 @@ ID kebutuhan dipakai sebagai acuan implementasi dan pengujian. [Register keputus
 - Alur Medhum, sinkronisasi spreadsheet/Trello selama transisi, bukti WhatsApp, temuan SOP, rekap mingguan dan evaluasi kuartalan.
 - Backup, spreadsheet darurat, status integrasi, pemulihan dan distribusi aplikasi.
 
-Android menggunakan Flutter dalam tahap tersendiri sesudah fondasi desktop/web dan operasional. iOS merupakan kemungkinan berikutnya, bukan syarat pilot. Pengurus sasaran diwajibkan memasang aplikasi sesuai tahap peluncuran; kewajiban belum berlaku untuk seluruh divisi sebelum fiturnya siap.
+Mobile memakai **PWA** dari aplikasi web yang sama sambil menunggu MyGo mendukung mobile; Flutter tidak dipakai (keputusan owner 25 Nov 2026, K-16, merevisi ARC-03). iOS bukan syarat pilot. Pengurus sasaran diwajibkan memasang aplikasi sesuai tahap peluncuran; kewajiban belum berlaku untuk seluruh divisi sebelum fiturnya siap.
 
 ### 2.2 Ukuran keberhasilan
 
@@ -58,6 +58,15 @@ Android menggunakan Flutter dalam tahap tersendiri sesudah fondasi desktop/web d
 | Efisiensi perangkat | Penggunaan RAM, CPU, baterai, ukuran rilis, dan waktu buka pada perangkat sasaran | Dicatat saat implementasi; tidak mengklaim framework pasti paling ringan |
 
 Baseline keterlambatan, rentang evaluasi keberhasilan, dan target numerik belum tersedia. Ambil baseline pilot sebelum menyatakan ada penurunan keterlambatan. Berkurangnya kebutuhan mengingatkan secara manual adalah manfaat tambahan.
+
+### 2.3 Rilis stabil 1.0.0 (keputusan owner 25 Nov 2026)
+
+- **REL-01 — Disepakati:** rilis **stabil = 1.0.0**: Mediatek, Humas dan BPH berjalan penuh dan ramah pengguna awal, dan **alur Medhum** jalan lintas divisi, sehingga anggota ketiganya bisa diundang. Terbit sebelum pengurus baru mulai, **paling lambat Senin 7 Desember 2026**. Nomor versi selama pengembangan bebas.
+- **REL-02 — Disepakati:** urutan uji pengguna: Mediatek dulu ([skrip](handoff/uji-pengguna-mediatek.md)), lalu Humas dan alur Medhum, lalu BPH ([skrip](handoff/uji-pengguna-bph.md)). 1.0.0 hanya terbit bila ketiga uji lolos.
+- **REL-03 — Disepakati:** instans stabil di **`space.himasif.id`** dengan **DB baru yang mulai kosong** (periode 2026/2027); penguji diundang ulang. `space.tiyoouw.app` tetap menjadi **instans uji**; akun demo hanya ada di sana. Lihat OPS-11 dan [ADR 0003](adr/0003-instans-dan-sesi-1-0.md).
+- **REL-04 — Disepakati:** untuk BPH, 1.0.0 cukup kontrol sederhana dan rapat: Pemantauan organisasi, Rapat BPH dan Rapat pengurus, ringkasan mingguan, dan ping kadiv. Paket BPH lanjutan masuk §25.
+- **REL-05 — Disepakati:** modul SOP bukan syarat 1.0.0; menunya disembunyikan tetapi disiapkan (EVA-11). Litbang belum ikut pilot.
+- **REL-06 — Turunan:** "ramah pengguna awal" berarti anggota baru bisa memasang, masuk, menautkan WA dan menyerahkan tugas pertama hanya dari undangan dan panduan, tanpa dibimbing; peringatan SmartScreen pemasangan pertama diterima asal panduannya jelas (K-19).
 
 ## 3. Istilah produk
 
@@ -77,7 +86,12 @@ Baseline keterlambatan, rentang evaluasi keberhasilan, dan target numerik belum 
 | Bukti penyerahan | Pesan, tautan, identitas pengirim, dan waktu yang dicocokkan ke tahap tugas |
 | Perlu tinjauan | Pencocokan bukti ke tugas belum dipastikan; bukan permintaan revisi desain |
 | Temuan SOP | Dugaan pelanggaran berdasarkan kejadian dan aturan; belum tentu pelanggaran yang disahkan |
-| Reo | Sistem agent/bot lama dan sumber pelajaran operasional; AI Reo bukan ketergantungan rilis Space |
+| Reo | Sistem agent/bot lama dan sumber pelajaran operasional; AI Reo bukan ketergantungan rilis Space. Masih jalan (awalnya Hermes milik owner) dan berbagi nomor dengan bot Space (BOT-12) |
+| Medhum | Alur bersama Mediatek + Humas untuk konten, **bukan divisi** (koreksi owner 25 Nov 2026); dimodelkan sebagai Space bersama |
+| PIC desain | PJ desain Mediatek untuk satu konten, ditetapkan kadiv Mediatek di awal bulan |
+| ACC | Persetujuan desain Medhum sebelum posting; lihat §9.4 |
+
+**Istilah baku (keputusan owner 25 Nov 2026, K-13).** Teks baru di aplikasi, bot dan dokumen memakai: **Hasil yang diharapkan** (bukan "hasil yang diminta"), **Reminder** (bukan "pengingat"), **Deadline** (bukan "tenggat"), **Command** (perintah bot WA), **Ace (Dynamic Island)**, **Notulensi** (hasil catatan rapat) dan **notulen** (orang yang mencatat). Penggantian di seluruh aplikasi dikerjakan di 1.0.x (F1-08); sampai itu, teks lama di aplikasi tetap sah.
 
 ## 4. Akun, keanggotaan dan hak akses
 
@@ -131,6 +145,7 @@ Peninjauan **temuan SOP** mengikuti kewenangan kadiv/Litbang, terpisah dari kema
 - **ACC-11 — Turunan:** pemberi role tidak dapat memberi hak melebihi kewenangannya. Setiap perubahan mencatat pelaku, waktu, ruang lingkup dan nilai sebelum/sesudah.
 - **ACC-12 — Disepakati:** satu akun admin organisasi diteruskan antarperiode, terpisah dari akun pribadi. Saat serah terima, penerus mengganti kredensial/pemulihan dan mengakhiri sesi lama.
 - **ACC-13 — Turunan:** audit tindakan admin mencatat akun admin bersama; sistem tidak mengarang identitas pribadi pelaku di balik kredensial bersama. Catatan serah terima mencatat siapa pengelolanya.
+- **ACC-14 — Disepakati (25 Nov 2026, K-09):** akun admin organisasi bersama boleh **membaca** isi tugas dan rapat semua divisi (kemampuan `space.read`), tetapi tidak mengerjakan tugas, tidak berkomentar dan tidak membaca reminder pribadi atau draf. Pembacaan oleh admin belum diaudit per akses; rekomendasinya diaudit kelak (F2-09) karena akunnya dipakai bergantian.
 
 ### 4.4 Pemantauan organisasi oleh BPH
 
@@ -143,6 +158,7 @@ Keputusan owner 16 November 2026 yang menutup `OPEN-15` untuk pemantauan BPH. BP
 - **MON-05 — Disepakati:** pemantau boleh bertindak: ping kadiv dan menyetujui (meninjau) bukti di tempat kadiv dapat melakukannya. Tindakan ini tercatat sebagai tindakan pemantau.
 - **MON-06 — Disepakati:** izin berlaku per periode dan dicabut otomatis saat periode ditutup.
 - **MON-07 — Turunan:** server satu-satunya penentu; pemantau tidak mengubah, memindah atau mengomentari tugas, tidak menyunting catatan, tidak mengelola anggota/role, dan tidak membuat salinan darurat CSV divisi lain. Izin tidak berlaku lewat command WA atau proses latar.
+- **MON-09 — Disepakati (25 Nov 2026, K-09):** pemantau boleh melihat **NIM** anggota semua divisi yang dipantaunya (bagian dari `members.read`). NIM tetap tidak pernah tampil di halaman publik atau tautan kartu.
 - **MON-08 — Turunan:** ringkasan mingguan (Senin 07.00 WIB, WA/email) hanya dikirim ke pemegang izin pemantauan dan bisa dimatikan per orang; isinya hitungan dan judul, tanpa isi catatan.
 
 ## 5. Periode, arsip dan serah terima
@@ -221,14 +237,16 @@ Jika bukti WA cocok ke tepat satu tugas aktif milik pengirim, penyerahan dapat d
 
 ### 9.1 Tahap dan kepemilikan
 
+Medhum **bukan divisi**: ini alur bersama Mediatek + Humas (koreksi owner 25 Nov 2026). Humas merencanakan konten lewat broadcast → tugas desain ke PIC Mediatek dengan Deadline → ACC bersama (§9.4) → posting.
+
 1. Humas mengelola kalender posting serta konsep/caption.
-2. Kadiv Mediatek menentukan PJ desain; daftar lama dari spreadsheet menjadi data transisi yang dipetakan, bukan pemindahan wewenang ke Humas.
+2. Kadiv Mediatek menentukan PJ desain (PIC) di awal bulan, dan broadcast Humas mengikuti penetapan itu (ditegaskan 25 Nov 2026); daftar lama dari spreadsheet menjadi data transisi yang dipetakan, bukan pemindahan wewenang ke Humas.
 3. Konfirmasi konsep oleh PJ Humas melalui template broadcast dicatat per konten dan PJ.
 4. Tahap penyerahan konsep Humas selesai ketika bukti yang cocok tercatat; tugas follow-up/publikasi Humas masih dapat berjalan.
 5. PJ Mediatek menerima tugas/notifikasi, termasuk jadwal posting dan deadline desain.
 6. Bot Humas mendukung follow-up H-4 di Medhum.
 7. PJ desain mengirim tautan Drive ke Medhum; bot mencatat/mencocokkan bukti dan memberi balasan yang menyebut tinjauan bila diperlukan.
-8. Kadiv/pengelola meninjau kecocokan bukti; tidak perlu status revisi desain dalam produk awal.
+8. Desain Medhum di-ACC bersama sebelum posting (§9.4). Untuk tugas lain, kadiv/pengelola meninjau kecocokan bukti; tidak perlu status revisi desain.
 9. Publikasi tetap pekerjaan Humas dan tidak otomatis dianggap terjadi karena desain telah diserahkan.
 10. Sistem menghasilkan temuan SOP berbukti untuk tinjauan dan evaluasi; tidak mengumumkan keputusan pelanggaran ke Medhum.
 
@@ -265,7 +283,18 @@ Kategori pengecualian dadakan, periode penghitungan batas lima postingan, serta 
 
 - **MED-07 — Disepakati:** bot Humas dapat melakukan follow-up H-4 atas nama PJ konten dengan judul, tag PJ desain dan tautan konsep, serta menyimpan waktu pengiriman.
 - **MED-08 — Disepakati:** penggunaan bot sebagai pemenuhan kewajiban follow-up mengikuti kesepakatan Humas/Litbang; sebelum itu perlakukan sebagai bantuan pengingat PJ. Berhasil mengirim satu pesan tidak membuktikan semua ketentuan SOP telah terpenuhi.
-- **MED-09 — Disepakati:** revisi, final check dan approval mutu desain dapat tercermin dalam notes/bukti manusia; tidak menjadi workflow status revisi wajib pada rilis awal.
+- **MED-09 — Disepakati:** revisi, final check dan approval mutu desain dapat tercermin dalam notes/bukti manusia; tidak menjadi workflow status revisi wajib pada rilis awal. **Diubah 25 Nov 2026** untuk tugas desain Medhum: approval menjadi ACC bersama (§9.4); tetap tanpa status revisi berlapis.
+
+### 9.4 ACC desain bersama (keputusan owner 25 Nov 2026, R-07)
+
+Dalam praktik, desain Medhum dikoreksi bersama: kadang Humas, kadang kadiv yang meng-ACC. Aturan berikut mengikuti rekomendasi yang disetujui owner dan berlaku **hanya untuk tugas desain yang terhubung ke konten Medhum**. Penerapannya di F1-28.
+
+- **MED-10 — Disepakati:** satu ACC cukup, dari salah satu: PJ Humas konten itu, pengelola Humas (kadiv/45), atau pengelola Mediatek (kadiv/45, pemilik tugas).
+- **MED-11 — Disepakati:** PIC desain tidak boleh meng-ACC karyanya sendiri.
+- **MED-12 — Disepakati:** "minta perbaikan" boleh dari orang yang sama dan wajib disertai catatan.
+- **MED-13 — Disepakati:** jejak ACC: siapa, dari sisi mana (Humas/Mediatek), dan kapan; tampil di konten ("ACC oleh … · Humas") dan tercatat di riwayat tugas serta audit.
+- **MED-14 — Disepakati:** konten baru bisa ditandai diposting setelah ACC. Kabar dua sisi: desain diserahkan → PJ Humas dan pengelola Mediatek; lewat Deadline → PIC dan PJ Humas; ACC atau minta perbaikan → PIC; diposting → PIC.
+- **MED-15 — Turunan:** izin ACC sisi Humas ditegakkan di server dan tidak membuka tugas Mediatek lain bagi Humas.
 
 ## 10. Bot WhatsApp tanpa AI
 
@@ -282,6 +311,9 @@ Kategori pengecualian dadakan, periode penghitungan batas lima postingan, serta 
 - **BOT-09 — Turunan:** pengiriman menggunakan antrean dan identitas kejadian yang stabil agar retry/restart tidak mengirim pesan berulang tanpa batas. Status tidak diketahui dibedakan dari gagal sebelum terkirim.
 - **BOT-10 — Turunan:** proses hanya pesan dari grup/pengirim yang relevan dan terhubung ke anggota. Identitas akun chat, bukan teks nama dalam pesan, menjadi dasar wewenang command.
 - **BOT-11 — Turunan:** pengelolaan koneksi WA oleh 45 tidak memberi akses ke pengaturan role/akses Space; session credentials tidak disajikan sebagai data yang bisa diunduh anggota.
+- **BOT-12 — Disepakati (25 Nov 2026, R-09–R-11):** bot Space **memakai nomor Reo** (Hermes milik owner). Selama Reo jalan, bridge Hermes dan bridge Space tertaut ke nomor yang sama sebagai perangkat tertaut. Uji dilakukan di **grup Test**, tempat Reo sudah dilarang merespons.
+- **BOT-13 — Disepakati:** keduanya memakai **allowlist grup**: Space hanya merespons di grup yang dipetakan (awalnya grup Test, lalu grup yang dipindahkan); Reo tidak merespons di grup yang sudah dipindah. **Cutover per grup**, tidak sekaligus; satu grup tidak pernah dilayani dua sistem (OPS-08). Di sisi Space, pemetaan grup sudah diterapkan sebagai allowlist di bridge (`syncWABridgeGroups`); allowlist di sisi Hermes adalah konfigurasi Hermes, di luar repo ini.
+- **BOT-14 — Turunan:** selama Reo masih melayani grup Medhum, Space tidak mengirim Reminder Medhum ke grup itu; Reminder Medhum dari Space lewat aplikasi dan pesan pribadi (F1-28, F1-19).
 
 ### 10.2 Broadcast konsep Humas
 
@@ -294,6 +326,7 @@ Template contoh pengguna berisi salam bulan, daftar bernomor dengan judul, PJ Hu
 - **WA-05 — Turunan:** simpan ID pesan, pengirim, waktu asli kejadian, waktu diterima server, teks relevan, referensi grup/konten dan versi parser. Pemrosesan ulang pesan yang sama harus idempoten.
 - **WA-06 — Turunan:** item yang tidak dapat dicocokkan masuk antrean tinjauan; jangan menandai tugas lain selesai karena judul mirip atau nama tampilan sama.
 - **WA-07 — Turunan:** edit/hapus pesan dan perubahan tanggal disimpan sebagai perubahan bukti, bukan alasan untuk menghapus riwayat atau mereset waktu pertama otomatis. Dampaknya terhadap temuan ditinjau manusia.
+- **WA-16 — Disepakati (25 Nov 2026, K-04):** template nyata Humas menulis satu butir per baris: `N. <konsep>, pj humas @nama, pj med @nama (19 nov) <catatan warna>`, dengan judul bulan dalam kurung siku, bagian `DADAKAN`, dan catatan `tanggal = DL`. Tanggal dalam kurung adalah **tanggal posting**; Deadline desain dihitung posting − 2 hari (MED-02). `pj med` dibaca untuk **dicocokkan** dengan PIC yang ditetapkan kadiv Mediatek, bukan untuk menetapkannya; bila berbeda atau PIC belum ditetapkan, butir masuk tinjauan kadiv Mediatek. Parser sebelum F1-06 belum membaca bentuk ini.
 - **WA-08 — Turunan:** bot dapat memproses beberapa item dalam satu broadcast dan melaporkan hasil per item; kegagalan satu item tidak membuat item lain diam-diam diabaikan.
 
 ### 10.3 Tautan Drive tanpa kewajiban ID
@@ -325,6 +358,7 @@ Template contoh pengguna berisi salam bulan, daftar bernomor dengan judul, PJ Hu
 - **CMD-04 — Turunan:** command dan parser boleh punya alias terstruktur; tidak menjanjikan semua percakapan bebas yang dahulu ditangani agent Reo dapat dimengerti bot baru.
 - **CMD-05 — Turunan:** @mention memakai metadata mention WA, bukan sekadar menulis teks `@nomor`. Pemetaan nama/nomor/identitas chat harus benar; identitas WA internal tidak dianggap nomor telepon secara sembarang.
 - **CMD-06 — Turunan:** penyelesaian tugas melalui `!done` terpisah dari mark temuan/pelanggaran. Koreksi atribusi dan temuan pada tugas selesai tetap tercatat.
+- **CMD-07 — Disepakati (25 Nov 2026, K-12):** nomor tugas pendek: `T12` dan `#T12` diterima di `!cek`, `!done`, `!bantu` dan `!delegasi`, dan `!tugas` menampilkannya; UUID lama tetap diterima. Untuk 1.0.0 cukup `!done` dan `!cek` (F2-02). Nomor unik per Space; bila grup terhubung ke lebih dari satu Space, nomor tanpa awalan ditolak.
 
 ## 11. Integrasi spreadsheet, Trello dan migrasi
 
@@ -363,6 +397,8 @@ Dokumen [Reo — handoff](#27-sumber-dan-urutan-acuan) merupakan referensi opera
 - Kalender yang belum diisi, konsep yang baru muncul setelah tenggat dan pesan yang hilang harus terlihat sebagai masalah data/operasi, bukan kegagalan anggota otomatis.
 - Kebijakan bahasa Madura dari grup Reo bisa menjadi preset per divisi; bukan default wajib seluruh organisasi.
 - Reminder tahunan yang ada di data lama tidak boleh terhapus permanen hanya karena satu kejadian ditandai selesai. Fitur ulang tahun/recurrence lanjutan harus menjaga identitas kejadian dan seri.
+
+**Keadaan 25 Nov 2026 (R-08):** Reo masih jalan dan boleh terus; pindah penuh ke Space tidak mendesak (F2-16). Keduanya berbagi nomor bot dengan allowlist grup dan cutover per grup (BOT-12–13).
 
 Perbedaan yang memang disepakati untuk Space: reminder H-2/H-1/H-0, overdue harian sampai ditutup, ringkasan ke grup divisi masing-masing, bot tanpa AI, dan temuan otomatis yang masih perlu tinjauan. Batas overdue tujuh hari serta rekap DM pemilik dari Reo bukan aturan rilis baru.
 
@@ -468,6 +504,7 @@ Konteks “seperti pet ChatGPT” adalah inspirasi interaksi untuk aplikasi Spac
 - **EVA-07 — Turunan:** konsep belum tersedia, pesan tidak tertangkap, jam posting belum ada, follow-up tidak terbukti atau sumber gagal menghasilkan kondisi **bukti belum cukup**, bukan otomatis salah satu divisi melanggar.
 - **EVA-08 — Turunan:** perubahan jadwal/perjanjian, pengecualian SOP, salah pasangan bukti, serta ralat atribusi dapat menimbulkan koreksi terjejak. Laporan menggunakan keputusan terbaru tanpa menghapus riwayat.
 - **EVA-09 — Turunan:** jangan menulis temuan otomatis sebagai pelanggaran final ke kolom manual/VIOL_LOG Reo. Bila migrasi memerlukan penulisan ke sistem lama, keputusan manusia dan audit harus konsisten melalui jalur yang terdokumentasi.
+- **EVA-11 — Disepakati (25 Nov 2026, K-17, R-13):** Litbang belum ikut pilot; SOP follow-up H-4 digantikan Reminder Space. Menu Evaluasi SOP, follow-up H-4 dan rekap SOP **disembunyikan dan tidak berjalan** bila divisi tidak punya kebijakan SOP aktif, tetapi **disiapkan**: admin organisasi tetap bisa mengatur kebijakan tanpa rilis baru dan tes mesin SOP tetap berjalan di CI. Arah kelak: deteksi otomatis tanpa manusia, dirinci bersama Litbang. Langkah menyalakan: [handoff SOP](handoff/sop-workflows.md).
 - **EVA-10 — Turunan:** laporan dapat difilter per periode, rentang waktu, divisi, orang, aturan dan status. Jadwal rekap serta batas quarter adalah konfigurasi eksplisit; tidak diam-diam memakai definisi kuartal yang belum disepakati.
 
 ## 18. Backup, akses alternatif dan operasi
@@ -481,16 +518,19 @@ Konteks “seperti pet ChatGPT” adalah inspirasi interaksi untuk aplikasi Spac
 | Bot WA terputus | Aplikasi/web tetap bisa mengelola tugas dan melihat kegagalan kanal | Pengiriman WA belum dianggap berhasil |
 | Spreadsheet/Trello gagal diakses | Data baik terakhir dan status sumber usang | Tidak menghapus tugas atau membuat temuan tanpa bukti |
 
-- **OPS-01 — Disepakati:** sediakan web sederhana untuk login, tugas, pembaruan status dan notes; manfaatkan `app.himasif.id` sementara. Ini klien dari backend yang sama.
+- **OPS-01 — Disepakati:** sediakan web sederhana untuk login, tugas, pembaruan status dan notes. Ini klien dari backend yang sama. **Domain stabil: `space.himasif.id`** (keputusan owner 25 Nov 2026, K-18, menggantikan `app.himasif.id`), sementara tetap di tc-vps. DNS himasif.id tetap di IDCloudHost; record ditambah manual oleh owner (F1-21).
 - **OPS-02 — Disepakati:** backup database otomatis disimpan pada lokasi terpisah dan pemulihannya diuji. Cakupan mencakup tugas, keanggotaan/akses, notes, bukti, konfigurasi bot, keputusan dan audit, serta lampiran yang disimpan Space.
 - **OPS-03 — Disepakati:** spreadsheet darurat memuat salinan tugas/status terakhir dan waktu sinkronisasi. Saat gangguan dapat dibaca; perubahan darurat dicatat untuk rekonsiliasi, bukan membiarkan dua sumber bebas menimpa setelah pulih.
 - **OPS-04 — Turunan:** tautan Drive/Trello tidak menjamin isi eksternal ikut ter-backup. Dokumentasikan apakah salinan lampiran benar-benar dimiliki Space atau hanya tautan; kebijakan sesi WA/secrets disimpan terpisah dan terbatas.
-- **OPS-05 — Turunan:** tentukan frekuensi, retensi, lokasi dan pemilik pemulihan sebelum pilot dengan data nyata. Uji restore harus memeriksa konsistensi referensi dan tidak langsung menjalankan semua reminder lama.
+- **OPS-05 — Turunan:** tentukan frekuensi, retensi, lokasi dan pemilik pemulihan sebelum pilot dengan data nyata. **Ditetapkan 25 Nov 2026 (R-12):** RPO 24 jam (backup harian 02.00 WIB ditambah backup sebelum tiap deploy dan migrasi); RTO 4 jam sejak owner tahu, antara 07.00–22.00 WIB; retensi 14 harian + 8 mingguan di luar tc-vps; pemilik pemulihan: owner (K-05). Sesi WA tidak termasuk RTO. Uji restore harus memeriksa konsistensi referensi dan tidak langsung menjalankan semua reminder lama.
 - **OPS-06 — Turunan:** ada pencatatan kesehatan API, database, scheduler, antrean, konektor dan tiap sesi WA. Kesalahan satu kanal terlihat tanpa membocorkan kredensial atau isi privat ke log umum.
 - **OPS-07 — Turunan:** retry WA tidak berupa restart beruntun tanpa batas. Recovery mengikuti status koneksi sebenarnya; peristiwa tak tertangkap dapat dicatat ulang/manual dengan asal bukti yang jelas.
 - **OPS-08 — Turunan:** migrasi dari Reo membutuhkan mode pemeriksaan sebelum cutover, penanggung jawab setiap sumber, pengalihan scheduler satu kali, dan jalur rollback. Dua sistem tidak mengirim reminder produksi identik bersamaan.
 - **OPS-09 — Turunan:** distribusi/update desktop memiliki versi yang dapat dikenali dan jalan pemulihan bila update gagal. Mekanisme installer, signing dan auto-update ditentukan pada sesi distribusi.
 - **OPS-10 — Turunan:** perubahan konfigurasi atau data live lama tidak dilakukan hanya karena PRD sudah selesai; pelaksanaan mengikuti sesi implementasi dan akses nyata yang tersedia.
+- **OPS-11 — Disepakati (25 Nov 2026, R-02, R-03):** dua instans: **uji** (`space.tiyoouw.app`, DB uji 2025/2026, akun demo) dan **stabil** (`space.himasif.id`, DB baru mulai kosong dengan periode 2026/2027, rahasia baru). Sebelum stabil dibuka: tidak ada akun demo, data `[DUMMY]` atau kredensial yang pernah ter-commit; gladi pulih lolos; alarm aktif. Data penguji tidak dipindah.
+- **OPS-12 — Disepakati (K-10):** pesan WA masuk disimpan **1 hari** untuk mengejar Command yang terlewat saat server down; bila tertinggal banyak, bot mengirim satu pesan maaf dan meminta kirim ulang (1.0.x, F1-11).
+- **OPS-13 — Disepakati (K-06):** alarm lewat **email** ke owner (kemudian Rahardan dan kadiv Mediatek baru): API mati (dicek dari luar host), backup tidak datang, disk di atas 85%; pairing WA menyusul. Email alarm tidak bergantung pada server yang dipantau (F0-13).
 
 ## 19. Struktur pengalaman pengguna dan branding
 
@@ -525,7 +565,7 @@ Tata letak final bukan keputusan PRD. Struktur ini tidak memaksa pengguna membuk
 flowchart LR
     D[Windows: MyGo + frontend web] --> G[Backend Go / API]
     W[Web: app.himasif.id] --> G
-    F[Mobile: Flutter, tahap berikutnya] --> G
+    F[Mobile: PWA dari web yang sama] --> G
     G --> DB[(Database utama)]
     G --> J[Penjadwal + antrean pengiriman]
     J --> B[Bridge Node.js + Baileys]
@@ -538,7 +578,7 @@ flowchart LR
 
 - **ARC-01 — Disepakati:** backend/domain logic menggunakan Go. Desktop menggunakan MyGo dengan frontend web yang dapat berbagi tampilan dengan web.
 - **ARC-02 — Disepakati:** Baileys tetap layanan Node.js di server, terhubung ke backend Go. Tidak harus semua komponen ditulis Go.
-- **ARC-03 — Disepakati:** Flutter untuk Android dan kemungkinan iOS; merupakan frontend mobile tersendiri dengan API/backend yang sama. Capacitor/Compose bukan pilihan mobile final.
+- **ARC-03 — Direvisi 25 Nov 2026 (K-16):** ~~Flutter untuk Android dan kemungkinan iOS~~. Mobile memakai **PWA** dari aplikasi web MyGo yang sama (API/backend sama) sambil menunggu MyGo mendukung mobile (F1-20, F2-14). Tidak ada frontend Flutter. ARC-04, ARC-07 dan ARC-08 di bawah adalah catatan historis untuk Flutter dan tidak berlaku sampai ada keputusan mobile native baru.
 - **ARC-04 — Disepakati:** Android tidak mensyaratkan Mac/Xcode. Build iOS kelak memerlukan toolchain macOS/Xcode, bisa memakai mesin jarak jauh/CI; bukan kewajiban membeli Mac sekarang. [Flutter Android](https://docs.flutter.dev/platform-integration/android/setup), [Flutter iOS](https://docs.flutter.dev/deployment/ios).
 - **ARC-05 — Turunan:** otorisasi, perhitungan tanggal, penyerahan, evaluasi dan audit mempunyai sumber utama di server agar hasil konsisten di desktop/web/mobile/WA.
 - **ARC-06 — Turunan:** klien memakai API untuk data; database server dan secrets bot tidak disambungkan langsung ke frontend. Komunikasi bridge memiliki autentikasi internal dan ID kejadian.
@@ -709,7 +749,7 @@ Urutan yang disepakati, bukan janji satu tahap selalu selesai dalam satu sesi:
 3. **Desktop:** tray, notifikasi Windows, suara, Ace dan offline.
 4. **Medhum/bot:** konektor Sheets/Trello, bot WA, pencocokan broadcast/Drive, temuan dan evaluasi SOP.
 5. **Operasional:** backup/restore lengkap, distribusi dan uji bersama Mediatek–Humas.
-6. **Mobile:** Flutter Android, kemudian pertimbangan iOS.
+6. **Mobile:** ~~Flutter Android~~ PWA dari web yang sama (K-16), lalu MyGo mobile bila tersedia.
 
 Web sederhana berjalan bersama tahap 1–2. Backup dasar dimulai sejak ada data nyata, tidak menunggu tahap 5. Brand/logo/Ace dan UX dirancang di sesi awal yang sesuai sebelum aset dipakai untuk distribusi.
 
@@ -726,26 +766,36 @@ Pilot operasional lengkap baru dinyatakan siap ketika fondasi, pekerjaan, pengin
 
 Rincian pekerjaan, keluaran dan handoff tiap sesi ada pada [Rencana implementasi](implementation-plan.md).
 
+### 24.1 Jalan ke 1.0.0 (25 Nov – 7 Des 2026)
+
+Urutan tahap di atas adalah sejarah. Sejak 25 Nov 2026 pekerjaan mengikuti daftar "Wajib 1.0.0" di [Rencana implementasi](implementation-plan.md#menuju-100) dan note rencana owner. Gerbang 1.0.0 (REL-01–06):
+
+- Mediatek, Humas dan BPH berjalan penuh; alur Medhum (broadcast → desain → ACC bersama → posting) jalan lintas divisi.
+- Uji pengguna Mediatek, Humas + alur Medhum, dan BPH lolos.
+- Instans stabil `space.himasif.id` dengan DB kosong (OPS-11), gladi pulih lolos (OPS-05), alarm aktif (OPS-13).
+- Rilis `v1.0.0` dengan `stable.json` di kanal Stabil; perbaikan sesudahnya lewat 1.0.x.
+
 ## 25. Kebutuhan lanjutan yang tidak boleh hilang
 
 | Area | Kebutuhan yang dipertahankan | Status |
 |---|---|---|
 | App-only | Kalender, konsep/caption dan board kerja menggantikan Trello/ketergantungan sheet | Arah migrasi disepakati; desain authoring dirinci setelah transisi stabil |
 | AI | Reo/AI membaca/memperbarui tugas, mengekstrak notulensi atau membantu percakapan | Future plan; rilis awal tidak bergantung AI |
-| Android | Flutter, efisiensi idle/HP kelas bawah, akun/backend yang sama | Tahap 6 |
-| iOS | Memakai Flutter dengan build macOS/Xcode lokal/remote dan uji perangkat | Setelah Android, belum komitmen rilis |
+| Mobile | PWA dari web yang sama (1.0.x), lalu MyGo mobile bila tersedia; efisiensi idle/HP kelas bawah, akun/backend yang sama. Flutter tidak dipakai (K-16) | PWA di 1.0.x; native menunggu MyGo |
 | Mediatek Desain | Medhum dan reminder jobdesk | Pilot |
-| Mediatek Tekno | CMS/integrasi himasif.id dan database/konten web | Lanjutan; akses/API/model data belum ditentukan |
+| Mediatek Tekno | CMS/integrasi himasif.id dan database/konten web | **Tidak**: Space fokus Reminder dan tidak berperan terhadap CMS (K-15) |
 | Mediatek Video | Delegasi foto/video profil dan demo | Cukup tugas umum dahulu; tidak memerlukan editor video/modul khusus |
 | Humas | Medhum dan ulang tahun | Medhum pilot; ulang tahun/seri pengingat dirinci kemudian |
-| Litbang | Medhum, SOP, evaluasi dan kebutuhan lain TBC | Evaluasi Medhum pilot; kebutuhan lain belum dirinci |
+| Litbang | Medhum, SOP, evaluasi dan kebutuhan lain TBC | Belum ikut pilot (K-17); menu SOP disembunyikan tetapi disiapkan (EVA-11). Arah kelak: deteksi otomatis |
 | Kader | Love Letter/LL, ulang tahun dan kebutuhan lain TBC | Lanjutan |
 | PSDM | Fitur khusus masih TBC | Lanjutan; memakai fondasi tugas/notes/rapat saat diperluas |
-| BPH | Pemantauan dan timeline rapat; kebutuhan lain TBC | MVP pemantauan (MON-01–08): izin `org.monitor`, dashboard, Rapat BPH dan timeline rapat lintas divisi, ringkasan mingguan, ping kadiv dan persetujuan bukti. Menyusul: persetujuan proker/LPJ, keuangan Bendahara, surat bernomor/absensi Sekretaris, eskalasi otomatis |
+| BPH | Pemantauan dan timeline rapat; kebutuhan lain TBC | 1.0.0: kontrol sederhana dan rapat (REL-04). MVP pemantauan (MON-01–09): izin `org.monitor`, dashboard, Rapat BPH dan timeline rapat lintas divisi, ringkasan mingguan, ping kadiv dan persetujuan bukti. Menyusul: persetujuan proker/LPJ, keuangan Bendahara, surat bernomor/absensi Sekretaris, eskalasi otomatis |
 | Branding | Logo tetap, Ace default, aset pengenalan lintas periode | Nama disepakati; desain aset belum dibuat |
 | Maskot | Editor animasi lengkap atau perilaku lebih kompleks | Lanjutan; impor sederhana lebih dahulu |
 | Notes | Kolaborasi edit simultan setara editor multiuser penuh | Bukan syarat awal; satu editor lebih dahulu |
 | Dokumen organisasi | Referensi AD/ART, GBHO/GBHK dan dokumen lain | Konteks; bukan instruksi membangun pemilu, keuangan atau semua modul organisasi sekarang |
+
+Kebutuhan baru divisi digali lewat form grill-me per divisi (K-15) dan tidak menahan 1.0.0; paling banyak satu modul baru per rilis minor.
 
 Jangan memasukkan AI, konversi penuh sistem pemilu, modul semua divisi atau editor animasi lengkap ke pilot hanya karena sumber konteks menyebutnya. Sebaliknya jangan menghapus kebutuhan lanjutan ini dari roadmap.
 
@@ -757,17 +807,17 @@ Bagian ini bukan permintaan konfirmasi tambahan sebelum PRD selesai. Rincian ber
 |---|---|---|
 | OPEN-01 | Bentuk logo/Ace, palet, tipografi, layout dan format/batas aset | Desain awal dan sesi desktop |
 | OPEN-02 | Framework frontend, database, auth/password atau metode lain, queue, cache, storage dan API | Rancangan teknis fondasi |
-| OPEN-03 | Domain/DNS, server yang dipakai, kredensial email/Google/Trello/WA, kapasitas dan biaya aktual | Sebelum integrasi/deploy terkait; periksa lingkungan terlebih dahulu |
+| OPEN-03 | Domain/DNS (stabil `space.himasif.id` diputuskan 25 Nov 2026, OPS-01), server yang dipakai, kredensial email/Google/Trello/WA, kapasitas dan biaya aktual | Sebelum integrasi/deploy terkait; periksa lingkungan terlebih dahulu |
 | OPEN-04 | Jam posting/default cutoff desain untuk data date-only; makna hari vs jam untuk aturan khusus | Sebelum scheduler Medhum/SOP aktif |
 | OPEN-05 | Jam follow-up H-4, pemenuhan SOP lewat bot, pengecualian dadakan dan periode batas lima | Konfigurasi Medhum dengan Humas/Litbang |
 | OPEN-06 | Pihak pengesah akhir temuan lintas divisi, kewenangan Litbang rinci, batas quarter dan slot rekap mingguan | Sebelum laporan/evaluasi produksi |
 | OPEN-07 | Interval fetch, kolom mirror spesifik, pemetaan PJ desain, prioritas konflik eksternal dan cutover per bidang | Sebelum konektor menulis data nyata |
-| OPEN-08 | Template WA aktual/variasi, pemetaan nomor, beberapa pesan serupa, command/alias final | Sesi parser dan bot menggunakan sampel nyata |
+| OPEN-08 | Template WA aktual/variasi (bentuk dasar ditetapkan di WA-16; variasi bulan lain menunggu contoh dari Humas), pemetaan nomor, beberapa pesan serupa, command/alias final | Sesi parser dan bot menggunakan sampel nyata |
 | OPEN-09 | Snooze bawaan, pengelompokan catch-up, konflik yang memerlukan kadiv, lampiran offline | Sesi pekerjaan/offline/reminder |
 | OPEN-10 | Ukuran/retensi cache, umur undangan, retensi bukti/media, format ekspor laporan | Sebelum menyimpan data produksi yang terkait |
-| OPEN-11 | Frekuensi/retensi backup, pemilik restore, target kehilangan data/waktu pulih | Sebelum pilot dengan data nyata |
+| ~~OPEN-11~~ | **Ditutup 25 Nov 2026**: RPO/RTO dan retensi di OPS-05 (R-12); dibuktikan lewat gladi pulih (F0-11) | — |
 | OPEN-12 | Profil perangkat rendah, dataset uji, target RAM/CPU/baterai/ukuran/latensi | Sebelum menyatakan pilot memenuhi performa |
-| OPEN-13 | Installer, signing, pembaruan, rollback versi dan integrasi toast Windows | Sesi desktop/distribusi |
+| OPEN-13 | Installer, signing (Authenticode: belum, ditinjau sesudah 1.0.0, K-19), pembaruan, rollback versi dan integrasi toast Windows | Sesi desktop/distribusi |
 | OPEN-14 | Recurrence/ulang tahun, authoring pengganti Trello, CMS dan fitur TBC divisi | Sesi kebutuhan lanjutan masing-masing |
 | ~~OPEN-15~~ | **Ditutup 16 Nov 2026** untuk pemantauan BPH: keputusan owner MON-01–08 (§4.4). Rincian lain yang tadinya ikut di baris ini dipindah ke OPEN-16 | — |
 | OPEN-16 | Akses role khusus pendamping dan laporan pribadi yang lebih rinci (sisa OPEN-15) | Matriks izin implementasi; default tidak membuka data privat |
@@ -793,7 +843,8 @@ Sumber konteks:
 - Screenshot template broadcast Humas: pengiriman ulang daftar, kedua PJ, tanggal posting berlabel DL, gaya/warna dan bagian dadakan.
 - Screenshot panel Wispr Flow: referensi perilaku Ace mengintip dari tepi layar.
 - [Dokumentasi MyGo](https://mygo.egoist.dev/docs), [repository MyGo](https://github.com/egoist/mygo), [Baileys](https://github.com/WhiskeySockets/Baileys).
-- [Riset Android](research/android-options.md): dasar keputusan Flutter dan keterbatasan bukti efisiensi; pilihan sudah disepakati, bukan masih terbuka.
+- [Riset Android](research/android-options.md): dasar keputusan Flutter yang **dicabut** 25 Nov 2026 (K-16); disimpan sebagai riwayat.
+- Note enowX **Audit Space** (`5bda2328ea62`) dan **Audit Space — Rencana** (`8d4b128e8a55`): keputusan owner 25 Nov 2026 dan rencana menuju 1.0.0.
 
 ### Riwayat dokumen
 
@@ -801,3 +852,4 @@ Sumber konteks:
 |---|---|
 | 1.0 | Sintesis lengkap Q1–Q74, klarifikasi tanggal/role/tinjauan, scope pilot/lanjutan, penerimaan dan rencana sesi; belum implementasi |
 | 1.1 | 16 Nov 2026: keputusan owner atas OPEN-15 untuk pemantauan BPH (§4.4 MON-01–08); OPEN-15 ditutup, sisanya menjadi OPEN-16 |
+| 1.2 | 25 Nov 2026: keputusan owner menuju 1.0.0: §2.3 REL-01–06, istilah baku dan Medhum bukan divisi (§3), ACC-14, MON-09, ACC bersama (§9.4 MED-10–15), WA-16, BOT-12–14, CMD-07, EVA-11, OPS-01/05 diperbarui, OPS-11–13, ARC-03 direvisi (PWA, tanpa Flutter), §24.1, §25; OPEN-11 ditutup |

@@ -124,8 +124,11 @@ type Member struct {
 	// this period. The number itself is never sent. Absent (nil) from a
 	// server that predates it, and from single-member responses.
 	WhatsAppLinked *bool `json:"whatsappLinked,omitempty"`
-	// NIM is the member's student number, for the division's members and
-	// the admin (owner decision 10 Nov 2026). It is never on a public page.
+	// NIM is the member's student number, sent to whoever may read the
+	// division's members: its members and the admin (owner decision 10 Nov
+	// 2026), and a BPH monitor with org.monitor, for every division they
+	// monitor (owner decision no. 9, 25 Nov 2026; PRD MON-09, ADR 0002).
+	// It is never on a public page or a card link.
 	NIM string `json:"nim,omitempty"`
 }
 
