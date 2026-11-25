@@ -1,0 +1,30 @@
+# Line endings: LF in the repository and in every checkout, Windows included,
+# so gofmt, the generated-file checks (quicknav_settings_gen.go) and the
+# scripts behave the same on every machine. Without this, Git for Windows
+# (core.autocrlf=true) checks Go files out with CRLF and `make check` fails.
+* text=auto eol=lf
+
+# Windows-only scripts keep CRLF, which PowerShell and cmd expect.
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary assets: never converted or diffed as text.
+*.png   binary
+*.gif   binary
+*.jpg   binary
+*.jpeg  binary
+*.webp  binary
+*.ico   binary
+*.ttf   binary
+*.otf   binary
+*.woff  binary
+*.woff2 binary
+*.wasm  binary
+*.gz    binary
+*.zip   binary
+*.exe   binary
+*.mp3   binary
+*.mp4   binary
+*.wav   binary
+*.ogg   binary

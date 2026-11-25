@@ -34,6 +34,9 @@ func TestQuicknavSettingsIndexUpToDate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// A Windows checkout made before .gitattributes (or with autocrlf and
+	// no attributes) has CRLF; the content is what must match.
+	got = bytes.ReplaceAll(got, []byte("\r\n"), []byte("\n"))
 	if !bytes.Equal(got, want) {
 		t.Fatal("quicknav_settings_gen.go is stale: run go generate ./internal/appui")
 	}
