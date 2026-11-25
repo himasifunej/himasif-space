@@ -194,6 +194,8 @@ var settingsSearchItems = []settingsSearchItem{
 	{"Ringkasan mingguan", "Nyalakan ringkasan mingguan", "Pengaturan", "button", ""},
 	{"Ringkasan mingguan", "Kirim lewat", "Pengaturan", "heading", ""},
 	{"Ringkasan mingguan", "Pratinjau minggu lalu", "Pratinjau minggu lalu", "section", ""},
+	{"Evaluasi SOP", "Evaluasi SOP", "Evaluasi SOP", "section", ""},
+	{"Evaluasi SOP", "Buka Evaluasi SOP", "Evaluasi SOP", "button", ""},
 	{"Space", "Identitas space", "Identitas space", "section", ""},
 	{"Space", "Space", "Space", "section", ""},
 	{"Space", "Nama", "Space", "field", ""},

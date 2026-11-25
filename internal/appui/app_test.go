@@ -467,12 +467,13 @@ func TestPages(t *testing.T) {
 	h := newHarness(t, f, "tok")
 	h.app.Start()
 	h.settle()
+	// Evaluasi SOP is hidden without an active SOP policy (PRD EVA-11).
+	h.dontWant("Evaluasi SOP")
 	for _, tc := range []struct {
 		item, want string
 		profile    bool
 	}{
 		{"Semua pengingat", "Reminder belum dapat dimuat", false},
-		{"Evaluasi SOP", "Layanan evaluasi SOP belum tersedia.", false},
 		{"Arsip", "Periode yang ditutup menjadi hanya-baca. Pengurus baru perlu izin kadiv periode aktif.", false},
 		{"Space saya", "Layanan akses Space belum tersedia.", false},
 	} {

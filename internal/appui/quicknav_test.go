@@ -44,6 +44,8 @@ func TestQuicknavSettingsIndexUpToDate(t *testing.T) {
 	// A monitor of BPH also has Ringkasan mingguan.
 	pid := id.New()
 	monitor := &App{periodID: pid, periods: []api.Period{{ID: pid, Monitor: true}}}
+	// One who may configure an SOP policy also has Evaluasi SOP.
+	monitor.sopMenu = sopMenuState{period: pid, loaded: true, configure: true}
 	for _, g := range monitor.settingsGroups() {
 		for _, e := range g.entries {
 			keys[e.key] = true

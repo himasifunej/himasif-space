@@ -225,6 +225,7 @@ func (a *App) loadSOPScope() {
 				return
 			}
 			st.policy = policy
+			a.noteSOPPolicy(did, policy.Enabled)
 			st.people = people
 			st.contents = contents
 			st.grants = grants

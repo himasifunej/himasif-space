@@ -1,5 +1,40 @@
 # Worker, keputusan dan laporan SOP — checkpoint 29 Oktober 2026
 
+## Pembaruan 25 November 2026: SOP disembunyikan, tetapi siap (F1-25)
+
+Keputusan owner (register K-17 dan R-13, PRD EVA-11): **Litbang belum ikut pilot**, SOP follow-up H-4 digantikan Reminder Space, dan modul SOP **bukan syarat 1.0.0**. Menu SOP disembunyikan sampai Litbang ikut, tetapi disiapkan.
+
+### Yang disembunyikan dan tidak berjalan
+
+Aturannya satu: **tampil dan berjalan hanya bila ada kebijakan SOP yang `Enabled`** ("Otomatisasi aktif") untuk divisi periode itu.
+
+| Bagian | Tanpa kebijakan aktif | Di kode |
+|---|---|---|
+| Menu Evaluasi SOP di sidebar, Lainnya (layar sempit), Ctrl K, dan tombol "Buka Evaluasi SOP" di aturan Medhum | Tidak tampil | `internal/appui/sop_menu.go` (`sopMenuVisible`), `sidebar.go`, `responsive.go`, `quicknav.go`, `medhum_page.go` |
+| Follow-up H-4 bot Humas | Tidak diantrekan; antrean lama dibatalkan saat dispatch | `internal/server/sop_followup.go` (`scheduleSOPFollowup`, `validSOPFollowup`) |
+| Rekap mingguan SOP ke grup divisi | Tidak dikirim | `internal/server/sop_reports.go` (cek `policy.Enabled`) |
+| Observasi/temuan otomatis | Tidak dibuat untuk kebijakan yang tidak pernah aktif; temuan lama tetap diamati | `internal/server/sop_worker.go` (`enabled or exists(findings)`) |
+
+Pengaturan yang terlihat bukan menu SOP dan tetap ada: kemampuan role "Baca evaluasi SOP"/"Tinjau temuan SOP" di Anggota, jadwal "Ringkasan mingguan SOP" di Pengaturan WhatsApp, dan kolom SOP di Pemantauan BPH ("Belum ada" tanpa temuan).
+
+Klien memeriksa sekali per akun dan periode: `GET /api/periods/{id}/sop-scopes`, lalu `GET …/sop/policy` untuk tiap divisi yang boleh dibaca (paling banyak Humas dan Mediatek). Gagal memuat = tetap tersembunyi. Tidak ada perubahan API atau migrasi.
+
+### Yang disiapkan
+
+- **Pengaturan → Evaluasi SOP** tampil bagi yang boleh mengatur kebijakan (`SOPAccess.CanConfigure`), menjelaskan status dan membuka halaman Evaluasi SOP, tempat formulir kebijakan berada. Menyalakan kebijakan langsung memunculkan menu (`noteSOPPolicy`), tanpa rilis baru.
+- Tes mesin SOP (`internal/sop`) dan tes server SOP tetap berjalan di CI. Tes UI: `internal/appui/sop_menu_test.go`.
+- **Catatan izin:** saat ini yang boleh mengatur kebijakan adalah **kadiv Humas atau Mediatek** (`internal/server/sop_access.go`, `ac.configure`); **admin organisasi tidak punya akses SOP** sama sekali (`loadSOPAccess` mengembalikan akses kosong untuk admin). Rencana F1-25 menyebut "diatur admin organisasi"; itu belum benar di kode dan butuh keputusan owner sebelum diubah, karena memperluas izin.
+
+### Langkah menyalakan untuk Litbang
+
+1. Litbang menyiapkan **SOP Medhum versi baru** dan memilih aturan yang **bisa diukur dari waktu** (pilihan sekarang: 7.5 H-7, 7.11 H-2, 7.12 dadakan 24 jam, 7.14 follow-up H-4, 7.19 final H-12, 7.6 batas lima dadakan). Aturan visual/isi tetap pemeriksaan manusia (temuan manual).
+2. Litbang dan Humas menyepakati: jam follow-up H-4, jam posting bawaan (aturan berbasis jam tidak dinilai bila kosong), hari dan jam rekap mingguan, label dan rentang kuartal, dan apakah follow-up bot dihitung sebagai pemenuhan SOP 7.14 (butuh persetujuan Litbang per versi kebijakan).
+3. Kadiv Humas dan kadiv Mediatek masing-masing: Pengaturan → Evaluasi SOP → **Buka Evaluasi SOP** → pilih divisi → isi versi dokumen, aturan, jam → nyalakan **Otomatisasi aktif** → simpan dengan alasan.
+4. Kadiv memberi izin evaluator kepada akun Litbang (tab izin di Evaluasi SOP); BPH pemantau membaca rekap SOP lewat Pemantauan.
+5. Pantau minggu pertama: temuan berstatus "perlu tinjauan", tidak diumumkan ke Medhum (EVA-04).
+
+Bagian di bawah ini adalah catatan 29 Oktober 2026, tetap berlaku untuk cara kerja mesin SOP.
+
 Status: implementasi sumber ditulis, **belum build/test/migrasi/runtime**. Tidak ada kebijakan, persetujuan, pengiriman WA atau data produksi yang diaktifkan agen. Goal seluruh roadmap masih aktif; dokumen ini tidak menyatakan 4D selesai.
 
 ## Worker dan bukti

@@ -623,7 +623,9 @@ func (a *App) medhumPolicyPanel(c *ui.Context) {
 		})
 		rule("Batas konsep Humas", "H-7 dari jadwal posting (SOP 7.5).", func() { muted(c, "H-7") })
 		rule("Follow-up bot Humas", "H-4 dari jadwal posting (SOP 7.14). Jam follow-up diatur pada kebijakan Evaluasi SOP Humas.", func() {
-			if spaceButton(c, "Buka Evaluasi SOP", "shield", false).Clicked() {
+			if !a.sopMenuVisible() && !a.sopConfigurable() {
+				muted(c, "Evaluasi SOP belum aktif")
+			} else if spaceButton(c, "Buka Evaluasi SOP", "shield", false).Clicked() {
 				a.navigate(PathEvaluasi)
 			}
 		})

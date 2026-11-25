@@ -221,6 +221,7 @@ type App struct {
 	whatsapp   whatsappUIState
 	waContent  waContentUIState
 	evaluation sopUIState
+	sopMenu    sopMenuState
 }
 
 // New returns the app's state. update runs a function on the view's thread

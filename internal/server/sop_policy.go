@@ -105,6 +105,11 @@ func validateSOPSettings(req *api.SOPPolicyRequest, sc *scope) error {
 	return nil
 }
 
+// sopPolicy reads or configures a division's SOP policy. A policy that is
+// absent or not Enabled keeps SOP dormant: no H-4 follow-up, no weekly SOP
+// recap, and the apps hide Evaluasi SOP (PRD EVA-11). Configuring stays
+// open to the division's kadiv (sopAccess.configure), so turning SOP on for
+// Litbang needs no release.
 func (s *Server) sopPolicy(w http.ResponseWriter, r *http.Request, p *principal) error {
 	write := r.Method == http.MethodPut
 	mode := "read"
