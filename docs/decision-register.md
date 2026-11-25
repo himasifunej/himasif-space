@@ -191,7 +191,7 @@ Sumber: note enowX "Audit Space" (`5bda2328ea62`) bagian "Keputusan owner (25 No
 
 Rekomendasinya tertulis di note rencana; sampai dijawab, perlakukan sebagai **belum diputuskan**:
 
-- Cloudflare for SaaS tersedia di akun Cloudflare owner? Bila tidak, jalur cadangan `A` ke IP tc-vps butuh keputusan (F1-21).
+- ~~Cloudflare for SaaS tersedia di akun Cloudflare owner?~~ **Fakta (catatan homeserver, dicek 25 Nov 2026):** sudah aktif di zona `tiyoouw.app`, dengan fallback origin `origin-news.tiyoouw.app` dan satu custom hostname `news.tiyoouw.com` (newsletter). Karena fallback origin hanya satu per zona, `space.himasif.id` tidak bisa memakai fallback origin sendiri seperti usulan F1-21; jalurnya diputuskan di F1-21 (lihat [ADR 0003](adr/0003-instans-dan-sesi-1-0.md), "Belum diputuskan"). Perlu konfirmasi owner bahwa itu akun yang sama.
 - Instans mana yang menautkan nomor bot (R-09) dan apakah instans uji berjalan tanpa bridge setelah stabil dibuka (F1-22).
 - Kesediaan meninjau ±3 PR per hari dan menjalankan uji 3–4 Des; bila tidak, pemangkasan sesuai urutan di note rencana.
 
