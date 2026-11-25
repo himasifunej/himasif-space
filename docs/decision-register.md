@@ -180,7 +180,7 @@ Sumber: note enowX "Audit Space" (`5bda2328ea62`) bagian "Keputusan owner (25 No
 | K-15 | **Kebutuhan divisi** digali lewat lima form grill-me (Mediatek, Humas, gabungan Medhum, BPH, Litbang); jawaban tidak menahan 1.0.0. Paling banyak satu modul baru per rilis minor. **Space fokus Reminder dan tidak berperan terhadap CMS** | F2-12 | PRD §25 |
 | K-16 | **Mobile tanpa Flutter.** PWA dari aplikasi web yang sama sambil menunggu MyGo mendukung mobile. Mencabut koreksi 12 dan merevisi ARC-03 | F1-20, F2-14 | PRD ARC-03, ADR 0003 |
 | K-17 | **Litbang belum ikut pilot.** Arahnya deteksi otomatis tanpa manusia (kelak). SOP follow-up H-4 digantikan Reminder Space | F1-25, F2-15 | PRD §17 |
-| R-13 | **Menu SOP disembunyikan sampai Litbang ikut, tetapi disiapkan:** menu Evaluasi SOP, follow-up H-4 dan rekap SOP tidak tampil dan tidak berjalan bila divisi tidak punya kebijakan SOP aktif; admin tetap bisa mengaturnya tanpa rilis baru | F1-25 | PRD §17 EVA-11 |
+| R-13 | **Menu SOP disembunyikan sampai Litbang ikut, tetapi disiapkan:** menu Evaluasi SOP, follow-up H-4 dan rekap SOP tidak tampil dan tidak berjalan bila divisi tidak punya kebijakan SOP aktif; pengelola SOP tetap bisa menyalakannya tanpa rilis baru (siapa pengelolanya: lihat S-01) | F1-25 | PRD §17 EVA-11 |
 | K-04 | **Template broadcast Humas** dari jawaban owner menjadi acuan parser: `N. <konsep>, pj humas @nama, pj med @nama (19 nov) <catatan>`, judul bulan dalam kurung siku, bagian `DADAKAN`, catatan `tanggal = DL` | F1-06 | PRD §10.2 WA-16 |
 | K-11 | **"Tetap masuk di perangkat ini"** di web (ikut rekomendasi): pilihan di layar masuk, bawaan mati; token disimpan di `localStorage` hanya bila dicentang; keluar akun menghapusnya. Merevisi baris penyimpanan token web di ADR 0001 | F2-01, F0-06 | ADR 0003 |
 | K-12 | **Nomor tugas di Command WA** (ikut rekomendasi): `!done T12` dan `#T12` diterima; UUID lama tetap diterima. Untuk 1.0.0 cukup `!done` dan `!cek`. Catatan "tidak dulu" di canvas A tahap 6 dicabut | F2-02 | PRD CMD-07 |
@@ -191,8 +191,115 @@ Sumber: note enowX "Audit Space" (`5bda2328ea62`) bagian "Keputusan owner (25 No
 
 Rekomendasinya tertulis di note rencana; sampai dijawab, perlakukan sebagai **belum diputuskan**:
 
-- ~~Cloudflare for SaaS tersedia di akun Cloudflare owner?~~ **Fakta (catatan homeserver, dicek 25 Nov 2026):** sudah aktif di zona `tiyoouw.app`, dengan fallback origin `origin-news.tiyoouw.app` dan satu custom hostname `news.tiyoouw.com` (newsletter). Karena fallback origin hanya satu per zona, `space.himasif.id` tidak bisa memakai fallback origin sendiri seperti usulan F1-21; jalurnya diputuskan di F1-21 (lihat [ADR 0003](adr/0003-instans-dan-sesi-1-0.md), "Belum diputuskan"). Perlu konfirmasi owner bahwa itu akun yang sama.
+- ~~Cloudflare for SaaS tersedia di akun Cloudflare owner?~~ **Fakta (dicek 26 Nov 2026):** tersedia di paket Free; zona `tiyoouw.app` sudah memakainya untuk newsletter. Jalur `space.himasif.id` diusulkan di bagian "Usulan, menunggu owner: jalur domain" di bawah.
 - Instans mana yang menautkan nomor bot (R-09) dan apakah instans uji berjalan tanpa bridge setelah stabil dibuka (F1-22).
 - Kesediaan meninjau ±3 PR per hari dan menjalankan uji 3–4 Des; bila tidak, pemangkasan sesuai urutan di note rencana.
 
 Rekomendasi ACC bersama (R-07) dan "bot Space tidak masuk grup yang dilayani Reo" sudah tercakup oleh R-07 dan R-11.
+
+## Keputusan owner 26 November 2026 — SOP disusun Litbang
+
+Sumber: pesan GOA atas nama owner, 26 Nov 2026. Keputusannya berlaku sekarang. **Kodenya belum diubah**: usulan dan estimasinya ada di bawah, dan pekerjaannya menjadi F2-17 di note rencana (`8d4b128e8a55`).
+
+| # | Keputusan | Item | Acuan |
+|---|---|---|---|
+| S-01 | **SOP dibuat oleh Litbang**, bukan oleh Humas atau Mediatek | F2-17 | PRD §17 |
+| S-02 | Di awal periode ada **rapat Medhum + Litbang** untuk menyepakati SOP. Setelah disepakati, **SOP tidak diganti lagi selama periode itu** | F2-17 | PRD §17 |
+| S-03 | SOP Medhum 25/26 yang berlaku masih versi lama. Untuk periode 2026/2027 SOP disesuaikan dengan Space. Ringkasannya akan ditaruh GOA di note; PDF aslinya ada di PC owner | F2-15, F2-17 | — |
+
+S-01 mengubah R-13: kalimat "admin tetap bisa mengaturnya" diganti. Litbang yang mengatur SOP; admin organisasi hanya membaca dan membuka kunci (usulan di bawah).
+
+### Kode sekarang (dicek 26 Nov 2026)
+
+- **Divisi Litbang sudah ada** (`internal/seed/seed.go`, slug `litbang`). Tidak ada peran khusus Litbang: anggotanya memakai peran biasa (kadiv, 45, anggota).
+- **Kebijakan SOP** (`sop_policies`, migrasi `0012`) dibuat per periode × divisi, hanya untuk Humas dan Mediatek. Kebijakan dapat **diubah kapan saja**. Tiap simpan menaikkan `version`, mencabut persetujuan bot, menandai temuan untuk dicek ulang, dan tercatat di audit. Status "disepakati" atau "terkunci" belum ada.
+- **Pengatur kebijakan:** hanya kadiv divisi itu sendiri (`loadSOPAccess` di `internal/server/sop_access.go`: `configure = peran Kadiv`). Kadiv Humas mengatur SOP Humas, kadiv Mediatek mengatur SOP Mediatek.
+- **Akses Litbang** hanya lewat izin evaluator (`sop_evaluator_grants`) yang **diberikan kadiv Humas atau Mediatek**. Litbang bisa membaca, meninjau temuan, dan menyetujui "pemenuhan lewat bot". Litbang **tidak bisa** mengubah kebijakan.
+- **Admin organisasi tidak punya akses SOP sama sekali**: `loadSOPAccess` keluar lebih awal untuk admin, jadi tidak bisa membaca maupun mengatur.
+
+Jadi arah kewenangannya sekarang terbalik dari S-01: divisi yang dievaluasi menyusun SOP-nya sendiri dan memberi Litbang izin masuk.
+
+### Usulan (menunggu owner), mengikuti usulan GOA
+
+1. **Penyusun: pengelola Litbang** (kadiv dan 45 Litbang periode itu). Mereka mengatur kebijakan Humas dan Mediatek. Kadiv Humas dan Mediatek tetap **bisa membaca** kebijakan divisinya, tetapi tidak mengubahnya.
+2. **Status per periode: Draf → Disepakati (terkunci).**
+   - Selama Draf, pengelola Litbang bebas mengubah kebijakan.
+   - Saat mengunci, wajib diisi dasar kesepakatan: tanggal rapat Medhum + Litbang dan catatan singkat. Kunci berlaku untuk **kedua kebijakan sekaligus** (Humas dan Mediatek), karena SOP Medhum adalah satu dokumen.
+   - "Otomatisasi aktif" hanya bisa dinyalakan setelah terkunci. Ini sejalan dengan R-13: tidak ada perilaku SOP tanpa kebijakan aktif, dan kebijakan aktif selalu yang sudah disepakati.
+3. **Perubahan setelah terkunci hanya lewat buka kunci oleh admin organisasi**, dengan alasan wajib. Buka kunci tercatat di audit dan di riwayat kebijakan (siapa, kapan, alasan). Kebijakan kembali ke Draf; otomatisasi berhenti sampai dikunci lagi. Ini pengecualian, bukan jalur biasa (S-02).
+4. **Admin organisasi bisa melihat** kebijakan, status kunci, temuan dan rekap SOP semua divisi, tanpa bisa mengubah isi kebijakan. Dengan begitu `loadSOPAccess` tidak lagi memblokir admin sepenuhnya.
+5. **Izin evaluator disederhanakan:** pengelola Litbang otomatis menjadi evaluator Humas dan Mediatek, sehingga tidak perlu izin dari divisi yang dievaluasi. Izin manual tetap ada untuk anggota Litbang non-pengelola dan untuk baca BPH; yang memberi izin adalah pengelola Litbang.
+
+**Pertanyaan untuk owner** (rekomendasi di kurung):
+
+- Perlukah kadiv Humas dan Mediatek ikut menekan "setuju" sebelum kunci berlaku? (Tidak untuk F2-17: cukup dasar kesepakatan dicatat Litbang; persetujuan dua sisi bisa ditambah kelak.)
+- Bolehkah "Otomatisasi aktif" dimatikan atau dinyalakan lagi tanpa buka kunci, misalnya saat libur? (Boleh, oleh pengelola Litbang dengan alasan tercatat, karena isi SOP tidak berubah.)
+- Apakah anggota Litbang biasa juga boleh menyusun draf? (Tidak; cukup kadiv dan 45.)
+
+### Perkiraan perubahan (F2-17)
+
+| Bagian | Berkas | Isi | Perkiraan |
+|---|---|---|---|
+| Skema | migrasi baru (nomor berikut setelah `0040`) | tabel `sop_period_agreements` (periode, status, dikunci oleh/kapan, dasar kesepakatan) dan riwayat buka kunci | 0,25 hari |
+| Server | `internal/server/sop_access.go`, `sop_policy.go`, `server.go`, `internal/store/sop.go` | kewenangan baru, tolak simpan saat terkunci, endpoint kunci dan buka kunci, baca untuk admin, evaluator otomatis Litbang, audit | 0,75 hari |
+| API | `internal/api/sop.go` | field tambahan (status, terkunci, `CanLock`, `CanUnlock`); hanya penambahan, aman untuk klien lama | kecil |
+| UI | `internal/appui/sop_forms.go`, `sop_view.go`, `sop_menu.go`, `settings_nav.go` | penanda Draf/Terkunci, tombol kunci (Litbang) dan buka kunci (admin, dengan alasan), mode baca untuk kadiv Humas/Mediatek dan admin | 0,5 hari |
+| Tes dan dokumen | tes DB server, tes `appui`, PRD §17, `docs/handoff/sop-workflows.md` | | 0,5 hari |
+
+Total sekitar **2 hari kerja satu session, ukuran M**. Risiko: kebijakan pilot yang sudah ada di DB uji dibuat oleh kadiv Humas/Mediatek; migrasi menandainya Draf tanpa mengubah isinya. DB stabil mulai kosong (R-02), jadi tidak ada data lama di sana. Karena menu SOP tersembunyi (R-13) dan Litbang baru ikut periode depan (K-17), F2-17 **tidak menahan 1.0.0**: bisa di gelombang 2 bila ada session kosong, atau di 1.0.x.
+
+## Usulan, menunggu owner: jalur domain `space.himasif.id` (F1-21)
+
+Riset hanya-baca 26 Nov 2026 lewat API Cloudflare (token vault `cloudflare-tiyo`), dokumen resmi Cloudflare, dan `dig +tcp`. **Tidak ada yang diubah di Cloudflare, DNS, atau tunnel.**
+
+### Fakta
+
+- **Zona di akun Cloudflare owner, semuanya paket Free.** `tiyoouw.app` aktif. `tiyoouw.my.id` aktif dan dipakai Hermes (`hermes.tiyoouw.my.id`), beberapa app di tc-vps, dan Vercel. Fitur custom hostname di zona itu terbaca, tetapi fallback origin belum diisi dan belum ada custom hostname.
+- **`tiyoouw.app`:** fallback origin `origin-news.tiyoouw.app` (aktif, ke tunnel `homeserver-girli`) dan satu custom hostname `news.tiyoouw.com` (aktif, tanpa custom origin). `space.tiyoouw.app` (instans uji) lewat tunnel tc-vps `himasif-space-feedback01-pilot` ke `127.0.0.1:8788`. Konfigurasi tunnel itu **lokal** (berkas di tc-vps), bukan diatur dari dasbor.
+- **Kuota Cloudflare for SaaS di paket Free:** 100 custom hostname gratis, lalu $0,10 per hostname. Sumber: [developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/plans/](https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/plans/).
+- **Custom origin per hostname (`custom_origin_server`) tersedia di Free**, menurut tabel paket yang sama. Yang khusus Enterprise hanya *SNI rewrite*, dan itu tidak kita butuhkan. Akibatnya, keterangan sebelumnya di register dan ADR 0003 ("fallback origin hanya satu, jadi tidak bisa") terlalu sempit: zona `tiyoouw.app` pun bisa melayani Space dengan custom origin, tanpa menyentuh fallback newsletter.
+- **CNAME biasa tanpa SaaS tidak jalan.** Domain di luar Cloudflare yang CNAME ke host berproksi Cloudflare akan mendapat Error 1001; solusi resmi Cloudflare adalah Cloudflare for SaaS ([error 1001](https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-1xxx-errors/error-1001/)).
+- **`himasif.id`** memakai DNS IDCloudHost (`ns01/ns02.cloudhost.id`). Saat ini `space.himasif.id` sudah menjawab A `162.0.227.145` dan `104.192.1.244` lewat **record wildcard** `*.himasif.id` (nama acak seperti `_cf-custom-hostname.space` juga menjawab IP yang sama). Record eksplisit untuk `space` akan menimpa wildcard itu untuk nama `space` saja.
+
+### Pilihan
+
+| | A. Zona SaaS khusus Space di `tiyoouw.my.id` (usulan GOA) | B. Custom origin di `tiyoouw.app` | C. Tanpa Cloudflare: A record ke tc-vps |
+|---|---|---|---|
+| Cara | aktifkan custom hostname di `tiyoouw.my.id`, fallback origin `origin-space.tiyoouw.my.id` → tunnel tc-vps | tambah `space.himasif.id` di `tiyoouw.app` dengan custom origin `origin-space.tiyoouw.app` → tunnel tc-vps | `space A 43.157.226.23`, TLS Let's Encrypt di tc-vps |
+| Bisa di Free | ya | ya | ya |
+| Newsletter dan instans uji | tidak tersentuh sama sekali | fallback tidak berubah, tetapi zona uji jadi ikut melayani stabil | tidak tersentuh |
+| Bila salah atur | jatuh ke fallback milik Space sendiri | bila custom origin hilang, jatuh ke fallback newsletter (tunnel homeserver menjawab 404) | situs mati |
+| Record di cPanel | CNAME + 2 TXT | CNAME + 2 TXT | 1 A |
+| Saat pindah server (Fase 3) | cPanel tidak disentuh, cukup tunnel | cPanel tidak disentuh | owner mengubah A di cPanel lagi |
+| Lainnya | | | port 443 tc-vps dibuka langsung, tanpa perlindungan Cloudflare |
+
+**Rekomendasi: A.** Stabil terpisah dari zona uji dan newsletter, salah atur gagal secara tertutup, dan bila server pindah tahun depan record di cPanel tidak perlu diubah lagi. B tetap sah dan teruji tersedia, jadi menjadi cadangan bila owner tidak mau memakai `tiyoouw.my.id`. C tidak disarankan.
+
+### Langkah bila A disetujui
+
+**Worker** (butuh izin owner; token `cloudflare-tiyo` harus bisa menulis di `tiyoouw.my.id`, dan hak tulisnya belum dicek):
+
+1. Pastikan instans stabil (F1-22) sudah berjalan di tc-vps, dengan port yang berbeda dari instans uji `8788`.
+2. Tunnel tc-vps (`himasif-space-feedback01-pilot`): tambah aturan `space.himasif.id` ke layanan instans stabil, sebelum aturan 404 penutup. Aturan dipasang di berkas konfigurasi lokal di tc-vps, lalu `cloudflared` dimuat ulang. Instans uji ikut lewat tunnel yang sama.
+3. Zona `tiyoouw.my.id`: buat CNAME `origin-space` (berproksi) → `<id tunnel tc-vps>.cfargotunnel.com`.
+4. SSL/TLS → Custom Hostnames di `tiyoouw.my.id`: isi fallback origin `origin-space.tiyoouw.my.id`, lalu tunggu statusnya aktif.
+5. Tambah custom hostname `space.himasif.id` (sertifikat DV, validasi TXT). Ambil dua nilai TXT dari Cloudflare dan berikan ke owner.
+6. Setelah owner memasang record: tunggu status hostname dan SSL **active**, cek `https://space.himasif.id` membuka instans stabil, bukan instans uji. Atur alamat publik instans stabil (F1-22).
+
+**Owner di cPanel IDCloudHost** (Zone Editor `himasif.id`; TTL 300 selama pemasangan, boleh 3600 setelah aktif):
+
+| Tipe | Nama | Nilai |
+|---|---|---|
+| CNAME | `space` | `origin-space.tiyoouw.my.id` |
+| TXT | `_cf-custom-hostname.space` | nilai "hostname validation" dari worker (langkah 5) |
+| TXT | `_acme-challenge.space` | nilai "certificate validation" dari worker (langkah 5) |
+
+Bila cPanel menolak CNAME karena sudah ada record `space` lain, hapus record `space` itu. Wildcard `*` jangan dihapus, karena dipakai subdomain lain.
+
+### Dampak ke konfigurasi lain
+
+- **Newsletter (`news.tiyoouw.com`):** tidak berubah. Zona `tiyoouw.app`, fallback `origin-news.tiyoouw.app`, dan tunnel homeserver tidak disentuh.
+- **Instans uji (`space.tiyoouw.app`):** tidak berubah. Tetap di tunnel tc-vps ke `8788`. Satu catatan: stabil dan uji akan berbagi satu proses `cloudflared` di tc-vps, sehingga bila tunnel itu mati keduanya ikut mati. Tunnel terpisah untuk stabil bisa dipertimbangkan di F1-22.
+- **`tiyoouw.my.id`:** bertambah satu record DNS dan pengaturan custom hostname. Hermes dan record lain tidak berubah. Pengaturan tingkat zona (mode SSL, WAF, cache) ikut berlaku untuk `space.himasif.id`, jadi cek dampaknya ke Space sebelum mengubah zona itu kelak. Masa aktif domain `tiyoouw.my.id` menjadi ketergantungan Space stabil (belum dicek).
+- **`himasif.id`:** hanya tiga record baru untuk nama `space`. Email, SES/DKIM, `preview.himasif.id` dan wildcard tetap.
+- **R-04:** tetap berlaku, karena DNS tetap di IDCloudHost dengan tiga record manual. Hanya target CNAME-nya yang berubah dari usulan awal di note rencana.
