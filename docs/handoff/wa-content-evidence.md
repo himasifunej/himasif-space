@@ -1,6 +1,6 @@
 # Broadcast konsep dan bukti Drive — implementasi lokal 4C
 
-Status: kode ditulis, **belum build/test/migrasi/runtime**. Parser belum dibandingkan dengan contoh broadcast asli dari pengguna. Pengaturan awal nonaktif; konfirmasi format dan aktivasi dilakukan pengelola melalui aplikasi. Dokumen ini tidak membuktikan acceptance lulus.
+Status: kode ditulis, **belum build/test/migrasi/runtime**. Sejak F1-06 (25 Nov 2026) parser diuji dengan template broadcast asli owner (dianonimkan), lihat "Format yang didukung". Pengaturan awal nonaktif; konfirmasi format dan aktivasi dilakukan pengelola melalui aplikasi. Dokumen ini tidak membuktikan acceptance lulus.
 
 ## Alur yang ditulis
 
@@ -17,23 +17,56 @@ Status: kode ditulis, **belum build/test/migrasi/runtime**. Parser belum dibandi
 11. Ralat pasangan Drive menolak bukti pada tugas lama melalui aturan tinjauan kanonis dan membuat bukti tujuan dengan waktu sumber asli. Tugas lama kembali ke progres sebelum penyerahan bila bukti tersebut masih yang terbaru. Bukti yang sudah digantikan tidak diubah diam-diam. Seluruhnya satu transaksi.
 12. Edit/hapus pesan membuat item perubahan sumber untuk tinjauan. Bukti lama, receipt, waktu pertama dan catatan sumber tidak dihapus otomatis. Peninjau dapat mempertahankan bukti dengan alasan atau meralat item sumber aslinya.
 
-## Format awal yang didukung
+## Format yang didukung (parser `humas-fields-v2`, F1-06, 25 Nov 2026)
 
-Contoh berikut adalah **contoh buatan untuk menjelaskan parser**, bukan contoh pengguna yang telah disetujui:
+Parser kini membaca **template Humas asli** yang dibagikan owner (jawaban no. 4 di audit 25 Nov), selain format berlabel lama. Contoh di bawah sudah **dianonimkan** (nama orang diganti); fixture yang sama ada di `internal/broadcast/parser_test.go` (`ownerTemplate`):
+
+```text
+[HALO, WELCOME TO NOVEMBER MEDIATEK]
+
+Kami dari humas izin menyampaikan list konsep postingan bulan NOVEMBER yaa!
+
+1. open regis caketum, pj humas @dimas, pj med @Sari Putri SI'24 (19 nov) dark blue
+2. mingper 15, pj humas @lala, pj med @Bima SI'23 (Bimbim) (23 nov) light b
+
+DADAKAN
+
+note : tanggal = DL
+terima kasih, semangattt!
+```
+
+Hasil parse:
+
+| # | Baris | Judul | PJ Humas | PJ Mediatek | Tanggal posting | Deadline desain | Warna | Dadakan |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 5 | open regis caketum | dimas | Sari Putri | 19/11 | 17/11 | dark blue | tidak |
+| 2 | 6 | mingper 15 | lala | Bima (alias Bimbim) | 23/11 | 21/11 | light b | tidak |
+
+Aturan yang dipakai:
+
+- **Bulan dari judul.** Baris sebelum item pertama yang menyebut nama bulan ("WELCOME TO NOVEMBER", "postingan bulan NOVEMBER") menetapkan bulan daftar, dan tahunnya bila tertulis ("DESEMBER 2026"). Tanggal tanpa bulan, misalnya `(19)`, mengambil bulan itu. Tanpa bulan di judul, tanggal tanpa bulan menjadi error baris.
+- **Satu baris satu konten.** Judul = teks sebelum label PIC pertama. Label: `pj humas`/`pic humas`/`pj hms` dan `pj med`/`pj mediatek`/`pj medtek`/`pj mdtk`/`pj desain`/`pic med`, dengan atau tanpa `:`; pemisah koma, `—`, `|` atau spasi. Nomor boleh `1.`, `1)`, `1️⃣`, atau tidak ada sama sekali (baris tetap dikenali dari label PIC).
+- **Nama.** `@` di depan, tag angkatan (`SI'24`) dan alias dalam kurung (`(Bimbim)`) dipisahkan: nama masuk `humas`/`design`, alias ke `humasAlias`/`designAlias`. Token mention `@628…` tetap dicocokkan ke identitas WA terverifikasi seperti sebelumnya.
+- **Tanggal.** Urutan pencarian: tanggal dalam kurung (`(19 nov)`, `(DL 3 agt)`), tanggal berlabel (`tgl 19 nov`, `DL: 19/11`), lalu hari + nama bulan setelah judul. Nama bulan Indonesia/Inggris lengkap atau singkat (`nov`, `nop`, `sept`, `agt`, `okt`, `des`, …), huruf besar-kecil bebas. Tahun dua digit tetap tidak ditebak.
+- **Tahun.** Tetap kosong bila tidak tertulis di item atau judul (`postingDate` kosong, `Day`/`Month` terisi); pencocokan kalender memakai hari/bulan seperti sebelumnya. Bila judul punya tahun, item Januari pada daftar Desember mendapat tahun berikutnya.
+- **Deadline desain = tanggal posting − 2 hari** (keputusan owner 25 Nov, sama dengan `internal/server/medhum.go`). Tanggal di broadcast dibaca sebagai **tanggal posting**; catatan `tanggal = DL` disimpan sebagai `dateIsDL` di tiap item dan tidak mengubah perhitungan. Tanpa tahun, deadline tetap diisi sebagai `deadlineDay`/`deadlineMonth`, kecuali posting 1–2 Maret (bergantung tahun kabisat; `Item.DesignDeadlineIn(year)` menghitungnya setelah tahun diketahui).
+- **Warna.** Teks setelah tanggal dalam kurung disimpan apa adanya sebagai `color` ("dark blue", "light b"); tidak ditafsirkan.
+- **DADAKAN.** Baris `DADAKAN`/`DADAKAN:` menandai semua konten sesudahnya `urgent`. Di bagian ini baris tanpa nomor ikut dibaca. DADAKAN tetap informasi sumber, bukan keputusan pelanggaran atau pengecualian SOP.
+- **Error per baris.** Konten yang terbaca sebagian tetap muncul dengan `issue` yang menyebut nomor baris pesan dan apa yang kurang, misalnya `Baris 3: PJ Humas belum terbaca.` atau `Baris 2: Format tanggal tidak didukung atau tanggal tidak ada di kalender.` Item ber-issue tidak diterapkan otomatis.
+- **Pesan biasa tidak diproses.** Sebuah pesan baru dianggap broadcast bila setidaknya satu baris punya label PIC atau tanggal berlabel; daftar obrolan dengan tanggal dalam kurung saja diabaikan.
+
+Format berlabel lama tetap didukung:
 
 ```text
 1. Judul konten
 PJ Humas: Nama akun Humas
 PJ Mediatek: Nama akun Mediatek
 Tanggal: 20 Oktober 2026
-
-DADAKAN
-2. Judul lain
-PJ Humas: Nama akun Humas
-DL: 22/10/2026
 ```
 
-Nomor dapat memakai titik atau kurung tutup. Tanggal mendukung ISO, format hari/bulan/tahun dengan tahun empat digit, serta nama bulan Indonesia; tahun dua digit dan tanggal/jam bebas tidak ditebak. Variasi template nyata harus diperiksa melalui pratinjau dan diperluas bila perlu. DADAKAN disimpan sebagai informasi sumber, bukan keputusan pelanggaran atau penetapan pengecualian SOP otomatis.
+Catatan untuk **F1-28 (ACC bersama, gelombang berikutnya):** satu ACC cukup dari PJ Humas konten, pengelola Humas, atau pengelola Mediatek, dan PIC tidak boleh meng-ACC karyanya sendiri. Parser tidak menyimpan ACC; data yang dibutuhkan F1-28 (PJ Humas dan PIC Mediatek per konten) sudah terbaca. PIC Mediatek tetap **ditetapkan kadiv Mediatek di awal bulan**; `pj med` di broadcast hanya dicocokkan dengan penetapan itu, tidak menetapkan atau mengganti PJ desain.
+
+Belum diuji pada lebih banyak contoh asli: owner baru memberi satu template. Contoh tambahan dari Humas (OPEN-08) masuk sebagai fixture dianonimkan saat tiba.
 
 ## UI dan konfigurasi
 
