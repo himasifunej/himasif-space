@@ -304,10 +304,12 @@ func (a *App) lainnyaPage(c *ui.Context) {
 		{"Catatan", "Catatan dan template", "note", space("Catatan")},
 		{"Anggota", "Role dan undangan", "users", space("Anggota")},
 		{"Bot WhatsApp", "Bot WhatsApp dan pengingat", "whatsapp", space("Bot WhatsApp")},
-		{"Evaluasi SOP", "Temuan dan laporan", "shield", func() { a.navigate(PathEvaluasi) }},
 		{"Arsip periode", "Periode lama", "archive", func() { a.navigate(PathArsip) }},
 		{"Pengaturan", "Perangkat, akun, sinkronisasi", "settings", func() { a.chrome.settingsDetail = false; a.navigate(PathPengaturan) }},
 		{"Tampilan", "Tema, aksen, kepadatan", "palette", func() { a.chrome.appearance = true }},
+	}
+	if a.sopMenuVisible() {
+		entries = append(entries, entry{"Evaluasi SOP", "Temuan dan laporan", "shield", func() { a.navigate(PathEvaluasi) }})
 	}
 	if a.isAdmin() {
 		entries = append(entries, entry{"Organisasi", "Periode dan kadiv", "shield", func() { a.navigate(PathOrganisasi) }})

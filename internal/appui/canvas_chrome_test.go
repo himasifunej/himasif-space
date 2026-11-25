@@ -62,7 +62,9 @@ func TestSidebarMatchesCanvas(t *testing.T) {
 	h.app.router.Push(PathSpaces)
 	h.tt.Advance(400 * time.Millisecond)
 	h.tt.Frame()
-	for _, s := range []string{"Space", "Ruang Kerja HIMASIF", "PRIBADI", "SPACE", "ORGANISASI", "Evaluasi SOP", "Arsip", "Pengaturan", "Tampilan", "Ciutkan", "Ctrl B", "bersama", "Kadiv · " + sp.Name} {
+	// Evaluasi SOP is hidden until a policy is on (PRD EVA-11); see
+	// TestSOPMenuHiddenUntilPolicyActive.
+	for _, s := range []string{"Space", "Ruang Kerja HIMASIF", "PRIBADI", "SPACE", "ORGANISASI", "Arsip", "Pengaturan", "Tampilan", "Ciutkan", "Ctrl B", "bersama", "Kadiv · " + sp.Name} {
 		h.want(s)
 	}
 	if !h.tt.HasText("2") {

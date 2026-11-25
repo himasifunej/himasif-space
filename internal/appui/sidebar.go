@@ -106,7 +106,8 @@ func (a *App) sidebarSections(c *ui.Context, collapsed bool) {
 	if !collapsed {
 		sectionLabel(c, "Organisasi")
 	}
-	if navRow(c, "Evaluasi SOP", path == PathEvaluasi, collapsed, iconLead(c, "sop"), a.evaluationCount(), false, nil).Clicked() {
+	// Hidden until a division has an active SOP policy (PRD EVA-11).
+	if (path == PathEvaluasi || a.sopMenuVisible()) && navRow(c, "Evaluasi SOP", path == PathEvaluasi, collapsed, iconLead(c, "sop"), a.evaluationCount(), false, nil).Clicked() {
 		a.navigate(PathEvaluasi)
 	}
 	if navRow(c, "Arsip", path == PathArsip || path == PathArchiveAccess, collapsed, iconLead(c, "arsip"), "", false, nil).Clicked() {

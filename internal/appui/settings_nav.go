@@ -36,7 +36,7 @@ func (a *App) settingsGroups() []settingsGroup {
 	if a.isMonitor() {
 		account = append(account, settingsEntry{"Ringkasan mingguan", "Ringkasan mingguan BPH", "Senin 07.00, WhatsApp atau email", "eye"})
 	}
-	return []settingsGroup{
+	groups := []settingsGroup{
 		{"Akun", account},
 		{"Perangkat ini", []settingsEntry{
 			{"Perangkat", "Notifikasi dan Dynamic Island", "Island, toast, bel, aplikasi desktop", "bell"},
@@ -56,6 +56,13 @@ func (a *App) settingsGroups() []settingsGroup {
 			{"Tentang", "Tentang Space", "Versi dan riwayat perubahan", "book"},
 		}},
 	}
+	// Evaluasi SOP is hidden from the menus until a policy is on (PRD
+	// EVA-11); whoever may turn one on finds it here.
+	if a.sopConfigurable() {
+		last := len(groups) - 1
+		groups = append(groups[:last:last], settingsGroup{"Evaluasi", []settingsEntry{{"Evaluasi SOP", "Evaluasi SOP", "Kebijakan SOP Humas dan Mediatek", "shield"}}}, groups[last])
+	}
+	return groups
 }
 
 func (a *App) settings(c *ui.Context, r *ui.Route) {
@@ -94,6 +101,8 @@ func (a *App) settings(c *ui.Context, r *ui.Route) {
 			a.kreditSettings(c)
 		case "Ringkasan mingguan":
 			a.monitorDigestSettings(c)
+		case "Evaluasi SOP":
+			a.sopSettings(c)
 		case "Space":
 			sp := a.selectedSpace()
 			a.spaceSettings(c, sp != nil && sp.Kind == api.SpaceShared)

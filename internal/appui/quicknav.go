@@ -95,7 +95,7 @@ func (a *App) navIndex() []navItem {
 	var out []navItem
 	admin := a.isAdmin()
 	for _, p := range appPages {
-		if !p.palette || (p.path == PathOrganisasi && !admin) || (p.path == PathPemantauan && !a.isMonitor()) || (p.path == PathPanduan && admin) || (p.path == PathArchiveAccess && len(a.archiveManagedDivisions()) == 0) {
+		if !p.palette || (p.path == PathOrganisasi && !admin) || (p.path == PathPemantauan && !a.isMonitor()) || (p.path == PathEvaluasi && !a.sopMenuVisible()) || (p.path == PathPanduan && admin) || (p.path == PathArchiveAccess && len(a.archiveManagedDivisions()) == 0) {
 			continue
 		}
 		path := p.path

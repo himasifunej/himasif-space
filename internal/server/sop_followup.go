@@ -15,6 +15,11 @@ import (
 	"time"
 )
 
+// scheduleSOPFollowup queues today's H-4 follow-up of a Medhum content.
+// Nothing is queued unless the Humas policy is enabled with a follow-up
+// clock: while Litbang has not joined the pilot, no division has one and the
+// follow-up never runs (PRD EVA-11, owner's decision of 25 Nov 2026); the
+// dispatcher checks the policy again before sending (validSOPFollowup).
 func (s *Server) scheduleSOPFollowup(ctx context.Context, ref sopPolicyRef, cid id.ID) error {
 	return s.store.Tx(ctx, func(q store.Querier) error {
 		period, err := s.store.Period(ctx, q, ref.Period, store.LockShare)
