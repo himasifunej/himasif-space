@@ -8,6 +8,7 @@ Versi mengikuti aturan sebelum rilis publik:
 ## Belum dirilis
 
 - **Dokumen**: keputusan owner 25 Nov 2026 menuju 1.0.0 dicatat di register keputusan, PRD (versi 1.2), ADR 0003 (instans uji dan stabil, nomor bot bersama, "Tetap masuk", PWA) dan ADR 0002 (NIM untuk pemantau, bacaan admin); skrip uji pengguna Mediatek dan BPH.
+- **Pengembang**: `make check` kini hijau di Windows: `.gitattributes` menjaga akhiran baris LF di setiap checkout, `make` memakai `PYTHON` (bawaan `python` di Windows) dan ikut menjalankan tes `scripts/ops`, dan tes yang khusus server Linux (mode 0700, symlink, `select()`) dilewati di Windows.
 
 ## 0.4.6-rc.9 — 2026-11-16 · Perbaikan bar progres musik di Ace Island (pre-release)
 

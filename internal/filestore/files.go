@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/himasifunej/himasif-space/internal/id"
 )
@@ -31,7 +32,7 @@ func Put(root string, source io.Reader, limit int64) (blob Blob, err error) {
 	if err != nil {
 		return blob, err
 	}
-	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 || info.Mode().Perm()&0077 != 0 {
+	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 || posixModes && info.Mode().Perm()&0077 != 0 {
 		return blob, fmt.Errorf("attachment storage must be a private directory (0700)")
 	}
 	f, err := os.CreateTemp(root, ".upload-*")
@@ -71,6 +72,12 @@ func Put(root string, source io.Reader, limit int64) (blob Blob, err error) {
 	}
 	// Persist the rename before a database transaction is allowed to reference
 	// this key. A crash can leave an unreferenced blob, never a partial live one.
+	// Windows cannot flush a directory handle (FlushFileBuffers needs write
+	// access, which a directory opened for reading lacks); NTFS journals the
+	// rename itself.
+	if !posixModes {
+		return blob, nil
+	}
 	dir, err := os.Open(root)
 	if err != nil {
 		_ = Remove(root, blob.Key)
@@ -84,6 +91,13 @@ func Put(root string, source io.Reader, limit int64) (blob Blob, err error) {
 	}
 	return blob, nil
 }
+
+// posixModes tells whether the filesystem has POSIX permission bits. On
+// Windows a directory reports 0777 and a file 0666 (or 0444) whatever its
+// ACL, so the 0700 check cannot be made there; the server runs on Linux,
+// and Windows only runs the tests.
+var posixModes = runtime.GOOS != "windows"
+
 func path(root string, key id.ID) string { return filepath.Join(root, key.String()+".blob") }
 func Open(root string, key id.ID) (*os.File, error) {
 	if root == "" {

@@ -35,7 +35,7 @@ func TestImmutableBlobAndLimitCleanup(t *testing.T) {
 		t.Fatalf("content %q: %v", got, err)
 	}
 	info, _ := f.Stat()
-	if info.Mode().Perm() != 0600 {
+	if posixModes && info.Mode().Perm() != 0600 {
 		t.Fatal("not private")
 	}
 	if _, err = Put(root, bytes.NewReader(content), 2); err == nil {
@@ -50,11 +50,14 @@ func TestRejectPublicOrSymlinkStorage(t *testing.T) {
 	parent := t.TempDir()
 	root := filepath.Join(parent, "public")
 	os.Mkdir(root, 0755)
-	if _, err := Put(root, bytes.NewBufferString("x"), 10); err == nil {
+	if _, err := Put(root, bytes.NewBufferString("x"), 10); posixModes && err == nil {
 		t.Fatal("public storage accepted")
 	}
 	link := filepath.Join(parent, "link")
-	os.Symlink(root, link)
+	if err := os.Symlink(root, link); err != nil {
+		// Windows allows symlinks only with Developer Mode or as admin.
+		t.Skipf("cannot create a symlink here: %v", err)
+	}
 	if _, err := Put(link, bytes.NewBufferString("x"), 10); err == nil {
 		t.Fatal("symlink accepted")
 	}

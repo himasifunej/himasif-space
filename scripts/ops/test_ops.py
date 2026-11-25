@@ -9,8 +9,15 @@ from unittest.mock import patch
 import space_ops as ops
 import compare_legacy as legacy
 
+# space_ops runs on the Linux server: it requires private directories with
+# POSIX mode 0700 and reads pipes with select(). Windows reports 0777 for
+# every directory and cannot select() on pipes, so those tests only run on
+# POSIX; the pure checks (URIs, legacy dates, CSV guards) run everywhere.
+posix_server = unittest.skipIf(os.name == 'nt', 'server-only: POSIX modes and select() on pipes')
+
 
 class OperationsGuards(unittest.TestCase):
+    @posix_server
     @unittest.skipUnless(shutil.which('age') and shutil.which('age-keygen'), 'requires age tools')
     def test_empty_storage_survives_encrypted_archive(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -38,6 +45,7 @@ class OperationsGuards(unittest.TestCase):
                         self.assertEqual((stage / 'wa-state').is_dir(), wa)
                         self.assertEqual((stage / 'database.dump').read_bytes(), b'synthetic dump')
 
+    @posix_server
     def test_volume_marker_blocks_fallback(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / 'backup'
@@ -69,10 +77,15 @@ class OperationsGuards(unittest.TestCase):
             target = Path(temporary) / 'real'
             target.mkdir(mode=0o700)
             link = Path(temporary) / 'link'
-            link.symlink_to(target, target_is_directory=True)
+            try:
+                link.symlink_to(target, target_is_directory=True)
+            except OSError as error:
+                # Windows allows symlinks only with Developer Mode or as admin.
+                self.skipTest(f'cannot create a symlink here: {error}')
             with self.assertRaises(ops.OpsError):
                 ops.private_directory(link)
 
+    @posix_server
     def test_backup_failure_resumes_only_services_active_before_capture(self):
         with tempfile.TemporaryDirectory() as temporary:
             config = {'staging_dir': temporary, 'server_units': ['fixture-api.service'],
@@ -95,6 +108,7 @@ class OperationsGuards(unittest.TestCase):
             self.assertFalse((Path(temporary) / 'backup-services.json').exists())
             self.assertEqual(states['fixture-bridge.service'], 'inactive')
 
+    @posix_server
     def test_backup_refuses_unapproved_stop(self):
         with tempfile.TemporaryDirectory() as temporary:
             config = {'staging_dir': temporary, 'server_units': ['fixture-api.service'], 'bridge_units': []}
