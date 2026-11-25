@@ -55,6 +55,8 @@ type Server struct {
 	log       *slog.Logger
 	now       func() time.Time
 
+	// clientIPs finds the client address behind the proxy, for the limits.
+	clientIPs  clientIPs
 	loginLimit *limiter
 	// mailLimit bounds the emails sent to one address; publicLimit the
 	// requests of one client address to the public account endpoints.
@@ -85,6 +87,7 @@ func New(cfg config.Config, st *store.Store, mailer mail.Mailer, log *slog.Logge
 		mailer:           mailer,
 		log:              log,
 		now:              time.Now,
+		clientIPs:        newClientIPs(cfg),
 		// Ten attempts per email and per address in a quarter of an hour.
 		loginLimit:    newLimiter(10, 15*time.Minute),
 		mailLimit:     newLimiter(5, 15*time.Minute),
@@ -348,7 +351,12 @@ func (s *Server) Handler() http.Handler {
 
 type ctxKey int
 
-const requestIDKey ctxKey = iota
+const (
+	requestIDKey ctxKey = iota
+	// clientIPKey holds the client address the middleware resolved
+	// (clientIPs in auth.go), for the rate limits.
+	clientIPKey
+)
 
 // requestID returns the identity of the request, for the log and audit.
 func requestID(ctx context.Context) string {
@@ -365,6 +373,7 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 		rand.Read(b)
 		rid := hex.EncodeToString(b)
 		ctx := context.WithValue(r.Context(), requestIDKey, rid)
+		ctx = context.WithValue(ctx, clientIPKey, s.clientIPs.resolve(r))
 		r = r.WithContext(ctx)
 
 		h := w.Header()

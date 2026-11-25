@@ -2,6 +2,7 @@
 package auth
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -9,6 +10,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"unicode/utf8"
 
 	"golang.org/x/crypto/argon2"
@@ -51,20 +54,145 @@ func CheckPassword(pw string) string {
 	return ""
 }
 
-// HashPassword returns the encoded Argon2id hash of pw with a new salt.
+// ErrBusy is what the context variants return when no hashing slot frees
+// up in time: too many logins at once. Callers answer 429.
+var ErrBusy = errors.New("auth: password hashing is busy")
+
+// Every Argon2id run takes argonMemory (19 MiB) for its duration, and the
+// API unit is capped at 256 MB. hashGate bounds the runs in progress in the
+// whole process, so a burst of logins queues instead of getting the process
+// killed for its memory.
+type hashGate struct {
+	slots    chan struct{}
+	maxQueue int64
+	waiting  atomic.Int64
+	inFlight atomic.Int64
+	peak     atomic.Int64
+}
+
+// Defaults of SetHashLimits: two runs (38 MiB) at once, and 32 more waiting.
+const (
+	DefaultHashConcurrency = 2
+	DefaultHashQueue       = 32
+)
+
+var (
+	gateMu sync.Mutex
+	gate   = newHashGate(DefaultHashConcurrency, DefaultHashQueue)
+)
+
+func newHashGate(concurrency, queue int) *hashGate {
+	if concurrency < 1 {
+		concurrency = 1
+	}
+	if queue < 0 {
+		queue = 0
+	}
+	return &hashGate{slots: make(chan struct{}, concurrency), maxQueue: int64(queue)}
+}
+
+// SetHashLimits sets how many password hashes may run at once in this
+// process, and how many callers of the context variants may wait for one.
+// Call it at start, before serving.
+func SetHashLimits(concurrency, queue int) {
+	gateMu.Lock()
+	defer gateMu.Unlock()
+	gate = newHashGate(concurrency, queue)
+}
+
+func currentGate() *hashGate {
+	gateMu.Lock()
+	defer gateMu.Unlock()
+	return gate
+}
+
+// HashStats reports the hashes running now and the most that ran at once
+// since start (or the last SetHashLimits).
+func HashStats() (inFlight, peak int) {
+	g := currentGate()
+	return int(g.inFlight.Load()), int(g.peak.Load())
+}
+
+// acquire takes a hashing slot. bounded callers give up with ErrBusy when
+// the queue is full or ctx ends first; unbounded ones (seed, invitations,
+// already limited per address) wait.
+func (g *hashGate) acquire(ctx context.Context, bounded bool) (func(), error) {
+	select {
+	case g.slots <- struct{}{}:
+	default:
+		if n := g.waiting.Add(1); bounded && n > g.maxQueue {
+			g.waiting.Add(-1)
+			return nil, ErrBusy
+		}
+		select {
+		case g.slots <- struct{}{}:
+			g.waiting.Add(-1)
+		case <-ctx.Done():
+			g.waiting.Add(-1)
+			return nil, ErrBusy
+		}
+	}
+	n := g.inFlight.Add(1)
+	for {
+		p := g.peak.Load()
+		if n <= p || g.peak.CompareAndSwap(p, n) {
+			break
+		}
+	}
+	return func() {
+		g.inFlight.Add(-1)
+		<-g.slots
+	}, nil
+}
+
+func idKey(ctx context.Context, bounded bool, pw, salt []byte, passes, memory uint32, threads uint8, keyLen uint32) ([]byte, error) {
+	release, err := currentGate().acquire(ctx, bounded)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	return argon2.IDKey(pw, salt, passes, memory, threads, keyLen), nil
+}
+
+// HashPassword returns the encoded Argon2id hash of pw with a new salt. It
+// waits for a hashing slot as long as it takes.
 func HashPassword(pw string) (string, error) {
+	return hashPassword(context.Background(), false, pw)
+}
+
+// HashPasswordContext is HashPassword that gives up with ErrBusy when ctx
+// ends or too many wait for a hashing slot.
+func HashPasswordContext(ctx context.Context, pw string) (string, error) {
+	return hashPassword(ctx, true, pw)
+}
+
+func hashPassword(ctx context.Context, bounded bool, pw string) (string, error) {
 	salt := make([]byte, saltLen)
 	if _, err := rand.Read(salt); err != nil {
 		return "", err
 	}
-	key := argon2.IDKey([]byte(pw), salt, argonTime, argonMemory, argonThreads, argonKeyLen)
+	key, err := idKey(ctx, bounded, []byte(pw), salt, argonTime, argonMemory, argonThreads, argonKeyLen)
+	if err != nil {
+		return "", err
+	}
 	b64 := base64.RawStdEncoding
 	return fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s",
 		argon2.Version, argonMemory, argonTime, argonThreads, b64.EncodeToString(salt), b64.EncodeToString(key)), nil
 }
 
-// VerifyPassword checks pw against an encoded hash, in constant time.
+// VerifyPassword checks pw against an encoded hash, in constant time. It
+// waits for a hashing slot as long as it takes.
 func VerifyPassword(encoded, pw string) error {
+	return verifyPassword(context.Background(), false, encoded, pw)
+}
+
+// VerifyPasswordContext is VerifyPassword that gives up with ErrBusy when
+// ctx ends or too many wait for a hashing slot.
+func VerifyPasswordContext(ctx context.Context, encoded, pw string) error {
+	return verifyPassword(ctx, true, encoded, pw)
+}
+
+func verifyPassword(ctx context.Context, bounded bool, encoded, pw string) error {
 	if len(pw) > MaxPasswordLength {
 		return ErrMismatch
 	}
@@ -90,7 +218,10 @@ func VerifyPassword(encoded, pw string) error {
 	if err != nil {
 		return fmt.Errorf("auth: bad key: %w", err)
 	}
-	got := argon2.IDKey([]byte(pw), salt, passes, memory, threads, uint32(len(want)))
+	got, err := idKey(ctx, bounded, []byte(pw), salt, passes, memory, threads, uint32(len(want)))
+	if err != nil {
+		return err
+	}
 	if subtle.ConstantTimeCompare(got, want) != 1 {
 		return ErrMismatch
 	}
@@ -99,6 +230,8 @@ func VerifyPassword(encoded, pw string) error {
 
 // dummyHash is verified against when an account does not exist, so that a
 // login takes as long whether or not the email has an account.
+// It is made at start, so a BurnTimeContext refused for a full gate never
+// waits for a slot to make it.
 var dummyHash = func() string {
 	h, err := HashPassword("space-dummy-password")
 	if err != nil {
@@ -109,6 +242,16 @@ var dummyHash = func() string {
 
 // BurnTime spends the time a password verification takes.
 func BurnTime(pw string) { _ = VerifyPassword(dummyHash, pw) }
+
+// BurnTimeContext is BurnTime that gives up with ErrBusy like
+// VerifyPasswordContext, so a refused unknown email answers like a refused
+// known one.
+func BurnTimeContext(ctx context.Context, pw string) error {
+	if err := VerifyPasswordContext(ctx, dummyHash, pw); errors.Is(err, ErrBusy) {
+		return err
+	}
+	return nil
+}
 
 // NewToken returns a new session token and the hash the server keeps of it.
 // The server stores only the hash, so a leaked database does not give

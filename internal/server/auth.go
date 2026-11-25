@@ -1,13 +1,17 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"net"
 	"net/http"
+	"net/netip"
 	"strings"
+	"time"
 
 	"github.com/himasifunej/himasif-space/internal/api"
 	"github.com/himasifunej/himasif-space/internal/auth"
+	"github.com/himasifunej/himasif-space/internal/config"
 	"github.com/himasifunej/himasif-space/internal/id"
 	"github.com/himasifunej/himasif-space/internal/store"
 )
@@ -68,6 +72,17 @@ func bearer(r *http.Request) (string, bool) {
 
 const wrongCredentials = "Email atau kata sandi salah."
 
+// hashWait is how long a login waits for a free password hashing slot
+// before it is answered 429 (auth.ErrBusy).
+const hashWait = 5 * time.Second
+
+var errHashBusy = fail(http.StatusTooManyRequests, api.CodeRateLimited, "Server sedang memproses banyak permintaan masuk. Coba lagi beberapa detik lagi.")
+
+func writeHashBusy(w http.ResponseWriter) {
+	w.Header().Set("Retry-After", "5")
+	writeError(w, http.StatusTooManyRequests, api.CodeRateLimited, "Server sedang memproses banyak permintaan masuk. Coba lagi beberapa detik lagi.")
+}
+
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	var req api.LoginRequest
 	if !decode(w, r, &req) {
@@ -89,15 +104,35 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := s.now()
+	ipKey, emailKey := "ip:"+clientIP(r), "email:"+email
 	// Refuse a blocked address before retaining any additional email keys.
-	if !s.loginLimit.allow("ip:"+clientIP(r), now) || !s.loginLimit.allow("email:"+email, now) {
+	// Every attempt is counted up front, so a burst in parallel cannot
+	// guess more than the limit; a successful login is forgiven below.
+	if !s.loginLimit.allow(ipKey, now) {
 		writeError(w, http.StatusTooManyRequests, api.CodeRateLimited, "Terlalu banyak percobaan masuk. Coba lagi beberapa menit lagi.")
 		return
 	}
+	if !s.loginLimit.allow(emailKey, now) {
+		s.loginLimit.forgive(ipKey, now)
+		writeError(w, http.StatusTooManyRequests, api.CodeRateLimited, "Terlalu banyak percobaan masuk. Coba lagi beberapa menit lagi.")
+		return
+	}
+	// busy answers a login that found no free hashing slot: it was not a
+	// guess, so it is not counted against the address or the account.
+	busy := func() {
+		s.loginLimit.forgive(ipKey, now)
+		s.loginLimit.forgive(emailKey, now)
+		writeHashBusy(w)
+	}
+	hashCtx, cancel := context.WithTimeout(r.Context(), hashWait)
+	defer cancel()
 	u, err := s.store.UserByEmail(r.Context(), email)
 	switch {
 	case errors.Is(err, store.ErrNotFound):
-		auth.BurnTime(req.Password)
+		if auth.BurnTimeContext(hashCtx, req.Password) != nil {
+			busy()
+			return
+		}
 		writeError(w, http.StatusUnauthorized, api.CodeUnauthenticated, wrongCredentials)
 		return
 	case err != nil:
@@ -106,17 +141,28 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	}
 	if u.PasswordHash == "" {
 		// An account still waiting for its owner to set a password.
-		auth.BurnTime(req.Password)
+		if auth.BurnTimeContext(hashCtx, req.Password) != nil {
+			busy()
+			return
+		}
 		writeError(w, http.StatusUnauthorized, api.CodeUnauthenticated, wrongCredentials)
 		return
 	}
-	if err := auth.VerifyPassword(u.PasswordHash, req.Password); err != nil {
+	if err := auth.VerifyPasswordContext(hashCtx, u.PasswordHash, req.Password); err != nil {
+		if errors.Is(err, auth.ErrBusy) {
+			busy()
+			return
+		}
 		if !errors.Is(err, auth.ErrMismatch) {
 			s.log.Error("login: password hash", "user_id", u.ID, "err", err)
 		}
 		writeError(w, http.StatusUnauthorized, api.CodeUnauthenticated, wrongCredentials)
 		return
 	}
+	// The right password: not a guess. Forgive both counts, so people
+	// behind one campus address are not locked out by logging in.
+	s.loginLimit.forgive(ipKey, now)
+	s.loginLimit.forgive(emailKey, now)
 	if u.DisabledAt != nil {
 		writeError(w, http.StatusForbidden, api.CodeForbidden, "Akun ini dinonaktifkan. Hubungi admin organisasi.")
 		return
@@ -182,22 +228,82 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request, p *principal) {
 	writeJSON(w, http.StatusOK, p.User.API())
 }
 
-// clientIP returns the address of the client. Behind Coolify's proxy the
-// connection comes from the proxy, which puts the client first in
-// X-Forwarded-For; the header is trusted only from a loopback or private
-// address, where that proxy runs.
-func clientIP(r *http.Request) string {
+// clientIPs decides the client address of a request. Behind Cloudflare
+// Tunnel, cloudflared connects from loopback and Cloudflare sets
+// CF-Connecting-IP to the real client, overwriting whatever the client
+// sent. X-Forwarded-For is not used then: its leftmost entry is whatever
+// the client wrote (SEC-02).
+type clientIPs struct {
+	header  string // "CF-Connecting-IP", "X-Forwarded-For" or "none"
+	trusted []netip.Prefix
+}
+
+func newClientIPs(cfg config.Config) clientIPs {
+	c := clientIPs{header: cfg.ClientIPHeader, trusted: cfg.TrustedProxies}
+	if c.header == "" {
+		// A Config not made by config.Load (tests): the defaults.
+		c.header = "CF-Connecting-IP"
+		c.trusted, _ = config.ParsePrefixes(config.DefaultTrustedProxies)
+	}
+	return c
+}
+
+func (c clientIPs) isTrusted(a netip.Addr) bool {
+	a = a.Unmap()
+	for _, p := range c.trusted {
+		if p.Contains(a) {
+			return true
+		}
+	}
+	return false
+}
+
+// resolve returns the client address of r.
+func (c clientIPs) resolve(r *http.Request) string {
+	remote := remoteHost(r)
+	peer, err := netip.ParseAddr(remote)
+	if err != nil || c.header == "none" || !c.isTrusted(peer) {
+		return remote
+	}
+	switch c.header {
+	case "CF-Connecting-IP":
+		if a, err := netip.ParseAddr(strings.TrimSpace(r.Header.Get("CF-Connecting-IP"))); err == nil {
+			return a.Unmap().String()
+		}
+	case "X-Forwarded-For":
+		// Each proxy appends the address it got the request from; the
+		// rightmost hop that is not one of ours is the client. Entries
+		// left of it are the client's own words.
+		hops := strings.Split(strings.Join(r.Header.Values("X-Forwarded-For"), ","), ",")
+		for i := len(hops) - 1; i >= 0; i-- {
+			a, err := netip.ParseAddr(strings.TrimSpace(hops[i]))
+			if err != nil {
+				break
+			}
+			if !c.isTrusted(a) || i == 0 {
+				return a.Unmap().String()
+			}
+		}
+	}
+	return remote
+}
+
+func remoteHost(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		host = r.RemoteAddr
 	}
-	if ip := net.ParseIP(host); ip != nil && (ip.IsLoopback() || ip.IsPrivate()) {
-		if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
-			first, _, _ := strings.Cut(fwd, ",")
-			if f := net.ParseIP(strings.TrimSpace(first)); f != nil {
-				return f.String()
-			}
-		}
+	if a, err := netip.ParseAddr(host); err == nil {
+		return a.Unmap().String()
 	}
 	return host
+}
+
+// clientIP returns the address of the client, as the middleware resolved
+// it; without the middleware, the connection's own address.
+func clientIP(r *http.Request) string {
+	if v, ok := r.Context().Value(clientIPKey).(string); ok && v != "" {
+		return v
+	}
+	return remoteHost(r)
 }

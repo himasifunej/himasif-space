@@ -30,15 +30,14 @@ func (s *Server) requestRecovery(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	rid := requestID(r.Context())
-	s.bg.Add(1)
-	go func() {
-		defer s.bg.Done()
+	// A panic here ends this one email, never the server (SEC-07).
+	s.goSafe(&s.bg, "recovery-mail", func() {
 		ctx, cancel := context.WithTimeout(context.WithValue(context.Background(), requestIDKey, rid), time.Minute)
 		defer cancel()
 		if err := s.sendRecovery(ctx, r, email); err != nil {
 			s.log.Error("recovery", "request_id", rid, "err", err)
 		}
-	}()
+	})
 	w.WriteHeader(http.StatusAccepted)
 	return nil
 }
@@ -101,7 +100,12 @@ func (s *Server) resetPassword(w http.ResponseWriter, r *http.Request) error {
 	if msg := auth.CheckPassword(req.Password); msg != "" {
 		return badRequest(msg)
 	}
-	hash, err := auth.HashPassword(req.Password)
+	// A cheap look at the token first: an anonymous caller with a made-up
+	// token must not get a 19 MiB hash run. The transaction checks again.
+	if _, err := s.store.UsableAuthToken(r.Context(), s.store.DB(), th, store.TokenRecovery, s.now()); err != nil {
+		return notFound(err, errInvalidToken)
+	}
+	hash, err := s.hashPassword(r, req.Password)
 	if err != nil {
 		return err
 	}
@@ -143,16 +147,35 @@ func (s *Server) resetPassword(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+// hashPassword hashes a new password, or answers 429 when hashing slots
+// stay busy (auth.ErrBusy).
+func (s *Server) hashPassword(r *http.Request, pw string) (string, error) {
+	ctx, cancel := context.WithTimeout(r.Context(), hashWait)
+	defer cancel()
+	h, err := auth.HashPasswordContext(ctx, pw)
+	if errors.Is(err, auth.ErrBusy) {
+		return "", errHashBusy
+	}
+	return h, err
+}
+
 // checkCurrentPassword verifies the caller's password, with the limit of
 // login attempts.
 func (s *Server) checkCurrentPassword(r *http.Request, p *principal, pw string) error {
-	if !s.loginLimit.allow("password:"+p.User.ID.String(), s.now()) {
+	key, now := "password:"+p.User.ID.String(), s.now()
+	if !s.loginLimit.allow(key, now) {
 		return errRateLimited
 	}
 	if pw == "" {
 		return badRequest("Isi kata sandi saat ini.")
 	}
-	if err := auth.VerifyPassword(p.User.PasswordHash, pw); err != nil {
+	ctx, cancel := context.WithTimeout(r.Context(), hashWait)
+	defer cancel()
+	if err := auth.VerifyPasswordContext(ctx, p.User.PasswordHash, pw); err != nil {
+		if errors.Is(err, auth.ErrBusy) {
+			s.loginLimit.forgive(key, now) // not a guess
+			return errHashBusy
+		}
 		if !errors.Is(err, auth.ErrMismatch) {
 			return err
 		}
@@ -215,7 +238,7 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request, p *princ
 	if err := s.checkCurrentPassword(r, p, req.CurrentPassword); err != nil {
 		return err
 	}
-	hash, err := auth.HashPassword(req.Password)
+	hash, err := s.hashPassword(r, req.Password)
 	if err != nil {
 		return err
 	}
@@ -333,7 +356,7 @@ func (s *Server) adminHandover(w http.ResponseWriter, r *http.Request, p *princi
 	if err := s.checkCurrentPassword(r, p, req.CurrentPassword); err != nil {
 		return err
 	}
-	hash, err := auth.HashPassword(req.Password)
+	hash, err := s.hashPassword(r, req.Password)
 	if err != nil {
 		return err
 	}

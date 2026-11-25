@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net"
 	"net/mail"
+	"net/netip"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -37,6 +38,25 @@ type Config struct {
 	GuidesDir string
 
 	SessionTTL time.Duration
+
+	// ClientIPHeader names where the client's address comes from when a
+	// request arrives through a trusted proxy (SPACE_CLIENT_IP_HEADER):
+	// "CF-Connecting-IP" (default; Cloudflare Tunnel sets it and a client
+	// cannot), "X-Forwarded-For" (the rightmost hop that is not a trusted
+	// proxy) or "none" (the connection's own address). Rate limits are
+	// keyed by it.
+	ClientIPHeader string
+	// TrustedProxies are the addresses whose ClientIPHeader is believed
+	// (SPACE_TRUSTED_PROXIES, comma-separated CIDRs; default loopback and
+	// private ranges, where cloudflared or Coolify's proxy run).
+	TrustedProxies []netip.Prefix
+
+	// HashConcurrency bounds the Argon2id password hashes running at once
+	// (SPACE_PASSWORD_HASH_CONCURRENCY, default 2: 19 MiB each), and
+	// HashQueue the logins waiting for one (SPACE_PASSWORD_HASH_QUEUE,
+	// default 32); more get 429.
+	HashConcurrency int
+	HashQueue       int
 
 	Mail Mail
 
@@ -148,6 +168,29 @@ func Load() (Config, error) {
 		errs = append(errs, fmt.Errorf("SPACE_SESSION_TTL: %q is not a positive duration", os.Getenv("SPACE_SESSION_TTL")))
 	}
 	c.SessionTTL = ttl
+	switch h := strings.ToLower(get("SPACE_CLIENT_IP_HEADER", "CF-Connecting-IP")); h {
+	case "cf-connecting-ip":
+		c.ClientIPHeader = "CF-Connecting-IP"
+	case "x-forwarded-for":
+		c.ClientIPHeader = "X-Forwarded-For"
+	case "none":
+		c.ClientIPHeader = "none"
+	default:
+		errs = append(errs, fmt.Errorf("SPACE_CLIENT_IP_HEADER must be CF-Connecting-IP, X-Forwarded-For or none, not %q", h))
+	}
+	proxies, err := ParsePrefixes(get("SPACE_TRUSTED_PROXIES", DefaultTrustedProxies))
+	if err != nil {
+		errs = append(errs, fmt.Errorf("SPACE_TRUSTED_PROXIES: %w", err))
+	}
+	c.TrustedProxies = proxies
+	c.HashConcurrency, err = strconv.Atoi(get("SPACE_PASSWORD_HASH_CONCURRENCY", "2"))
+	if err != nil || c.HashConcurrency < 1 || c.HashConcurrency > 16 {
+		errs = append(errs, errors.New("SPACE_PASSWORD_HASH_CONCURRENCY must be between 1 and 16"))
+	}
+	c.HashQueue, err = strconv.Atoi(get("SPACE_PASSWORD_HASH_QUEUE", "32"))
+	if err != nil || c.HashQueue < 0 || c.HashQueue > 1024 {
+		errs = append(errs, errors.New("SPACE_PASSWORD_HASH_QUEUE must be between 0 and 1024"))
+	}
 	port, err := strconv.Atoi(get("SPACE_SMTP_PORT", "587"))
 	if err != nil {
 		errs = append(errs, fmt.Errorf("SPACE_SMTP_PORT: %w", err))
@@ -187,6 +230,38 @@ func Load() (Config, error) {
 		errs = append(errs, fmt.Errorf("SPACE_MAIL_DRIVER must be disabled, log or smtp, not %q", c.Mail.Driver))
 	}
 	return c, errors.Join(errs...)
+}
+
+// DefaultTrustedProxies are loopback and the private ranges.
+const DefaultTrustedProxies = "127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7"
+
+// ParsePrefixes reads comma-separated CIDRs; a bare address is one host.
+// "none" gives an empty list: no proxy is trusted.
+func ParsePrefixes(list string) ([]netip.Prefix, error) {
+	if strings.TrimSpace(list) == "none" {
+		return nil, nil
+	}
+	var out []netip.Prefix
+	for _, f := range strings.Split(list, ",") {
+		f = strings.TrimSpace(f)
+		if f == "" {
+			continue
+		}
+		if !strings.Contains(f, "/") {
+			a, err := netip.ParseAddr(f)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, netip.PrefixFrom(a.Unmap(), a.Unmap().BitLen()))
+			continue
+		}
+		p, err := netip.ParsePrefix(f)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, p.Masked())
+	}
+	return out, nil
 }
 
 var snsTopicARN = regexp.MustCompile(`^arn:aws:sns:[a-z0-9-]+:[0-9]{12}:[A-Za-z0-9_-]{1,256}$`)
