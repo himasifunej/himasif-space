@@ -206,8 +206,11 @@ Sumber: pesan GOA atas nama owner, 26 Nov 2026. Keputusannya berlaku sekarang. *
 | S-01 | **SOP dibuat oleh Litbang**, bukan oleh Humas atau Mediatek | F2-17 | PRD §17 |
 | S-02 | Di awal periode ada **rapat Medhum + Litbang** untuk menyepakati SOP. Setelah disepakati, **SOP tidak diganti lagi selama periode itu** | F2-17 | PRD §17 |
 | S-03 | SOP Medhum 25/26 yang berlaku masih versi lama. Untuk periode 2026/2027 SOP disesuaikan dengan Space. Ringkasannya akan ditaruh GOA di note; PDF aslinya ada di PC owner | F2-15, F2-17 | — |
+| S-04 | **(27 Nov 2026) Reminder H-4 dan H-12 jam berjalan tanpa menu SOP.** Kabar di aplikasi dan pesan pribadi, untuk konten Medhum: H-4 ke PJ konten dan PIC desain (follow-up SOP 7.14), H-12 jam ke PIC desain (desain final SOP 7.19). Hanya Reminder, bukan penilaian pelanggaran | SOP-M7 (gelombang 2) | SOP Medhum 25/26 7.14, 7.19; PRD §17 |
 
 S-01 mengubah R-13: kalimat "admin tetap bisa mengaturnya" diganti. Litbang yang mengatur SOP; admin organisasi hanya membaca dan membuka kunci (usulan di bawah).
+
+S-04 mengubah R-13 untuk kedua Reminder ini saja: R-13 tidak lagi mensyaratkan kebijakan SOP aktif untuk follow-up H-4. Menu Evaluasi SOP, temuan dan rekap SOP tetap tersembunyi sampai kebijakan aktif (R-13, S-01). Sejalan dengan K-17 ("follow-up H-4 digantikan Reminder Space"). Belum dibangun; dikerjakan di gelombang 2.
 
 ### Kode sekarang (dicek 26 Nov 2026)
 
@@ -247,14 +250,6 @@ Jadi arah kewenangannya sekarang terbalik dari S-01: divisi yang dievaluasi meny
 | Tes dan dokumen | tes DB server, tes `appui`, PRD §17, `docs/handoff/sop-workflows.md` | | 0,5 hari |
 
 Total sekitar **2 hari kerja satu session, ukuran M**. Risiko: kebijakan pilot yang sudah ada di DB uji dibuat oleh kadiv Humas/Mediatek; migrasi menandainya Draf tanpa mengubah isinya. DB stabil mulai kosong (R-02), jadi tidak ada data lama di sana. Karena menu SOP tersembunyi (R-13) dan Litbang baru ikut periode depan (K-17), F2-17 **tidak menahan 1.0.0**: bisa di gelombang 2 bila ada session kosong, atau di 1.0.x.
-
-## Keputusan owner 27 November 2026 — Reminder H-4 dan H-12 jam Medhum
-
-| # | Keputusan | Item | Acuan |
-|---|---|---|---|
-| S-04 | **Reminder H-4 dan H-12 jam berjalan tanpa menu SOP.** Kabar di aplikasi dan pesan pribadi, untuk konten Medhum: H-4 ke PJ konten dan PIC desain (follow-up SOP 7.14), H-12 jam ke PIC desain (desain final SOP 7.19). Hanya Reminder, bukan penilaian pelanggaran | SOP-M7 (gelombang 2) | SOP Medhum 25/26 7.14, 7.19; PRD §17 |
-
-S-04 mengubah R-13 untuk kedua Reminder ini saja: R-13 tidak lagi mensyaratkan kebijakan SOP aktif untuk follow-up H-4. Menu Evaluasi SOP, temuan dan rekap SOP tetap tersembunyi sampai kebijakan aktif (R-13, S-01). Sejalan dengan K-17 ("follow-up H-4 digantikan Reminder Space"). Belum dibangun; dikerjakan di gelombang 2.
 
 ## Usulan, menunggu owner: jalur domain `space.himasif.id` (F1-21)
 
