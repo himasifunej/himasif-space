@@ -57,6 +57,9 @@ func (a *App) medhumStageOf(item api.MedhumContent) (medhumStage, string) {
 	if item.PublishedAt != nil {
 		return medhumPosted, "Terposting"
 	}
+	if item.DesignAcc != nil {
+		return medhumReady, "Di-ACC"
+	}
 	evidence, pending := false, false
 	for _, w := range a.waContent.items {
 		if w.Kind != "drive" {
@@ -724,6 +727,9 @@ func (a *App) medhumFacts(c *ui.Context, item api.MedhumContent, loc *time.Locat
 		{"PJ desain", design},
 		{"Bukti desain", evidence},
 	}
+	if item.DesignTaskID != nil {
+		facts = append(facts, [2]string{"ACC desain", medhumAccText(item.DesignAcc, loc)})
+	}
 	if item.ConceptSubmittedAt != nil {
 		facts = append(facts, [2]string{"Konsep diserahkan", taskTimestamp(*item.ConceptSubmittedAt, loc.String())})
 	}
@@ -794,4 +800,20 @@ func (a *App) medhumFields(c *ui.Context, d *medhumDraft) {
 	if d.id != id.Nil && (d.calendar || d.assignment) {
 		taskInput(c, "medhum-reason", "Alasan perubahan", &d.reason)
 	}
+}
+
+// medhumAccText is the shared ACC trail of a design (PRD MED-13):
+// "ACC oleh Nama · Humas, 3 Des 14.05".
+func medhumAccText(acc *api.MedhumAcc, loc *time.Location) string {
+	if acc == nil {
+		return "Belum di-ACC"
+	}
+	return "ACC oleh " + acc.By.DisplayName + " · " + medhumSide(acc.Side) + ", " + taskTimestamp(acc.At, loc.String())
+}
+
+func medhumSide(side string) string {
+	if side == "humas" {
+		return "Humas"
+	}
+	return "Mediatek"
 }

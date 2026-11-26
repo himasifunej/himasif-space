@@ -2,6 +2,9 @@ package store
 
 import (
 	"context"
+	"errors"
+	"time"
+
 	"github.com/himasifunej/himasif-space/internal/api"
 	"github.com/himasifunej/himasif-space/internal/id"
 	"github.com/himasifunej/himasif-space/internal/timeutil"
@@ -49,4 +52,43 @@ func (s *Store) SaveMedhum(ctx context.Context, q Querier, c api.MedhumContent, 
 	}
 	_, err := q.Exec(ctx, `update medhum_contents set title=$2,posting_date=$3,posting_at=$4,design_date=$5,design_at=$6,humas_pj_id=$7,design_pj_id=$8,humas_task_id=$9,design_task_id=$10,concept_url=$11,caption=$12,trello_card_id=$13,concept_submitted_at=$14,published_at=$15,version=$16,updated_at=$17 where id=$1`, c.ID, c.Title, c.PostingDate, c.PostingAt, c.DesignDate, c.DesignAt, c.HumasPJID, c.DesignPJID, c.HumasTaskID, c.DesignTaskID, c.ConceptURL, c.Caption, c.TrelloCardID, c.ConceptSubmittedAt, c.PublishedAt, c.Version, c.UpdatedAt)
 	return err
+}
+
+// MedhumDesign is the content a design task belongs to, for the shared ACC.
+type MedhumDesign struct {
+	ContentID       id.ID
+	Title           string
+	HumasPJID       id.ID
+	HumasDivisionID id.ID
+}
+
+// MedhumDesignOf reports whether tid is the design task of a Medhum content.
+func (s *Store) MedhumDesignOf(ctx context.Context, q Querier, tid id.ID) (MedhumDesign, bool, error) {
+	var d MedhumDesign
+	err := q.QueryRow(ctx, `select id,title,humas_pj_id,humas_division_id from medhum_contents where design_task_id=$1`, tid).Scan(&d.ContentID, &d.Title, &d.HumasPJID, &d.HumasDivisionID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return d, false, nil
+	}
+	return d, err == nil, err
+}
+
+// MedhumAcc is the approval of the design task's latest submission, if
+// that submission is approved and the task is not cancelled.
+func (s *Store) MedhumAcc(ctx context.Context, q Querier, designTask id.ID) (*api.MedhumAcc, error) {
+	var a api.MedhumAcc
+	var status, progress string
+	var at *time.Time
+	var by *id.ID
+	var name *string
+	err := q.QueryRow(ctx, `select e.match_status,t.progress,e.reviewed_at,r.id,r.display_name,e.review_side
+ from task_evidence e join tasks t on t.id=e.task_id left join users r on r.id=e.reviewed_by
+ where e.task_id=$1 order by e.recorded_at desc,e.id desc limit 1`, designTask).Scan(&status, &progress, &at, &by, &name, &a.Side)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil || status != api.MatchVerified || progress == api.TaskCancelled || at == nil || by == nil {
+		return nil, err
+	}
+	a.At, a.By = *at, api.PersonRef{ID: *by, DisplayName: *name}
+	return &a, nil
 }

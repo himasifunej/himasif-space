@@ -614,8 +614,18 @@ func (a *App) taskEvidenceView(c *ui.Context, t api.Task) {
 						status.TextColor(th.Danger)
 					}
 					muted(c, "Diserahkan "+e.SubmittedBy.DisplayName+" · "+taskTimestamp(e.SubmittedAt, t.TimeZone)).FontSize(11)
+					if e.ReviewSide != "" && e.ReviewedBy != nil && e.ReviewedAt != nil {
+						verb := "ACC oleh "
+						if e.MatchStatus == api.MatchRejected {
+							verb = "Perbaikan diminta "
+						}
+						muted(c, verb+e.ReviewedBy.DisplayName+" · "+medhumSide(e.ReviewSide)+" · "+taskTimestamp(*e.ReviewedAt, t.TimeZone)).FontSize(11)
+					}
 					if e.ReviewReason != "" {
 						muted(c, "Alasan: "+e.ReviewReason).FontSize(11)
+					}
+					if t.Permissions.ReviewSide != "" && t.Permissions.Review && i == len(t.Evidence)-1 && e.MatchStatus == api.MatchPending {
+						muted(c, "ACC bersama Medhum: kamu meninjau sebagai "+medhumSide(t.Permissions.ReviewSide)+". Satu ACC cukup; PIC tidak meng-ACC karyanya sendiri.").FontSize(11)
 					}
 					if t.Permissions.Review && i == len(t.Evidence)-1 && t.Progress != api.TaskCancelled {
 						a.taskEvidenceReview(c, t, e)

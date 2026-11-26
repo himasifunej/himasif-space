@@ -34,6 +34,17 @@ type MedhumContent struct {
 	UpdatedAt          time.Time      `json:"updatedAt"`
 	CanEditCalendar    bool           `json:"canEditCalendar"`
 	CanAssignDesign    bool           `json:"canAssignDesign"`
+	// DesignAcc is the shared ACC of the design task's latest submission
+	// (PRD MED-13): who, from which side and when. Absent until approved
+	// and on servers before 1.0.0-rc.2.
+	DesignAcc *MedhumAcc `json:"designAcc,omitempty"`
+}
+
+// MedhumAcc records one approval of a Medhum design.
+type MedhumAcc struct {
+	By   PersonRef `json:"by"`
+	Side string    `json:"side"`
+	At   time.Time `json:"at"`
 }
 type MedhumCreateRequest struct {
 	Title       string         `json:"title"`
