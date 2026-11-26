@@ -531,3 +531,38 @@ func TestMemberRemoveBlockedReason(t *testing.T) {
 		}
 	}
 }
+
+// QA rc.1 finding 3: in Medhum the table names its division, the manage
+// buttons name it too, and the people of the other division show below,
+// so the count agrees with the header's.
+func TestSharedSpaceMembersNameDivisionAndOthers(t *testing.T) {
+	h, base, _, _ := memberAccessHarness(t, 1440, 1500)
+	d := h.app.access.members.division
+	humas := api.Division{ID: id.New(), Slug: "humas", Name: "Humas"}
+	var mediatek api.Division
+	for _, div := range base.divisions {
+		if div.ID == d {
+			mediatek = div
+		}
+	}
+	medhum := api.Space{ID: id.New(), PeriodID: h.app.periodID, Name: "Medhum", Code: "medhum", Kind: api.SpaceShared, Divisions: []api.Division{humas, mediatek}, Roles: h.app.access.spaces[0].Roles, Capabilities: h.app.access.spaces[0].Capabilities}
+	h.app.access.spaces = append(h.app.access.spaces, medhum)
+	h.app.selectSpace(medhum.ID)
+	h.app.chrome.tab = "Anggota"
+	h.tt.Frame()
+	h.settle()
+	if !h.app.access.members.loaded || h.app.access.members.division != d {
+		t.Fatalf("members not loaded: %+v", h.app.access.members.division)
+	}
+	people := []api.PersonRef{{ID: id.New(), DisplayName: "Tara Humas"}}
+	for _, m := range h.app.access.members.members {
+		people = append(people, api.PersonRef{ID: m.UserID, DisplayName: m.DisplayName})
+	}
+	h.app.chrome.members.space, h.app.chrome.members.loaded, h.app.chrome.members.items = medhum.ID, true, people
+	h.tt.Frame()
+	h.want("Undang anggota " + mediatek.Name)
+	h.want("Role kustom " + mediatek.Name)
+	h.want("1 orang lain di Medhum")
+	h.want("Tara Humas")
+	h.dontWant("Divisi Medhum")
+}
