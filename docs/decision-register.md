@@ -206,8 +206,11 @@ Sumber: pesan GOA atas nama owner, 26 Nov 2026. Keputusannya berlaku sekarang. *
 | S-01 | **SOP dibuat oleh Litbang**, bukan oleh Humas atau Mediatek | F2-17 | PRD §17 |
 | S-02 | Di awal periode ada **rapat Medhum + Litbang** untuk menyepakati SOP. Setelah disepakati, **SOP tidak diganti lagi selama periode itu** | F2-17 | PRD §17 |
 | S-03 | SOP Medhum 25/26 yang berlaku masih versi lama. Untuk periode 2026/2027 SOP disesuaikan dengan Space. Ringkasannya akan ditaruh GOA di note; PDF aslinya ada di PC owner | F2-15, F2-17 | — |
+| S-04 | **(27 Nov 2026) Reminder H-4 dan H-12 jam berjalan tanpa menu SOP.** Kabar di aplikasi dan pesan pribadi, untuk konten Medhum: H-4 ke PJ konten dan PIC desain (follow-up SOP 7.14), H-12 jam ke PIC desain (desain final SOP 7.19). Hanya Reminder, bukan penilaian pelanggaran | SOP-M7 (gelombang 2) | SOP Medhum 25/26 7.14, 7.19; PRD §17 |
 
 S-01 mengubah R-13: kalimat "admin tetap bisa mengaturnya" diganti. Litbang yang mengatur SOP; admin organisasi hanya membaca dan membuka kunci (usulan di bawah).
+
+S-04 mengubah R-13 untuk kedua Reminder ini saja: R-13 tidak lagi mensyaratkan kebijakan SOP aktif untuk follow-up H-4. Menu Evaluasi SOP, temuan dan rekap SOP tetap tersembunyi sampai kebijakan aktif (R-13, S-01). Sejalan dengan K-17 ("follow-up H-4 digantikan Reminder Space"). Belum dibangun; dikerjakan di gelombang 2.
 
 ### Kode sekarang (dicek 26 Nov 2026)
 
