@@ -15,6 +15,19 @@ Tanggal: 25 November 2026, WIB. Item rencana: **F1-24** (keputusan owner no. 1 d
 
 Istilah dalam skrip ini mengikuti istilah baku (K-13): **Hasil yang diharapkan**, **Reminder**, **Deadline**, **Command**, **Ace (Dynamic Island)**, **Notulensi**, **notulen**. Aplikasi rc.9 masih memakai sebagian istilah lama (mis. "Hasil yang diminta", "tenggat", "pengingat"); itu bukan kegagalan uji, tetapi catat bila penguji bingung karenanya.
 
+## Akun uji di instans uji (QA dan gladi)
+
+Sejak 1.0.0-rc.2, instans uji `space.tiyoouw.app` punya dua akun `[DUMMY]` untuk QA peran yang sebelumnya tidak bisa diuji. Keduanya tidak berisi data pribadi asli (email rekaan, tanpa NIM) dan **tidak** dibuat di instans stabil.
+
+| Akun | Peran di periode 2025/2026 | Untuk |
+|---|---|---|
+| `[DUMMY] Uji Pengelola Mediatek` | anggota Mediatek dan **45** (tasks.manage, results.review, ping.send, whatsapp.manage) | ACC bersama Medhum dari sisi Mediatek, tinjauan, ping |
+| `[DUMMY] Uji BPH` | anggota BPH dengan izin **pemantauan** | skrip BPH: Pemantauan organisasi, ping kadiv |
+
+- Kadiv Mediatek tetap akun owner; akun uji sengaja dijadikan 45 supaya tidak menggeser kadiv. Hak tinjau dan ACC-nya sama dengan kadiv; yang tidak bisa: mengatur anggota, role dan 45.
+- Email dan kata sandinya hanya ada di berkas operasional `~enowx/.config/himasif-space-pilot/qa-test-accounts.json` (mode 0600) di host instans uji, seperti akun showcase. Jangan disalin ke repo, note atau laporan.
+- Pembuatannya tercatat di audit dengan aksi `qa.user.create`. Cabut kapan saja: admin organisasi mencabut izin pemantauan, kadiv Mediatek melepas 45 dan mengeluarkan akun itu.
+
 ## Aturan pengamatan
 
 - **Owner tidak membantu** selama penguji mengerjakan langkah. Boleh menjawab hanya setelah penguji menyerah atau melewati batas waktu langkah; langkah itu lalu ditandai **gagal**.

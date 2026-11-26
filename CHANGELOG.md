@@ -14,6 +14,7 @@ Versi mengikuti aturan sebelum rilis publik:
 - **Tampilan HP dan desktop**: di HP, + Pengingat Untukku turun ke baris baru, judul tugas di Untukku tidak lagi terpotong ("[D…"), kartu ringkasan Medhum jadi dua kolom dan sub-tab Medhum membungkus; di desktop, bila tab Space tidak muat, Atur tab menjadi ikon dan ada tombol ke tab berikutnya, dan placeholder Ctrl K dipersingkat jadi "Cari apa saja".
 - **Status koneksi**: satu permintaan yang gagal atau satu cek yang terlewat tidak langsung menampilkan "Offline"; aplikasi memeriksa server sekali lagi 3 detik kemudian dan baru menyatakan offline bila gagal lagi.
 - **Server**: daftar notifikasi (`/api/deliveries`) memeriksa izin satu kali per tugas, rapat atau ping, bukan per notifikasi, sehingga jauh lebih cepat untuk akun dengan banyak Reminder.
+- **Instans uji**: dua akun `[DUMMY]` untuk QA peran pengelola Mediatek (45) dan BPH (pemantauan), tanpa data pribadi; kata sandi hanya di berkas operasional host uji. Skrip uji Mediatek dan BPH menyebutnya. Periode uji 2025/2026 yang berakhir 30 Nov tetap berjalan selama statusnya aktif: server tidak memakai tanggal akhir untuk Reminder, ACC atau akses; hanya label "minggu ke-N" di Beranda yang hilang.
 - **Operasi (F1-22)**: runbook cutover instans stabil `space.himasif.id` di host `tiyoouw-studio` (rute tunnel 404 → port stabil, TLS dan custom hostname, health dan login, admin pertama dan organisasi, rollback) dan rencana memindahkan nomor bot WA ke instans stabil. Hanya dokumen.
 
 ## 1.0.0-rc.1 — 2026-11-26 · Rilis uji pertama menuju 1.0.0 (pre-release)
