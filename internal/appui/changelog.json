@@ -1,5 +1,16 @@
 [
   {
+    "version": "1.0.0",
+    "date": "2026-11-26",
+    "title": "Menuju 1.0: Medhum, SOP tersembunyi, login lebih aman",
+    "notes": [
+      "Medhum: daftar konsep Humas dari WhatsApp dibaca sesuai template asli, termasuk DADAKAN dan warna.",
+      "Deadline desain dihitung H-2 dari tanggal posting; baris yang tidak terbaca disebut nomor barisnya.",
+      "Menu Evaluasi SOP disembunyikan sampai kebijakan SOP dinyalakan; kadiv bisa menyalakannya di Pengaturan.",
+      "Login lebih tahan serangan: batas percobaan per alamat asli, dan login yang berhasil tidak dihitung."
+    ]
+  },
+  {
     "version": "0.4.6",
     "date": "2026-11-16",
     "title": "Pemantauan organisasi BPH, Rapat BPH, ringkasan mingguan",
