@@ -580,6 +580,10 @@ func TestConnectionIndicator(t *testing.T) {
 	f.mu.Unlock()
 	h.tt.Advance(pingEvery)
 	h.settle()
+	// One missed check is retried before the app shows Offline.
+	h.want("Tersambung")
+	h.tt.Advance(pingRetry)
+	h.settle()
 	h.want("Tidak ada koneksi")
 	// The topbar's sync pill shows the state and retries when clicked.
 	h.want("Offline")
