@@ -90,6 +90,20 @@ func (a *App) membersPage(c *ui.Context) {
 	}
 	m := &a.access.members
 	phone := isMobile(c)
+	// In a shared Space (Medhum) the table is one division's directory:
+	// name it, and name the buttons that manage that division.
+	shared, divName := s.Kind == api.SpaceShared, ""
+	for _, div := range s.Divisions {
+		if div.ID == d {
+			divName = div.Name
+		}
+	}
+	forDiv := func(label string) string {
+		if shared && divName != "" {
+			return label + " " + divName
+		}
+		return label
+	}
 	ui.Scroll(c).Fill().Children(func() {
 		body := ui.Column(c).FillWidth().MinWidth(0).Padding(24).Gap(16)
 		if phone {
@@ -111,6 +125,9 @@ func (a *App) membersPage(c *ui.Context) {
 					sub := "Beban kerja terlihat oleh semua anggota. Hanya kadiv yang mengatur role, undangan, dan 45."
 					if m.loaded && len(m.members) > 0 {
 						sub = fmt.Sprintf("%d anggota · %s", len(m.members), sub)
+						if shared && divName != "" {
+							sub = fmt.Sprintf("%d anggota %s di tabel ini. %s adalah ruang bersama; tiap divisi mengatur anggotanya di Space divisinya.", len(m.members), divName, s.Name)
+						}
 					}
 					ui.Text(c, sub).FontSize(13).TextColor(t.TextMuted)
 				})
@@ -123,18 +140,18 @@ func (a *App) membersPage(c *ui.Context) {
 						a.loadMembers(d)
 					}
 					if a.archiveDivisionAllowed(d) {
-						if outlineButton(c.Key("member-archive"), "Izin arsip", "", false).Tooltip("Kelola izin arsip").Clicked() {
+						if outlineButton(c.Key("member-archive"), forDiv("Izin arsip"), "", false).Tooltip("Kelola izin arsip").Clicked() {
 							a.selectArchiveDivision(d)
 							a.navigate(PathArchiveAccess)
 						}
 					}
 					if a.memberCan(api.CapRolesManage) {
-						if outlineButton(c.Key("member-roles"), "Role kustom", "shield", false).Tooltip("Kelola role kustom").Disabled(m.busy).Clicked() {
+						if outlineButton(c.Key("member-roles"), forDiv("Role kustom"), "shield", false).Tooltip("Kelola role kustom").Disabled(m.busy).Clicked() {
 							a.openRoles()
 						}
 					}
 					if a.memberCan(api.CapInvitationsManage) {
-						if primarySpaceButton(c, "Undang anggota", "plus").Disabled(m.busy).Clicked() {
+						if primarySpaceButton(c, forDiv("Undang anggota"), "plus").Disabled(m.busy).Clicked() {
 							m.inviteOpen = !m.inviteOpen
 						}
 					}
@@ -189,6 +206,9 @@ func (a *App) membersPage(c *ui.Context) {
 				a.memberInviteForm(c)
 			}
 			a.memberTable(c, phone)
+			if shared {
+				a.sharedSpaceOthers(c, s)
+			}
 			a.memberAccessPanel(c)
 			a.memberBottomPanel(c)
 			a.memberRolesDialog(c)
@@ -478,5 +498,47 @@ func (a *App) memberInvitations(c *ui.Context) {
 				})
 			})
 		}
+	})
+}
+
+// sharedSpaceOthers lists the people of a shared Space who are not in the
+// division table shown, so "6 anggota" on the header and this page agree
+// (QA rc.1 finding 3). Their directory stays with their own division.
+func (a *App) sharedSpaceOthers(c *ui.Context, s *api.Space) {
+	if a.chrome.members.space != s.ID || !a.chrome.members.loaded {
+		return
+	}
+	shown := map[id.ID]bool{}
+	for _, m := range a.access.members.members {
+		shown[m.UserID] = true
+	}
+	others := []string{}
+	for _, p := range a.chrome.members.items {
+		if !shown[p.ID] {
+			others = append(others, p.DisplayName)
+		}
+	}
+	if len(others) == 0 {
+		return
+	}
+	slices.Sort(others)
+	names := []string{}
+	for _, div := range s.Divisions {
+		if div.ID != a.access.members.division {
+			names = append(names, div.Name)
+		}
+	}
+	t := c.Theme()
+	ui.Column(c.Key("shared-others")).FillWidth().Gap(8).Padding(14).Radius(10).Background(t.Surface).Border(1, t.Border).Children(func() {
+		ui.Text(c, fmt.Sprintf("%d orang lain di %s", len(others), s.Name)).FontSize(14).Bold()
+		muted(c, "Dari "+strings.Join(names, ", ")+". Role dan undangan mereka diatur di Space divisinya.").FontSize(12)
+		ui.Row(c).FillWidth().Gap(8).Wrap().Children(func() {
+			for _, name := range others {
+				ui.Row(c.Key(name)).Gap(6).AlignItems(ui.Center).Padding(4, 8).Radius(8).Background(t.Background).Children(func() {
+					avatar(c, name, 22)
+					ui.Text(c, name).FontSize(12).MaxLines(1)
+				})
+			}
+		})
 	})
 }
