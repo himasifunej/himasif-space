@@ -7,6 +7,8 @@ Versi mengikuti aturan sebelum rilis publik:
 
 ## Belum dirilis
 
+- **Operasi (F1-22)**: runbook cutover instans stabil `space.himasif.id` di host `tiyoouw-studio` (rute tunnel 404 → port stabil, TLS dan custom hostname, health dan login, admin pertama dan organisasi, rollback) dan rencana memindahkan nomor bot WA ke instans stabil. Hanya dokumen.
+
 ## 1.0.0-rc.1 — 2026-11-26 · Rilis uji pertama menuju 1.0.0 (pre-release)
 
 Gabungan PR gelombang 1 (#25–#29). Server dan web berubah tanpa migrasi; bridge WhatsApp tidak berubah. Dipasang di instans uji `space.tiyoouw.app` dan kanal pembaruan rc.
