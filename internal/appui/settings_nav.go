@@ -31,6 +31,10 @@ func (a *App) settingsGroups() []settingsGroup {
 		if strings.HasPrefix(strings.ToLower(sp.Name), "divisi") {
 			division = sp.Name
 		}
+		// Medhum is a shared flow of Humas and Mediatek, not a division.
+		if sp.Kind == api.SpaceShared {
+			division = "Space " + sp.Name + " (bersama)"
+		}
 	}
 	account := []settingsEntry{{"Akun", "Profil dan keamanan", "Nama, email, kata sandi, keluar", "user"}}
 	if a.isMonitor() {
