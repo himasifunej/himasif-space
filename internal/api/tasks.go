@@ -32,6 +32,10 @@ type TaskPermissions struct {
 	// a kadiv of the task's division or an organization admin may. Others
 	// wait for another reviewer. Older servers leave it out (false).
 	SelfReview bool `json:"selfReview,omitempty"`
+	// ReviewSide: on a Medhum design task, the side the caller reviews
+	// from ("humas" or "mediatek"); the shared ACC (PRD MED-10). Empty
+	// elsewhere and on older servers.
+	ReviewSide string `json:"reviewSide,omitempty"`
 }
 
 // SelfApprovedReason is the review reason of a submission its own
@@ -183,6 +187,10 @@ type TaskEvidence struct {
 	ReviewedAt   *time.Time `json:"reviewedAt,omitempty"`
 	ReviewedBy   *PersonRef `json:"reviewedBy,omitempty"`
 	ReviewReason string     `json:"reviewReason,omitempty"`
+	// ReviewSide is the side a Medhum design task was reviewed from
+	// ("humas" or "mediatek", PRD MED-13); empty for other tasks and on
+	// servers before 1.0.0-rc.2.
+	ReviewSide string `json:"reviewSide,omitempty"`
 	// Files are the task's attachments uploaded as this submission's proof.
 	// Absent from servers before 0.4.5.
 	Files []TaskAttachment `json:"files,omitempty"`

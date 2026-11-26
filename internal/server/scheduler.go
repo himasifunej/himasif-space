@@ -7,6 +7,7 @@ import (
 	"github.com/himasifunej/himasif-space/internal/api"
 	"github.com/himasifunej/himasif-space/internal/id"
 	"github.com/himasifunej/himasif-space/internal/store"
+	"slices"
 	"strconv"
 	"time"
 )
@@ -51,6 +52,7 @@ type scheduledSource struct {
 	due              time.Time
 	dateOnly         bool
 	recipients       []id.ID
+	overdueAlso      []id.ID // a Medhum design's PJ Humas hears of a missed Deadline (PRD MED-14)
 	minutes          []int
 	policy           api.NotificationPolicy
 }
@@ -131,6 +133,7 @@ func (s *Server) schedule(ctx context.Context) error {
 				key := src.kind + ":" + src.id.String() + ":" + strconv.FormatInt(src.version, 10) + ":" + slot.UTC().Format(time.RFC3339)
 				body := "Pengingat: " + src.title
 				message := deliveryMessage{Key: "reminder", Args: []string{src.title}}
+				recipients := src.recipients
 				if src.kind == "task" {
 					overdue := !src.dateOnly && slot.After(src.due)
 					if src.dateOnly {
@@ -140,9 +143,10 @@ func (s *Server) schedule(ctx context.Context) error {
 					if overdue {
 						body = "Tugas melewati tenggat: " + src.title
 						message.Key = "overdue"
+						recipients = append(slices.Clone(recipients), src.overdueAlso...)
 					}
 				}
-				if err := s.enqueue(ctx, q, key, src.kind, src.id, src.version, src.space, src.title, body, src.zone, slot, src.recipients, scheduledChannels(src.kind), message); err != nil {
+				if err := s.enqueue(ctx, q, key, src.kind, src.id, src.version, src.space, src.title, body, src.zone, slot, recipients, scheduledChannels(src.kind), message); err != nil {
 					return err
 				}
 			}
@@ -242,18 +246,22 @@ func (s *Server) scheduleSources(ctx context.Context, q store.Querier) ([]schedu
 	if err != nil {
 		return nil, err
 	}
-	rows, err = q.Query(ctx, `select t.id,(select ts.space_id from task_spaces ts join spaces sp on sp.id=ts.space_id where ts.task_id=t.id order by (sp.code='medhum') desc,(sp.kind='division') desc,sp.id limit 1),t.notification_revision,t.title,p.time_zone,t.created_at,t.updated_at,coalesce(t.deadline_at,t.deadline_date::timestamp at time zone p.time_zone),t.deadline_date is not null,t.assignee_id,coalesce(tp.task_days,np.task_days,'{2,1,0}'::integer[]),coalesce(tp.local_hour,np.local_hour,6),coalesce(tp.local_minute,np.local_minute,0),coalesce(tp.overdue_days,np.overdue_days,1) from tasks t join periods p on p.id=t.period_id left join notification_policies np on np.period_id=t.period_id and np.division_id=t.owner_division_id left join task_notification_policies tp on tp.task_id=t.id where p.status<>'closed' and t.progress in ('todo','doing')`)
+	rows, err = q.Query(ctx, `select t.id,(select ts.space_id from task_spaces ts join spaces sp on sp.id=ts.space_id where ts.task_id=t.id order by (sp.code='medhum') desc,(sp.kind='division') desc,sp.id limit 1),t.notification_revision,t.title,p.time_zone,t.created_at,t.updated_at,coalesce(t.deadline_at,t.deadline_date::timestamp at time zone p.time_zone),t.deadline_date is not null,t.assignee_id,coalesce(tp.task_days,np.task_days,'{2,1,0}'::integer[]),coalesce(tp.local_hour,np.local_hour,6),coalesce(tp.local_minute,np.local_minute,0),coalesce(tp.overdue_days,np.overdue_days,1),(select mc.humas_pj_id from medhum_contents mc where mc.design_task_id=t.id) from tasks t join periods p on p.id=t.period_id left join notification_policies np on np.period_id=t.period_id and np.division_id=t.owner_division_id left join task_notification_policies tp on tp.task_id=t.id where p.status<>'closed' and t.progress in ('todo','doing')`)
 	if err != nil {
 		return nil, err
 	}
 	for rows.Next() {
 		v := scheduledSource{kind: "task"}
 		var uid id.ID
-		if err := rows.Scan(&v.id, &v.space, &v.version, &v.title, &v.zone, &v.created, &v.updated, &v.due, &v.dateOnly, &uid, &v.policy.TaskDays, &v.policy.LocalHour, &v.policy.LocalMinute, &v.policy.OverdueDays); err != nil {
+		var humasPJ *id.ID
+		if err := rows.Scan(&v.id, &v.space, &v.version, &v.title, &v.zone, &v.created, &v.updated, &v.due, &v.dateOnly, &uid, &v.policy.TaskDays, &v.policy.LocalHour, &v.policy.LocalMinute, &v.policy.OverdueDays, &humasPJ); err != nil {
 			rows.Close()
 			return nil, err
 		}
 		v.recipients = []id.ID{uid}
+		if humasPJ != nil && *humasPJ != uid {
+			v.overdueAlso = []id.ID{*humasPJ}
+		}
 		out = append(out, v)
 	}
 	err = rows.Err()

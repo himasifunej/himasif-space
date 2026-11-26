@@ -36,7 +36,7 @@ func TestMigrationsIndependentBranchOrder(t *testing.T) {
 				'tasks', (select jsonb_agg(to_jsonb(t)-'notification_revision'-'planned_start_date'-'planned_start_at' order by id) from tasks t),
 				'spaces', (select jsonb_agg(to_jsonb(s)-'number' order by task_id,space_id) from task_spaces s),
 				'comments', (select jsonb_agg(to_jsonb(c) order by id) from task_comments c),
-				'evidence', (select jsonb_agg(to_jsonb(e)-'recorded_at' order by id) from task_evidence e),
+				'evidence', (select jsonb_agg(to_jsonb(e)-'recorded_at'-'review_side' order by id) from task_evidence e),
 				'events', (select jsonb_agg(to_jsonb(e) order by id) from task_events e),
 				'notifications', (select jsonb_agg(to_jsonb(n) order by id) from task_notifications n))::text`,
 		},

@@ -20,6 +20,8 @@ Sama dengan [uji Mediatek](uji-pengguna-mediatek.md#aturan-pengamatan): owner ti
 
 Privasi yang perlu diperhatikan penguji (PRD MON-02–04, MON-09): pemantau melihat tugas, bukti, komentar, Notulensi dan NIM anggota divisi yang dipantau; divisi **tidak** diberi tahu, tetapi setiap pembukaan tercatat di log yang dibaca admin. Reminder pribadi dan draf catatan selalu tertutup.
 
+Untuk QA tanpa ketua umum, instans uji punya akun `[DUMMY] Uji BPH` dengan izin pemantauan; lihat [akun uji](uji-pengguna-mediatek.md#akun-uji-di-instans-uji-qa-dan-gladi).
+
 ## Persiapan owner
 
 1. Ketua umum punya akun dan keanggotaan aktif di divisi BPH periode yang diuji.

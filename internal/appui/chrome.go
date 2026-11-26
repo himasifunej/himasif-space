@@ -189,6 +189,10 @@ func (a *App) shell(c *ui.Context) {
 	if a.lastPing.IsZero() {
 		a.lastPing = c.Now()
 	}
+	if a.pingSoon {
+		a.pingSoon = false
+		a.lastPing = c.Now().Add(-pingEvery)
+	}
 	if next := a.lastPing.Add(pingEvery); !c.Now().Before(next) {
 		a.ping(c.Now())
 	} else {

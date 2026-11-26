@@ -50,6 +50,9 @@ const (
 	logoutTimeout = 5 * time.Second
 	// pingEvery is how often the shell checks the connection.
 	pingEvery = 30 * time.Second
+	// pingMisses failed checks in a row, pingRetry apart, show Offline.
+	pingMisses = 2
+	pingRetry  = 3 * time.Second
 )
 
 // Paths of the shell's pages.
@@ -202,6 +205,12 @@ type App struct {
 	conn     connState
 	pinging  bool
 	lastPing time.Time // by the view's clock
+	// pingFails counts health checks failed in a row: one miss (a slow
+	// request, a busy CPU) is checked again before the app shows Offline.
+	pingFails int
+	// pingSoon asks the next frame for a health check, after a request
+	// found the server unreachable.
+	pingSoon bool
 	// syncedAt is the last time the server answered, shown in the sync pill.
 	syncedAt   time.Time
 	loggingOut bool
@@ -361,7 +370,13 @@ func (a *App) failed(err error) string {
 	case client.IsUnauthenticated(err):
 		a.expire()
 	case client.IsUnreachable(err):
-		a.conn = connOffline
+		// One failed request is not yet "offline": check the server
+		// first (QA rc.1 finding 8). The check sets the state.
+		if a.conn == connOnline {
+			a.pingSoon = true
+		} else {
+			a.conn = connOffline
+		}
 	}
 	return errorText(err)
 }
@@ -459,9 +474,16 @@ func (a *App) ping(now time.Time) {
 			}
 			a.pinging = false
 			if err != nil {
-				a.conn = connOffline
+				a.pingFails++
+				if a.pingFails >= pingMisses || a.conn != connOnline {
+					a.conn = connOffline
+					return
+				}
+				// Check again soon, still showing the last good state.
+				a.lastPing = now.Add(pingRetry - pingEvery)
 				return
 			}
+			a.pingFails = 0
 			a.conn = connOnline
 			a.serverVersion = h.Version
 			a.syncedAt = now

@@ -580,6 +580,10 @@ func TestConnectionIndicator(t *testing.T) {
 	f.mu.Unlock()
 	h.tt.Advance(pingEvery)
 	h.settle()
+	// One missed check is retried before the app shows Offline.
+	h.want("Tersambung")
+	h.tt.Advance(pingRetry)
+	h.settle()
 	h.want("Tidak ada koneksi")
 	// The topbar's sync pill shows the state and retries when clicked.
 	h.want("Offline")
@@ -603,4 +607,42 @@ func TestConnectionIndicator(t *testing.T) {
 		t.Errorf("sync pill shows no time: %q", h.tt.Texts())
 	}
 	h.dontWant("Ctrl B · Sidebar")
+}
+
+// QA rc.1 finding 8: one missed health check does not show Offline; the
+// app checks again a few seconds later and only a second miss does.
+func TestOneMissedPingIsNotOffline(t *testing.T) {
+	f := newFake(api.AccountPerson)
+	f.valid["tok"] = true
+	h := newHarness(t, f, "tok")
+	h.app.Start()
+	h.settle()
+	if h.app.conn != connOnline {
+		t.Fatalf("conn %v after start", h.app.conn)
+	}
+	f.mu.Lock()
+	f.unreachable = true
+	f.mu.Unlock()
+	now := time.Now()
+	h.app.ping(now)
+	h.settle()
+	if h.app.conn != connOnline {
+		t.Fatal("one missed ping showed Offline")
+	}
+	if want := now.Add(pingRetry - pingEvery); !h.app.lastPing.Equal(want) {
+		t.Fatalf("retry not scheduled: lastPing %v want %v", h.app.lastPing, want)
+	}
+	h.app.ping(now.Add(pingRetry))
+	h.settle()
+	if h.app.conn != connOffline {
+		t.Fatal("two missed pings still online")
+	}
+	f.mu.Lock()
+	f.unreachable = false
+	f.mu.Unlock()
+	h.app.ping(now.Add(time.Minute))
+	h.settle()
+	if h.app.conn != connOnline || h.app.pingFails != 0 {
+		t.Fatalf("not back online: %v fails %d", h.app.conn, h.app.pingFails)
+	}
 }

@@ -56,6 +56,24 @@ func (s *Server) deliveryVisible(ctx context.Context, q store.Querier, p *princi
 	}
 	return false
 }
+
+// deliverySource is what deliveryVisible looks at in a delivery.
+type deliverySource struct {
+	kind, relatedKind      string
+	source, related, space id.ID
+}
+
+func deliverySourceOf(d api.Delivery) deliverySource {
+	k := deliverySource{kind: d.SourceKind, relatedKind: d.RelatedKind, source: d.SourceID}
+	if d.RelatedID != nil {
+		k.related = *d.RelatedID
+	}
+	if d.SpaceID != nil {
+		k.space = *d.SpaceID
+	}
+	return k
+}
+
 func (s *Server) listDeliveries(w http.ResponseWriter, r *http.Request, p *principal) error {
 	if p.admin() || !s.cfg.OutboundEnabled() {
 		writeJSON(w, http.StatusOK, api.List[api.Delivery]{Items: []api.Delivery{}})
@@ -81,8 +99,18 @@ func (s *Server) listDeliveries(w http.ResponseWriter, r *http.Request, p *princ
 		if err != nil {
 			return err
 		}
+		// Visibility depends on the source only, and one task or meeting
+		// has many deliveries (slots × channels): check each source once
+		// (QA rc.1 finding 9, /api/deliveries took 5–6 s).
+		seen := map[deliverySource]bool{}
 		for _, d := range candidates {
-			if s.deliveryVisible(r.Context(), q, p, d) {
+			k := deliverySourceOf(d)
+			visible, ok := seen[k]
+			if !ok {
+				visible = s.deliveryVisible(r.Context(), q, p, d)
+				seen[k] = visible
+			}
+			if visible {
 				out = append(out, d)
 			}
 		}

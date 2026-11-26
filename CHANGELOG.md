@@ -7,6 +7,18 @@ Versi mengikuti aturan sebelum rilis publik:
 
 ## Belum dirilis
 
+## 1.0.0-rc.2 — 2026-11-27 · Perbaikan dari QA rc.1 dan ACC bersama Medhum (pre-release)
+
+Sepuluh temuan QA 1.0.0-rc.1 di `space.tiyoouw.app` dan F1-28 (ACC bersama). Server dan web berubah dengan migrasi aditif `0039` (diterapkan otomatis saat server mulai; rc.1 tetap bisa jalan di atasnya bila perlu rollback). Bridge WhatsApp tidak berubah. Dipasang di instans uji `space.tiyoouw.app`; kanal pembaruan desktop belum diterbitkan.
+
+- **Medhum: ACC bersama desain (F1-28)**: tugas desain Medhum bisa di-ACC atau dimintai perbaikan oleh PJ Humas konten itu, pengelola Humas (kadiv/45) atau pengelola Mediatek (kadiv/45); PIC tidak bisa meng-ACC karyanya sendiri, juga bila ia kadiv. Satu ACC cukup. Jejaknya (siapa, sisi Humas/Mediatek, kapan) tampil di konten dan bukti, tercatat di riwayat dan audit. Konten baru bisa ditandai diposting setelah desainnya di-ACC. Kabar dua sisi: PJ Humas ikut dikabari saat desain diserahkan dan saat lewat Deadline, PIC dikabari saat ACC, minta perbaikan dan saat konten diposting. Migrasi `0039` (kolom baru, aditif). Broadcast yang membuat konten sendiri menyusul di 1.0.1.
+- **Medhum: pratinjau parser lengkap**: "Lihat hasil parser" kini menampilkan semua yang terbaca: tanggal posting, Deadline desain H-2, PJ beserta nama panggilan, warna, DADAKAN dan nomor baris.
+- **Medhum: tab Anggota**: tabel menyebut divisi yang ditampilkan, tombol Undang anggota, Role kustom dan Izin arsip memakai nama divisinya, dan orang lain di Medhum dari divisi lain tampil di bawah tabel, jadi jumlahnya sama dengan "N anggota" di header.
+- **Pengaturan**: grup Medhum bernama "Space Medhum (bersama)", bukan "Divisi Medhum"; di web, Tentang Space menulis "Aplikasi web" tanpa tombol Pembaruan aplikasi.
+- **Tampilan HP dan desktop**: di HP, + Pengingat Untukku turun ke baris baru, judul tugas di Untukku tidak lagi terpotong ("[D…"), kartu ringkasan Medhum jadi dua kolom dan sub-tab Medhum membungkus; di desktop, bila tab Space tidak muat, Atur tab menjadi ikon dan ada tombol ke tab berikutnya, dan placeholder Ctrl K dipersingkat jadi "Cari apa saja".
+- **Status koneksi**: satu permintaan yang gagal atau satu cek yang terlewat tidak langsung menampilkan "Offline"; aplikasi memeriksa server sekali lagi 3 detik kemudian dan baru menyatakan offline bila gagal lagi.
+- **Server**: daftar notifikasi (`/api/deliveries`) memeriksa izin satu kali per tugas, rapat atau ping, bukan per notifikasi, sehingga jauh lebih cepat untuk akun dengan banyak Reminder.
+- **Instans uji**: dua akun `[DUMMY]` untuk QA peran pengelola Mediatek (45) dan BPH (pemantauan), tanpa data pribadi; kata sandi hanya di berkas operasional host uji. Skrip uji Mediatek dan BPH menyebutnya. Periode uji 2025/2026 yang berakhir 30 Nov tetap berjalan selama statusnya aktif: server tidak memakai tanggal akhir untuk Reminder, ACC atau akses; hanya label "minggu ke-N" di Beranda yang hilang.
 - **Operasi (F1-22)**: runbook cutover instans stabil `space.himasif.id` di host `tiyoouw-studio` (rute tunnel 404 → port stabil, TLS dan custom hostname, health dan login, admin pertama dan organisasi, rollback) dan rencana memindahkan nomor bot WA ke instans stabil. Hanya dokumen.
 
 ## 1.0.0-rc.1 — 2026-11-26 · Rilis uji pertama menuju 1.0.0 (pre-release)

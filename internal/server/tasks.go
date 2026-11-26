@@ -59,7 +59,44 @@ func (s *Server) taskAccess(ctx context.Context, q store.Querier, p *principal, 
 	// they submitted themselves (owner's decision, 11 Nov 2026); the audit
 	// trail records it as self-approved.
 	self := review && (p.admin() || sc.member != nil && sc.member.Role == api.RoleKadiv)
-	t.Permissions = api.TaskPermissions{Manage: manage, Progress: open && (manage || own && participant), Comment: open && comment, Help: open && help && !participant, Review: review, SelfReview: self}
+	side := ""
+	// Medhum design tasks are approved jointly (PRD MED-10–15): the
+	// content's PJ Humas, a Humas manager or a Mediatek manager, never
+	// the PIC, kadiv or not. This opens no other Mediatek task to Humas.
+	design, isDesign, err := s.store.MedhumDesignOf(ctx, q, t.ID)
+	if err != nil {
+		return err
+	}
+	if isDesign {
+		humas := false
+		if open && !review && !p.admin() {
+			humas = design.HumasPJID == p.User.ID
+			if !humas {
+				// A Humas manager by membership only; a monitor's view
+				// of Humas grants no ACC.
+				m, err := s.store.ActiveMembership(ctx, q, period.ID, design.HumasDivisionID, p.User.ID)
+				if err != nil && !errors.Is(err, store.ErrNotFound) {
+					return err
+				}
+				if err == nil {
+					roles, err := s.store.CustomRoles(ctx, q, period.ID, design.HumasDivisionID)
+					if err != nil {
+						return err
+					}
+					humas = slices.Contains(bindingOf(m, rolesByID(roles)).Capabilities(), api.CapResultsReview)
+				}
+			}
+		}
+		review = (review || humas) && t.Assignee.ID != p.User.ID
+		self = false
+		if review {
+			side = "mediatek"
+			if humas {
+				side = "humas"
+			}
+		}
+	}
+	t.Permissions = api.TaskPermissions{Manage: manage, Progress: open && (manage || own && participant), Comment: open && comment, Help: open && help && !participant, Review: review, SelfReview: self, ReviewSide: side}
 	return nil
 }
 
@@ -107,6 +144,11 @@ func (s *Server) withTaskAccounts(r *http.Request, p *principal, write bool, ext
 				return err
 			}
 			accounts = append(accounts, managers...)
+			if design, ok, err := s.store.MedhumDesignOf(r.Context(), q, t.ID); err != nil {
+				return err
+			} else if ok {
+				accounts = append(accounts, design.HumasPJID)
+			}
 			// Help decisions may lock the applicant as well. Use a global
 			// account order even for tasks in different writable periods.
 			// Include recipients: inserting a notification also locks the
@@ -1204,6 +1246,12 @@ func (s *Server) applyAttributedTaskEvidence(r *http.Request, q store.Querier, p
 		return err
 	}
 	users = append(users, taskPeople(t)...)
+	// Medhum design: the content's PJ Humas hears of it too (PRD MED-14).
+	if design, ok, err := s.store.MedhumDesignOf(r.Context(), q, t.ID); err != nil {
+		return err
+	} else if ok {
+		users = append(users, design.HumasPJID)
+	}
 	return s.taskNotify(r, q, t, "Hasil dikirim — perlu tinjauan", t.Title, users...)
 }
 
@@ -1245,6 +1293,7 @@ func (s *Server) applyTaskEvidenceReview(r *http.Request, q store.Querier, p *pr
 	(*out).ReviewedAt = &now
 	(*out).ReviewedBy = &person
 	(*out).ReviewReason = reason
+	(*out).ReviewSide = t.Permissions.ReviewSide
 	(*out).MatchStatus = api.MatchRejected
 	t.Progress = t.ResumeProgress
 	if req.Matched {
@@ -1262,8 +1311,23 @@ func (s *Server) applyTaskEvidenceReview(r *http.Request, q store.Querier, p *pr
 		return err
 	}
 	t.Rank = rank
+	headline := "Pencocokan hasil diperbarui"
+	if side := t.Permissions.ReviewSide; side != "" {
+		action = "medhum.design.acc"
+		headline = "Desain di-ACC · " + medhumSideLabel(side)
+		if !req.Matched {
+			action, headline = "medhum.design.revision", "Desain perlu perbaikan · "+medhumSideLabel(side)
+		}
+	}
 	if err = s.saveTaskMutation(r, q, p, t, action, reason, before); err != nil {
 		return err
 	}
-	return s.taskNotify(r, q, t, "Pencocokan hasil diperbarui", t.Title, taskPeople(t)...)
+	return s.taskNotify(r, q, t, headline, t.Title, taskPeople(t)...)
+}
+
+func medhumSideLabel(side string) string {
+	if side == "humas" {
+		return "Humas"
+	}
+	return "Mediatek"
 }

@@ -3,8 +3,10 @@ package appui
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/himasifunej/himasif-space/internal/api"
@@ -207,10 +209,10 @@ func (a *App) waContentBody(c *ui.Context) {
 					}
 					for index, item := range st.preview {
 						ui.Column(c.Key(index)).FillWidth().Gap(3).Children(func() {
-							ui.Text(c, item.Title+" · "+item.DateText).Bold()
-							muted(c, "PJ Humas: "+item.Humas+" · PJ desain: "+item.Design)
-							if item.Issue != "" {
-								muted(c, item.Issue)
+							head, lines := broadcastPreviewLines(item)
+							ui.Text(c, head).Bold().MaxLines(2)
+							for _, l := range lines {
+								muted(c, l).MaxLines(2)
 							}
 						})
 					}
@@ -403,4 +405,55 @@ func (a *App) waContentDetail(c *ui.Context, sp api.Space, disabled bool) {
 			st.selectionSeq++
 		}
 	})
+}
+
+// broadcastPreviewLines shows everything the parser read from one item:
+// posting date, Deadline H-2, PJ (with nickname), colour, DADAKAN and the
+// line it came from, so Humas can check the template before turning it on.
+func broadcastPreviewLines(item broadcast.Item) (string, []string) {
+	head := item.Title
+	if item.Urgent {
+		head = "DADAKAN · " + head
+	}
+	date := item.DateText
+	switch {
+	case item.PostingDate != nil:
+		date = "Posting " + previewDate(item.PostingDate.Day, item.PostingDate.Month)
+	case item.Day > 0 && item.Month >= 1 && item.Month <= 12:
+		date = "Posting " + previewDate(item.Day, time.Month(item.Month))
+	}
+	switch {
+	case item.DesignDeadline != nil:
+		date += " · Deadline desain " + previewDate(item.DesignDeadline.Day, item.DesignDeadline.Month)
+	case item.DeadlineDay > 0 && item.DeadlineMonth >= 1 && item.DeadlineMonth <= 12:
+		date += " · Deadline desain " + previewDate(item.DeadlineDay, time.Month(item.DeadlineMonth))
+	}
+	person := func(name, alias string) string {
+		if name == "" {
+			return "—"
+		}
+		if alias != "" && alias != name {
+			return name + " (" + alias + ")"
+		}
+		return name
+	}
+	lines := []string{date, "PJ Humas: " + person(item.Humas, item.HumasAlias) + " · PJ desain: " + person(item.Design, item.DesignAlias)}
+	var extra []string
+	if item.Color != "" {
+		extra = append(extra, "Warna: "+item.Color)
+	}
+	if item.Line > 0 {
+		extra = append(extra, fmt.Sprintf("Baris %d", item.Line))
+	}
+	if len(extra) > 0 {
+		lines = append(lines, strings.Join(extra, " · "))
+	}
+	if item.Issue != "" {
+		lines = append(lines, item.Issue)
+	}
+	return head, lines
+}
+
+func previewDate(day int, month time.Month) string {
+	return fmt.Sprintf("%d %s", day, monthName(month))
 }

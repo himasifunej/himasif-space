@@ -497,8 +497,10 @@ func TestReminderUnavailableIsNotAnEmptySuccessOrRenderRetryLoop(t *testing.T) {
 		h.app.ensureReminders()
 	}
 	settleReminders(t, h)
-	if h.app.reminders.loaded || h.app.reminders.err == "" || f.listCalls != 2 || h.app.conn != connOffline {
-		t.Fatal("failed load looked empty, lost its offline state, or retried implicitly")
+	// One unreachable request does not show Offline by itself; it asks for
+	// a health check instead (QA rc.1 finding 8), which this fake passes.
+	if h.app.reminders.loaded || h.app.reminders.err == "" || f.listCalls != 2 || h.app.conn == connOffline {
+		t.Fatal("failed load looked empty, went offline on one failure, or retried implicitly")
 	}
 	f.listErr = nil
 	h.app.loadReminders()

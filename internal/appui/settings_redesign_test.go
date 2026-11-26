@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/egoist/mygo/ui"
 	"github.com/himasifunej/himasif-space/internal/api"
 	"github.com/himasifunej/himasif-space/internal/id"
 )
@@ -140,4 +141,30 @@ func TestAboutFolds(t *testing.T) {
 	h.click("Buka catatan " + Changelog[1].Version)
 	h.tt.Frame()
 	h.want(Changelog[1].Notes[0])
+}
+
+// QA rc.1 findings 4 and 5: Medhum is a shared Space, not a division, and
+// the web app (no updater) is not called "Aplikasi Windows".
+func TestSettingsSharedSpaceAndWebAbout(t *testing.T) {
+	h := redesignHarness(t)
+	h.app.DeviceSettings = func(*ui.Context) {}
+	h.app.Updater = nil
+	h.openSettings("Tentang")
+	h.want("Aplikasi web")
+	h.dontWant("Aplikasi Windows")
+	h.dontWant("Pembaruan aplikasi")
+	medhum := api.Space{ID: id.New(), PeriodID: h.app.periodID, Name: "Medhum", Code: "medhum", Kind: api.SpaceShared}
+	h.app.access.spaces = append(h.app.access.spaces, medhum)
+	h.app.selectSpace(medhum.ID)
+	groups := h.app.settingsGroups()
+	found := false
+	for _, g := range groups {
+		if strings.Contains(g.title, "Divisi Medhum") {
+			t.Fatalf("Medhum named a division: %q", g.title)
+		}
+		found = found || g.title == "Space Medhum (bersama)"
+	}
+	if !found {
+		t.Fatalf("no shared Space group in %+v", groups)
+	}
 }

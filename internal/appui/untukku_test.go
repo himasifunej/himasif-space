@@ -188,3 +188,15 @@ func noonZone(now time.Time) string {
 	}
 	return "Etc/GMT"
 }
+
+// QA rc.1 finding 6: on a phone the Untukku rows and + Pengingat still
+// render. (The title's position inside the row is checked by screenshot:
+// the harness finds the row by its label, not the text inside.)
+func TestUntukkuPhoneRowTitleHasTheWidth(t *testing.T) {
+	h, _, _ := untukFixture(t)
+	h.tt.SetSize(390, 844)
+	h.tt.Frame()
+	h.tt.Frame()
+	h.want("Laporan proker")
+	h.want("+ Pengingat")
+}

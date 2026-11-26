@@ -29,6 +29,13 @@ func (s *Server) medhumPermissions(r *http.Request, q store.Querier, p *principa
 			return err
 		}
 	}
+	if c.DesignTaskID != nil {
+		acc, err := s.store.MedhumAcc(r.Context(), q, *c.DesignTaskID)
+		if err != nil {
+			return err
+		}
+		c.DesignAcc = acc
+	}
 	view, err := s.spaceView(r.Context(), q, p, c.SpaceID)
 	if err != nil {
 		return err
@@ -317,10 +324,16 @@ func (s *Server) updateMedhum(w http.ResponseWriter, r *http.Request, p *princip
 		if req.TrelloCardID != nil {
 			c.TrelloCardID = *req.TrelloCardID
 		}
+		posted := false
 		if req.PublishedAt != nil {
 			if req.PublishedAt.After(s.now()) {
 				return badRequest("Waktu publikasi harus waktu kejadian aktual.")
 			}
+			// Posting follows the shared ACC of the design (PRD MED-14).
+			if c.PublishedAt == nil && c.DesignAcc == nil {
+				return conflict("Desain konten ini belum di-ACC. Konten bisa ditandai diposting setelah desainnya di-ACC.")
+			}
+			posted = c.PublishedAt == nil
 			c.PublishedAt = req.PublishedAt
 		}
 		if err := validateMedhum(c, period.TimeZone); err != nil {
@@ -335,6 +348,15 @@ func (s *Server) updateMedhum(w http.ResponseWriter, r *http.Request, p *princip
 			return err
 		}
 		out = *c
+		if posted && c.DesignTaskID != nil && c.DesignPJID != nil {
+			t, err := s.store.Task(r.Context(), q, *c.DesignTaskID, store.LockNone)
+			if err != nil {
+				return err
+			}
+			if err := s.taskNotify(r, q, &t, "Konten sudah diposting", c.Title, *c.DesignPJID); err != nil {
+				return err
+			}
+		}
 		return s.record(r, q, p, store.AuditEvent{Action: "medhum.update", TargetType: "medhum_content", TargetID: &c.ID, PeriodID: &c.PeriodID, Before: before, After: map[string]any{"content": out, "reason": req.Reason}})
 	})
 	if err != nil {

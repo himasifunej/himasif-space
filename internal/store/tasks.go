@@ -130,7 +130,7 @@ func (s *Store) Task(ctx context.Context, q Querier, tid id.ID, lock string) (Ta
 	if err != nil {
 		return t, err
 	}
-	rows, err = q.Query(ctx, `select e.id,u.id,u.display_name,e.url,e.note,e.match_status,e.submitted_at,e.recorded_at,e.reviewed_at,r.id,r.display_name,e.review_reason
+	rows, err = q.Query(ctx, `select e.id,u.id,u.display_name,e.url,e.note,e.match_status,e.submitted_at,e.recorded_at,e.reviewed_at,r.id,r.display_name,e.review_reason,e.review_side
  from task_evidence e join users u on u.id=e.submitted_by left join users r on r.id=e.reviewed_by where e.task_id=$1 order by e.recorded_at,e.id`, tid)
 	if err != nil {
 		return t, err
@@ -203,7 +203,7 @@ func scanTaskEvidence(r pgx.CollectableRow) (api.TaskEvidence, error) {
 	var e api.TaskEvidence
 	var uid *id.ID
 	var name *string
-	err := r.Scan(&e.ID, &e.SubmittedBy.ID, &e.SubmittedBy.DisplayName, &e.URL, &e.Note, &e.MatchStatus, &e.SubmittedAt, &e.RecordedAt, &e.ReviewedAt, &uid, &name, &e.ReviewReason)
+	err := r.Scan(&e.ID, &e.SubmittedBy.ID, &e.SubmittedBy.DisplayName, &e.URL, &e.Note, &e.MatchStatus, &e.SubmittedAt, &e.RecordedAt, &e.ReviewedAt, &uid, &name, &e.ReviewReason, &e.ReviewSide)
 	if uid != nil {
 		e.ReviewedBy = &api.PersonRef{ID: *uid, DisplayName: *name}
 	}
@@ -464,7 +464,7 @@ func (s *Store) AddTaskEvidence(ctx context.Context, q Querier, tid id.ID, e api
 	return err
 }
 func (s *Store) ReviewTaskEvidence(ctx context.Context, q Querier, tid id.ID, e api.TaskEvidence) error {
-	_, err := q.Exec(ctx, `update task_evidence set match_status=$3,reviewed_at=$4,reviewed_by=$5,review_reason=$6 where id=$1 and task_id=$2`, e.ID, tid, e.MatchStatus, e.ReviewedAt, e.ReviewedBy.ID, e.ReviewReason)
+	_, err := q.Exec(ctx, `update task_evidence set match_status=$3,reviewed_at=$4,reviewed_by=$5,review_reason=$6,review_side=$7 where id=$1 and task_id=$2`, e.ID, tid, e.MatchStatus, e.ReviewedAt, e.ReviewedBy.ID, e.ReviewReason, e.ReviewSide)
 	return err
 }
 

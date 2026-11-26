@@ -1,13 +1,15 @@
 [
   {
     "version": "1.0.0",
-    "date": "2026-11-26",
-    "title": "Menuju 1.0: Medhum, SOP tersembunyi, login lebih aman",
+    "date": "2026-11-27",
+    "title": "Menuju 1.0: ACC bersama Medhum, tampilan HP, login lebih aman",
     "notes": [
-      "Medhum: daftar konsep Humas dari WhatsApp dibaca sesuai template asli, termasuk DADAKAN dan warna.",
-      "Deadline desain dihitung H-2 dari tanggal posting; baris yang tidak terbaca disebut nomor barisnya.",
-      "Menu Evaluasi SOP disembunyikan sampai kebijakan SOP dinyalakan; kadiv bisa menyalakannya di Pengaturan.",
-      "Login lebih tahan serangan: batas percobaan per alamat asli, dan login yang berhasil tidak dihitung."
+      "ACC bersama desain Medhum: PJ Humas atau pengelola Humas/Mediatek bisa ACC; PIC tidak meng-ACC karyanya sendiri.",
+      "Konten Medhum bisa ditandai diposting setelah desainnya di-ACC; jejak ACC tampil di konten.",
+      "Template broadcast Humas terbaca; pratinjau menampilkan Deadline H-2, warna dan DADAKAN.",
+      "Menu Evaluasi SOP disembunyikan sampai kebijakan SOP dinyalakan.",
+      "Tampilan HP dan tab desktop tidak lagi terpotong; satu cek gagal tidak langsung berarti Offline.",
+      "Login lebih tahan serangan, dan daftar notifikasi lebih cepat."
     ]
   },
   {

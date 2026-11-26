@@ -127,12 +127,15 @@ func (a *App) changelogSettings(c *ui.Context) {
 	settingsPageView(c, "Tentang Space", "Versi terpasang dan riwayat perubahan. Tersedia juga tanpa koneksi.", false, nil, func() {
 		SettingSection(c, "Versi", "", func() {
 			app, line := "Aplikasi web", "Diperbarui bersama halaman web."
-			if a.DeviceSettings != nil {
+			// The web build has device settings (browser notifications) but
+			// no updater: it is updated with the page (QA rc.1 finding 5).
+			desktop := a.Updater != nil
+			if desktop {
 				app, line = "Aplikasi Windows", "Pembaruan diperiksa saat dibuka dan setiap 6 jam."
 			}
 			SettingRow(c, app, line, func() {
 				settingsValue(c, a.Version).Font(FontMono)
-				if a.DeviceSettings != nil && SettingButton(c, "Pembaruan aplikasi", "").Clicked() {
+				if desktop && SettingButton(c, "Pembaruan aplikasi", "").Clicked() {
 					a.chrome.settingsTab = "Perangkat"
 				}
 			})

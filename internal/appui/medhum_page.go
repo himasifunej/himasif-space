@@ -57,6 +57,9 @@ func (a *App) medhumStageOf(item api.MedhumContent) (medhumStage, string) {
 	if item.PublishedAt != nil {
 		return medhumPosted, "Terposting"
 	}
+	if item.DesignAcc != nil {
+		return medhumReady, "Di-ACC"
+	}
 	evidence, pending := false, false
 	for _, w := range a.waContent.items {
 		if w.Kind != "drive" {
@@ -215,7 +218,7 @@ func (a *App) medhumCounters(c *ui.Context, phone bool) {
 	tile := func(label string, stage medhumStage) {
 		box := ui.Column(c.Key(label)).MinWidth(0).Padding(14).Gap(4).Radius(12).Background(t.Surface).Border(1, t.Border)
 		if phone {
-			box.Width(150).Shrink(0)
+			box.Padding(10)
 		}
 		box.Children(func() {
 			ui.Text(c, fmt.Sprint(counts[stage])).FontSize(24).Bold()
@@ -230,17 +233,13 @@ func (a *App) medhumCounters(c *ui.Context, phone bool) {
 			})
 		})
 	}
+	// On a phone two columns, so no tile is cut at the right edge (QA
+	// rc.1 finding 6).
+	cols, gap := 5, float32(12)
 	if phone {
-		ui.ScrollHorizontal(c.Key("medhum-kpis")).FillWidth().Children(func() {
-			ui.Row(c).Gap(10).Children(func() {
-				for _, k := range tiles {
-					tile(k.label, k.stage)
-				}
-			})
-		})
-		return
+		cols, gap = 2, 8
 	}
-	ui.Grid(c.Key("medhum-kpis")).FillWidth().Columns(5).Gap(12).Children(func() {
+	ui.Grid(c.Key("medhum-kpis")).FillWidth().Columns(cols).Gap(gap).Children(func() {
 		for _, k := range tiles {
 			tile(k.label, k.stage)
 		}
@@ -267,7 +266,11 @@ func (a *App) medhumTabs(c *ui.Context, phone bool) {
 		{medhumTabPolicy, "Aturan jam", "clock"},
 	}
 	row := func() {
-		ui.Row(c).Gap(4).Padding(4).Radius(10).Background(t.Surface).Border(1, t.Border).Children(func() {
+		r := ui.Row(c).Gap(4).Padding(4).Radius(10).Background(t.Surface).Border(1, t.Border)
+		if phone {
+			r.FillWidth().Wrap()
+		}
+		r.Children(func() {
 			for _, tab := range tabs {
 				on := a.medhum.tab == tab.key || a.medhum.tab == "" && tab.key == medhumTabList
 				b := spaceButton(c.Key(tab.key), tab.label, tab.icon, on).Label(tab.label)
@@ -279,10 +282,6 @@ func (a *App) medhumTabs(c *ui.Context, phone bool) {
 				}
 			}
 		})
-	}
-	if phone {
-		ui.ScrollHorizontal(c.Key("medhum-tabs")).FillWidth().Children(row)
-		return
 	}
 	ui.Row(c.Key("medhum-tabs")).FillWidth().Wrap().Children(row)
 }
@@ -724,6 +723,9 @@ func (a *App) medhumFacts(c *ui.Context, item api.MedhumContent, loc *time.Locat
 		{"PJ desain", design},
 		{"Bukti desain", evidence},
 	}
+	if item.DesignTaskID != nil {
+		facts = append(facts, [2]string{"ACC desain", medhumAccText(item.DesignAcc, loc)})
+	}
 	if item.ConceptSubmittedAt != nil {
 		facts = append(facts, [2]string{"Konsep diserahkan", taskTimestamp(*item.ConceptSubmittedAt, loc.String())})
 	}
@@ -794,4 +796,20 @@ func (a *App) medhumFields(c *ui.Context, d *medhumDraft) {
 	if d.id != id.Nil && (d.calendar || d.assignment) {
 		taskInput(c, "medhum-reason", "Alasan perubahan", &d.reason)
 	}
+}
+
+// medhumAccText is the shared ACC trail of a design (PRD MED-13):
+// "ACC oleh Nama · Humas, 3 Des 14.05".
+func medhumAccText(acc *api.MedhumAcc, loc *time.Location) string {
+	if acc == nil {
+		return "Belum di-ACC"
+	}
+	return "ACC oleh " + acc.By.DisplayName + " · " + medhumSide(acc.Side) + ", " + taskTimestamp(acc.At, loc.String())
+}
+
+func medhumSide(side string) string {
+	if side == "humas" {
+		return "Humas"
+	}
+	return "Mediatek"
 }
