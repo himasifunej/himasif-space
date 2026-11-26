@@ -250,7 +250,7 @@ Total sekitar **2 hari kerja satu session, ukuran M**. Risiko: kebijakan pilot y
 
 ## Jalur domain `space.himasif.id` (F1-21): disetujui, dijalankan
 
-**Status: dijalankan (bagian Cloudflare dan tunnel), 26 Nov 2026.** Owner memilih **A** (zona SaaS `tiyoouw.my.id`). Karena instans stabil (F1-22) belum ada, owner memilih origin sementara yang menjawab **404**, supaya record cPanel dan sertifikat siap lebih dulu. Pengujian tetap di `space.tiyoouw.app`. Langkah 1 dan 6 di bawah menunggu F1-22.
+**Status: dijalankan, 26 Nov 2026.** Domain aktif dan sertifikat terbit; sementara menjawab 404 sampai F1-22. Owner memilih **A** (zona SaaS `tiyoouw.my.id`). Karena instans stabil (F1-22) belum ada, owner memilih origin sementara yang menjawab **404**, supaya record cPanel dan sertifikat siap lebih dulu. Pengujian tetap di `space.tiyoouw.app`. Langkah 1 dan 6 di bawah menunggu F1-22.
 
 | Langkah | Hasil 26 Nov 2026 |
 |---|---|
@@ -258,6 +258,8 @@ Total sekitar **2 hari kerja satu session, ukuran M**. Risiko: kebijakan pilot y
 | 3. DNS `tiyoouw.my.id` | CNAME `origin-space` (berproksi) → tunnel tc-vps `56423224-….cfargotunnel.com`; `https://origin-space.tiyoouw.my.id/` menjawab 404 |
 | 4. Fallback origin | `origin-space.tiyoouw.my.id`, status **active** |
 | 5. Custom hostname | `space.himasif.id`, DV, validasi TXT, CA Google Trust Services, min TLS 1.2; status **pending** sampai owner memasang record |
+| Record cPanel (owner) | Dipasang owner 26 Nov 2026: CNAME `space` → `origin-space.tiyoouw.my.id`, TXT `_cf-custom-hostname.space`, TXT `_acme-challenge.space`. Dicek `dig +tcp` ke 1.1.1.1, 8.8.8.8, `ns01`/`ns02.cloudhost.id`: ketiga nilai sama persis |
+| Verifikasi 26 Nov 2026 | Custom hostname **active**, SSL **active**. `https://space.himasif.id/` menjawab 404 lewat Cloudflare dengan sertifikat sah (CN `space.himasif.id`, Google Trust Services WE1, berlaku sampai 24 Feb 2027, diperbarui otomatis oleh Cloudflare). Wildcard `*.himasif.id` tetap menjawab; `himasif.id` 200; `preview.himasif.id` (record sendiri) tidak berubah; `space.tiyoouw.app` 200 |
 | Dicek sebelum dan sesudah | `space.tiyoouw.app/api/health` 200; `hermes.tiyoouw.my.id/health` 200; `news.tiyoouw.com` 404 di `/` (memang jawaban gateway newsletter); fallback `tiyoouw.app` tetap `origin-news.tiyoouw.app` aktif, `news.tiyoouw.com` tetap aktif. Zona `tiyoouw.app` tidak diubah |
 
 Nilai TXT yang persis ada di note Rencana (F1-21) dan diberikan ke owner. Nilai validasi sertifikat berlaku 14 hari (CA Google, menurut dokumen Cloudflare); bila kedaluwarsa, worker mengambil nilai baru. `himasif.id` tidak punya record CAA.
