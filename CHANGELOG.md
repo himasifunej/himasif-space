@@ -7,6 +7,10 @@ Versi mengikuti aturan sebelum rilis publik:
 
 ## Belum dirilis
 
+## 1.0.0-rc.2 — 2026-11-27 · Perbaikan dari QA rc.1 dan ACC bersama Medhum (pre-release)
+
+Sepuluh temuan QA 1.0.0-rc.1 di `space.tiyoouw.app` dan F1-28 (ACC bersama). Server dan web berubah dengan migrasi aditif `0039` (diterapkan otomatis saat server mulai; rc.1 tetap bisa jalan di atasnya bila perlu rollback). Bridge WhatsApp tidak berubah. Dipasang di instans uji `space.tiyoouw.app`; kanal pembaruan desktop belum diterbitkan.
+
 - **Medhum: ACC bersama desain (F1-28)**: tugas desain Medhum bisa di-ACC atau dimintai perbaikan oleh PJ Humas konten itu, pengelola Humas (kadiv/45) atau pengelola Mediatek (kadiv/45); PIC tidak bisa meng-ACC karyanya sendiri, juga bila ia kadiv. Satu ACC cukup. Jejaknya (siapa, sisi Humas/Mediatek, kapan) tampil di konten dan bukti, tercatat di riwayat dan audit. Konten baru bisa ditandai diposting setelah desainnya di-ACC. Kabar dua sisi: PJ Humas ikut dikabari saat desain diserahkan dan saat lewat Deadline, PIC dikabari saat ACC, minta perbaikan dan saat konten diposting. Migrasi `0039` (kolom baru, aditif). Broadcast yang membuat konten sendiri menyusul di 1.0.1.
 - **Medhum: pratinjau parser lengkap**: "Lihat hasil parser" kini menampilkan semua yang terbaca: tanggal posting, Deadline desain H-2, PJ beserta nama panggilan, warna, DADAKAN dan nomor baris.
 - **Medhum: tab Anggota**: tabel menyebut divisi yang ditampilkan, tombol Undang anggota, Role kustom dan Izin arsip memakai nama divisinya, dan orang lain di Medhum dari divisi lain tampil di bawah tabel, jadi jumlahnya sama dengan "N anggota" di header.
