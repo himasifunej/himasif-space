@@ -13,6 +13,7 @@ Versi mengikuti aturan sebelum rilis publik:
 - **Pengaturan**: grup Medhum bernama "Space Medhum (bersama)", bukan "Divisi Medhum"; di web, Tentang Space menulis "Aplikasi web" tanpa tombol Pembaruan aplikasi.
 - **Tampilan HP dan desktop**: di HP, + Pengingat Untukku turun ke baris baru, judul tugas di Untukku tidak lagi terpotong ("[D…"), kartu ringkasan Medhum jadi dua kolom dan sub-tab Medhum membungkus; di desktop, bila tab Space tidak muat, Atur tab menjadi ikon dan ada tombol ke tab berikutnya, dan placeholder Ctrl K dipersingkat jadi "Cari apa saja".
 - **Status koneksi**: satu permintaan yang gagal atau satu cek yang terlewat tidak langsung menampilkan "Offline"; aplikasi memeriksa server sekali lagi 3 detik kemudian dan baru menyatakan offline bila gagal lagi.
+- **Server**: daftar notifikasi (`/api/deliveries`) memeriksa izin satu kali per tugas, rapat atau ping, bukan per notifikasi, sehingga jauh lebih cepat untuk akun dengan banyak Reminder.
 - **Operasi (F1-22)**: runbook cutover instans stabil `space.himasif.id` di host `tiyoouw-studio` (rute tunnel 404 → port stabil, TLS dan custom hostname, health dan login, admin pertama dan organisasi, rollback) dan rencana memindahkan nomor bot WA ke instans stabil. Hanya dokumen.
 
 ## 1.0.0-rc.1 — 2026-11-26 · Rilis uji pertama menuju 1.0.0 (pre-release)
