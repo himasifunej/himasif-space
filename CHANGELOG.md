@@ -7,6 +7,10 @@ Versi mengikuti aturan sebelum rilis publik:
 
 ## Belum dirilis
 
+## 1.0.0-rc.1 — 2026-11-26 · Rilis uji pertama menuju 1.0.0 (pre-release)
+
+Gabungan PR gelombang 1 (#25–#29). Server dan web berubah tanpa migrasi; bridge WhatsApp tidak berubah. Dipasang di instans uji `space.tiyoouw.app` dan kanal pembaruan rc.
+
 - **Dokumen**: keputusan owner 25 Nov 2026 menuju 1.0.0 dicatat di register keputusan, PRD (versi 1.2), ADR 0003 (instans uji dan stabil, nomor bot bersama, "Tetap masuk", PWA) dan ADR 0002 (NIM untuk pemantau, bacaan admin); skrip uji pengguna Mediatek dan BPH.
 - **Pengembang**: `make check` kini hijau di Windows: `.gitattributes` menjaga akhiran baris LF di setiap checkout, `make` memakai `PYTHON` (bawaan `python` di Windows) dan ikut menjalankan tes `scripts/ops`, dan tes yang khusus server Linux (mode 0700, symlink, `select()`) dilewati di Windows.
 - **Evaluasi SOP disembunyikan** sampai ada divisi yang menyalakan kebijakan SOP (Litbang belum ikut pilot): menu di sidebar, Lainnya, Ctrl K dan tombol di aturan Medhum tidak tampil. Kadiv Humas dan Mediatek tetap bisa menyalakannya dari **Pengaturan → Evaluasi SOP**, tanpa pembaruan aplikasi.
