@@ -502,7 +502,7 @@ func (a *App) untukRow(c *ui.Context, it untukItem, now time.Time, loc *time.Loc
 	phone := isMobile(c)
 	row := ui.ButtonBase(c.Key(it.kind+it.id.String())).Label(it.title).FillWidth().Row().Gap(10).AlignItems(ui.Center).Height(40).Padding(0, 8).Radius(8)
 	if phone {
-		row.Height(52).Gap(8)
+		row.Height(60).Gap(8)
 	}
 	if row.Hovered() {
 		row.Background(t.SurfaceHover)
@@ -513,12 +513,19 @@ func (a *App) untukRow(c *ui.Context, it untukItem, now time.Time, loc *time.Loc
 			w.Width(64).FontSize(11)
 		}
 		ui.Icon(c, spaceIcon(icon)).Size(15, 15).TextColor(t.TextMuted).Shrink(0)
-		line := ui.Row(c).Grow(1).MinWidth(0).Gap(8).AlignItems(ui.Center)
+		// Make one container only: an extra empty one would take half the
+		// width.
+		var line ui.Element
 		if phone {
-			line = ui.Column(c).Grow(1).MinWidth(0).Gap(2)
+			line = ui.Column(c).Grow(1).MinWidth(0).Gap(2).AlignItems(ui.Start)
+		} else {
+			line = ui.Row(c).Grow(1).MinWidth(0).Gap(8).AlignItems(ui.Center)
 		}
 		line.Children(func() {
 			title := ui.Text(c, it.title).FontSize(13).MaxLines(1).MinWidth(0)
+			if phone {
+				title.MaxLines(2).FillWidth()
+			}
 			if it.done {
 				title.TextColor(faint(t)).Strikethrough()
 			}
