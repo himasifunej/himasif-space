@@ -248,6 +248,14 @@ Jadi arah kewenangannya sekarang terbalik dari S-01: divisi yang dievaluasi meny
 
 Total sekitar **2 hari kerja satu session, ukuran M**. Risiko: kebijakan pilot yang sudah ada di DB uji dibuat oleh kadiv Humas/Mediatek; migrasi menandainya Draf tanpa mengubah isinya. DB stabil mulai kosong (R-02), jadi tidak ada data lama di sana. Karena menu SOP tersembunyi (R-13) dan Litbang baru ikut periode depan (K-17), F2-17 **tidak menahan 1.0.0**: bisa di gelombang 2 bila ada session kosong, atau di 1.0.x.
 
+## Keputusan owner 27 November 2026 — Reminder H-4 dan H-12 jam Medhum
+
+| # | Keputusan | Item | Acuan |
+|---|---|---|---|
+| S-04 | **Reminder H-4 dan H-12 jam berjalan tanpa menu SOP.** Kabar di aplikasi dan pesan pribadi, untuk konten Medhum: H-4 ke PJ konten dan PIC desain (follow-up SOP 7.14), H-12 jam ke PIC desain (desain final SOP 7.19). Hanya Reminder, bukan penilaian pelanggaran | SOP-M7 (gelombang 2) | SOP Medhum 25/26 7.14, 7.19; PRD §17 |
+
+S-04 mengubah R-13 untuk kedua Reminder ini saja: R-13 tidak lagi mensyaratkan kebijakan SOP aktif untuk follow-up H-4. Menu Evaluasi SOP, temuan dan rekap SOP tetap tersembunyi sampai kebijakan aktif (R-13, S-01). Sejalan dengan K-17 ("follow-up H-4 digantikan Reminder Space"). Belum dibangun; dikerjakan di gelombang 2.
+
 ## Usulan, menunggu owner: jalur domain `space.himasif.id` (F1-21)
 
 Riset hanya-baca 26 Nov 2026 lewat API Cloudflare (token vault `cloudflare-tiyo`), dokumen resmi Cloudflare, dan `dig +tcp`. **Tidak ada yang diubah di Cloudflare, DNS, atau tunnel.**
