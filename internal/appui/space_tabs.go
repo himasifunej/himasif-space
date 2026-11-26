@@ -80,6 +80,9 @@ type spaceTabsUIState struct {
 	// (spaceTabScrollbar).
 	scroll     ui.ScrollState
 	scrolledAt time.Time
+	// compact: the tabs do not fit, so Atur tab shows its icon only and a
+	// chevron scrolls to the hidden tabs (QA rc.1 finding 7).
+	compact bool
 	// reviewFilter is the Tinjauan page's filter: a task match status.
 	reviewFilter string
 	// rejecting is the evidence whose "Tidak cocok" reason is being typed
@@ -331,7 +334,38 @@ func (a *App) spaceTabBar(c *ui.Context, sp *api.Space) {
 			})
 		})
 		a.spaceTabScrollbar(c, strip)
-		a.spaceTabMenu(c, sp, all, mobile)
+		st := &a.spaceTabs
+		if !mobile {
+			// Compact while the tabs overflow; back to the label only
+			// when they would fit beside it, so it does not flicker.
+			if sb := strip.Bounds(); sb.W > 0 {
+				content := sb.W + st.scroll.MaxX
+				slack := float32(0)
+				if st.compact {
+					slack = 90
+				}
+				if compact := content > sb.W-slack+0.5; compact != st.compact {
+					st.compact = compact
+					c.Invalidate()
+				}
+			}
+			if st.compact && st.scroll.MaxX > 0 {
+				end := st.scroll.X >= st.scroll.MaxX-1
+				label, icon := "Tab berikutnya", "right"
+				if end {
+					label, icon = "Tab sebelumnya", "left"
+				}
+				if spaceIconButton(c.Key("space-tab-more"), label, icon).Shrink(0).Clicked() {
+					if end {
+						st.scroll.X = 0
+					} else {
+						st.scroll.X = st.scroll.MaxX
+					}
+					st.scrolledAt = c.Now()
+				}
+			}
+		}
+		a.spaceTabMenu(c, sp, all, mobile || st.compact)
 	}).Clip()
 }
 

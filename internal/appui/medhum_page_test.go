@@ -32,14 +32,16 @@ func TestMedhumPageHasCanvasTabsAndStages(t *testing.T) {
 	if s, _ := h.app.medhumStageOf(review); s != medhumReview {
 		t.Fatalf("content with pending Drive evidence is in stage %d", s)
 	}
-	for _, size := range [][2]int{{1440, 900}, {390, 844}} {
+	// The phone is tall enough for the two-column counters and the
+	// Aturan jam form: the harness clicks without scrolling.
+	for _, size := range [][2]int{{1440, 900}, {390, 1100}} {
 		h.tt.SetSize(size[0], size[1])
 		h.app.medhum.tab = ""
 		h.tt.Frame()
 		for _, label := range []string{"Daftar konten", "Kalender posting", "Inbox broadcast · 1", "Sumber dan sinkron", "Aturan jam", "Konsep belum masuk", "Poster open recruitment", "Konten baru"} {
 			h.want(label)
 		}
-		// Phones scroll the sub-tabs sideways; open them directly there.
+		// On phones the sub-tabs wrap; open them directly there.
 		open := func(label, tab string) {
 			if size[0] < mobileMaxWidth {
 				h.app.medhum.tab = tab

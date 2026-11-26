@@ -11,6 +11,7 @@ Versi mengikuti aturan sebelum rilis publik:
 - **Medhum: pratinjau parser lengkap**: "Lihat hasil parser" kini menampilkan semua yang terbaca: tanggal posting, Deadline desain H-2, PJ beserta nama panggilan, warna, DADAKAN dan nomor baris.
 - **Medhum: tab Anggota**: tabel menyebut divisi yang ditampilkan, tombol Undang anggota, Role kustom dan Izin arsip memakai nama divisinya, dan orang lain di Medhum dari divisi lain tampil di bawah tabel, jadi jumlahnya sama dengan "N anggota" di header.
 - **Pengaturan**: grup Medhum bernama "Space Medhum (bersama)", bukan "Divisi Medhum"; di web, Tentang Space menulis "Aplikasi web" tanpa tombol Pembaruan aplikasi.
+- **Tampilan HP dan desktop**: di HP, + Pengingat Untukku turun ke baris baru, judul tugas di Untukku tidak lagi terpotong ("[D…"), kartu ringkasan Medhum jadi dua kolom dan sub-tab Medhum membungkus; di desktop, bila tab Space tidak muat, Atur tab menjadi ikon dan ada tombol ke tab berikutnya, dan placeholder Ctrl K dipersingkat jadi "Cari apa saja".
 - **Operasi (F1-22)**: runbook cutover instans stabil `space.himasif.id` di host `tiyoouw-studio` (rute tunnel 404 → port stabil, TLS dan custom hostname, health dan login, admin pertama dan organisasi, rollback) dan rencana memindahkan nomor bot WA ke instans stabil. Hanya dokumen.
 
 ## 1.0.0-rc.1 — 2026-11-26 · Rilis uji pertama menuju 1.0.0 (pre-release)

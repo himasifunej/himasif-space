@@ -100,7 +100,7 @@ func (a *App) header(c *ui.Context) {
 }
 
 // searchPlaceholder says what quick navigation finds.
-const searchPlaceholder = "Cari halaman, pengaturan, aksi, tugas"
+const searchPlaceholder = "Cari apa saja"
 
 func (a *App) headerSearch(c *ui.Context, width float32) {
 	t := c.Theme()

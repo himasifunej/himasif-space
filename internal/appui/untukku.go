@@ -496,14 +496,28 @@ func (a *App) untukRow(c *ui.Context, it untukItem, now time.Time, loc *time.Loc
 		when = "23.59"
 	}
 	icon := map[string]string{untukTask: "task", untukMeeting: "calendar", untukReminder: "bell"}[it.kind]
+	// On a phone the title gets the width: its note goes under it, the
+	// time column narrows and "Buka" (the row itself opens) is left out
+	// (QA rc.1 finding 6: titles were cut to "[D…").
+	phone := isMobile(c)
 	row := ui.ButtonBase(c.Key(it.kind+it.id.String())).Label(it.title).FillWidth().Row().Gap(10).AlignItems(ui.Center).Height(40).Padding(0, 8).Radius(8)
+	if phone {
+		row.Height(52).Gap(8)
+	}
 	if row.Hovered() {
 		row.Background(t.SurfaceHover)
 	}
 	row.FocusRing(row.FocusVisible()).Children(func() {
-		ui.Text(c, when).Font(FontMono).FontSize(12).TextColor(t.TextMuted).Width(76).Shrink(0).MaxLines(1)
+		w := ui.Text(c, when).Font(FontMono).FontSize(12).TextColor(t.TextMuted).Width(76).Shrink(0).MaxLines(1)
+		if phone {
+			w.Width(64).FontSize(11)
+		}
 		ui.Icon(c, spaceIcon(icon)).Size(15, 15).TextColor(t.TextMuted).Shrink(0)
-		ui.Row(c).Grow(1).MinWidth(0).Gap(8).AlignItems(ui.Center).Children(func() {
+		line := ui.Row(c).Grow(1).MinWidth(0).Gap(8).AlignItems(ui.Center)
+		if phone {
+			line = ui.Column(c).Grow(1).MinWidth(0).Gap(2)
+		}
+		line.Children(func() {
 			title := ui.Text(c, it.title).FontSize(13).MaxLines(1).MinWidth(0)
 			if it.done {
 				title.TextColor(faint(t)).Strikethrough()
@@ -515,6 +529,9 @@ func (a *App) untukRow(c *ui.Context, it untukItem, now time.Time, loc *time.Loc
 		})
 		if it.index >= 0 {
 			spaceTile(c, it.space, it.index)
+		}
+		if phone && it.action == "Buka" {
+			return
 		}
 		act := ui.ButtonBase(c.Key("act")).Label(it.action+" "+it.title).Width(80).Height(28).Padding(0, 10).Radius(7).Border(1, t.Border).Center().Shrink(0)
 		if act.Hovered() {
@@ -609,7 +626,12 @@ func (a *App) untukHead(c *ui.Context, all []untukItem, now time.Time, loc *time
 				}
 			})
 		})
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Shrink(0).Children(func() {
+		filters := ui.Row(c).Gap(8).AlignItems(ui.Center).Shrink(0)
+		if isMobile(c) {
+			// + Pengingat goes under the filter instead of past the edge.
+			filters.FillWidth().Wrap().Shrink(1).MinWidth(0)
+		}
+		filters.Children(func() {
 			counts := make([]int, 4)
 			for _, it := range all {
 				if it.done {
